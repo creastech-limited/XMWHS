@@ -20,6 +20,7 @@ import KidsDashboard from './pages/KidsDashboard';
 import KidsSettingsPage from './pages/KidsSettingsPage';
 import KidPayAgentPage from './pages/KidPayAgentPage';
 import KidPaymentHistoryPage from './pages/KidPaymentHistoryPage';
+import SchoolSignUpPage from './pages/SchoolSignupPage';
 
 
 
@@ -55,6 +56,7 @@ function App() {
          <Route path="/ksettings" element={<KidsSettingsPage />} />
         <Route path="/kidpayagent" element={<KidPayAgentPage />} />
         <Route path="/kidpaymenthistory" element={<KidPaymentHistoryPage />} />
+          <Route path='/schoolsignup' element={<SchoolSignUpPage />} />
 
 
 

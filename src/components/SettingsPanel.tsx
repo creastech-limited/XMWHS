@@ -136,7 +136,7 @@ const SettingsPanel = () => {
     }
     setIsLoading(true);
     try {
-      await axios.put(`${API_BASE_URL}/api/users/update-pin/${user?._id}`, { pin: pinData.pin }, {
+      await axios.post(`${API_BASE_URL}/api/pin/set`, { pin: pinData.pin }, {
         headers: { Authorization: `Bearer ${token}` }
       });
       alert('PIN updated successfully');
@@ -154,7 +154,7 @@ const SettingsPanel = () => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      await axios.put(`${API_BASE_URL}/api/users/update-notifications/${user?._id}`, notifications, {
+      await axios.post(`${API_BASE_URL}/api/users/update-notifications/${user?._id}`, notifications, {
         headers: { Authorization: `Bearer ${token}` }
       });
       alert('Notification preferences updated successfully');
