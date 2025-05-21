@@ -384,7 +384,7 @@ const TransactionHistoryPage: React.FC = () => {
                   <input
                     type="text"
                     placeholder="Search transactions..."
-                    className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full"
+                    className="text-gray-600 pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full"
                     value={searchTerm}
                     onChange={handleSearchChange}
                   />
@@ -392,7 +392,7 @@ const TransactionHistoryPage: React.FC = () => {
                 
                 <div className="flex gap-2">
                   <select
-                    className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="text-gray-500 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     value={filter}
                     onChange={(e) => handleFilterChange(e.target.value)}
                   >
@@ -511,7 +511,7 @@ const TransactionHistoryPage: React.FC = () => {
                   Next
                 </button>
                 <select
-                  className="border border-gray-300 rounded-md px-2 py-1 text-sm"
+                  className="text-gray-500 border border-gray-300 rounded-md px-2 py-1 text-sm"
                   value={rowsPerPage}
                   onChange={(e) => handleChangeRowsPerPage(e.target.value)}
                 >
