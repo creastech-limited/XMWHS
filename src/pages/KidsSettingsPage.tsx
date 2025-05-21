@@ -409,6 +409,8 @@ const KidsSettingsPage: React.FC = () => {
                       value={profile.name}
                       onChange={handleProfileChange('name')}
                       disabled={!editMode}
+                        placeholder="Enter your full name"
+                        title="Full Name"
                     />
                   </div>
                 </div>
@@ -425,6 +427,8 @@ const KidsSettingsPage: React.FC = () => {
                       value={profile.email}
                       onChange={handleProfileChange('email')}
                       disabled={!editMode}
+                      placeholder="Enter your email"
+                      title="Email"
                     />
                   </div>
                 </div>
@@ -441,6 +445,8 @@ const KidsSettingsPage: React.FC = () => {
                       value={profile.phone}
                       onChange={handleProfileChange('phone')}
                       disabled={!editMode}
+                      placeholder="Enter your phone number"
+                      title="Phone Number"
                     />
                   </div>
                 </div>
@@ -465,11 +471,14 @@ const KidsSettingsPage: React.FC = () => {
                       className={`block text-gray-700 mb-2 w-full pl-10 pr-10 py-2 rounded-lg border ${passwordErrors.currentPassword ? 'border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500' : 'border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'}`}
                       value={passwordData.currentPassword}
                       onChange={handlePasswordChange('currentPassword')}
+                      placeholder="Enter current password"
+                      title="Current Password"
                     />
                     <button
                       type="button"
                       className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-700"
                       onClick={togglePasswordVisibility('current')}
+                      title={showPassword.current ? "Hide password" : "Show password"}
                     >
                       <i className={`fas ${showPassword.current ? 'fa-eye-slash' : 'fa-eye'}`}></i>
                     </button>
@@ -490,11 +499,14 @@ const KidsSettingsPage: React.FC = () => {
                       className={`block text-gray-700 mb-2 w-full pl-10 pr-10 py-2 rounded-lg border ${passwordErrors.newPassword ? 'border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500' : 'border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'}`}
                       value={passwordData.newPassword}
                       onChange={handlePasswordChange('newPassword')}
+                      placeholder="Enter new password"
+                      title="New Password"
                     />
                     <button
                       type="button"
                       className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-700"
                       onClick={togglePasswordVisibility('new')}
+                      title={showPassword.new ? "Hide password" : "Show password"}
                     >
                       <i className={`fas ${showPassword.new ? 'fa-eye-slash' : 'fa-eye'}`}></i>
                     </button>
@@ -515,11 +527,14 @@ const KidsSettingsPage: React.FC = () => {
                       className={`block text-gray-700 mb-2 w-full pl-10 pr-10 py-2 rounded-lg border ${passwordErrors.confirmPassword ? 'border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500' : 'border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'}`}
                       value={passwordData.confirmPassword}
                       onChange={handlePasswordChange('confirmPassword')}
+                      placeholder="Confirm new password"
+                      title="Confirm new password"
                     />
                     <button
                       type="button"
                       className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-700"
                       onClick={togglePasswordVisibility('confirm')}
+                      title={showPassword.confirm ? "Hide password" : "Show password"}
                     >
                       <i className={`fas ${showPassword.confirm ?  'fa-eye-slash' : 'fa-eye'}`}></i>
                     </button>
@@ -580,6 +595,8 @@ const KidsSettingsPage: React.FC = () => {
                       className="sr-only peer"
                       checked={notifications.transactionNotifications}
                       onChange={handleNotificationChange('transactionNotifications')}
+                      title="Transaction Notifications"
+                      placeholder="Transaction Notifications"
                     />
                     <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                     <span className="ml-3 text-gray-700">Transaction Notifications</span>
@@ -594,6 +611,8 @@ const KidsSettingsPage: React.FC = () => {
                       className="sr-only peer"
                       checked={notifications.lowBalanceAlert}
                       onChange={handleNotificationChange('lowBalanceAlert')}
+                      title="Low Balance Alerts"
+                      placeholder="Low Balance Alerts"
                     />
                     <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                     <span className="ml-3 text-gray-700">Low Balance Alerts</span>
@@ -608,6 +627,8 @@ const KidsSettingsPage: React.FC = () => {
                       className="sr-only peer"
                       checked={notifications.monthlyReports}
                       onChange={handleNotificationChange('monthlyReports')}
+                      title="Monthly Reports"
+                      placeholder="Monthly Reports"
                     />
                     <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                     <span className="ml-3 text-gray-700">Monthly Reports</span>
@@ -627,7 +648,7 @@ const KidsSettingsPage: React.FC = () => {
         <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-50 px-4 py-2 rounded-lg shadow-lg max-w-md w-full ${snackbar.severity === 'success' ? 'bg-green-100 text-green-800' : snackbar.severity === 'error' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'}`}>
           <div className="flex justify-between items-center">
             <span>{snackbar.message}</span>
-            <button onClick={handleSnackbarClose} className="ml-4">
+            <button onClick={handleSnackbarClose} className="ml-4" title="Close notification">
               <i className="fas fa-times"></i>
             </button>
           </div>

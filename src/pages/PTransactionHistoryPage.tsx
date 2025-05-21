@@ -392,6 +392,7 @@ const TransactionHistoryPage: React.FC = () => {
                 
                 <div className="flex gap-2">
                   <select
+                    aria-label="Filter transactions"
                     className="text-gray-500 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     value={filter}
                     onChange={(e) => handleFilterChange(e.target.value)}
@@ -511,6 +512,7 @@ const TransactionHistoryPage: React.FC = () => {
                   Next
                 </button>
                 <select
+                  aria-label="Rows per page"
                   className="text-gray-500 border border-gray-300 rounded-md px-2 py-1 text-sm"
                   value={rowsPerPage}
                   onChange={(e) => handleChangeRowsPerPage(e.target.value)}
@@ -539,7 +541,7 @@ const TransactionHistoryPage: React.FC = () => {
         }`}>
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">{snackbar.message}</span>
-            <button onClick={handleSnackbarClose} className="ml-4">
+            <button onClick={handleSnackbarClose} className="ml-4" title="Close notification" aria-label="Close notification">
               <XCircle className="w-4 h-4" />
             </button>
           </div>

@@ -203,12 +203,15 @@ const SignUpPage: React.FC = () => {
               <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
                 <UserGroupIcon className="h-5 w-5" />
               </div>
+              <label htmlFor="role" className="sr-only">Role</label>
               <select
+                id="role"
                 name="role"
                 value={role}
                 onChange={handleRoleChange}
                 className="w-full px-4 py-3 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-200 appearance-none text-black bg-white"
                 required
+                aria-label="Role"
               >
                 <option value="school">School</option>
               </select>
@@ -225,12 +228,15 @@ const SignUpPage: React.FC = () => {
               <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
                 <AcademicCapIcon className="h-5 w-5" />
               </div>
+              <label htmlFor="schoolType" className="sr-only">School Type</label>
               <select
+                id="schoolType"
                 name="schoolType"
                 value={schoolType}
                 onChange={handleSchoolTypeChange}
                 className="w-full px-4 py-3 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-200 appearance-none text-black bg-white"
                 required
+                aria-label="School Type"
               >
                 <option value="primary">Primary</option>
                 <option value="secondary">Secondary</option>
