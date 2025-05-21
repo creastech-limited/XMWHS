@@ -195,8 +195,8 @@ const StudentPage: React.FC = () => {
           {/* Title & Add Button */}
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-2xl font-bold flex items-center gap-2">
-              <UserIcon className="h-6 w-6 text-blue-600" />
-             <span className="text-indigo-600">Student Management</span>
+              <UserIcon className="h-9 w-9 text-blue-900" />
+              <span className="text-indigo-900">Student Management</span>
             </h1>
             <button
               onClick={() =>
@@ -239,18 +239,22 @@ const StudentPage: React.FC = () => {
           <div className="bg-white rounded-lg shadow mb-6 p-6">
             <div className="flex items-center gap-2 mb-4">
               <MailIcon className="h-5 w-5 text-blue-600" />
-              <h2 className="text-lg font-medium">Student Registration Link</h2>
+              <h2 className="-font-semibold text-lg text-black">Student Registration Link</h2>
             </div>
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
                 <input
                   readOnly
                   value={registrationLink}
+                  placeholder="Registration link"
+                  title="Student registration link"
                   className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800 bg-gray-50"
                 />
                 <button
                   onClick={handleCopyLink}
                   className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-blue-600"
+                  title="Copy registration link"
+                  aria-label="Copy registration link"
                 >
                   <ClipboardCopyIcon className="h-5 w-5" />
                 </button>
@@ -277,7 +281,12 @@ const StudentPage: React.FC = () => {
                 </div>
               </div>
               <div>
+                <label htmlFor="statusFilter" className="sr-only">
+                  Filter by status
+                </label>
                 <select
+                  id="statusFilter"
+                  aria-label="Filter by status"
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800 font-medium"
@@ -289,7 +298,12 @@ const StudentPage: React.FC = () => {
                 </select>
               </div>
               <div>
+                <label htmlFor="gradeFilter" className="sr-only">
+                  Filter by grade
+                </label>
                 <select
+                  id="gradeFilter"
+                  aria-label="Filter by grade"
                   value={gradeFilter}
                   onChange={(e) => setGradeFilter(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800 font-medium"
@@ -363,6 +377,8 @@ const StudentPage: React.FC = () => {
                           <button
                             onClick={(e) => handleMenuOpen(e, student)}
                             className="text-gray-500 hover:text-blue-600"
+                            title="Open actions menu"
+                            aria-label="Open actions menu"
                           >
                             <FoldVerticalIcon className="h-5 w-5" />
                           </button>

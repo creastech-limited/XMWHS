@@ -180,7 +180,7 @@ const SettingsPanel = () => {
   return (
     <div className="min-h-screen bg-gray-100 py-12">
       <div className="max-w-4xl mx-auto px-6">
-        <h1 className="text-3xl font-bold text-gray-800 mb-8">Account Settings</h1>
+        <h1 className="text-3xl font-bold text-indigo-900 mb-8">Account Settings</h1>
         
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
           {/* Tab Navigation */}
@@ -221,6 +221,9 @@ const SettingsPanel = () => {
               accept="image/*"
               className="hidden"
               onChange={handleProfilePicChange}
+              aria-label="Upload profile picture"
+              title="Upload profile picture"
+              placeholder="Upload profile picture"
             />
           </label>
         </div>

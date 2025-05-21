@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import { 
   Store, 
   Search, 
@@ -260,7 +260,7 @@ export const StorePage: React.FC = () => {
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
             <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
               <Store className="h-7 w-7 text-indigo-600" />
-              <span className="text-indigo-600">Stores Management</span>
+              <span className="text-indigo-900">Stores Management</span>
             </h1>
             <button 
               onClick={() => {
@@ -356,11 +356,12 @@ export const StorePage: React.FC = () => {
                 />
               </div>
               <div className="flex flex-col sm:flex-row gap-4">
-                <select
+                 <select
+                  id="statusFilter"
+                  aria-label="Filter by status"
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm appearance-none bg-no-repeat bg-right-4 text-gray-800"
-                  style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E\")", paddingRight: "2.5rem", backgroundSize: "1rem" }}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800 font-medium"
                 >
                   <option value="all">All Status</option>
                   <option value="active">Active</option>
@@ -368,10 +369,11 @@ export const StorePage: React.FC = () => {
                   <option value="inactive">Inactive</option>
                 </select>
                 <select
+                  id="gradeFiltertype"
+                  aria-label="Filter by type"
                   value={typeFilter}
                   onChange={(e) => setTypeFilter(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm appearance-none bg-no-repeat bg-right-4 text-gray-800"
-                  style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E\")", paddingRight: "2.5rem", backgroundSize: "1rem" }}
+                 className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800 font-medium"
                 >
                   <option value="all">All Types</option>
                   {storeTypes.map(type => (
@@ -465,6 +467,7 @@ export const StorePage: React.FC = () => {
                               <button 
                                 onClick={() => toggleDropdown(store._id)}
                                 className="text-gray-400 hover:text-gray-500"
+                                title="More actions"
                               >
                                 <MoreVertical className="h-5 w-5" />
                               </button>
@@ -514,6 +517,7 @@ export const StorePage: React.FC = () => {
                           <button
                             onClick={() => setPage(p => Math.max(1, p - 1))}
                             disabled={page === 1}
+                            title="Previous page"
                             className={`relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:outline-offset-0 ${page === 1 ? 'opacity-50 cursor-not-allowed' : ''}`}
                           >
                             <ChevronLeft className="h-5 w-5" />
@@ -556,6 +560,7 @@ export const StorePage: React.FC = () => {
                           <button
                             onClick={() => setPage(p => Math.min(pageCount, p + 1))}
                             disabled={page === pageCount}
+                            title="Next page"
                             className={`relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:outline-offset-0 ${page === pageCount ? 'opacity-50 cursor-not-allowed' : ''}`}
                           >
                             <ChevronRight className="h-5 w-5" />

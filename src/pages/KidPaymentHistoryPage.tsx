@@ -180,7 +180,7 @@ const KidPaymentHistoryPage: React.FC = () => {
           <p className="text-gray-600 text-center mb-6">{error}</p>
           <div className="flex justify-center">
             <Link to="/login" className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
-              Return to Login
+              <span className='text-white'>Return to Login</span>
             </Link>
           </div>
         </div>

@@ -386,7 +386,10 @@ useEffect(() => {
                 <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100">
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="text-lg font-semibold text-gray-800">Student Distribution</h3>
-                    <select className="text-sm border border-gray-300 rounded p-1 bg-white">
+                    <select
+                      className="text-sm border border-gray-300 rounded p-1 bg-white text-gray-600"
+                      aria-label="Student distribution period"
+                    >
                       <option>This Year</option>
                       <option>Last Year</option>
                     </select>
@@ -427,7 +430,10 @@ useEffect(() => {
                 <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100">
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="text-lg font-semibold text-gray-800">Fee Collection Trend</h3>
-                    <select className="text-sm border border-gray-300 rounded p-1 bg-white">
+                    <select
+                      className="text-sm border border-gray-300 rounded p-1 bg-white text-gray-600"
+                      aria-label="Fee collection period"
+                    >
                       <option>Last 6 Months</option>
                       <option>This Year</option>
                     </select>
@@ -514,7 +520,10 @@ useEffect(() => {
                 <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100">
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="text-lg font-semibold text-gray-800">Student Registration Rate</h3>
-                    <select className="text-sm border border-gray-300 rounded p-1 bg-white">
+                    <select
+                      className="text-sm border border-gray-300 rounded p-1 bg-white"
+                      aria-label="Student registration rate period"
+                    >
                       <option>This Week</option>
                       <option>Last Week</option>
                     </select>

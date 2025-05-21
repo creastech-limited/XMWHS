@@ -87,14 +87,15 @@ export const Sidebar: React.FC = () => {
               
             return (
               <li key={item.name}>
-                <Link
-                  to={item.path}
-                  className={`flex items-center px-4 py-3 ${
-                    isActive 
-                      ? 'bg-blue-600 text-white' 
-                      : 'text-gray-300 hover:bg-gray-700'
-                  } ${collapsed ? 'justify-center' : 'space-x-3'}`}
-                >
+              <Link
+                to={item.path}
+                className={`flex items-center px-4 py-3 ${
+                isActive 
+                  ? 'bg-blue-600 text-white hover:text-white hover:bg-blue-700'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-700' 
+                  
+                } ${collapsed ? 'justify-center' : 'space-x-3'}`}
+              >
                   <div className={isActive ? 'text-white' : 'text-gray-400'}>{item.icon}</div>
                   
                   {!collapsed && (

@@ -145,7 +145,7 @@ const SchoolFeesModule: React.FC = () => {
       <div className="flex flex-grow">
         <Asidebar />
         <main className="flex-grow p-6">
-          <h1 className="text-3xl font-bold text-gray-800 mb-6">School Fees Module</h1>
+          <h1 className="text-3xl font-bold text-indigo-900 mb-6">School Fees Module</h1>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Fee Bill Form */}
@@ -160,8 +160,9 @@ const SchoolFeesModule: React.FC = () => {
                   <div className="grid grid-cols-2 gap-4">
                     {/* Class Selection */}
                     <div className="col-span-1">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
+                      <label htmlFor="class-select" className="block text-sm font-medium text-gray-700 mb-1">Class</label>
                       <select
+                        id="class-select"
                         className="w-full border border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
                         value={formData.class}
                         onChange={(e) => setFormData({ ...formData, class: e.target.value })}
@@ -216,6 +217,8 @@ const SchoolFeesModule: React.FC = () => {
                         className="w-full border border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
                         value={formData.category}
                         onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                        aria-label="Fee Category"
+                        title="Fee Category"
                       >
                         <option value="Tuition">Tuition</option>
                         <option value="Books">Books</option>
@@ -234,6 +237,8 @@ const SchoolFeesModule: React.FC = () => {
                         className="w-full border border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
                         value={formData.dueDate}
                         onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                        title="Due Date"
+                        placeholder="Select due date"
                       />
                     </div>
                     
@@ -290,6 +295,8 @@ const SchoolFeesModule: React.FC = () => {
                               <button 
                                 onClick={() => handleEdit(bill)}
                                 className="text-blue-600 hover:text-blue-800 p-1"
+                                title="Edit Fee Bill"
+                                aria-label="Edit Fee Bill"
                               >
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                   <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
@@ -298,6 +305,8 @@ const SchoolFeesModule: React.FC = () => {
                               <button 
                                 onClick={() => { setSelectedBill(bill); setDeleteDialogOpen(true); }}
                                 className="text-red-600 hover:text-red-800 p-1"
+                                title="Delete Fee Bill"
+                                aria-label="Delete Fee Bill"
                               >
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                   <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
@@ -369,6 +378,8 @@ const SchoolFeesModule: React.FC = () => {
                 <button 
                   onClick={() => setSnackbar({ ...snackbar, open: false })}
                   className="ml-auto text-gray-400 hover:text-gray-600"
+                  title="Close notification"
+                  aria-label="Close notification"
                 >
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

@@ -270,7 +270,7 @@ const WithdrawalPage: React.FC = () => {
         <main className="flex-grow p-6">
           <div className="flex items-center gap-2 mb-6">
             <Wallet className="text-blue-600" size={24} />
-            <h1 className="text-2xl font-bold text-gray-800">Withdrawal</h1>
+            <h1 className="text-2xl font-bold text-indigo-900">Withdrawal</h1>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
@@ -297,6 +297,7 @@ const WithdrawalPage: React.FC = () => {
                     <button 
                       onClick={handleOpenModal} 
                       className="text-blue-600 hover:text-blue-800"
+                      title="Edit withdrawal bank details"
                     >
                       <Edit size={18} />
                     </button>
@@ -448,6 +449,7 @@ const WithdrawalPage: React.FC = () => {
               <button 
                 onClick={handleCloseModal}
                 className="text-gray-500 hover:text-gray-700"
+                title="Close modal"
               >
                 <X size={20} />
               </button>
@@ -474,18 +476,19 @@ const WithdrawalPage: React.FC = () => {
             {/* Step 1: Select Bank */}
             {activeStep === 0 && (
               <div>
-                <label className="block text-gray-700 mb-2">
+                <label className="block text-gray-700 mb-2" htmlFor="withdrawal-bank-select">
                   Select Bank
                 </label>
                 <select
-                  className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  id="withdrawal-bank-select"
+                  className="block text-gray-700 mb-2 w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={selectedBank}
                   onChange={(e) => {
                     setSelectedBank(e.target.value);
                     setActiveStep(1);
                   }}
                 >
-                  <option value="">Select your bank</option>
+                  <option value="" className='block text-gray-700 mb-2'>Select your bank</option>
                   {banks.map((bank) => (
                     <option key={bank} value={bank}>
                       {bank}
@@ -503,7 +506,7 @@ const WithdrawalPage: React.FC = () => {
                 </label>
                 <input
                   type="text"
-                  className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+                  className="block text-gray-700 mb-2 w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
                   value={accountNumber}
                   onChange={(e) => setAccountNumber(e.target.value)}
                   placeholder="Enter 10-digit account number"
@@ -553,7 +556,7 @@ const WithdrawalPage: React.FC = () => {
                 </label>
                 <input
                   type="text"
-                  className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+                  className="block text-gray-700 mb-2 w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
                   value={otp}
                   onChange={(e) => setOtp(e.target.value)}
                   placeholder="Enter OTP sent to your email"
@@ -564,6 +567,7 @@ const WithdrawalPage: React.FC = () => {
                     onClick={handleSendOtp}
                     disabled={loading}
                     className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition disabled:bg-blue-400 mx-auto"
+                    title="Send OTP"
                   >
                     {loading ? (
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -613,6 +617,7 @@ const WithdrawalPage: React.FC = () => {
             <button 
               onClick={() => setSnackbar({ ...snackbar, open: false })}
               className="text-white hover:text-gray-200"
+              title="Close notification"
             >
               <X size={18} />
             </button>

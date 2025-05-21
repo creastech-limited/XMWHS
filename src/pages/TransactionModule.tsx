@@ -44,7 +44,7 @@ const TransactionModule: React.FC = () => {
       <div className="flex flex-grow">
         <Asidebar />
         <main className="flex-grow p-6">
-          <h1 className="text-3xl font-bold text-black mb-6">Transaction Module</h1>
+          <h1 className="text-3xl font-bold text-indigo-900 mb-6">Transaction Module</h1>
           
           <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
             <div className="p-6">
@@ -104,6 +104,8 @@ const TransactionModule: React.FC = () => {
               <button 
                 onClick={() => setSnackbar({ ...snackbar, open: false })}
                 className="ml-4 text-white focus:outline-none"
+                title="Close notification"
+                aria-label="Close notification"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
