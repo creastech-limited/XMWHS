@@ -521,7 +521,7 @@ useEffect(() => {
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="text-lg font-semibold text-gray-800">Student Registration Rate</h3>
                     <select
-                      className="text-sm border border-gray-300 rounded p-1 bg-white"
+                      className="text-gray-500 text-sm border border-gray-300 rounded p-1 bg-white"
                       aria-label="Student registration rate period"
                     >
                       <option>This Week</option>

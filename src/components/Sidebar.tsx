@@ -89,20 +89,20 @@ export const Sidebar: React.FC = () => {
               <li key={item.name}>
               <Link
                 to={item.path}
-                className={`flex items-center px-4 py-3 ${
+                className={`text-white flex items-center px-4 py-3 ${
                 isActive 
                   ? 'bg-blue-600 text-white hover:text-white hover:bg-blue-700'
-                  : 'text-gray-400 hover:text-white hover:bg-gray-700' 
+                  : 'text-gray-400 hover:text-white-700 hover:bg-gray-700' 
                   
                 } ${collapsed ? 'justify-center' : 'space-x-3'}`}
               >
                   <div className={isActive ? 'text-white' : 'text-gray-400'}>{item.icon}</div>
-                  
+
                   {!collapsed && (
                     <>
                       <span className="flex-1">{item.name}</span>
                       {item.badge && (
-                        <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-blue-500 text-xs font-medium">
+                        <span className="text-white inline-flex items-center justify-center h-5 w-5 rounded-full bg-blue-500 text-xs font-medium">
                           {item.badge}
                         </span>
                       )}
