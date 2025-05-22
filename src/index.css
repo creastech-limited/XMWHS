@@ -13,14 +13,22 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
-
+label a{
+  color: #403dff;
+}
+nav ul li a{
+  color: #ffffff;
+}
+nav ul li a:hover{
+  color: #b9baff;
+}
 a {
   font-weight: 500;
-  color: #ffffff;
+  color: #403dff;
   text-decoration: inherit;
 }
 a:hover { 
-  color: #ffffff;
+  color: #403dff;
 }
 
 body {

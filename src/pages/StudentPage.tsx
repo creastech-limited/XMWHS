@@ -738,6 +738,8 @@ const StudentPage: React.FC = () => {
             <button
               onClick={() => setSnackbar({ ...snackbar, open: false })}
               className="ml-4 text-white hover:text-gray-200 transition-colors"
+              title="Close notification"
+              aria-label="Close notification"
             >
               <XCircleIcon className="h-5 w-5" />
             </button>

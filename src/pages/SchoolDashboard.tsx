@@ -462,7 +462,12 @@ useEffect(() => {
                 <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100">
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="text-lg font-semibold text-gray-800">Recent Transactions</h3>
-                    <button className="text-indigo-600 text-sm font-medium">View All</button>
+                    <button
+                      onClick={() => window.location.href = '/transactions'}
+                      className="text-indigo-600 text-sm font-medium"
+                    >
+                      View All
+                    </button>
                   </div>
                   <div className="overflow-y-auto max-h-72">
                     {transactions.length > 0 ? (

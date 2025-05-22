@@ -422,7 +422,7 @@ const StudentRegistrationForm: React.FC = () => {
                     onChange={handleChange}
                     placeholder="Enter first name"
                     required
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    className="text-gray-600 w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                   />
                 </div>
               </div>
@@ -441,7 +441,7 @@ const StudentRegistrationForm: React.FC = () => {
                     onChange={handleChange}
                     placeholder="Enter last name"
                     required
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    className="text-gray-600 w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                   />
                 </div>
               </div>
@@ -462,7 +462,7 @@ const StudentRegistrationForm: React.FC = () => {
                   onChange={handleChange}
                   placeholder="Enter your school email"
                   required
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  className="text-gray-600 w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                 />
               </div>
             </div>
@@ -481,7 +481,7 @@ const StudentRegistrationForm: React.FC = () => {
                   onChange={handleChange}
                   required
                   disabled={classesLoading}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  className="text-gray-600 w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
                 >
                   <option value="">
                     {classesLoading ? "Loading classes..." : "Select your class"}
@@ -511,7 +511,7 @@ const StudentRegistrationForm: React.FC = () => {
                   name="school"
                   value={formData.school}
                   readOnly
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-600 cursor-not-allowed"
+                  className="text-gray-600 w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-600 cursor-not-allowed"
                 />
               </div>
               <p className="text-xs text-gray-500 mt-1">Automatically assigned based on your registration link</p>
@@ -532,7 +532,7 @@ const StudentRegistrationForm: React.FC = () => {
                   onChange={handleChange}
                   placeholder="Create a strong password"
                   required
-                  className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  className="text-gray-600 w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                 />
                 <button
                   type="button"
@@ -559,7 +559,7 @@ const StudentRegistrationForm: React.FC = () => {
                   onChange={handleChange}
                   placeholder="Confirm your password"
                   required
-                  className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  className="text-gray-600 w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                 />
                 <button
                   type="button"
