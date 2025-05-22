@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import KidsHeader from '../components/KidsHeader';
 import Footer from '../components/Footer';
+import { useAuth } from '../context/AuthContext';
 
 // Icons
 import { 
@@ -16,7 +18,25 @@ import {
   Settings
 } from 'lucide-react';
 
-// Type definitions
+// Type definitions to match KidsHeader expectations
+interface Profile {
+  _id: string;
+  name?: string;
+  fullName?: string;
+  firstName?: string;
+  lastName?: string;
+  email: string;
+  phoneNumber?: string;
+  profilePic?: string;
+  qrCodeId?: string;
+}
+
+interface Wallet {
+  id?: string;
+  balance: number;
+  currency?: string;
+}
+
 interface Transaction {
   id: string;
   type: 'deposit' | 'payment' | 'reward';
@@ -28,18 +48,21 @@ interface Transaction {
   status?: string;
 }
 
-
-
 const KidPaymentHistoryPage: React.FC = () => {
   const navigate = useNavigate();
+  const auth = useAuth();
+  const token = auth?.token;
+  
+  // State management
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [wallet, setWallet] = useState<Wallet | null>(null);
   const [activeTab, setActiveTab] = useState<number>(2); // History tab selected by default
   const [loading, setLoading] = useState<boolean>(true);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  // Removed unused userData state
   const [error, setError] = useState<string | null>(null);
   
-  // Define API base URL
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging.up.railway.app';
+  // API URL - matching the pattern from other components
+  const API_URL = process.env.REACT_APP_API_URL || 'https://nodes-staging.up.railway.app';
 
   // Navigation items
   const navItems = [
@@ -50,61 +73,123 @@ const KidPaymentHistoryPage: React.FC = () => {
     { label: "Settings", icon: <Settings className="w-5 h-5" />, route: "/ksettings" },
   ];
 
-  // Fetch user data and transactions
+  // Notification helper function
+  const showNotification = (message: string, type: 'success' | 'error') => {
+    console.log(`${type}: ${message}`);
+    // You can integrate with your notification system here
+  };
+
+  // Fetch user profile
+  const fetchUserProfile = async () => {
+    if (!token) {
+      setError("Authentication required");
+      setLoading(false);
+      navigate('/login');
+      return;
+    }
+
+    try {
+      const response = await axios.get(`${API_URL}/api/users/getuserone`, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      let userData: Profile;
+      if (response.data.user) {
+        userData = response.data.user.data || response.data.user;
+      } else {
+        userData = response.data.data || response.data;
+      }
+
+      // Ensure we have the proper name structure for KidsHeader
+      if (userData.firstName && userData.lastName && !userData.fullName) {
+        userData.fullName = `${userData.firstName} ${userData.lastName}`;
+      }
+      if (!userData.name && userData.fullName) {
+        userData.name = userData.fullName;
+      }
+
+      setProfile(userData);
+      return userData; // Return for chaining
+    } catch (err) {
+      console.error('Error fetching profile:', err);
+      setError("Failed to load profile data");
+      showNotification("Error fetching profile", "error");
+      throw err;
+    }
+  };
+
+  // Fetch user wallet
+  const fetchUserWallet = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/api/wallet/getuserwallet`, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const walletData = response.data.data || response.data;
+      setWallet(walletData);
+      return walletData; // Return for chaining
+    } catch (err) {
+      console.error('Error fetching wallet:', err);
+      setError("Failed to load wallet data");
+      showNotification("Error fetching wallet data", "error");
+      throw err;
+    }
+  };
+
+  // Fetch transactions
+  const fetchTransactions = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/api/transaction/getusertransaction`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      // Handle different response structures for transactions
+      let transactionList: Transaction[];
+      if (response.data.transactions) {
+        transactionList = response.data.transactions;
+      } else if (response.data.data) {
+        transactionList = response.data.data;
+      } else {
+        transactionList = response.data as Transaction[];
+      }
+      
+      setTransactions(transactionList);
+      return transactionList;
+    } catch (err) {
+      console.error('Error fetching transactions:', err);
+      showNotification("Error fetching transactions", "error");
+      // Don't throw here as transactions are not critical for header display
+      setTransactions([]);
+    }
+  };
+
+  // Fetch all data
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchAllData = async () => {
       try {
         setLoading(true);
+        setError(null);
         
-        // Get token from localStorage
-        const token = localStorage.getItem('token');
-        if (!token) {
-          throw new Error('Authentication token not found');
-        }
+        // Fetch profile first
+        await fetchUserProfile();
         
-        // Fetch user data
-        const userResponse = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
+        // Fetch wallet
+        await fetchUserWallet();
         
-        if (!userResponse.ok) {
-          throw new Error('Failed to fetch user data');
-        }
+        // Fetch transactions (non-blocking)
+        await fetchTransactions();
         
-        // User data is fetched but not used, so skip assigning to 'profile'
-        
-        // Fetch transactions
-        const transactionResponse = await fetch(`${API_BASE_URL}/api/transaction/getusertransaction`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (!transactionResponse.ok) {
-          throw new Error('Failed to fetch transactions');
-        }
-        
-        const transactionData = await transactionResponse.json();
-        
-        // Handle different response structures for transactions
-        let transactionList: Transaction[];
-        if (transactionData.transactions) {
-          transactionList = transactionData.transactions;
-        } else if (transactionData.data) {
-          transactionList = transactionData.data;
-        } else {
-          transactionList = transactionData as Transaction[];
-        }
-        
-        setTransactions(transactionList);
       } catch (err) {
         console.error('Error fetching data:', err);
-        setError(err instanceof Error ? err.message : 'An unknown error occurred');
-        // Redirect to login if authentication error
         if (err instanceof Error && err.message.includes('Authentication')) {
           navigate('/login');
         }
@@ -113,8 +198,8 @@ const KidPaymentHistoryPage: React.FC = () => {
       }
     };
     
-    fetchData();
-  }, [API_BASE_URL, navigate]);
+    fetchAllData();
+  }, [API_URL, token, navigate]);
 
   // Format date helper function
   const formatDate = (dateString: string): string => {
@@ -156,31 +241,42 @@ const KidPaymentHistoryPage: React.FC = () => {
     }
   };
 
+  // Loading state
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-indigo-800 font-semibold">Loading transactions...</p>
+          <p className="text-indigo-800 font-semibold">Loading your data...</p>
         </div>
       </div>
     );
   }
 
-  if (error) {
+  // Error state (for critical errors like profile/wallet fetch failures)
+  if (error && (!profile || !wallet)) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-        <div className="bg-white rounded-xl shadow-lg p-6 max-w-md w-full">
-          <div className="text-red-500 text-center mb-4">
+        <div className="bg-white rounded-xl shadow-lg p-6 max-w-md w-full text-center">
+          <div className="text-red-500 mb-4">
             <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <h2 className="text-xl font-bold text-center mb-2">Error Loading Data</h2>
-          <p className="text-gray-600 text-center mb-6">{error}</p>
-          <div className="flex justify-center">
-            <Link to="/login" className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
-              <span className='text-white'>Return to Login</span>
+          <h2 className="text-xl font-bold mb-2">Unable to Load Data</h2>
+          <p className="text-gray-600 mb-6">{error}</p>
+          <div className="flex justify-center gap-3">
+            <button 
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+            >
+              Try Again
+            </button>
+            <Link 
+              to="/login" 
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+            >
+              Return to Login
             </Link>
           </div>
         </div>
@@ -191,8 +287,11 @@ const KidPaymentHistoryPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-4 md:py-8">
       <div className="container mx-auto max-w-5xl px-4 flex flex-col min-h-screen">
-        {/* Header Component */}
-        <KidsHeader profile={null} wallet={{ balance: 0 }} />
+        {/* Header Component with real data */}
+        <KidsHeader 
+          profile={profile} 
+          wallet={wallet || { balance: 0 }} 
+        />
 
         {/* Navigation Tabs */}
         <div className="mb-6 bg-white rounded-xl overflow-hidden shadow-md">

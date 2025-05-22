@@ -3,7 +3,23 @@ import { useAuth } from "../context/AuthContext";
 import { Header } from "../components/Header";
 import { Sidebar } from "../components/Sidebar";
 import Footer from "../components/Footer";
-import { PlusIcon, SearchIcon, ClipboardCopyIcon, UserIcon, MailIcon, FoldVerticalIcon, DownloadIcon } from 'lucide-react';
+import { 
+  PlusIcon, 
+  SearchIcon, 
+  ClipboardCopyIcon, 
+  UserIcon, 
+  MailIcon, 
+  DownloadIcon,
+  MoreVerticalIcon,
+  SchoolIcon,
+  GraduationCapIcon,
+  UsersIcon,
+  BookOpenIcon,
+  CalendarIcon,
+  CheckCircleIcon,
+  ClockIcon,
+  XCircleIcon
+} from 'lucide-react';
 
 // Define TypeScript interfaces
 interface Student {
@@ -15,12 +31,29 @@ interface Student {
   createdAt: string;
 }
 
+interface Class {
+  _id: string;
+  className: string;
+  section: string;
+  schoolId: string;
+  students: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface SchoolProfile {
+  _id: string;
+  schoolName: string;
+  schoolType: string;
+  ownership: string;
+  Link: string;
+}
+
 interface SnackbarState {
   open: boolean;
   message: string;
   severity: "success" | "error" | "warning" | "info";
 }
-
 
 const StudentPage: React.FC = () => {
   const authContext = useAuth();
@@ -28,9 +61,12 @@ const StudentPage: React.FC = () => {
   const authToken = token || localStorage.getItem("token");
 
   const [schoolId, setSchoolId] = useState<string>("");
+  const [schoolProfile, setSchoolProfile] = useState<SchoolProfile | null>(null);
   const [registrationLink, setRegistrationLink] = useState<string>("");
   const [students, setStudents] = useState<Student[]>([]);
+  const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [classesLoading, setClassesLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [gradeFilter, setGradeFilter] = useState<string>("all");
@@ -63,8 +99,16 @@ const StudentPage: React.FC = () => {
       })
       .then((data) => {
         const profile = data.user;
-        const id = profile.data._id;
+        const userProfile = profile.data;
+        const id = userProfile._id;
         setSchoolId(id);
+        setSchoolProfile({
+          _id: id,
+          schoolName: userProfile.schoolName || "School",
+          schoolType: userProfile.schoolType || "secondary",
+          ownership: userProfile.ownership || "private",
+          Link: profile.Link || ""
+        });
 
         // Construct the full registration link
         const linkPath = profile.Link || "";
@@ -76,6 +120,43 @@ const StudentPage: React.FC = () => {
         setSnackbar({ open: true, message: err.message, severity: "error" });
       });
   }, [authToken, API_BASE_URL]);
+
+  // Fetch classes for this school
+  useEffect(() => {
+    if (!authToken || !schoolId) return;
+
+    setClassesLoading(true);
+    fetch(`${API_BASE_URL}/api/users/getclasse`, {
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+        "Content-Type": "application/json",
+      },
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to fetch classes");
+        return res.json();
+      })
+      .then((data) => {
+        if (data.status && Array.isArray(data.data)) {
+          // Filter classes that belong to this school
+          const schoolClasses = data.data.filter((cls: Class) => cls.schoolId === schoolId);
+          setClasses(schoolClasses);
+        } else {
+          console.error("Unexpected classes data format:", data);
+          setClasses([]);
+        }
+        setClassesLoading(false);
+      })
+      .catch((err) => {
+        console.error(err);
+        setSnackbar({
+          open: true,
+          message: "Failed to load classes: " + err.message,
+          severity: "error",
+        });
+        setClassesLoading(false);
+      });
+  }, [authToken, schoolId, API_BASE_URL]);
 
   // Fetch students for this schoolId
   useEffect(() => {
@@ -148,6 +229,32 @@ const StudentPage: React.FC = () => {
     }
   };
 
+  const getStatusIcon = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case "active":
+        return <CheckCircleIcon className="h-4 w-4" />;
+      case "pending":
+        return <ClockIcon className="h-4 w-4" />;
+      case "inactive":
+        return <XCircleIcon className="h-4 w-4" />;
+      default:
+        return <ClockIcon className="h-4 w-4" />;
+    }
+  };
+
+  const getSchoolTypeIcon = (schoolType: string) => {
+    switch (schoolType?.toLowerCase()) {
+      case "primary":
+        return <BookOpenIcon className="h-5 w-5 text-blue-600" />;
+      case "secondary":
+        return <GraduationCapIcon className="h-5 w-5 text-purple-600" />;
+      case "tertiary":
+        return <SchoolIcon className="h-5 w-5 text-green-600" />;
+      default:
+        return <SchoolIcon className="h-5 w-5 text-gray-600" />;
+    }
+  };
+
   const handleCopyLink = () => {
     if (!registrationLink) return;
     navigator.clipboard
@@ -155,12 +262,12 @@ const StudentPage: React.FC = () => {
       .then(() =>
         setSnackbar({
           open: true,
-          message: "Link copied!",
+          message: "Registration link copied to clipboard!",
           severity: "success",
         })
       )
       .catch(() =>
-        setSnackbar({ open: true, message: "Copy failed", severity: "error" })
+        setSnackbar({ open: true, message: "Failed to copy link", severity: "error" })
       );
   };
 
@@ -184,7 +291,10 @@ const StudentPage: React.FC = () => {
     });
   };
 
-  const uniqueGrades = [...new Set(students.map((s) => s.class))].filter(Boolean);
+  const availableClasses = classes.map(cls => cls.className);
+
+  // (Removed unused getClassStats function)
+
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
@@ -194,21 +304,33 @@ const StudentPage: React.FC = () => {
         <main className="flex-1 p-6">
           {/* Title & Add Button */}
           <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <UserIcon className="h-9 w-9 text-blue-900" />
-              <span className="text-indigo-900">Student Management</span>
-            </h1>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-lg">
+                <UsersIcon className="h-7 w-7 text-blue-700" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Student Management</h1>
+                {schoolProfile && (
+                  <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
+                    {getSchoolTypeIcon(schoolProfile.schoolType)}
+                    <span className="capitalize">{schoolProfile.schoolType} School</span>
+                    <span>•</span>
+                    <span className="capitalize">{schoolProfile.ownership}</span>
+                  </div>
+                )}
+              </div>
+            </div>
             <button
               onClick={() =>
                 registrationLink
                   ? (window.location.href = registrationLink)
                   : setSnackbar({
                       open: true,
-                      message: "Registration link missing",
+                      message: "Registration link not available",
                       severity: "error",
                     })
               }
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center gap-2 transition-colors"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-all duration-200 shadow-sm hover:shadow-md font-medium"
             >
               <PlusIcon className="h-5 w-5" />
               Add New Student
@@ -216,43 +338,100 @@ const StudentPage: React.FC = () => {
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-            <div className="bg-white rounded-lg shadow p-6 transition-all hover:shadow-md">
-              <p className="text-gray-500 font-medium mb-1">Total Students</p>
-              <p className="text-3xl font-bold text-gray-800">{students.length}</p>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-gray-600 font-medium mb-1">Total Students</p>
+                  <p className="text-3xl font-bold text-gray-900">{students.length}</p>
+                </div>
+                <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-lg">
+                  <UsersIcon className="h-6 w-6 text-blue-600" />
+                </div>
+              </div>
             </div>
-            <div className="bg-white rounded-lg shadow p-6 transition-all hover:shadow-md">
-              <p className="text-gray-500 font-medium mb-1">Active Students</p>
-              <p className="text-3xl font-bold text-green-600">
-                {students.filter((s) => s.status.toLowerCase() === "active").length}
-              </p>
+            
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-gray-600 font-medium mb-1">Active Students</p>
+                  <p className="text-3xl font-bold text-green-600">
+                    {students.filter((s) => s.status.toLowerCase() === "active").length}
+                  </p>
+                </div>
+                <div className="flex items-center justify-center w-12 h-12 bg-green-100 rounded-lg">
+                  <CheckCircleIcon className="h-6 w-6 text-green-600" />
+                </div>
+              </div>
             </div>
-            <div className="bg-white rounded-lg shadow p-6 transition-all hover:shadow-md">
-              <p className="text-gray-500 font-medium mb-1">Student Types</p>
-              <p className="text-3xl font-bold text-blue-600">
-                {uniqueGrades.length}
-              </p>
+
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-gray-600 font-medium mb-1">Total Classes</p>
+                  <p className="text-3xl font-bold text-purple-600">{classes.length}</p>
+                </div>
+                <div className="flex items-center justify-center w-12 h-12 bg-purple-100 rounded-lg">
+                  <BookOpenIcon className="h-6 w-6 text-purple-600" />
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-gray-600 font-medium mb-1">Pending Students</p>
+                  <p className="text-3xl font-bold text-yellow-600">
+                    {students.filter((s) => s.status.toLowerCase() === "pending").length}
+                  </p>
+                </div>
+                <div className="flex items-center justify-center w-12 h-12 bg-yellow-100 rounded-lg">
+                  <ClockIcon className="h-6 w-6 text-yellow-600" />
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Registration Link Card */}
-          <div className="bg-white rounded-lg shadow mb-6 p-6">
-            <div className="flex items-center gap-2 mb-4">
-              <MailIcon className="h-5 w-5 text-blue-600" />
-              <h2 className="-font-semibold text-lg text-black">Student Registration Link</h2>
+          {/* School Classes Overview */}
+          {!classesLoading && classes.length > 0 && (
+            <div className="bg-white rounded-xl shadow-sm mb-8 p-6 border border-gray-100">
+              <div className="flex items-center gap-2 mb-4">
+                {getSchoolTypeIcon(schoolProfile?.schoolType || "secondary")}
+                <h2 className="text-lg font-semibold text-gray-900">Classes Overview</h2>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                {classes.map((cls) => (
+                  <div key={cls._id} className="bg-gray-50 rounded-lg p-4 text-center hover:bg-gray-100 transition-colors">
+                    <div className="text-sm font-medium text-gray-900 mb-1">{cls.className}</div>
+                    <div className="text-xs text-gray-500 mb-2">Section {cls.section}</div>
+                    <div className="text-lg font-bold text-blue-600">{cls.students.length}</div>
+                    <div className="text-xs text-gray-500">students</div>
+                  </div>
+                ))}
+              </div>
             </div>
-            <div className="flex items-center gap-2">
+          )}
+
+          {/* Registration Link Card */}
+          <div className="bg-white rounded-xl shadow-sm mb-8 p-6 border border-gray-100">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-lg">
+                <MailIcon className="h-5 w-5 text-blue-600" />
+              </div>
+              <h2 className="text-lg font-semibold text-gray-900">Student Registration Link</h2>
+            </div>
+            <div className="flex items-center gap-3">
               <div className="relative flex-1">
                 <input
                   readOnly
                   value={registrationLink}
-                  placeholder="Registration link"
+                  placeholder="Generating registration link..."
                   title="Student registration link"
-                  className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800 bg-gray-50"
+                  className="w-full px-4 py-3 pr-12 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700 bg-gray-50"
                 />
                 <button
                   onClick={handleCopyLink}
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-blue-600"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-blue-600 transition-colors"
                   title="Copy registration link"
                   aria-label="Copy registration link"
                 >
@@ -263,7 +442,7 @@ const StudentPage: React.FC = () => {
           </div>
 
           {/* Filters */}
-          <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <div className="bg-white rounded-xl shadow-sm p-6 mb-8 border border-gray-100">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="col-span-1 md:col-span-2">
                 <div className="relative">
@@ -275,7 +454,7 @@ const StudentPage: React.FC = () => {
                       setSearchQuery(e.target.value);
                       setPage(1);
                     }}
-                    className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800 placeholder-gray-500"
+                    className="w-full px-4 py-3 pl-11 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700 placeholder-gray-500"
                   />
                   <SearchIcon className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
                 </div>
@@ -289,7 +468,7 @@ const StudentPage: React.FC = () => {
                   aria-label="Filter by status"
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800 font-medium"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700 font-medium bg-white"
                 >
                   <option value="all">All Status</option>
                   <option value="active">Active</option>
@@ -299,26 +478,26 @@ const StudentPage: React.FC = () => {
               </div>
               <div>
                 <label htmlFor="gradeFilter" className="sr-only">
-                  Filter by grade
+                  Filter by class
                 </label>
                 <select
                   id="gradeFilter"
-                  aria-label="Filter by grade"
+                  aria-label="Filter by class"
                   value={gradeFilter}
                   onChange={(e) => setGradeFilter(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800 font-medium"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700 font-medium bg-white"
                 >
-                  <option value="all">All Grades</option>
-                  {uniqueGrades.map((grade) => (
-                    <option key={grade} value={grade}>
-                      {grade}
+                  <option value="all">All Classes</option>
+                  {availableClasses.map((className) => (
+                    <option key={className} value={className}>
+                      {className}
                     </option>
                   ))}
                 </select>
               </div>
             </div>
             <div className="mt-4 flex justify-end">
-              <button className="bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium px-4 py-2 rounded flex items-center gap-2 transition-colors">
+              <button className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-6 py-3 rounded-lg flex items-center gap-2 transition-colors">
                 <DownloadIcon className="h-5 w-5" />
                 Export Data
               </button>
@@ -326,61 +505,82 @@ const StudentPage: React.FC = () => {
           </div>
 
           {/* Students Table */}
-          <div className="bg-white rounded-lg shadow overflow-hidden mb-6">
+          <div className="bg-white rounded-xl shadow-sm overflow-hidden mb-8 border border-gray-100">
             {loading ? (
               <div className="flex justify-center items-center h-64">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
               </div>
             ) : students.length === 0 ? (
               <div className="flex flex-col justify-center items-center h-64 text-gray-500">
-                <UserIcon className="h-12 w-12 mb-2" />
-                <p>No students found.</p>
+                <div className="flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
+                  <UserIcon className="h-8 w-8" />
+                </div>
+                <p className="text-lg font-medium mb-2">No students found</p>
+                <p className="text-sm">Start by adding your first student</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Grade</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Join Date</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Student ID</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Student Details</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Class</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Join Date</th>
+                      <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-white divide-y divide-gray-100">
                     {paginatedStudents.map((student) => (
-                      <tr key={student._id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {student._id.slice(0, 8)}...
+                      <tr key={student._id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-mono text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                            {student._id.slice(-8)}
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">{student.name}</div>
+                          <div className="flex items-center">
+                            <div className="flex-shrink-0 h-10 w-10">
+                              <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                                <UserIcon className="h-5 w-5 text-blue-600" />
+                              </div>
+                            </div>
+                            <div className="ml-4">
+                              <div className="text-sm font-medium text-gray-900">{student.name}</div>
+                              <div className="text-sm text-gray-500 flex items-center gap-1">
+                                <MailIcon className="h-3 w-3" />
+                                {student.email}
+                              </div>
+                            </div>
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500">{student.email}</div>
+                          <div className="flex items-center gap-2">
+                            <BookOpenIcon className="h-4 w-4 text-gray-400" />
+                            <span className="text-sm font-medium text-gray-900">{student.class || "Not Assigned"}</span>
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500">{student.class || "N/A"}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeColor(student.status)}`}>
-                            {student.status}
+                          <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${getStatusBadgeColor(student.status)}`}>
+                            {getStatusIcon(student.status)}
+                            <span className="capitalize">{student.status}</span>
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {formatDate(student.createdAt)}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-1 text-sm text-gray-500">
+                            <CalendarIcon className="h-4 w-4" />
+                            {formatDate(student.createdAt)}
+                          </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <td className="px-6 py-4 whitespace-nowrap text-center">
                           <button
                             onClick={(e) => handleMenuOpen(e, student)}
-                            className="text-gray-500 hover:text-blue-600"
+                            className="text-gray-400 hover:text-gray-600 p-2 rounded-lg hover:bg-gray-100 transition-colors"
                             title="Open actions menu"
                             aria-label="Open actions menu"
                           >
-                            <FoldVerticalIcon className="h-5 w-5" />
+                            <MoreVerticalIcon className="h-5 w-5" />
                           </button>
                         </td>
                       </tr>
@@ -393,25 +593,25 @@ const StudentPage: React.FC = () => {
 
           {/* Pagination */}
           {!loading && students.length > 0 && (
-            <div className="flex flex-col sm:flex-row justify-between items-center">
-              <div className="text-sm text-gray-700 mb-4 sm:mb-0">
-                Showing <span className="font-medium">{paginatedStudents.length}</span> of{" "}
-                <span className="font-medium">{filteredStudents.length}</span> results
+            <div className="flex flex-col sm:flex-row justify-between items-center bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+              <div className="text-sm text-gray-600 mb-4 sm:mb-0">
+                Showing <span className="font-semibold">{paginatedStudents.length}</span> of{" "}
+                <span className="font-semibold">{filteredStudents.length}</span> results
               </div>
               <div className="flex justify-center">
-                <nav className="inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                <nav className="inline-flex rounded-lg shadow-sm" aria-label="Pagination">
                   <button
                     onClick={() => setPage(Math.max(1, page - 1))}
                     disabled={page === 1}
-                    className={`relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium ${
-                      page === 1 ? "text-gray-300" : "text-gray-500 hover:bg-gray-50"
+                    className={`relative inline-flex items-center px-3 py-2 rounded-l-lg border text-sm font-medium ${
+                      page === 1 
+                        ? "text-gray-300 bg-gray-100 border-gray-200 cursor-not-allowed" 
+                        : "text-gray-500 bg-white border-gray-300 hover:bg-gray-50"
                     }`}
                   >
-                    <span className="sr-only">Previous</span>
-                    &laquo;
+                    Previous
                   </button>
                   {Array.from({ length: Math.min(5, pageCount) }, (_, i) => {
-                    // Logic to show pages around current page
                     let pageNum = i + 1;
                     if (pageCount > 5) {
                       if (page > 3) {
@@ -440,12 +640,13 @@ const StudentPage: React.FC = () => {
                   <button
                     onClick={() => setPage(Math.min(pageCount, page + 1))}
                     disabled={page === pageCount}
-                    className={`relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium ${
-                      page === pageCount ? "text-gray-300" : "text-gray-500 hover:bg-gray-50"
+                    className={`relative inline-flex items-center px-3 py-2 rounded-r-lg border text-sm font-medium ${
+                      page === pageCount 
+                        ? "text-gray-300 bg-gray-100 border-gray-200 cursor-not-allowed" 
+                        : "text-gray-500 bg-white border-gray-300 hover:bg-gray-50"
                     }`}
                   >
-                    <span className="sr-only">Next</span>
-                    &raquo;
+                    Next
                   </button>
                 </nav>
               </div>
@@ -463,41 +664,58 @@ const StudentPage: React.FC = () => {
             onClick={handleMenuClose}
           ></div>
           <div
-            className="absolute z-20 bg-white rounded-md shadow-lg py-1 w-48 border border-gray-200"
+            className="absolute z-20 bg-white rounded-lg shadow-lg py-2 w-56 border border-gray-200"
             style={{
               top: menuPosition.top,
               left: menuPosition.left,
             }}
           >
             <button
-              className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+              className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
               onClick={handleMenuClose}
             >
+              <UserIcon className="h-4 w-4" />
               View Details
             </button>
             <button
-              className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+              className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
               onClick={handleMenuClose}
             >
+              <BookOpenIcon className="h-4 w-4" />
               Modify Student
             </button>
             <button
-              className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+              className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
               onClick={handleMenuClose}
             >
+              <CalendarIcon className="h-4 w-4" />
               Transaction Info
             </button>
             <button
-              className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+              className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
               onClick={handleMenuClose}
             >
+              <MailIcon className="h-4 w-4" />
               Reset Password
             </button>
+            <div className="border-t border-gray-100 my-1"></div>
             <button
-              className="block px-4 py-2 text-sm text-red-600 hover:bg-gray-100 w-full text-left"
+              className={`flex items-center gap-3 px-4 py-2 text-sm hover:bg-gray-50 w-full text-left ${
+                menuStudent.status.toLowerCase() === "active" ? "text-red-600" : "text-green-600"
+              }`}
               onClick={handleMenuClose}
             >
-              {menuStudent.status.toLowerCase() === "active" ? "Deactivate" : "Activate"}
+              {menuStudent.status.toLowerCase() === "active" ? (
+                <>
+                  <XCircleIcon className="h-4 w-4" />
+                  Deactivate Student
+                </>
+              ) : (
+                <>
+                  <CheckCircleIcon className="h-4 w-4" />
+                  Activate Student
+                </>
+              )}
             </button>
           </div>
         </>
@@ -505,16 +723,23 @@ const StudentPage: React.FC = () => {
 
       {/* Snackbar */}
       {snackbar.open && (
-        <div className={`fixed bottom-4 right-4 z-50 py-2 px-4 rounded-md shadow-lg ${
-          snackbar.severity === "success" ? "bg-green-500" : "bg-red-500"
-        } text-white transition-all duration-300 ease-in-out`}>
-          <div className="flex items-center">
-            <span>{snackbar.message}</span>
+        <div className={`fixed bottom-4 right-4 z-50 py-3 px-6 rounded-lg shadow-lg ${
+          snackbar.severity === "success" ? "bg-green-500" : 
+          snackbar.severity === "error" ? "bg-red-500" :
+          snackbar.severity === "warning" ? "bg-yellow-500" : "bg-blue-500"
+        } text-white transition-all duration-300 ease-in-out max-w-md`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {snackbar.severity === "success" && <CheckCircleIcon className="h-5 w-5" />}
+              {snackbar.severity === "error" && <XCircleIcon className="h-5 w-5" />}
+              {snackbar.severity === "warning" && <ClockIcon className="h-5 w-5" />}
+              <span className="font-medium">{snackbar.message}</span>
+            </div>
             <button
               onClick={() => setSnackbar({ ...snackbar, open: false })}
-              className="ml-4 text-white hover:text-gray-100"
+              className="ml-4 text-white hover:text-gray-200 transition-colors"
             >
-              &times;
+              <XCircleIcon className="h-5 w-5" />
             </button>
           </div>
         </div>

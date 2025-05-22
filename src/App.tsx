@@ -21,6 +21,7 @@ import KidsSettingsPage from './pages/KidsSettingsPage';
 import KidPayAgentPage from './pages/KidPayAgentPage';
 import KidPaymentHistoryPage from './pages/KidPaymentHistoryPage';
 import SchoolSignUpPage from './pages/SchoolSignupPage';
+import StudentRegistrationForm from './pages/StudentRegistrationForm';
 
 
 
@@ -57,6 +58,7 @@ function App() {
         <Route path="/kidpayagent" element={<KidPayAgentPage />} />
         <Route path="/kidpaymenthistory" element={<KidPaymentHistoryPage />} />
           <Route path='/schoolsignup' element={<SchoolSignUpPage />} />
+            <Route path="/students/new" element={<StudentRegistrationForm />} />
 
 
 
