@@ -17,14 +17,10 @@ import {
 import bgImage from './bg.jpeg';
 
 // TypeScript interfaces
-interface Class {
-  _id: string;
+interface ClassInfo {
   className: string;
   section: string;
-  schoolId: string;
-  students: string[];
-  createdAt: string;
-  updatedAt: string;
+  studentCount: number;
 }
 
 interface SchoolInfo {
@@ -32,6 +28,9 @@ interface SchoolInfo {
   schoolName: string;
   schoolType: string;
   ownership: string;
+  schoolAddress: string;
+  classes: ClassInfo[];
+  schoolId?: string;
 }
 
 interface FormData {
@@ -70,16 +69,14 @@ const StudentRegistrationForm: React.FC = () => {
     grade: "",
     password: "",
     confirmPassword: "",
-    phone: "+234", // Default Nigerian country code
+    phone: "+234", 
     school: schoolId,
     schoolName: schoolName,
     schoolAddress: schoolAddress,
     agreeToTerms: false
   });
 
-  const [classes, setClasses] = useState<Class[]>([]);
   const [schoolInfo, setSchoolInfo] = useState<SchoolInfo | null>(null);
-  const [classesLoading, setClassesLoading] = useState<boolean>(true);
   const [schoolLoading, setSchoolLoading] = useState<boolean>(true);
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
@@ -92,7 +89,7 @@ const StudentRegistrationForm: React.FC = () => {
 
   const API_BASE_URL = import.meta.env.VITE_API_URL || "https://nodes-staging.up.railway.app";
 
-  // Fetch school information
+  // Fetch school information including classes
   useEffect(() => {
     if (!schoolId) {
       setSnackbar({
@@ -106,7 +103,7 @@ const StudentRegistrationForm: React.FC = () => {
     const fetchSchoolInfo = async () => {
       try {
         setSchoolLoading(true);
-        const response = await fetch(`${API_BASE_URL}/api/users/getschoolbyid?id=${schoolId}`, {
+        const response = await fetch(`${API_BASE_URL}/api/users/getschoolbyid/${schoolId}`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -114,39 +111,48 @@ const StudentRegistrationForm: React.FC = () => {
         });
 
         if (response.ok) {
-          const data = await response.json();
-          if (data && data.data) {
+          const result = await response.json();
+          if (result.success && result.data) {
+            const data = result.data;
+            
             setSchoolInfo({
-              _id: data.data._id,
-              schoolName: data.data.schoolName || "Unknown School",
-              schoolType: data.data.schoolType || "secondary",
-              ownership: data.data.ownership || "private"
+              _id: data._id,
+              schoolName: data.schoolName || "Unknown School",
+              schoolType: data.schoolType || "secondary",
+              ownership: data.ownership || "private",
+              schoolAddress: data.schoolAddress || schoolAddress,
+              classes: data.classes || []
             });
 
             setFormData(prev => ({
               ...prev,
-              schoolName: data.data.schoolName || schoolName,
-              schoolAddress: data.data.schoolAddress || schoolAddress,
-              school: data.data._id // Ensure we use the correct school ID
+              schoolName: data.schoolName || schoolName,
+              schoolAddress: data.schoolAddress || schoolAddress,
+              school: data._id || schoolId
             }));
+          } else {
+            throw new Error('Invalid response format');
           }
         } else {
-          // If API fails, use URL params
-          setSchoolInfo({
-            _id: schoolId,
-            schoolName: schoolName || "Unknown School",
-            schoolType: "secondary",
-            ownership: "private"
-          });
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
       } catch (error) {
         console.error("Error fetching school info:", error);
+        
         // Fallback to URL params if API fails
         setSchoolInfo({
           _id: schoolId,
           schoolName: schoolName || "Unknown School",
           schoolType: "secondary",
-          ownership: "private"
+          ownership: "private",
+          schoolAddress: schoolAddress || "",
+          classes: []
+        });
+
+        setSnackbar({
+          open: true,
+          message: "Could not load school information completely. Some features may be limited.",
+          severity: "warning"
         });
       } finally {
         setSchoolLoading(false);
@@ -155,58 +161,6 @@ const StudentRegistrationForm: React.FC = () => {
 
     fetchSchoolInfo();
   }, [schoolId, schoolName, schoolAddress, API_BASE_URL]);
-
-  // Fetch classes for the school
-  useEffect(() => {
-    if (!schoolId) return;
-
-    const fetchClasses = async () => {
-      try {
-        setClassesLoading(true);
-        const response = await fetch(`${API_BASE_URL}/api/users/getclasse?schoolId=${schoolId}`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch classes');
-        }
-
-        const data = await response.json();
-        
-        if (data.status && Array.isArray(data.data)) {
-          // Filter classes by schoolId (should already be filtered by the API)
-          const schoolClasses = data.data.filter((cls: Class) => cls.schoolId === schoolId);
-          setClasses(schoolClasses);
-
-          // Infer school type if not available
-          if (schoolClasses.length > 0 && schoolInfo) {
-            const classNames: string[] = schoolClasses.map((cls: Class) => cls.className.toLowerCase());
-            let inferredType = "secondary";
-            
-            if (classNames.some(name => name.includes("year") || name.includes("primary") || name.includes("nursery"))) {
-              inferredType = "primary";
-            }
-
-            setSchoolInfo(prev => prev ? { ...prev, schoolType: inferredType } : null);
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching classes:", error);
-        setSnackbar({
-          open: true,
-          message: "Failed to load available classes",
-          severity: "error"
-        });
-      } finally {
-        setClassesLoading(false);
-      }
-    };
-
-    fetchClasses();
-  }, [schoolId, schoolInfo, API_BASE_URL]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -271,7 +225,7 @@ const StudentRegistrationForm: React.FC = () => {
       academicDetails: {
         classAdmittedTo: formData.grade
       },
-      schoolId: formData.school // Make sure this matches the API expectation
+      schoolId: formData.school
     };
 
     try {
@@ -350,7 +304,6 @@ const StudentRegistrationForm: React.FC = () => {
     }
   };
 
-  // Returns a Tailwind text color class based on school type
   const getSchoolTypeColor = (schoolType: string) => {
     switch (schoolType?.toLowerCase()) {
       case "primary":
@@ -422,7 +375,7 @@ const StudentRegistrationForm: React.FC = () => {
                     onChange={handleChange}
                     placeholder="Enter first name"
                     required
-                    className="text-gray-600 w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                   />
                 </div>
               </div>
@@ -441,7 +394,7 @@ const StudentRegistrationForm: React.FC = () => {
                     onChange={handleChange}
                     placeholder="Enter last name"
                     required
-                    className="text-gray-600 w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                   />
                 </div>
               </div>
@@ -462,7 +415,7 @@ const StudentRegistrationForm: React.FC = () => {
                   onChange={handleChange}
                   placeholder="Enter your school email"
                   required
-                  className="text-gray-600 w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                 />
               </div>
             </div>
@@ -481,24 +434,44 @@ const StudentRegistrationForm: React.FC = () => {
                   onChange={handleChange}
                   required
                   disabled={classesLoading}
-                  className="text-gray-600 w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
                 >
                   <option value="">
-                    {classesLoading ? "Loading classes..." : "Select your class"}
+                    {schoolLoading ? "Loading classes..." : "Select your class"}
                   </option>
-                  {classes.map((cls) => (
-                    <option key={cls._id} value={cls.className}>
-                      {cls.className} - Section {cls.section}
+                  {schoolInfo?.classes.map((cls, index) => (
+                    <option key={`${cls.className}-${cls.section}-${index}`} value={cls.className}>
+                      {cls.className} - Section {cls.section} ({cls.studentCount} students)
                     </option>
                   ))}
                 </select>
               </div>
-              {classes.length === 0 && !classesLoading && (
-                <p className="text-sm text-red-500 mt-1">No classes available for this school</p>
+              {schoolInfo && schoolInfo.classes.length === 0 && !schoolLoading && (
+                <p className="text-sm text-red-500 mt-1 text-black">No classes available for this school</p>
               )}
             </div>
 
-            {/* School ID (Read-only) */}
+            {/* Phone Number */}
+            <div>
+              <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">
+                Phone Number
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <input
+                  type="tel"
+                  id="phone"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  placeholder="Enter your phone number"
+                  required
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-black"
+                />
+              </div>
+            </div>
+
+        {/* School ID (Read-only) */}
             <div>
               <label htmlFor="school" className="block text-sm font-medium text-gray-700 mb-2">
                 School ID
@@ -515,7 +488,7 @@ const StudentRegistrationForm: React.FC = () => {
                 />
               </div>
               <p className="text-xs text-gray-500 mt-1">Automatically assigned based on your registration link</p>
-            </div>
+            </div> 
 
             {/* Password */}
             <div>
@@ -532,7 +505,7 @@ const StudentRegistrationForm: React.FC = () => {
                   onChange={handleChange}
                   placeholder="Create a strong password"
                   required
-                  className="text-gray-600 w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                 />
                 <button
                   type="button"
@@ -559,7 +532,7 @@ const StudentRegistrationForm: React.FC = () => {
                   onChange={handleChange}
                   placeholder="Confirm your password"
                   required
-                  className="text-gray-600 w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                 />
                 <button
                   type="button"
@@ -593,7 +566,7 @@ const StudentRegistrationForm: React.FC = () => {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={isSubmitting || classesLoading}
+              disabled={isSubmitting || schoolLoading || (!!schoolInfo && schoolInfo.classes.length === 0)}
               className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2"
             >
               {isSubmitting ? (
