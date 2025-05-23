@@ -37,7 +37,7 @@ interface FormData {
   firstName: string;
   lastName: string;
   email: string;
-  grade: string;
+ classAdmittedTo: string;
   password: string;
   confirmPassword: string;
   school: string;
@@ -66,7 +66,7 @@ const StudentRegistrationForm: React.FC = () => {
     firstName: '',
     lastName: '',
     email: '',
-    grade: '',
+    classAdmittedTo: '',
     password: '',
     confirmPassword: '',
     phone: '+234',
@@ -186,7 +186,7 @@ const StudentRegistrationForm: React.FC = () => {
       firstName,
       lastName,
       email,
-      grade,
+      classAdmittedTo,
       password,
       confirmPassword,
       phone,
@@ -197,7 +197,7 @@ const StudentRegistrationForm: React.FC = () => {
       !firstName ||
       !lastName ||
       !email ||
-      !grade ||
+      !classAdmittedTo ||
       !password ||
       !confirmPassword ||
       !phone
@@ -272,7 +272,7 @@ const StudentRegistrationForm: React.FC = () => {
       role: 'student',
       password: formData.password,
       academicDetails: {
-        classAdmittedTo: formData.grade,
+        classAdmittedTo: formData.classAdmittedTo,
       },
       schoolId: formData.school,
     };
@@ -524,7 +524,7 @@ const StudentRegistrationForm: React.FC = () => {
                 <select
                   id="grade"
                   name="grade"
-                  value={formData.grade}
+                  value={formData.classAdmittedTo}
                   onChange={handleChange}
                   required
                   disabled={schoolLoading}
@@ -538,8 +538,7 @@ const StudentRegistrationForm: React.FC = () => {
                       key={`${cls.className}-${cls.section}-${index}`}
                       value={cls.className}
                     >
-                      {cls.className} - Section {cls.section} (
-                      {cls.studentCount} students)
+                      {cls.className} 
                     </option>
                   ))}
                 </select>
