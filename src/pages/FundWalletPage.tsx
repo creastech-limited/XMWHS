@@ -523,7 +523,7 @@ const FundWalletPage: React.FC = () => {
       ) : (
         <button
           disabled
-          className="px-8 py-3 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed"
+          className="px-8 py-3 bg-blue-700 text-white rounded-lg cursor-not-allowed"
         >
           Enter Amount to Continue
         </button>
