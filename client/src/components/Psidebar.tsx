@@ -133,11 +133,11 @@ const Psidebar: React.FC = () => {
             {/* Logo/Title */}
            <div className="p-4 border-b border-gray-700 flex items-center justify-between">
         {!collapsed && (
-          <div className="font-bold text-xl tracking-tight">Admin Panel</div>
+          <div className="mt-10 font-bold text-xl tracking-tight">Admin Panel</div>
         )}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className={`text-gray-400 hover:text-white focus:outline-none ${collapsed ? 'mx-auto' : ''}`}
+          className={`mt-10 text-gray-400 hover:text-white focus:outline-none ${collapsed ? 'mx-auto' : ''}`}
         >
           {collapsed ? (
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

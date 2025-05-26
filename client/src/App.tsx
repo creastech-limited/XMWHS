@@ -20,8 +20,11 @@ import KidsDashboard from './pages/KidsDashboard';
 import KidsSettingsPage from './pages/KidsSettingsPage';
 import KidPayAgentPage from './pages/KidPayAgentPage';
 import KidPaymentHistoryPage from './pages/KidPaymentHistoryPage';
-
-
+import SchoolSignUpPage from './pages/SchoolSignupPage';
+import StudentRegistrationForm from './pages/StudentRegistrationForm';
+import SchoolBillsPage from './pages/SchoolBillsPage';
+import StoreRegistrationForm from './pages/StoreRegistrationForm';
+import StoreDashboard from './pages/StoreDashboard';
 
 
 function App() {
@@ -55,7 +58,11 @@ function App() {
          <Route path="/ksettings" element={<KidsSettingsPage />} />
         <Route path="/kidpayagent" element={<KidPayAgentPage />} />
         <Route path="/kidpaymenthistory" element={<KidPaymentHistoryPage />} />
-
+          <Route path='/schoolsignup' element={<SchoolSignUpPage />} />
+            <Route path="/students/new" element={<StudentRegistrationForm />} />
+         <Route path="/schoolbills" element={<SchoolBillsPage />} />
+         <Route path="/stores/new" element={<StoreRegistrationForm />} />
+         <Route path="/store" element={<StoreDashboard />} />
 
 
 

@@ -13,14 +13,22 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
-
+label a{
+  color: #403dff;
+}
+nav ul li a{
+  color: #ffffff;
+}
+nav ul li a:hover{
+  color: #b9baff;
+}
 a {
   font-weight: 500;
-  color: #646cff;
+  color: #403dff;
   text-decoration: inherit;
 }
-a:hover {
-  color: #535bf2;
+a:hover { 
+  color: #403dff;
 }
 
 body {
@@ -44,6 +52,7 @@ button {
   font-family: inherit;
   cursor: pointer;
   transition: border-color 0.25s;
+  
 }
 button:hover {
   border-color: #646cff;

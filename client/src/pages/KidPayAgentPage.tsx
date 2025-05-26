@@ -1,8 +1,10 @@
-import React, { useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useRef, useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { QRCodeCanvas } from 'qrcode.react';
+import axios from 'axios';
 import KidsHeader from '../components/KidsHeader';
 import Footer from '../components/Footer';
+import { useAuth } from '../context/AuthContext';
 
 // Icons
 import { 
@@ -16,30 +18,46 @@ import {
   Settings
 } from 'lucide-react';
 
-// Define type for kid data
-interface KidData {
-  kidName: string;
+// Define types to match KidsHeader expectations
+interface Profile {
+  _id: string;
+  name?: string;
+  fullName?: string;
+  firstName?: string;
+  lastName?: string;
+  email: string;
+  phoneNumber?: string;
+  profilePic?: string;
+  qrCodeId?: string;
+  // Add other profile fields as needed
+}
+
+interface Wallet {
+  id?: string;
   balance: number;
-  qrCodeId: string;
-  hasNotifications: boolean;
-  avatar: string | null;
+  currency?: string;
+  // Add other wallet fields as needed
 }
 
 const KidPayAgentPage: React.FC = () => {
-  // Dummy kid data - replace with real API data in production
-  const kidData: KidData = {
-    kidName: "Kid John Doe",
-    balance: 15000,
-    qrCodeId: "kid-john-doe-unique-id-67890",
-    hasNotifications: true,
-    avatar: null
-  };
-
-  // Ref for the QR code element
-  const qrRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+  const auth = useAuth();
+  const token = auth?.token;
+  
+  // State management
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [wallet, setWallet] = useState<Wallet | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
   const [snackbarOpen, setSnackbarOpen] = useState<boolean>(false);
   const [qrAnimating, setQrAnimating] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<number>(1); // Pay Agent tab active by default
+  
+  // Ref for the QR code element
+  const qrRef = useRef<HTMLDivElement>(null);
+  
+  // API URL - adjust this to match your environment
+  const API_URL = process.env.REACT_APP_API_URL || 'https://nodes-staging.up.railway.app';
 
   // Define navigation items
   const navItems = [
@@ -50,14 +68,100 @@ const KidPayAgentPage: React.FC = () => {
     { label: "Settings", icon: <Settings className="w-5 h-5" />, route: "/ksettings" },
   ];
 
+  // Notification helper function
+  const showNotification = (message: string, type: 'success' | 'error') => {
+    console.log(`${type}: ${message}`);
+    // You can integrate with your notification system here
+  };
+
+  // Fetch user profile
+  const fetchUserProfile = async () => {
+    if (!token) {
+      setError("Authentication required");
+      setIsLoading(false);
+      navigate('/login');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const response = await axios.get(`${API_URL}/api/users/getuserone`, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      let userData: Profile;
+      if (response.data.user) {
+        userData = response.data.user.data || response.data.user;
+      } else {
+        userData = response.data.data || response.data;
+      }
+
+      // Ensure we have the proper name structure for KidsHeader
+      if (userData.firstName && userData.lastName && !userData.fullName) {
+        userData.fullName = `${userData.firstName} ${userData.lastName}`;
+      }
+      if (!userData.name && userData.fullName) {
+        userData.name = userData.fullName;
+      }
+
+      setProfile(userData);
+      fetchUserWallet();
+    } catch (err) {
+      console.error('Error fetching profile:', err);
+      setError("Failed to load profile data");
+      setIsLoading(false);
+      showNotification("Error fetching profile", "error");
+    }
+  };
+
+  // Fetch user wallet
+  const fetchUserWallet = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/api/wallet/getuserwallet`, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const walletData = response.data.data || response.data;
+      setWallet(walletData);
+      setIsLoading(false);
+    } catch (err) {
+      console.error('Error fetching wallet:', err);
+      setError("Failed to load wallet data");
+      setIsLoading(false);
+      showNotification("Error fetching wallet data", "error");
+    }
+  };
+
+  // Initial data fetch
+  useEffect(() => {
+    fetchUserProfile();
+  }, [API_URL, token, navigate]);
+
+  // Generate unique QR code ID based on user data
+  const generateQRCodeId = (): string => {
+    if (!profile || !wallet) return '';
+    
+    const timestamp = Date.now();
+    const userId = profile._id || profile.qrCodeId || 'unknown';
+    const userName = profile.name || profile.fullName || 'user';
+    return `kid-${userId}-${userName.replace(/\s+/g, '-').toLowerCase()}-${timestamp}`;
+  };
+
   const handleDownloadQRCode = () => {
-    if (qrRef.current) {
+    if (qrRef.current && profile) {
       const canvas = qrRef.current.querySelector('canvas');
       if (canvas) {
         const pngUrl = canvas.toDataURL("image/png");
         const downloadLink = document.createElement("a");
         downloadLink.href = pngUrl;
-        downloadLink.download = `${kidData.kidName.replace(/\s+/g, '-').toLowerCase()}-qr-code.png`;
+        const fileName = profile.name || profile.fullName || 'user';
+        downloadLink.download = `${fileName}-qr-code.png`.toLowerCase().replace(/\s+/g, '-');
         document.body.appendChild(downloadLink);
         downloadLink.click();
         document.body.removeChild(downloadLink);
@@ -71,21 +175,54 @@ const KidPayAgentPage: React.FC = () => {
 
   const refreshQRCode = () => {
     setQrAnimating(true);
-    // Simulate refreshing the QR code (in production, regenerate the QR code)
+    // Simulate refreshing the QR code (in production, you might want to regenerate the timestamp)
     setTimeout(() => setQrAnimating(false), 1000);
   };
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-indigo-600 font-medium">Loading your profile...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error || !profile || !wallet) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center bg-white p-8 rounded-xl shadow-lg">
+          <div className="text-red-500 mb-4">
+            <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">Unable to Load Data</h2>
+          <p className="text-gray-600 mb-4">{error || "Failed to load profile or wallet information"}</p>
+          <button 
+            onClick={fetchUserProfile}
+            className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const qrCodeId = generateQRCodeId();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-4 md:py-8">
       <div className="container mx-auto max-w-5xl px-4 flex flex-col min-h-screen">
-        {/* Using imported KidsHeader component */}
+        {/* Using imported KidsHeader component with real data */}
         <KidsHeader 
-          profile={{
-            name: kidData.kidName
-          }}
-          wallet={{
-            balance: kidData.balance
-          }}
+          profile={profile}
+          wallet={wallet}
         />
 
         {/* Navigation Tabs */}
@@ -130,7 +267,7 @@ const KidPayAgentPage: React.FC = () => {
           >
             <div className="p-4 bg-white rounded-lg shadow-sm mb-4">
               <QRCodeCanvas 
-                value={kidData.qrCodeId} 
+                value={qrCodeId} 
                 size={240} 
                 level="H" 
                 includeMargin={true}
@@ -139,8 +276,8 @@ const KidPayAgentPage: React.FC = () => {
               />
             </div>
             
-            <p className="text-sm text-gray-500 mt-2">
-              Unique ID: <span className="font-bold text-indigo-700">{kidData.qrCodeId}</span>
+            <p className="text-sm text-gray-500 mt-2 break-all">
+              Unique ID: <span className="font-bold text-indigo-700">{qrCodeId}</span>
             </p>
             
             <button 
@@ -176,7 +313,7 @@ const KidPayAgentPage: React.FC = () => {
 
         {/* Toast notification for download success */}
         {snackbarOpen && (
-          <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 px-4 py-3 rounded-lg bg-green-600 text-white shadow-lg flex items-center gap-2 animate-fade-in-up">
+          <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 px-4 py-3 rounded-lg bg-green-600 text-white shadow-lg flex items-center gap-2 animate-fade-in-up z-50">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
