@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Landmark, 
-  Edit, 
-  Wallet, 
-  Lock, 
-  CheckCircle, 
-  X, 
-  AlertCircle, 
-  Info
+import {
+  Landmark,
+  Edit,
+  Wallet,
+  Lock,
+  CheckCircle,
+  X,
+  AlertCircle,
+  Info,
 } from 'lucide-react';
 import { Header } from '../components/Header';
 import { Sidebar as Asidebar } from '../components/Sidebar';
@@ -29,15 +29,15 @@ interface SnackbarState {
 }
 
 const banks = [
-  "Access Bank",
-  "GTBank",
-  "First Bank",
-  "Zenith Bank",
-  "UBA",
-  "Fidelity Bank",
-  "Union Bank",
-  "Sterling Bank",
-  "Ecobank"
+  'Access Bank',
+  'GTBank',
+  'First Bank',
+  'Zenith Bank',
+  'UBA',
+  'Fidelity Bank',
+  'Union Bank',
+  'Sterling Bank',
+  'Ecobank',
 ];
 
 const steps = ['Select Bank', 'Account Details', 'Verify OTP'];
@@ -45,27 +45,33 @@ const steps = ['Select Bank', 'Account Details', 'Verify OTP'];
 const WithdrawalPage: React.FC = () => {
   // States for bank setup modal
   const [openModal, setOpenModal] = useState<boolean>(false);
-  const [selectedBank, setSelectedBank] = useState<string>("");
-  const [accountNumber, setAccountNumber] = useState<string>("");
-  const [accountName, setAccountName] = useState<string>("");
-  const [otp, setOtp] = useState<string>("");
+  const [selectedBank, setSelectedBank] = useState<string>('');
+  const [accountNumber, setAccountNumber] = useState<string>('');
+  const [accountName, setAccountName] = useState<string>('');
+  const [otp, setOtp] = useState<string>('');
   const [otpSent, setOtpSent] = useState<boolean>(false);
   const [isBankSet, setIsBankSet] = useState<boolean>(false);
   const [activeStep, setActiveStep] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(false);
-  const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
+  const [verificationStatus, setVerificationStatus] = useState<string | null>(
+    null
+  );
 
   // State for withdrawal form
-  const [withdrawalAmount, setWithdrawalAmount] = useState<string>("");
-  const [withdrawalNote, setWithdrawalNote] = useState<string>("");
-  const [withdrawalError, setWithdrawalError] = useState<string>("");
+  const [withdrawalAmount, setWithdrawalAmount] = useState<string>('');
+  const [withdrawalNote, setWithdrawalNote] = useState<string>('');
+  const [withdrawalError, setWithdrawalError] = useState<string>('');
   const [withdrawalSuccess, setWithdrawalSuccess] = useState<boolean>(false);
 
   // State for user profile (fetched from backend)
   const [user, setUser] = useState<User | null>(null);
 
   // Snackbar for notifications
-  const [snackbar, setSnackbar] = useState<SnackbarState>({ open: false, message: '', severity: 'success' });
+  const [snackbar, setSnackbar] = useState<SnackbarState>({
+    open: false,
+    message: '',
+    severity: 'success',
+  });
 
   // API Base URL from environment variables
   const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
@@ -81,27 +87,32 @@ const WithdrawalPage: React.FC = () => {
         });
         if (response.ok) {
           const data = await response.json();
-          console.log("Fetched user profile:", data);
+          console.log('Fetched user profile:', data);
           setUser(data);
           // Pre-populate bank details if they exist
-          if (data.withdrawalBank && data.withdrawalAccountNumber && data.withdrawalAccountName) {
+          if (
+            data.withdrawalBank &&
+            data.withdrawalAccountNumber &&
+            data.withdrawalAccountName
+          ) {
             setSelectedBank(data.withdrawalBank);
             setAccountNumber(data.withdrawalAccountNumber);
             setAccountName(data.withdrawalAccountName);
             setIsBankSet(true);
           }
         } else {
-          console.error("Failed to fetch user profile");
+          console.error('Failed to fetch user profile');
         }
       } catch (error) {
-        console.error("Error fetching user profile:", error);
+        console.error('Error fetching user profile:', error);
       }
     };
     fetchUserProfile();
   }, [API_BASE_URL]);
 
   // Derive available balance from the user profile, defaulting to 0 if not available
-  const availableBalance = user && typeof user.walletBalance === "number" ? user.walletBalance : 0;
+  const availableBalance =
+    user && typeof user.walletBalance === 'number' ? user.walletBalance : 0;
 
   const handleOpenModal = () => {
     setOpenModal(true);
@@ -116,10 +127,10 @@ const WithdrawalPage: React.FC = () => {
   };
 
   const resetModalForm = () => {
-    setSelectedBank("");
-    setAccountNumber("");
-    setAccountName("");
-    setOtp("");
+    setSelectedBank('');
+    setAccountNumber('');
+    setAccountName('');
+    setOtp('');
     setOtpSent(false);
     setActiveStep(0);
     setVerificationStatus(null);
@@ -128,19 +139,19 @@ const WithdrawalPage: React.FC = () => {
   // Verify account number by setting the accountName as the logged-in user's name.
   const handleVerifyAccount = () => {
     if (accountNumber.length !== 10) {
-      setVerificationStatus("error");
-      setAccountName("");
+      setVerificationStatus('error');
+      setAccountName('');
       return;
     }
     if (!user || !user.name) {
-      alert("User profile not loaded. Please try again.");
+      alert('User profile not loaded. Please try again.');
       return;
     }
     setLoading(true);
-    
+
     setTimeout(() => {
       setAccountName(user.name); // Use logged-in user's name as account name
-      setVerificationStatus("success");
+      setVerificationStatus('success');
       setLoading(false);
     }, 1500);
   };
@@ -154,19 +165,19 @@ const WithdrawalPage: React.FC = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        }
+          Authorization: `Bearer ${token}`,
+        },
       });
       if (response.ok) {
         setOtpSent(true);
-        alert("OTP sent to your registered email address.");
+        alert('OTP sent to your registered email address.');
       } else {
         const errorData = await response.json();
-        alert(errorData.message || "Failed to send OTP.");
+        alert(errorData.message || 'Failed to send OTP.');
       }
     } catch (error) {
-      console.error("Error sending OTP:", error);
-      alert("An error occurred while sending OTP.");
+      console.error('Error sending OTP:', error);
+      alert('An error occurred while sending OTP.');
     } finally {
       setLoading(false);
     }
@@ -175,38 +186,45 @@ const WithdrawalPage: React.FC = () => {
   // Update bank details with OTP verification by calling the backend API
   const handleSetBank = async () => {
     if (!selectedBank || !accountNumber || !otp) {
-      alert("Please fill in all fields and enter the OTP.");
+      alert('Please fill in all fields and enter the OTP.');
       return;
     }
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/api/withdrawals/update-bank`, {
-        method: 'POST', 
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          withdrawalBank: selectedBank,
-          withdrawalAccountNumber: accountNumber,
-          withdrawalAccountName: accountName,
-          otp // Send the OTP for verification
-        })
-      });
+      const response = await fetch(
+        `${API_BASE_URL}/api/withdrawals/update-bank`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            withdrawalBank: selectedBank,
+            withdrawalAccountNumber: accountNumber,
+            withdrawalAccountName: accountName,
+            otp, // Send the OTP for verification
+          }),
+        }
+      );
       if (response.ok) {
         await response.json();
         setIsBankSet(true);
         setOpenModal(false);
         resetModalForm();
-        setSnackbar({ open: true, message: "Withdrawal bank details updated successfully!", severity: "success" });
+        setSnackbar({
+          open: true,
+          message: 'Withdrawal bank details updated successfully!',
+          severity: 'success',
+        });
       } else {
         const errorData = await response.json();
-        alert(errorData.message || "Failed to set bank details.");
+        alert(errorData.message || 'Failed to set bank details.');
       }
     } catch (error) {
-      console.error("Error setting bank details:", error);
-      alert("An error occurred while setting bank details.");
+      console.error('Error setting bank details:', error);
+      alert('An error occurred while setting bank details.');
     } finally {
       setLoading(false);
     }
@@ -214,49 +232,57 @@ const WithdrawalPage: React.FC = () => {
 
   // Submit a withdrawal request via backend API (integrated with Paystack)
   const handleWithdrawalSubmit = async () => {
-    setWithdrawalError("");
+    setWithdrawalError('');
     setWithdrawalSuccess(false);
     if (!withdrawalAmount) {
-      setWithdrawalError("Please enter an amount to withdraw.");
+      setWithdrawalError('Please enter an amount to withdraw.');
       return;
     }
     const amount = parseFloat(withdrawalAmount);
     if (isNaN(amount) || amount <= 0) {
-      setWithdrawalError("Please enter a valid amount.");
+      setWithdrawalError('Please enter a valid amount.');
       return;
     }
     if (amount > availableBalance) {
-      setWithdrawalError("Insufficient balance.");
+      setWithdrawalError('Insufficient balance.');
       return;
     }
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      
+
       const response = await fetch(`${API_BASE_URL}/api/withdrawals/withdraw`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           amount,
-          note: withdrawalNote
-        })
+          note: withdrawalNote,
+        }),
       });
       if (response.ok) {
         await response.json();
         setWithdrawalSuccess(true);
-        setWithdrawalAmount("");
-        setWithdrawalNote("");
-        setSnackbar({ open: true, message: "Withdrawal request submitted successfully", severity: "success" });
+        setWithdrawalAmount('');
+        setWithdrawalNote('');
+        setSnackbar({
+          open: true,
+          message: 'Withdrawal request submitted successfully',
+          severity: 'success',
+        });
       } else {
         const errorData = await response.json();
-        setWithdrawalError(errorData.message || "Failed to submit withdrawal request.");
+        setWithdrawalError(
+          errorData.message || 'Failed to submit withdrawal request.'
+        );
       }
     } catch (error) {
-      console.error("Withdrawal Error:", error);
-      setWithdrawalError("An error occurred while submitting withdrawal request.");
+      console.error('Withdrawal Error:', error);
+      setWithdrawalError(
+        'An error occurred while submitting withdrawal request.'
+      );
     } finally {
       setLoading(false);
     }
@@ -266,36 +292,44 @@ const WithdrawalPage: React.FC = () => {
     <div className="flex flex-col min-h-screen bg-white">
       <Header />
       <div className="flex flex-grow">
-        <Asidebar/>
-        <main className="flex-grow p-6">
+        <aside className="hidden md:block fixed top-16 h-[calc(100vh-4rem)] w-64 bg-white shadow z-10">
+          <Asidebar />
+        </aside>
+        <main className="flex-grow p-4 md:p-8 md:ml-64">
           <div className="flex items-center gap-2 mb-6">
             <Wallet className="text-blue-600" size={24} />
             <h1 className="text-2xl font-bold text-indigo-900">Withdrawal</h1>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
             {/* Balance Card */}
             <div className="md:col-span-4">
               <div className="bg-white rounded-lg shadow p-6">
-                <h2 className="text-gray-600 text-md font-medium mb-2">Available Balance</h2>
-                <p className="text-3xl font-bold text-gray-800 mb-4">₦{availableBalance.toLocaleString()}</p>
+                <h2 className="text-gray-600 text-md font-medium mb-2">
+                  Available Balance
+                </h2>
+                <p className="text-3xl font-bold text-gray-800 mb-4">
+                  ₦{availableBalance.toLocaleString()}
+                </p>
                 <p className="text-sm text-gray-500">
                   Last updated: {new Date().toLocaleDateString()}
                 </p>
               </div>
             </div>
-            
+
             {/* Bank Details Card */}
             <div className="md:col-span-8">
               <div className="bg-white rounded-lg shadow p-6">
                 <div className="flex justify-between items-center mb-4">
                   <div className="flex items-center gap-2">
                     <Landmark className="text-blue-600" size={20} />
-                    <h2 className="text-lg font-medium text-gray-800">Withdrawal Bank Details</h2>
+                    <h2 className="text-lg font-medium text-gray-800">
+                      Withdrawal Bank Details
+                    </h2>
                   </div>
                   {isBankSet && (
-                    <button 
-                      onClick={handleOpenModal} 
+                    <button
+                      onClick={handleOpenModal}
                       className="text-blue-600 hover:text-blue-800"
                       title="Edit withdrawal bank details"
                     >
@@ -303,7 +337,7 @@ const WithdrawalPage: React.FC = () => {
                     </button>
                   )}
                 </div>
-                
+
                 {!isBankSet ? (
                   <div className="text-center py-6">
                     <p className="text-gray-600 mb-4">
@@ -322,52 +356,57 @@ const WithdrawalPage: React.FC = () => {
                     <div>
                       <p className="text-sm text-gray-500">Bank Name</p>
                       <p className="text-gray-800 font-medium">
-                        {selectedBank ? selectedBank : "Not set"}
+                        {selectedBank ? selectedBank : 'Not set'}
                       </p>
                     </div>
                     <div>
                       <p className="text-sm text-gray-500">Account Number</p>
                       <p className="text-gray-800 font-medium">
-                        {accountNumber ? accountNumber : "Not set"}
+                        {accountNumber ? accountNumber : 'Not set'}
                       </p>
                     </div>
                     <div className="md:col-span-2">
                       <p className="text-sm text-gray-500">Account Name</p>
                       <p className="text-gray-800 font-medium">
-                        {accountName ? accountName : "Not set"}
+                        {accountName ? accountName : 'Not set'}
                       </p>
                     </div>
                   </div>
                 )}
               </div>
             </div>
-            
+
             {/* Withdrawal Form */}
             {isBankSet && (
               <div className="md:col-span-12">
                 <div className="bg-white rounded-lg shadow p-6">
                   <div className="flex items-center gap-2 mb-6">
                     <Wallet className="text-blue-600" size={20} />
-                    <h2 className="text-lg font-medium text-gray-800">Make a Withdrawal</h2>
+                    <h2 className="text-lg font-medium text-gray-800">
+                      Make a Withdrawal
+                    </h2>
                   </div>
-                  
+
                   {withdrawalSuccess && (
                     <div className="flex items-center gap-2 bg-green-100 text-green-800 p-4 rounded-md mb-4">
                       <CheckCircle size={18} />
                       <p>Withdrawal request submitted successfully!</p>
                     </div>
                   )}
-                  
+
                   {withdrawalError && (
                     <div className="flex items-center gap-2 bg-red-100 text-red-800 p-4 rounded-md mb-4">
                       <AlertCircle size={18} />
                       <p>{withdrawalError}</p>
                     </div>
                   )}
-                  
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                     <div>
-                      <label className="block text-gray-700 mb-2" htmlFor="withdrawalAmount">
+                      <label
+                        className="block text-gray-700 mb-2"
+                        htmlFor="withdrawalAmount"
+                      >
                         Withdrawal Amount (₦)
                       </label>
                       <input
@@ -382,7 +421,10 @@ const WithdrawalPage: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-gray-700 mb-2" htmlFor="withdrawalNote">
+                      <label
+                        className="block text-gray-700 mb-2"
+                        htmlFor="withdrawalNote"
+                      >
                         Note (Optional)
                       </label>
                       <input
@@ -395,7 +437,7 @@ const WithdrawalPage: React.FC = () => {
                       />
                     </div>
                   </div>
-                  
+
                   <button
                     onClick={handleWithdrawalSubmit}
                     disabled={loading}
@@ -411,26 +453,43 @@ const WithdrawalPage: React.FC = () => {
                 </div>
               </div>
             )}
-            
+
             {/* Withdrawal Tips Section */}
             <div className="md:col-span-12">
               <div className="bg-blue-50 border-l-4 border-blue-500 rounded-lg p-6">
                 <div className="flex items-center gap-2 mb-4">
                   <Info className="text-blue-600" size={20} />
-                  <h2 className="text-lg font-medium text-gray-800">Withdrawal Tips</h2>
+                  <h2 className="text-lg font-medium text-gray-800">
+                    Withdrawal Tips
+                  </h2>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="bg-white p-4 rounded-md shadow-sm">
-                    <h3 className="font-medium text-gray-800 mb-2">Processing Times</h3>
-                    <p className="text-gray-600">Withdrawals are typically processed within 24 hours during business days. Weekend requests may take longer.</p>
+                    <h3 className="font-medium text-gray-800 mb-2">
+                      Processing Times
+                    </h3>
+                    <p className="text-gray-600">
+                      Withdrawals are typically processed within 24 hours during
+                      business days. Weekend requests may take longer.
+                    </p>
                   </div>
                   <div className="bg-white p-4 rounded-md shadow-sm">
-                    <h3 className="font-medium text-gray-800 mb-2">Minimum Withdrawal</h3>
-                    <p className="text-gray-600">The minimum withdrawal amount is ₦1,000. Ensure your request meets this threshold to avoid rejections.</p>
+                    <h3 className="font-medium text-gray-800 mb-2">
+                      Minimum Withdrawal
+                    </h3>
+                    <p className="text-gray-600">
+                      The minimum withdrawal amount is ₦1,000. Ensure your
+                      request meets this threshold to avoid rejections.
+                    </p>
                   </div>
                   <div className="bg-white p-4 rounded-md shadow-sm">
-                    <h3 className="font-medium text-gray-800 mb-2">Verification</h3>
-                    <p className="text-gray-600">Always ensure your bank details are correct. Withdrawals to incorrectly specified accounts cannot be reversed.</p>
+                    <h3 className="font-medium text-gray-800 mb-2">
+                      Verification
+                    </h3>
+                    <p className="text-gray-600">
+                      Always ensure your bank details are correct. Withdrawals
+                      to incorrectly specified accounts cannot be reversed.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -439,14 +498,16 @@ const WithdrawalPage: React.FC = () => {
         </main>
       </div>
       <Footer />
-      
+
       {/* Bank Setup Modal */}
       {openModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg w-full max-w-md p-6">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-800">Set Withdrawal Bank Details</h2>
-              <button 
+              <h2 className="text-xl font-bold text-gray-800">
+                Set Withdrawal Bank Details
+              </h2>
+              <button
                 onClick={handleCloseModal}
                 className="text-gray-500 hover:text-gray-700"
                 title="Close modal"
@@ -454,15 +515,15 @@ const WithdrawalPage: React.FC = () => {
                 <X size={20} />
               </button>
             </div>
-            
+
             {/* Stepper */}
             <div className="flex justify-between items-center mb-8">
               {steps.map((step, index) => (
                 <div key={step} className="flex flex-col items-center">
-                  <div 
+                  <div
                     className={`w-8 h-8 rounded-full flex items-center justify-center mb-2 ${
-                      activeStep >= index 
-                        ? 'bg-blue-600 text-white' 
+                      activeStep >= index
+                        ? 'bg-blue-600 text-white'
                         : 'bg-gray-200 text-gray-600'
                     }`}
                   >
@@ -472,11 +533,14 @@ const WithdrawalPage: React.FC = () => {
                 </div>
               ))}
             </div>
-            
+
             {/* Step 1: Select Bank */}
             {activeStep === 0 && (
               <div>
-                <label className="block text-gray-700 mb-2" htmlFor="withdrawal-bank-select">
+                <label
+                  className="block text-gray-700 mb-2"
+                  htmlFor="withdrawal-bank-select"
+                >
                   Select Bank
                 </label>
                 <select
@@ -488,7 +552,9 @@ const WithdrawalPage: React.FC = () => {
                     setActiveStep(1);
                   }}
                 >
-                  <option value="" className='block text-gray-700 mb-2'>Select your bank</option>
+                  <option value="" className="block text-gray-700 mb-2">
+                    Select your bank
+                  </option>
                   {banks.map((bank) => (
                     <option key={bank} value={bank}>
                       {bank}
@@ -497,7 +563,7 @@ const WithdrawalPage: React.FC = () => {
                 </select>
               </div>
             )}
-            
+
             {/* Step 2: Account Details */}
             {activeStep === 1 && (
               <div>
@@ -523,8 +589,8 @@ const WithdrawalPage: React.FC = () => {
                   )}
                   Verify Account
                 </button>
-                
-                {verificationStatus === "success" && (
+
+                {verificationStatus === 'success' && (
                   <div className="flex items-center gap-2 bg-green-100 text-green-800 p-4 rounded-md mt-4">
                     <CheckCircle size={18} />
                     <div className="flex-1">
@@ -538,8 +604,8 @@ const WithdrawalPage: React.FC = () => {
                     </button>
                   </div>
                 )}
-                
-                {verificationStatus === "error" && (
+
+                {verificationStatus === 'error' && (
                   <div className="flex items-center gap-2 bg-red-100 text-red-800 p-4 rounded-md mt-4">
                     <AlertCircle size={18} />
                     <p>Invalid account number. Please check and try again.</p>
@@ -547,13 +613,11 @@ const WithdrawalPage: React.FC = () => {
                 )}
               </div>
             )}
-            
+
             {/* Step 3: Verify OTP */}
             {activeStep === 2 && (
               <div className="text-center">
-                <label className="block text-gray-700 mb-2">
-                  Enter OTP
-                </label>
+                <label className="block text-gray-700 mb-2">Enter OTP</label>
                 <input
                   type="text"
                   className="block text-gray-700 mb-2 w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
@@ -561,7 +625,7 @@ const WithdrawalPage: React.FC = () => {
                   onChange={(e) => setOtp(e.target.value)}
                   placeholder="Enter OTP sent to your email"
                 />
-                
+
                 {!otpSent ? (
                   <button
                     onClick={handleSendOtp}
@@ -595,17 +659,19 @@ const WithdrawalPage: React.FC = () => {
           </div>
         </div>
       )}
-      
+
       {/* Snackbar Notification */}
       {snackbar.open && (
         <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 bg-white shadow-lg rounded-lg overflow-hidden">
-          <div className={`px-4 py-3 flex items-center gap-2 ${
-            snackbar.severity === 'success' 
-              ? 'bg-green-600 text-white' 
-              : snackbar.severity === 'error'
-                ? 'bg-red-600 text-white'
-                : 'bg-blue-600 text-white'
-          }`}>
+          <div
+            className={`px-4 py-3 flex items-center gap-2 ${
+              snackbar.severity === 'success'
+                ? 'bg-green-600 text-white'
+                : snackbar.severity === 'error'
+                  ? 'bg-red-600 text-white'
+                  : 'bg-blue-600 text-white'
+            }`}
+          >
             {snackbar.severity === 'success' ? (
               <CheckCircle size={18} />
             ) : snackbar.severity === 'error' ? (
@@ -614,7 +680,7 @@ const WithdrawalPage: React.FC = () => {
               <Info size={18} />
             )}
             <p className="flex-1">{snackbar.message}</p>
-            <button 
+            <button
               onClick={() => setSnackbar({ ...snackbar, open: false })}
               className="text-white hover:text-gray-200"
               title="Close notification"

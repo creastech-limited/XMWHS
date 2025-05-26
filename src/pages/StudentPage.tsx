@@ -299,9 +299,11 @@ const StudentPage: React.FC = () => {
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
       <Header />
-      <div className="flex flex-1">
-        <Sidebar />
-        <main className="flex-1 p-6">
+      <div className="flex flex-grow">
+        <aside className="hidden md:block fixed top-16 h-[calc(100vh-4rem)] w-64 bg-white shadow z-10">
+                  <Sidebar />
+                </aside>
+        <main className="flex-grow p-4 md:p-8 md:ml-64">
           {/* Title & Add Button */}
           <div className="flex justify-between items-center mb-6">
             <div className="flex items-center gap-3">
@@ -309,7 +311,7 @@ const StudentPage: React.FC = () => {
                 <UsersIcon className="h-7 w-7 text-blue-700" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Student Management</h1>
+                <h1 className="text-2xl font-bold text-indigo-900">Student Management</h1>
                 {schoolProfile && (
                   <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
                     {getSchoolTypeIcon(schoolProfile.schoolType)}

@@ -46,7 +46,7 @@ export const Sidebar: React.FC = () => {
   };
 
   return (
-    <aside className={`bg-gray-800 text-white transition-all duration-300 flex flex-col h-screen ${collapsed ? 'w-16' : 'w-64'}`}>
+    <aside className={`bg-gray-800 text-white transition-all duration-300 flex flex-col h-[calc(100vh-4rem)] ${collapsed ? 'w-16' : 'w-64'}`}>
       {/* Logo section */}
       <div className="p-4 border-b border-gray-700 flex items-center justify-between">
         {!collapsed && (
