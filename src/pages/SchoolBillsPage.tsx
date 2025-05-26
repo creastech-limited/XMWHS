@@ -126,16 +126,14 @@ const SchoolBillsPage: React.FC = () => {
   };
 
   // Fetch student fees
-  const fetchStudentFees = async (studentEmail: string) => {
+  const fetchStudentFees = async () => {
     try {
-      const response = await axios.get(`${API_URL}/api/fee/getFeeForStudent`, {
+      const response = await axios.get(`${API_URL}/api/fee/getStudentFee`, {
         headers: { 
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        data: {
-          studentEmail: studentEmail
-        }
+       
       });
 
       if (response.data && response.data.data) {
@@ -204,7 +202,7 @@ const SchoolBillsPage: React.FC = () => {
         // Fetch wallet and fees in parallel
         await Promise.all([
           fetchUserWallet(),
-          fetchStudentFees(userData.email)
+          fetchStudentFees()
         ]);
         
       } catch (err) {
