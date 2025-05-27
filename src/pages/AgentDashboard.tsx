@@ -199,12 +199,13 @@ const AgentDashboard = () => {
                   Recent Transactions
                 </h3>
                 <div className="flex gap-2">
+                  <SearchIcon style={{ color: '#3f51b5' }} />
                   <Link
                     to="/agent/transactions"
                     className="p-2 text-gray-600 hover:text-[#3f51b5]"
                     aria-label="Search transactions"
                   >
-                    <SearchIcon />
+                    
                   </Link>
                   <Link
                     to="/agent/transactions"

@@ -120,6 +120,7 @@ const SelectField: React.FC<{
         name={name}
         value={value}
         onChange={onChange}
+        aria-label={label}
         className={`w-full px-4 py-3 ${icon ? 'pl-12' : ''} border border-gray-300 rounded-xl bg-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent hover:border-gray-400 text-black`}
       >
         <option value="">Select {label}</option>
@@ -531,6 +532,8 @@ const StoreRegistrationForm: React.FC = () => {
             <button
               onClick={() => setSnackbar({ ...snackbar, open: false })}
               className="ml-2 hover:bg-black hover:bg-opacity-20 rounded-full p-1 transition-colors duration-200"
+              aria-label="Close notification"
+              title="Close notification"
             >
               <X size={16} />
             </button>

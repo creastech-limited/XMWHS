@@ -45,9 +45,9 @@ const AHeader = () => {
       >
         <div className="flex items-center gap-4">
           <WalletIcon className={`text-white ${isMobile ? 'text-3xl' : 'text-4xl'}`} />
-          <div>
-            <h1 className={isMobile ? "text-xl font-bold" : "text-2xl font-bold"}>
-              {agentData?.name}
+          <div className="flex flex-col align-center justify-center">
+            <h1 className={isMobile ? "text-xl font-bold leading-tight" : "text-2xl font-bold leading-tight"}>
+              <span style={{ fontSize: isMobile ? '1.25rem' : '2.5rem' }}>{agentData?.name}</span>
             </h1>
             <p className="opacity-90 text-sm">Agent Dashboard</p>
           </div>
@@ -60,10 +60,10 @@ const AHeader = () => {
             <p className="opacity-80 text-xs">Wallet Balance</p>
           </div>
           <button 
-            className="text-white p-2 rounded-full hover:bg-white hover:bg-opacity-10"
+            className="text-white p-2 rounded-full hover:text-blue-600 hover:bg-blue-600 hover:bg-opacity-10"
             aria-label="notifications"
           >
-            <Bell />
+            <Bell style={{ color: 'white' }} />
           </button>
         </div>
       </div>
