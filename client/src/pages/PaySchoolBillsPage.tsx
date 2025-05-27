@@ -93,9 +93,7 @@ interface SnackbarState {
 const PaySchoolBillsPage: React.FC = () => {
   const [selectedStudent, setSelectedStudent] = useState<string>('');
   const [students, setStudents] = useState<Student[]>([]);
-  // State for storing all fees
   const [bills, setBills] = useState<BillsData>({});
-  const [allFees, setAllFees] = useState<SchoolFee[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [loadingFees, setLoadingFees] = useState<boolean>(false);
   const [user, setUser] = useState<User | null>(null);
@@ -181,7 +179,7 @@ const PaySchoolBillsPage: React.FC = () => {
     }
   }, [auth, showSnackbar]);
 
-  // Fetch all students - Fixed to handle actual API response structure
+  // Fetch all students
   const fetchStudents = useCallback(async (authToken: string): Promise<Student[]> => {
     try {
       console.log('Fetching students...');
@@ -247,53 +245,51 @@ const PaySchoolBillsPage: React.FC = () => {
     }
   }, [showSnackbar]);
 
-  // Fetch all student fees using the getStudentFee endpoint
-  const fetchAllStudentFees = useCallback(async (authToken: string): Promise<SchoolFee[]> => {
-    try {
-      console.log('Fetching all student fees...');
-      
-      const response = await fetch(`${API_BASE_URL}/api/fee/getStudentFee`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+ // Fetch fees for a specific student using GET request with query parameters
+const fetchFeesForStudent = useCallback(async (authToken: string, studentEmail: string): Promise<SchoolFee[]> => {
+  try {
+    console.log(`Fetching fees for student email: ${studentEmail}`);
+    
+    // Encode the email to handle special characters in URLs
+    const encodedEmail = encodeURIComponent(studentEmail);
+    
+    const response = await fetch(`${API_BASE_URL}/api/fee/getFeeForStudent?email=${encodedEmail}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+        'Content-Type': 'application/json',
       }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
 
-      const data = await response.json();
-      console.log('Raw fees API response:', data);
-      
-      let feesData: SchoolFee[] = [];
-      
-      // Handle the actual response structure based on your API
-      if (data?.data && Array.isArray(data.data)) {
-        feesData = data.data;
-      } else if (Array.isArray(data)) {
-        feesData = data;
-      } else if (data?.fees && Array.isArray(data.fees)) {
-        feesData = data.fees;
-      } else {
-        console.log('Unexpected fees response structure:', data);
-        return [];
-      }
-      
-      console.log('All processed fees:', feesData);
-      return feesData;
-    } catch (error) {
-      console.error('Error fetching student fees:', error);
-      showSnackbar('Failed to fetch student fees. Please try again.', 'error');
+    const data = await response.json();
+    console.log('Raw fees API response:', data);
+    
+    let feesData: SchoolFee[] = [];
+    
+    // Handle the response structure based on the API response you provided
+    if (data?.data && Array.isArray(data.data)) {
+      feesData = data.data;
+    } else if (Array.isArray(data)) {
+      feesData = data;
+    } else if (data?.fees && Array.isArray(data.fees)) {
+      feesData = data.fees;
+    } else {
+      console.log('Unexpected fees response structure:', data);
       return [];
     }
-  }, [showSnackbar]);
-
-  // Filter fees for a specific student
-  const getFeesForStudent = useCallback((allFees: SchoolFee[], studentId: string): SchoolFee[] => {
-    return allFees.filter(fee => fee.studentId === studentId);
-  }, []);
+    
+    console.log('Processed fees for student:', feesData);
+    return feesData;
+  } catch (error) {
+    console.error('Error fetching student fees:', error);
+    showSnackbar('Failed to fetch student fees. Please try again.', 'error');
+    return [];
+  }
+}, [showSnackbar]);
 
   // Transform fees to bills format
   const transformFeesToBills = useCallback((fees: SchoolFee[]): Bill[] => {
@@ -310,7 +306,7 @@ const PaySchoolBillsPage: React.FC = () => {
     }));
   }, []);
 
-  // Load fees for selected student from cached data
+  // Load fees for selected student
   const loadStudentFees = useCallback(async (studentId: string) => {
     try {
       console.log(`Loading fees for student: ${studentId}`);
@@ -322,13 +318,23 @@ const PaySchoolBillsPage: React.FC = () => {
         return;
       }
 
+      if (!student.email) {
+        console.error('Student email not found');
+        showSnackbar('Student email not found. Cannot fetch fees.', 'error');
+        return;
+      }
+
       console.log('Found student:', student);
       setLoadingFees(true);
 
-      // Use the correct student ID to filter fees
-      const apiStudentId = student.student_id || student._id;
-      const studentFees = getFeesForStudent(allFees, apiStudentId);
-      console.log('Filtered fees for student:', studentFees);
+      const authToken = getAuthToken();
+      if (!authToken) {
+        throw new Error('No authentication token found');
+      }
+
+      // Fetch fees for this specific student using their email
+      const studentFees = await fetchFeesForStudent(authToken, student.email);
+      console.log('Fetched fees for student:', studentFees);
       
       const transformedBills = transformFeesToBills(studentFees);
       console.log('Transformed bills:', transformedBills);
@@ -353,7 +359,7 @@ const PaySchoolBillsPage: React.FC = () => {
     } finally {
       setLoadingFees(false);
     }
-  }, [students, allFees, getFeesForStudent, transformFeesToBills, showSnackbar]);
+  }, [students, fetchFeesForStudent, transformFeesToBills, showSnackbar, getAuthToken]);
 
   // Handle student selection
   const handleStudentSelect = useCallback(async (studentId: string) => {
@@ -376,19 +382,16 @@ const PaySchoolBillsPage: React.FC = () => {
           throw new Error('No authentication token found');
         }
         
-        // Fetch user details, students, and all fees concurrently
-        const [ , studentsData, feesData] = await Promise.all([
+        // Fetch user details and students
+        const [, studentsData] = await Promise.all([
           fetchUserDetails(authToken),
-          fetchStudents(authToken),
-          fetchAllStudentFees(authToken)
+          fetchStudents(authToken)
         ]);
         
         setStudents(studentsData);
-        setAllFees(feesData);
         
         console.log('Data initialization complete:', {
-          students: studentsData.length,
-          fees: feesData.length
+          students: studentsData.length
         });
         
       } catch (error) {
@@ -400,7 +403,7 @@ const PaySchoolBillsPage: React.FC = () => {
     };
 
     initializeData();
-  }, [getAuthToken, fetchUserDetails, fetchStudents, fetchAllStudentFees, showSnackbar]);
+  }, [getAuthToken, fetchUserDetails, fetchStudents, showSnackbar]);
 
   // Payment handler (mock implementation)
   const handlePay = async (billId: string) => {
@@ -500,6 +503,7 @@ const PaySchoolBillsPage: React.FC = () => {
                     {students.map((student) => (
                       <option key={student._id} value={student._id}>
                         {student.fullName} - {student.className}
+                        {student.email && ` (${student.email})`}
                       </option>
                     ))}
                   </select>
