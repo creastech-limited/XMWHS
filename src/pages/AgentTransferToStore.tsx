@@ -135,11 +135,15 @@ const AgentTransferToStore = () => {
     setTransactionId(null);
   };
 
+  // Detect if the device is mobile (simple check)
+  const isMobile = window.innerWidth <= 640;
+
   return (
     <div className="flex flex-col min-h-screen bg-[#f8faff]">
       <AHeader />
       <main className="flex-grow p-4 sm:p-6">
-        <div className="w-lg mx-auto py-8 px-4">
+        <div className="mx-auto py-8 px-4" 
+        style={ isMobile ? { maxWidth: '100%' } : { maxWidth: '800px' }}>
           {transferComplete ? (
             <div className="bg-white shadow-md rounded-lg p-6 text-center">
               <div className="bg-green-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">

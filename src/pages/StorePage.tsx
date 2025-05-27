@@ -358,9 +358,10 @@ export const StorePage: React.FC = () => {
                 />
               </div>
               <div className="flex flex-col sm:flex-row gap-4">
-                 <select
+                <select
                   id="statusFilter"
                   aria-label="Filter by status"
+                  title="Filter by status"
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800 font-medium"
@@ -373,6 +374,7 @@ export const StorePage: React.FC = () => {
                 <select
                   id="gradeFiltertype"
                   aria-label="Filter by type"
+                  title="Filter by type"
                   value={typeFilter}
                   onChange={(e) => setTypeFilter(e.target.value)}
                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800 font-medium"
