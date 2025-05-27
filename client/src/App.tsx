@@ -25,6 +25,10 @@ import StudentRegistrationForm from './pages/StudentRegistrationForm';
 import SchoolBillsPage from './pages/SchoolBillsPage';
 import StoreRegistrationForm from './pages/StoreRegistrationForm';
 import StoreDashboard from './pages/StoreDashboard';
+import AgentDashboard from './pages/AgentDashboard';
+import AgentScanQR from './pages/AgentScanOR.js';
+import AgentTransferToStore from './pages/AgentTransferToStore.js';
+import AgentTransactionHistory from './pages/AgentTransactionHistory.js';
 
 
 function App() {
@@ -63,6 +67,10 @@ function App() {
          <Route path="/schoolbills" element={<SchoolBillsPage />} />
          <Route path="/stores/new" element={<StoreRegistrationForm />} />
          <Route path="/store" element={<StoreDashboard />} />
+         <Route path="/agent" element={<AgentDashboard />} />
+         <Route path="/agent/scanqr" element={<AgentScanQR />} />
+         <Route path="/agent/transfertostore" element={<AgentTransferToStore />} />
+          <Route path="/agent/transactions" element={<AgentTransactionHistory />} />
 
 
 
