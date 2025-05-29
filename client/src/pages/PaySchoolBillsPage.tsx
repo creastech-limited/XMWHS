@@ -519,7 +519,7 @@ const handlePay = async (billId: string, amount?: number, pin?: string) => {
     <div className="min-h-screen bg-gray-50">
       <div className="min-h-screen bg-gray-50 flex flex-col">
         <Header />
-        <div className="flex flex-grow gap-6">
+        <div className="z-[100] flex flex-grow gap-6">
           <Psidebar />
           
           <div className="flex-grow md:ml-64">

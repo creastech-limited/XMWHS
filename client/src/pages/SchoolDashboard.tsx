@@ -332,10 +332,15 @@ const Dashboard: React.FC = () => {
 
   if (loading)
     return (
-      <div className="flex flex-col min-h-screen">
-        <Header />
-        <div className="flex flex-grow bg-gray-100">
-          <Asidebar />
+      <div className="flex flex-col min-h-screen bg-gray-50">
+      <Header />
+      <div className="flex flex-grow">
+        <aside className="z-[100] hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-64 bg-white shadow z-10">
+            
+            <Asidebar />
+         
+        </aside>
+            
           <main className="flex-1 p-4 text-center">
             <div className="animate-spin h-12 w-12 border-4 border-indigo-600 border-r-transparent rounded-full mx-auto"></div>
             <p className="mt-4 text-indigo-800">Loading...</p>
@@ -349,8 +354,10 @@ const Dashboard: React.FC = () => {
     <div className="flex flex-col min-h-screen bg-gray-50">
       <Header />
       <div className="flex flex-grow">
-        <aside className="hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-64 bg-white shadow z-10">
-          <Asidebar />
+        <aside className="z-[100] hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-64 bg-white shadow z-10">
+            
+            <Asidebar />
+         
         </aside>
 
         <main className="flex-grow p-4 md:p-8 md:ml-64">

@@ -9,7 +9,7 @@ const SettingsPage = () => {
     <div className="flex flex-col min-h-screen bg-gray-50">
          <Header />
          <div className="flex flex-grow">
-                 <aside className="hidden md:block fixed top-16 h-[calc(100vh-4rem)] w-64 bg-white shadow z-10">
+                 <aside className="z-[100] hidden md:block fixed top-16 h-[calc(100vh-4rem)] w-64 bg-white shadow z-10">
                            <Sidebar />
                          </aside>
                  

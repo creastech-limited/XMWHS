@@ -8,7 +8,7 @@ const SettingsPage = () => {
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
          <Header />
-         <div className="flex flex-1">
+         <div className="z-[100] flex flex-1">
            <Psidebar/>
 
         {/* Settings panel fills remaining space, scrollable if needed */}

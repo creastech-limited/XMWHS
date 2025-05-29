@@ -348,7 +348,7 @@ const FundWalletPage: React.FC = () => {
       <Header />
       
       {/* Main Content with Sidebar */}
-      <div className="flex flex-1">
+      <div className="z-[100] flex flex-1">
         {/* Sidebar */}
         <Psidebar />
         

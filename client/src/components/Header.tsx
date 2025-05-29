@@ -282,12 +282,12 @@ export const Header: React.FC = () => {
     <header className="bg-white shadow-sm sticky top-0 z-50 border-b border-gray-200">
       <div className="flex items-center justify-between h-16 px-4 sm:px-6 lg:px-8">
         {/* Logo/Brand */}
-        <div className="flex-shrink-0 flex items-center">
+        <div className="flex-shrink-0 flex items-center ml-20 sm:ml-70">
           <img 
-            src={logo} 
-            alt="Logo" 
-            className="h-8 w-auto cursor-pointer"
-            onClick={() => navigate('')}
+        src={logo} 
+        alt="Logo" 
+        className="h-8 w-auto cursor-pointer"
+        onClick={() => navigate('')}
           />
         </div>
         

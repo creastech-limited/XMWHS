@@ -348,7 +348,7 @@ const TransactionHistoryPage: React.FC = () => {
       {/* Main content with fixed sidebar */}
       <div className="flex flex-1 relative">
         {/* Sidebar with fixed position */}
-        <div className="w-64 lg:w-72 flex-shrink-0 z-10">
+        <div className="z-[100] w-64 lg:w-72 flex-shrink-0 z-10">
           <div className="h-full sticky top-0">
             <Psidebar />
           </div>
