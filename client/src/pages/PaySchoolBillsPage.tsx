@@ -61,6 +61,8 @@ interface User {
 
 interface Bill {
   id: string;
+   _id: string;
+    feeId: string;
   description: string;
   amount: number;
   amountPaid: number;
@@ -97,6 +99,10 @@ const PaySchoolBillsPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [loadingFees, setLoadingFees] = useState<boolean>(false);
   const [user, setUser] = useState<User | null>(null);
+  const [paymentPin, setPaymentPin] = useState<string>('');
+const [showPaymentModal, setShowPaymentModal] = useState<boolean>(false);
+const [currentBill, setCurrentBill] = useState<Bill | null>(null);
+const [paymentAmount, setPaymentAmount] = useState<string>('');
   const [snackbar, setSnackbar] = useState<SnackbarState>({ 
     open: false, 
     message: '', 
@@ -295,6 +301,8 @@ const fetchFeesForStudent = useCallback(async (authToken: string, studentEmail: 
   const transformFeesToBills = useCallback((fees: SchoolFee[]): Bill[] => {
     return fees.map((fee) => ({
       id: fee._id,
+  _id: fee._id,
+  feeId: fee.feeId,
       description: fee.feeType || 'School Fee',
       amount: fee.amount || 0,
       amountPaid: fee.amountPaid || 0,
@@ -405,35 +413,76 @@ const fetchFeesForStudent = useCallback(async (authToken: string, studentEmail: 
     initializeData();
   }, [getAuthToken, fetchUserDetails, fetchStudents, showSnackbar]);
 
-  // Payment handler (mock implementation)
-  const handlePay = async (billId: string) => {
-    if (!selectedStudent) return;
-    
-    try {
-      setBills((prevBills) => {
-        const updatedBills = { ...prevBills };
-        if (updatedBills[selectedStudent]) {
-          updatedBills[selectedStudent].bills = updatedBills[selectedStudent].bills.map((bill) => {
-            if (bill.id === billId) {
-              return { 
-                ...bill, 
-                status: 'paid', 
-                amountPaid: bill.amount,
-                transactionId: `mock-${Date.now()}` 
-              };
-            }
-            return bill;
-          });
-        }
-        return updatedBills;
-      });
-      
-      showSnackbar('Payment simulated successfully!', 'success');
-    } catch (error) {
-      console.error('Payment error:', error);
-      showSnackbar('Payment failed. Please try again.', 'error');
+  // Payment handler 
+const handlePay = async (billId: string, amount?: number, pin?: string) => {
+  if (!selectedStudent || !selectedStudentData) return;
+
+  // If amount and pin aren't provided, show the payment modal
+  if (amount === undefined || pin === undefined) {
+    const bill = selectedStudentData.bills.find(b => b.id === billId);
+    if (bill) {
+      setCurrentBill(bill);
+      // Set default amount to remaining balance
+      const remainingBalance = bill.amount - bill.amountPaid;
+      setPaymentAmount(remainingBalance.toString());
+      setShowPaymentModal(true);
     }
-  };
+    return;
+  }
+
+  try {
+    const authToken = getAuthToken();
+    if (!authToken) {
+      throw new Error('No authentication token found');
+    }
+
+    const studentEmail = selectedStudentData.student.email;
+    if (!studentEmail) {
+      throw new Error('Student email not found');
+    }
+
+    const bill = selectedStudentData.bills.find(b => b._id === billId);
+    if (!bill) {
+      throw new Error('Bill not found');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/api/fee/pay`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        studentEmail,
+        amount,
+        feeId: bill.feeId, 
+        pin
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Payment failed');
+    }
+
+    const data = await response.json();
+    showSnackbar(data.message || 'Payment successful', 'success');
+
+    // Refresh the student's fees after successful payment
+    await loadStudentFees(selectedStudent);
+
+    // Close the payment modal and reset states
+    setShowPaymentModal(false);
+    setPaymentPin('');
+    setPaymentAmount('');
+    setCurrentBill(null);
+
+  } catch (error) {
+    console.error('Payment error:', error);
+    showSnackbar(error instanceof Error ? error.message : 'Payment failed. Please try again.', 'error');
+  }
+};
+
 
   // Calculate summary for selected student
   const calculateSummary = (): Summary => {
@@ -631,12 +680,12 @@ const fetchFeesForStudent = useCallback(async (authToken: string, studentEmail: 
                               )}
                             </div>
                             {bill.status === 'unpaid' ? (
-                              <button 
-                                onClick={() => handlePay(bill.id)}
-                                className="bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-6 rounded-lg shadow-sm transition duration-150 font-medium"
-                              >
-                                Pay Now
-                              </button>
+                             <button 
+  onClick={() => handlePay(bill.id)}
+  className="bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-6 rounded-lg shadow-sm transition duration-150 font-medium"
+>
+  Pay Now
+</button>
                             ) : (
                               <button 
                                 disabled
@@ -680,6 +729,98 @@ const fetchFeesForStudent = useCallback(async (authToken: string, studentEmail: 
             </div>
           </div>
         </div>
+      {showPaymentModal && currentBill && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+      <h3 className="text-lg font-semibold text-black mb-4">Confirm Payment</h3>
+      
+      <div className="mb-4">
+        <p className="text-black mb-2">Bill Details:</p>
+        <div className="bg-gray-50 p-3 rounded-md">
+          <p className="font-bold text-black">{currentBill.description}</p>
+          <p className="text-sm text-black mt-1">Student: {selectedStudentData?.student.fullName}</p>
+          <p className="text-sm text-black mt-1">Total Amount: ₦{currentBill.amount.toLocaleString()}</p>
+          <p className="text-sm text-black mt-1">Already Paid: ₦{currentBill.amountPaid.toLocaleString()}</p>
+          <p className="text-sm text-black font-medium mt-1">
+            Remaining Balance: ₦{(currentBill.amount - currentBill.amountPaid).toLocaleString()}
+          </p>
+        </div>
+      </div>
+
+      <div className="mb-4">
+        <label htmlFor="payment-amount" className="block text-sm font-medium text-black mb-1">
+          Enter Amount to Pay (₦)
+        </label>
+        <input
+          type="number"
+          id="payment-amount"
+          value={paymentAmount}
+          onChange={(e) => setPaymentAmount(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-black"
+          placeholder="Enter amount"
+          min="1"
+          max={currentBill.amount - currentBill.amountPaid}
+        />
+        <p className="text-xs text-black mt-1">
+          Maximum: ₦{(currentBill.amount - currentBill.amountPaid).toLocaleString()}
+        </p>
+      </div>
+      
+      <div className="mb-4">
+        <label htmlFor="payment-pin" className="block text-sm font-medium text-black mb-1">
+          Enter Payment PIN
+        </label>
+        <input
+          type="password"
+          id="payment-pin"
+          value={paymentPin}
+          onChange={(e) => setPaymentPin(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-black"
+          placeholder="Enter your 4-digit PIN"
+          maxLength={4}
+        />
+      </div>
+      
+      <div className="flex justify-end gap-3">
+        <button
+          onClick={() => {
+            setShowPaymentModal(false);
+            setPaymentPin('');
+            setPaymentAmount('');
+            setCurrentBill(null);
+          }}
+          className="px-4 py-2 text-black hover:bg-gray-100 rounded-md border border-gray-300"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={() => {
+            const amount = parseFloat(paymentAmount);
+            if (amount > 0 && amount <= (currentBill.amount - currentBill.amountPaid)) {
+              handlePay(currentBill.id, amount, paymentPin);
+            }
+          }}
+          disabled={
+            paymentPin.length !== 4 || 
+            !paymentAmount || 
+            parseFloat(paymentAmount) <= 0 || 
+            parseFloat(paymentAmount) > (currentBill.amount - currentBill.amountPaid)
+          }
+          className={`px-4 py-2 rounded-md text-white ${
+            paymentPin.length === 4 && 
+            paymentAmount && 
+            parseFloat(paymentAmount) > 0 && 
+            parseFloat(paymentAmount) <= (currentBill.amount - currentBill.amountPaid)
+              ? 'bg-indigo-600 hover:bg-indigo-700' 
+              : 'bg-indigo-300 cursor-not-allowed'
+          }`}
+        >
+          Pay ₦{paymentAmount ? parseFloat(paymentAmount).toLocaleString() : '0'}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
         <Footer />
       </div>
       

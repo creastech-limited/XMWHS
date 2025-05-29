@@ -22,25 +22,121 @@ interface User {
 }
 
 interface Notification {
-  _id?: string;
-  id: string;
+  _id: string;
+  userId: string;
+  type: string;
+  title: string;
   message: string;
+  read: boolean;
   createdAt: string;
+  __v: number;
 }
 
 export const Header: React.FC = () => {
   const { user: authUser, token: authToken, logout } = useAuth() || {};
   const [user, setUser] = useState<User | null>(authUser || null);
-  const [notifications] = useState<Notification[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
   const navigate = useNavigate();
   const menuRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
 
   const API_URL = import.meta.env.VITE_API_URL || 'https://nodes-staging.up.railway.app';
   const token = authToken || localStorage.getItem('token');
+
+  // Fetch notifications from API
+  const fetchNotifications = async () => {
+    if (!token) return;
+    
+    try {
+      setNotificationsLoading(true);
+      const response = await fetch(`${API_URL}/api/notification/get`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.status === 401) {
+        logout?.();
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        navigate('/login');
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch notifications: ${response.status}`);
+      }
+
+      const data = await response.json();
+      // Handle different response structures
+      const notificationsList = Array.isArray(data) ? data : data.notifications || data.data || [];
+      setNotifications(notificationsList);
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  };
+
+  // Mark notification as read
+  const markAsRead = async (notificationId: string) => {
+    if (!token) return;
+
+    try {
+      const response = await fetch(`${API_URL}/api/notification/${notificationId}/read`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        setNotifications(prev => 
+          prev.map(notif => 
+            notif._id === notificationId 
+              ? { ...notif, read: true }
+              : notif
+          )
+        );
+      }
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+
+  // Mark all notifications as read
+  const markAllAsRead = async () => {
+    if (!token) return;
+
+    try {
+      const unreadNotifications = notifications.filter(n => !n.read);
+      
+      // Update all unread notifications
+      await Promise.all(
+        unreadNotifications.map(notif => 
+          fetch(`${API_URL}/api/notification/${notif._id}/read`, {
+            method: 'PATCH',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          })
+        )
+      );
+
+      setNotifications(prev => 
+        prev.map(notif => ({ ...notif, read: true }))
+      );
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+    }
+  };
 
   useEffect(() => {
     const loadUserData = async () => {
@@ -116,6 +212,13 @@ export const Header: React.FC = () => {
     loadUserData();
   }, [API_URL, authUser, token, logout, navigate]);
 
+  // Fetch notifications when component mounts and when user is loaded
+  useEffect(() => {
+    if (user && token) {
+      fetchNotifications();
+    }
+  }, [user, token]);
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
@@ -151,10 +254,29 @@ export const Header: React.FC = () => {
 
   const getDisplayRole = () => user?.role ? `${user.role.charAt(0).toUpperCase()}${user.role.slice(1)}` : 'User';
 
-    function handleProfileClick(event: React.MouseEvent<HTMLButtonElement, MouseEvent>): void {
-        event.preventDefault();
-        navigate('/profile');
+  function handleProfileClick(event: React.MouseEvent<HTMLButtonElement, MouseEvent>): void {
+    event.preventDefault();
+    navigate('/profile');
+  }
+
+  // Get unread notifications count
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  // Get notification type color
+  const getNotificationTypeColor = (type: string) => {
+    switch (type.toLowerCase()) {
+      case 'info':
+        return 'border-blue-500';
+      case 'warning':
+        return 'border-yellow-500';
+      case 'error':
+        return 'border-red-500';
+      case 'success':
+        return 'border-green-500';
+      default:
+        return 'border-gray-500';
     }
+  };
 
   return (
     <header className="bg-white shadow-sm sticky top-0 z-50 border-b border-gray-200">
@@ -191,14 +313,17 @@ export const Header: React.FC = () => {
               onClick={() => {
                 setNotifOpen(!notifOpen);
                 setMenuOpen(false);
+                if (!notifOpen) {
+                  fetchNotifications(); // Refresh notifications when opening
+                }
               }}
-              className="p-2 rounded-full text-gray-500 hover:text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-200"
+              className="p-2 rounded-full text-gray-500 hover:text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-200 relative"
               aria-label="Notifications"
             >
               <BellIcon className="h-5 w-5" />
-              {notifications.length > 0 && (
+              {unreadCount > 0 && (
                 <span className="absolute top-1 right-1 inline-flex items-center justify-center w-4 h-4 text-xs font-bold text-white bg-red-500 rounded-full">
-                  {notifications.length > 9 ? '9+' : notifications.length}
+                  {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               )}
             </button>
@@ -207,23 +332,43 @@ export const Header: React.FC = () => {
               <div className="origin-top-right absolute right-0 mt-2 w-80 rounded-lg shadow-lg bg-white ring-1 ring-black ring-opacity-5 divide-y divide-gray-100 z-50 overflow-hidden">
                 <div className="px-4 py-3 bg-gray-50 flex justify-between items-center">
                   <p className="text-sm font-medium text-gray-900">Notifications</p>
-                  {notifications.length > 0 && (
+                  {unreadCount > 0 && (
                     <span className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                      {notifications.length} new
+                      {unreadCount} new
                     </span>
                   )}
                 </div>
                 
                 <div className="py-1 max-h-96 overflow-y-auto">
-                  {notifications.length > 0 ? (
-                    notifications.map((n) => (
+                  {notificationsLoading ? (
+                    <div className="px-4 py-6 text-center">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto"></div>
+                      <p className="text-sm text-gray-500 mt-2">Loading notifications...</p>
+                    </div>
+                  ) : notifications.length > 0 ? (
+                    notifications.map((notification) => (
                       <div 
-                        key={n._id || n.id} 
-                        className="px-4 py-3 hover:bg-gray-50 border-l-4 border-transparent hover:border-blue-500 transition-all duration-200"
+                        key={notification._id} 
+                        className={`px-4 py-3 hover:bg-gray-50 border-l-4 ${getNotificationTypeColor(notification.type)} ${
+                          !notification.read ? 'bg-blue-50' : 'border-transparent hover:border-blue-500'
+                        } transition-all duration-200 cursor-pointer`}
+                        onClick={() => !notification.read && markAsRead(notification._id)}
                       >
-                        <div className="text-sm text-gray-700">{n.message}</div>
-                        <div className="text-xs text-gray-400 mt-1">
-                          {formatDate(n.createdAt || Date.now().toString())}
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <div className="text-sm font-medium text-gray-900 mb-1">
+                              {notification.title}
+                            </div>
+                            <div className="text-sm text-gray-700">{notification.message}</div>
+                            <div className="text-xs text-gray-400 mt-1">
+                              {formatDate(notification.createdAt)}
+                            </div>
+                          </div>
+                          {!notification.read && (
+                            <div className="ml-2 mt-1">
+                              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))
@@ -240,10 +385,20 @@ export const Header: React.FC = () => {
                 
                 {notifications.length > 0 && (
                   <div className="px-4 py-2 bg-gray-50 flex justify-between">
-                    <button className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                    <button 
+                      onClick={markAllAsRead}
+                      className="text-xs text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50"
+                      disabled={unreadCount === 0}
+                    >
                       Mark all as read
                     </button>
-                    <button className="text-xs text-gray-600 hover:text-gray-800 font-medium">
+                    <button 
+                      onClick={() => {
+                        setNotifOpen(false);
+                        navigate('/ptransactionhistory');
+                      }}
+                      className="text-xs text-gray-600 hover:text-gray-800 font-medium"
+                    >
                       See all
                     </button>
                   </div>
