@@ -253,7 +253,7 @@ const fetchFeesForStudent = useCallback(async (authToken: string, studentEmail: 
     // Encode the email to handle special characters in URLs
     const encodedEmail = encodeURIComponent(studentEmail);
     
-    const response = await fetch(`${API_BASE_URL}/api/fee/getFeeForStudent?email=${encodedEmail}`, {
+    const response = await fetch(`${API_BASE_URL}/api/fee/getFeeForStudent/${encodedEmail}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${authToken}`,
