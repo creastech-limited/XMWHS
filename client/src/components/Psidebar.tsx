@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
-  RectangleGroupIcon, 
+  RectangleGroupIcon,
+  UserIcon, 
   WalletIcon, 
   CreditCardIcon, 
   ClockIcon, 
@@ -21,7 +22,7 @@ const Psidebar: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState<boolean>(false);
-  const [collapsed, setCollapsed] = useState<boolean>(false);
+  const [collapsed ] = useState<boolean>(false);
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
 
   // Update window width on resize
@@ -133,9 +134,12 @@ const Psidebar: React.FC = () => {
             {/* Logo/Title */}
            <div className="p-4 border-b border-gray-700 flex items-center justify-between">
         {!collapsed && (
-          <div className="mt-10 font-bold text-xl tracking-tight">Admin Panel</div>
+          <div className="flex items-center space-x-2">
+            <UserIcon className="mt-15 h-8 w-8 text-white" />
+            <div className="mt-15 font-bold text-xl tracking-tight">Parent Portal</div>
+          </div>
         )}
-        <button
+        {/* <button
           onClick={() => setCollapsed(!collapsed)}
           className={`mt-10 text-gray-400 hover:text-white focus:outline-none ${collapsed ? 'mx-auto' : ''}`}
         >
@@ -148,7 +152,7 @@ const Psidebar: React.FC = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
             </svg>
           )}
-        </button>
+        </button> */}
       </div>
             
             {/* Current route indicator */}

@@ -26,9 +26,13 @@ import SchoolBillsPage from './pages/SchoolBillsPage';
 import StoreRegistrationForm from './pages/StoreRegistrationForm';
 import StoreDashboard from './pages/StoreDashboard';
 import AgentDashboard from './pages/AgentDashboard';
-import AgentScanQR from './pages/AgentScanOR.js';
-import AgentTransferToStore from './pages/AgentTransferToStore.js';
-import AgentTransactionHistory from './pages/AgentTransactionHistory.js';
+import AgentScanQR from './pages/AgentScanOR';
+import AgentTransferToStore from './pages/AgentTransferToStore';
+import AgentTransactionHistory from './pages/AgentTransactionHistory';
+import ManageAgentsPage from './pages/ManageAgentsPage';
+import STransactionHistoryPage from './pages/STransactionHistoryPage';
+import SWithdrawalPage from './pages/SWithdrawalPage';
+import StoreSettingsPage from './pages/StoreSettingsPage.js';
 
 
 function App() {
@@ -71,6 +75,10 @@ function App() {
          <Route path="/agent/scanqr" element={<AgentScanQR />} />
          <Route path="/agent/transfertostore" element={<AgentTransferToStore />} />
           <Route path="/agent/transactions" element={<AgentTransactionHistory />} />
+          <Route path="/agents" element={<ManageAgentsPage />} />
+          <Route path="/stransactions" element={<STransactionHistoryPage />} />
+          <Route path='/swithdrawal' element={<SWithdrawalPage />} />
+          <Route path="/store/settings" element={<StoreSettingsPage />} />
 
 
 

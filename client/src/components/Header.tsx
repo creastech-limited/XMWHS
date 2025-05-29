@@ -165,12 +165,12 @@ export const Header: React.FC = () => {
             src={logo} 
             alt="Logo" 
             className="h-8 w-auto cursor-pointer"
-            onClick={() => navigate('/')}
+            onClick={() => navigate('')}
           />
         </div>
         
         {/* Search bar - with proper sizing */}
-        <div className="flex-1 max-w-xl mx-4">
+        <div className="flex-1 max-w-xl mx-4 hidden sm:block">
           <div className="relative group">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <MagnifyingGlassIcon className="h-4 w-4 text-gray-400 group-focus-within:text-blue-500" />

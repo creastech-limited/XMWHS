@@ -94,7 +94,7 @@ const StoreDashboard: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex">
+    <div className="text-gray-600 min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex">
       {/* Sidebar */}
       <StoreSidebar />
 
@@ -104,7 +104,7 @@ const StoreDashboard: React.FC = () => {
         <StoreHeader />
 
         {/* Main Content */}
-        <main className="flex-1 max-w-full px-4 sm:px-6 lg:px-8 py-8">
+        <main className="flex-1 max-w-full px-4 sm:px-6 lg:px-8 py-8 mt-6">
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             {/* Wallet Balance */}
@@ -163,10 +163,18 @@ const StoreDashboard: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-semibold text-gray-900">Recent Transactions</h3>
                     <div className="flex items-center space-x-2">
-                      <button className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
+                      <button
+                        className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+                        aria-label="Refresh Transactions"
+                        title="Refresh Transactions"
+                      >
                         <RefreshCw className="w-4 h-4" />
                       </button>
-                      <button className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
+                      <button
+                        className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+                        aria-label="More Options"
+                        title="More Options"
+                      >
                         <MoreVertical className="w-4 h-4" />
                       </button>
                     </div>

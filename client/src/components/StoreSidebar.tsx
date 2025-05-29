@@ -8,7 +8,8 @@ import {
   Settings,
   LogOut,
   Menu,
-  X
+  X,
+  House
 } from 'lucide-react';
 
 interface MenuItem {
@@ -58,7 +59,7 @@ const StoreSidebar: React.FC = () => {
           mx-4 my-2 p-3 rounded-xl relative cursor-pointer
           transition-all duration-300 ease-in-out
           hover:bg-white/10 hover:translate-x-1
-          ${isActive ? 'bg-white/10' : 'bg-transparent'}
+          ${isActive ? 'text-white bg-blue-600 hover:bg-blue-700' : 'text-white bg-transparent'}
         `}
       >
         <div className="flex items-center">
@@ -82,28 +83,31 @@ const StoreSidebar: React.FC = () => {
   );
 
   const sidebarContent = (
-    <div className="h-full flex flex-col justify-between bg-indigo-900 text-white">
+    <div className="h-full flex flex-col justify-between bg-gradient-to-b from-indigo-900 via-indigo-950 to-indigo-900 text-white shadow-xl">
+      {/* Logo & Title */}
       <div>
-        {/* Logo Container */}
-        <div className="flex flex-col items-center p-6 mb-4">
-          <h6 className="text-lg font-semibold opacity-90">
-            Store Portal
-          </h6>
+        <div className="flex flex-col items-center py-8 mb-6 border-b border-white/10">
+          <div className="flex items-center space-x-3">
+            <div className="w-12 h-12 bg-gradient-to-tr from-blue-500 to-indigo-500 rounded-2xl flex items-center justify-center shadow-lg">
+              <House className="h-7 w-7 text-white" />
+            </div>
+            <span className="text-xl font-bold tracking-wide opacity-95">Store Portal</span>
+          </div>
         </div>
 
         {/* Top Menu Items */}
-        <nav className="px-1">
-          {topMenuItems.map((item) => 
+        <nav className="px-2">
+          {topMenuItems.map((item) =>
             renderMenuItem(item, activeItem === item.text)
           )}
         </nav>
       </div>
 
       {/* Bottom Section */}
-      <div className="p-3">
-        <div className="h-px bg-white/10 my-2"></div>
-        <nav className="px-1">
-          {bottomMenuItems.map((item) => 
+      <div className="pb-6 px-2">
+        <div className="h-px bg-white/10 my-4"></div>
+        <nav>
+          {bottomMenuItems.map((item) =>
             renderMenuItem(item, activeItem === item.text)
           )}
         </nav>

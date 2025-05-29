@@ -10,7 +10,6 @@ import {
   ExclamationTriangleIcon as WarningIcon,
   Cog6ToothIcon as SettingsIcon,
   ArrowLeftOnRectangleIcon as LogoutIcon,
-  ChevronLeftIcon,
   ChevronRightIcon,
 } from '@heroicons/react/24/outline';
 
@@ -24,7 +23,7 @@ interface MenuItem {
 export const Sidebar: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed] = useState(false);
   
   // Define menu items with your provided list
   const menuItems: MenuItem[] = [
@@ -51,7 +50,7 @@ export const Sidebar: React.FC = () => {
   };
 
   return (
-    <aside className={`bg-gradient-to-b from-blue-900 via-blue-800 to-blue-900 text-white transition-all duration-300 flex flex-col h-screen shadow-2xl border-r border-blue-700/50 ${collapsed ? 'w-16' : 'w-72'}`}>
+    <aside className={`bg-gradient-to-b from-blue-900 via-blue-800 to-blue-900 text-white transition-all duration-300 flex flex-col h-screen shadow-2xl border-r border-blue-700/50 ${collapsed ? 'w-16' : 'w-65'}`}>
       {/* Logo section */}
       <div className="p-4 border-b border-blue-700/50 flex items-center justify-between relative">
         {!collapsed && (
@@ -67,7 +66,7 @@ export const Sidebar: React.FC = () => {
             </div>
           </div>
         )}
-        <button
+        {/* <button
           onClick={() => setCollapsed(!collapsed)}
           className={`p-2 rounded-lg bg-blue-800/50 hover:bg-blue-700/70 text-blue-200 hover:text-white transition-all duration-200 backdrop-blur-sm border border-blue-600/30 ${collapsed ? 'mx-auto' : ''}`}
         >
@@ -76,7 +75,7 @@ export const Sidebar: React.FC = () => {
           ) : (
             <ChevronLeftIcon className="h-4 w-4" />
           )}
-        </button>
+        </button> */}
       </div>
       
       {/* Current route indicator */}

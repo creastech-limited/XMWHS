@@ -154,15 +154,16 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
   return (
     <>
       {/* Header */}
-      <header className="fixed top-0 right-0 left-0 md:left-64 z-40 bg-white shadow-sm border-b border-gray-200 transition-all duration-300">
+      <header className="fixed top-0 right-0 left-0 md:left-70 z-40 bg-white shadow-sm border-b border-gray-200 transition-all duration-300">
         <div className="flex items-center justify-between px-4 py-3 md:px-6 md:py-4">
           {/* Left Section - Mobile Menu & Search */}
-          <div className="flex items-center space-x-4">
+          <div className="text-gray-600 flex items-center space-x-4">
             {/* Mobile Menu Button */}
             <button
               onClick={onMenuToggle}
               className="md:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
               aria-label="Toggle menu"
+              title="Toggle menu"
             >
               {isSidebarOpen ? (
                 <X className="w-5 h-5 text-gray-600" />
@@ -172,7 +173,7 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
             </button>
 
             {/* Search Bar - Hidden on mobile */}
-            <div className="hidden md:flex items-center">
+            <div className="text-gray-600 hidden md:flex items-center">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
@@ -243,6 +244,8 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
               <button
                 onClick={() => setIsProfileOpen(!isProfileOpen)}
                 className="flex items-center space-x-2 p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                title="Open profile menu"
+                aria-label="Open profile menu"
               >
                 <User className="w-5 h-5" />
                 <ChevronDown className={`w-4 h-4 transition-transform ${isProfileOpen ? 'rotate-180' : ''}`} />
@@ -319,6 +322,8 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
               onClick={handleLogout}
               disabled={isLoading}
               className="md:hidden p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+              title="Logout"
+              aria-label="Logout"
             >
               <LogOut className="w-5 h-5" />
             </button>
@@ -326,7 +331,7 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
         </div>
 
         {/* Mobile Search Bar */}
-        <div className="md:hidden px-4 pb-3">
+        <div className=" md:hidden px-4 pb-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
