@@ -79,11 +79,11 @@ export const Sidebar: React.FC = () => {
 
   return (
     <>
-      {/* Mobile menu button (only shown on mobile) */}
-      {isMobile && (
+      {/* Mobile menu button - only visible on mobile  */}
+      
         <button
           onClick={toggleMobileMenu}
-          className="z-[100] md:hidden fixed top-4 left-4 p-2 rounded-md bg-indigo-700 text-white shadow-lg hover:bg-indigo-600 transition-colors focus:outline-none focus:ring-2 focus:ring-white"
+          className="mt-[-8px] md:hidden fixed top-4 left-4 p-2 rounded-md bg-indigo-700 text-white shadow-lg hover:bg-indigo-600 transition-colors focus:outline-none focus:ring-2 focus:ring-white"
         aria-label="Toggle menu"
         style={{ zIndex: 100 }}
         >
@@ -93,12 +93,17 @@ export const Sidebar: React.FC = () => {
             <MenuIcon className="h-6 w-6" />
           )}
         </button>
+      {mobileMenuOpen && (
+        <div
+          className="md:hidden fixed inset-0 bg-black/50 z-0"
+          onClick={toggleMobileMenu}
+        />
       )}
 
       {/* Sidebar */}
       <aside
         className={`
-          z-[100] bg-gradient-to-b from-blue-900 via-blue-800 to-blue-900 text-white transition-all duration-300 flex flex-col h-screen shadow-2xl border-r border-blue-700/50
+          bg-gradient-to-b from-blue-900 via-blue-800 to-blue-900 text-white transition-all duration-300 flex flex-col h-screen shadow-2xl border-r border-blue-700/50
           ${isMobile ? 
             (mobileMenuOpen ? 'translate-x-0 w-64' : '-translate-x-full w-64') : 
             (collapsed ? 'w-20' : 'w-64')}
@@ -208,13 +213,7 @@ export const Sidebar: React.FC = () => {
         </div>
       </aside>
 
-      {/* Overlay for mobile menu (only shown when mobile menu is open) */}
-      {isMobile && mobileMenuOpen && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-20"
-          onClick={toggleMobileMenu}
-        />
-      )}
+      
     </>
   );
 };
