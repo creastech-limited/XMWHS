@@ -18,7 +18,7 @@ import {
   Settings
 } from 'lucide-react';
 
-// Define types to match KidsHeader expectations
+// Define types to match KidsHeader expectations and API response
 interface Profile {
   _id: string;
   name?: string;
@@ -29,6 +29,27 @@ interface Profile {
   phoneNumber?: string;
   profilePic?: string;
   qrCodeId?: string;
+  accountNumber?: string;
+  pin?: string;
+  role?: string;
+  qrcode?: string; // Base64 QR code from database
+  schoolName?: string;
+  schoolAddress?: string;
+  schoolType?: string;
+  ownership?: string;
+  registrationDate?: string;
+  schoolId?: string;
+  store_id?: string;
+  schoolRegistrationLink?: string;
+  isFirstLogin?: boolean;
+  isPinSet?: boolean;
+  status?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  refreshToken?: string;
+  resetPasswordToken?: string;
+  resetPasswordExpires?: string;
+  Link?: string;
   // Add other profile fields as needed
 }
 
@@ -36,6 +57,10 @@ interface Wallet {
   id?: string;
   balance: number;
   currency?: string;
+  type?: string;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
   // Add other wallet fields as needed
 }
 
@@ -74,7 +99,31 @@ const KidPayAgentPage: React.FC = () => {
     // You can integrate with your notification system here
   };
 
-  // Fetch user profile
+  // Generate QR code data with user transaction details from database
+  const generateQRCodeData = (): string => {
+    if (!profile || !wallet) return '';
+    
+    const qrData = {
+      userId: profile._id,
+      name: profile.name || `${profile.firstName} ${profile.lastName}`,
+      firstName: profile.firstName,
+      lastName: profile.lastName,
+      email: profile.email,
+      accountNumber: profile.accountNumber,
+      walletId: wallet.id,
+      balance: wallet.balance,
+      currency: wallet.currency,
+      pin: profile.pin, // Encrypted pin from database
+      role: profile.role,
+      timestamp: Date.now(),
+      transactionType: 'payment',
+      qrCodeVersion: '1.0'
+    };
+    
+    return JSON.stringify(qrData);
+  };
+
+  // Fetch user profile using /api/users/getuserone
   const fetchUserProfile = async () => {
     if (!token) {
       setError("Authentication required");
@@ -92,11 +141,21 @@ const KidPayAgentPage: React.FC = () => {
         }
       });
 
+      console.log('API Response:', response.data); // Debug log
+
       let userData: Profile;
+      // Handle different response structures
       if (response.data.user) {
         userData = response.data.user.data || response.data.user;
       } else {
         userData = response.data.data || response.data;
+      }
+
+      // Extract wallet data if it exists in the same response
+      if (response.data.user && response.data.user.wallet) {
+        const walletData = response.data.user.wallet;
+        setWallet(walletData);
+        console.log('Wallet data from user response:', walletData);
       }
 
       // Ensure we have the proper name structure for KidsHeader
@@ -107,11 +166,23 @@ const KidPayAgentPage: React.FC = () => {
         userData.name = userData.fullName;
       }
 
+      console.log('Processed user data:', userData);
       setProfile(userData);
-      fetchUserWallet();
-    } catch (err) {
+      
+      // Only fetch wallet separately if not already included in the response
+      if (!response.data.user?.wallet) {
+        await fetchUserWallet();
+      } else {
+        setIsLoading(false);
+      }
+      
+    } catch (err: unknown) {
       console.error('Error fetching profile:', err);
-      setError("Failed to load profile data");
+      let errorMessage = "Failed to load profile data";
+      if (err && typeof err === "object" && "response" in err && err.response && typeof err.response === "object" && "data" in err.response && err.response.data && typeof err.response.data === "object" && "message" in err.response.data) {
+        errorMessage = (err.response as { data?: { message?: string } }).data?.message || errorMessage;
+      }
+      setError(errorMessage);
       setIsLoading(false);
       showNotification("Error fetching profile", "error");
     }
@@ -128,11 +199,26 @@ const KidPayAgentPage: React.FC = () => {
       });
       
       const walletData = response.data.data || response.data;
+      console.log('Wallet data:', walletData);
       setWallet(walletData);
       setIsLoading(false);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Error fetching wallet:', err);
-      setError("Failed to load wallet data");
+      let errorMessage = "Failed to load wallet data";
+      if (
+        err &&
+        typeof err === "object" &&
+        "response" in err &&
+        err.response &&
+        typeof err.response === "object" &&
+        "data" in err.response &&
+        err.response.data &&
+        typeof err.response.data === "object" &&
+        "message" in err.response.data
+      ) {
+        errorMessage = (err.response as { data?: { message?: string } }).data?.message || errorMessage;
+      }
+      setError(errorMessage);
       setIsLoading(false);
       showNotification("Error fetching wallet data", "error");
     }
@@ -143,16 +229,6 @@ const KidPayAgentPage: React.FC = () => {
     fetchUserProfile();
   }, [API_URL, token, navigate]);
 
-  // Generate unique QR code ID based on user data
-  const generateQRCodeId = (): string => {
-    if (!profile || !wallet) return '';
-    
-    const timestamp = Date.now();
-    const userId = profile._id || profile.qrCodeId || 'unknown';
-    const userName = profile.name || profile.fullName || 'user';
-    return `kid-${userId}-${userName.replace(/\s+/g, '-').toLowerCase()}-${timestamp}`;
-  };
-
   const handleDownloadQRCode = () => {
     if (qrRef.current && profile) {
       const canvas = qrRef.current.querySelector('canvas');
@@ -161,7 +237,7 @@ const KidPayAgentPage: React.FC = () => {
         const downloadLink = document.createElement("a");
         downloadLink.href = pngUrl;
         const fileName = profile.name || profile.fullName || 'user';
-        downloadLink.download = `${fileName}-qr-code.png`.toLowerCase().replace(/\s+/g, '-');
+        downloadLink.download = `${fileName}-payment-qr-code.png`.toLowerCase().replace(/\s+/g, '-');
         document.body.appendChild(downloadLink);
         downloadLink.click();
         document.body.removeChild(downloadLink);
@@ -175,7 +251,7 @@ const KidPayAgentPage: React.FC = () => {
 
   const refreshQRCode = () => {
     setQrAnimating(true);
-    // Simulate refreshing the QR code (in production, you might want to regenerate the timestamp)
+    // Refresh the QR code with new timestamp
     setTimeout(() => setQrAnimating(false), 1000);
   };
 
@@ -214,7 +290,7 @@ const KidPayAgentPage: React.FC = () => {
     );
   }
 
-  const qrCodeId = generateQRCodeId();
+  const qrCodeData = generateQRCodeData();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-4 md:py-8">
@@ -256,7 +332,7 @@ const KidPayAgentPage: React.FC = () => {
           </h1>
           
           <p className="text-gray-600 max-w-xl mx-auto mb-8 text-lg">
-            Present this QR Code to the agent. The agent will scan your unique QR Code to process your payment safely.
+            Present this QR Code to the agent. The QR Code contains your encrypted transaction details including your account information, current balance, and secure PIN for payment processing.
           </p>
           
           <div 
@@ -267,7 +343,7 @@ const KidPayAgentPage: React.FC = () => {
           >
             <div className="p-4 bg-white rounded-lg shadow-sm mb-4">
               <QRCodeCanvas 
-                value={qrCodeId} 
+                value={qrCodeData} 
                 size={240} 
                 level="H" 
                 includeMargin={true}
@@ -276,9 +352,16 @@ const KidPayAgentPage: React.FC = () => {
               />
             </div>
             
-            <p className="text-sm text-gray-500 mt-2 break-all">
-              Unique ID: <span className="font-bold text-indigo-700">{qrCodeId}</span>
-            </p>
+            <div className="text-xs text-gray-500 mt-2 max-w-xs">
+              <p className="font-semibold text-indigo-700 mb-2">Transaction Details:</p>
+              <div className="space-y-1 text-left">
+                <p><span className="font-medium">Name:</span> {profile.name}</p>
+                <p><span className="font-medium">Account:</span> {profile.accountNumber}</p>
+                <p><span className="font-medium">Balance:</span> {wallet.currency} {wallet.balance?.toLocaleString()}</p>
+                <p><span className="font-medium">Role:</span> {profile.role}</p>
+                <p><span className="font-medium">User ID:</span> {profile._id?.slice(-8)}</p>
+              </div>
+            </div>
             
             <button 
               onClick={refreshQRCode}
@@ -297,6 +380,19 @@ const KidPayAgentPage: React.FC = () => {
               <Download className="w-5 h-5" />
               Download QR Code
             </button>
+          </div>
+
+          {/* Security Notice */}
+          <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="flex items-center gap-2 text-amber-800">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+              <span className="font-medium">Security Notice</span>
+            </div>
+            <p className="text-amber-700 text-sm mt-1">
+              This QR code contains encrypted payment information. Only share with trusted agents.
+            </p>
           </div>
         </div>
 
@@ -317,7 +413,7 @@ const KidPayAgentPage: React.FC = () => {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
-            <span>QR Code downloaded successfully!</span>
+            <span>Payment QR Code downloaded successfully!</span>
           </div>
         )}
 

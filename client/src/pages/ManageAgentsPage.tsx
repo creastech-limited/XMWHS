@@ -13,9 +13,10 @@ import Footer from '../components/Footer';
 
 interface Agent {
   id: string;
-  name: string;
-  email: string;
-  phone: string;
+  firstName: string;
+  lastName: string;
+  email?: string;
+  phone?: string;
   role: string;
   avatarColor?: string;
   avatarInitial?: string;
@@ -23,9 +24,11 @@ interface Agent {
 }
 
 interface FormErrors {
-  name?: string;
+  firstName?: string;
+  lastName?: string;
   email?: string;
   phone?: string;
+  password?: string;
 }
 
 interface SnackbarState {
@@ -39,9 +42,11 @@ const ManageAgentsPage: React.FC = () => {
   
   // Form state for new agent account
   const [agentData, setAgentData] = useState({
-    name: '',
+    firstName: '',
+    lastName: '',
     email: '',
     phone: '',
+    password: '',
     role: 'agent' 
   });
   
@@ -56,6 +61,9 @@ const ManageAgentsPage: React.FC = () => {
   
   // List of agents
   const [agents, setAgents] = useState<Agent[]>([]);
+  
+  // Agent count
+  const [agentCount, setAgentCount] = useState<number>(0);
   
   // Loading states
   const [isLoading, setIsLoading] = useState(false);
@@ -94,8 +102,9 @@ const ManageAgentsPage: React.FC = () => {
         const profile = data.user;
         const id = profile.data._id;
         setStoreId(id);
-        // Once we have the store ID, fetch agents
+        // Once we have the store ID, fetch agents and count
         fetchAgents(id);
+        fetchAgentCount(id);
       })
       .catch(error => {
         console.error('Error fetching user profile:', error);
@@ -107,13 +116,12 @@ const ManageAgentsPage: React.FC = () => {
       });
   }, [authToken, API_BASE_URL]);
   
-  // Function to fetch agents for this store
+  // Function to fetch agents for this store - FIXED
   const fetchAgents = async (id: string) => {
     if (!id) return;
     
     try {
-      // Replace with your actual API endpoint for fetching agents
-      const response = await fetch(`${API_BASE_URL}/api/agents/store/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/api/users/getagentbyid?id=${encodeURIComponent(id)}`, {
         headers: {
           'Authorization': `Bearer ${authToken}`,
           'Content-Type': 'application/json'
@@ -125,6 +133,7 @@ const ManageAgentsPage: React.FC = () => {
       }
       
       const data = await response.json();
+      console.log('Fetched agents data:', data); // Debug log
       setAgents(data.agents || []);
     } catch (error) {
       console.error('Error fetching agents:', error);
@@ -135,6 +144,29 @@ const ManageAgentsPage: React.FC = () => {
       });
     } finally {
       setIsLoadingAgents(false);
+    }
+  };
+  
+  // Function to fetch agent count for this store
+  const fetchAgentCount = async (id: string) => {
+    if (!id) return;
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/getagentbyidcount/${id}`, {
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch agent count');
+      }
+      
+      const data = await response.json();
+      setAgentCount(data.count || 0);
+    } catch (error) {
+      console.error('Error fetching agent count:', error);
     }
   };
   
@@ -150,14 +182,24 @@ const ManageAgentsPage: React.FC = () => {
   
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
-    if (!agentData.name.trim()) newErrors.name = "Name is required";
+    if (!agentData.firstName.trim()) newErrors.firstName = "First name is required";
+    if (!agentData.lastName.trim()) {
+      newErrors.lastName = "Last name is required";
+    } else if (agentData.lastName.length < 3) {
+      newErrors.lastName = "Last name must be at least 3 characters";
+    }
     if (!agentData.email.trim()) {
       newErrors.email = "Email is required";
     } else if (!/\S+@\S+\.\S+/.test(agentData.email)) {
       newErrors.email = "Email is invalid";
     }
     if (!agentData.phone.trim()) {
-      newErrors.phone = "Phone is required";
+      newErrors.phone = "Phone number is required";
+    }
+    if (!agentData.password.trim()) {
+      newErrors.password = "Password is required";
+    } else if (agentData.password.length < 6) {
+      newErrors.password = "Password must be at least 6 characters";
     }
     
     setErrors(newErrors);
@@ -182,12 +224,12 @@ const ManageAgentsPage: React.FC = () => {
     try {
       // Prepare data for registration
       const registrationData = {
-        firstName: agentData.name.split(' ')[0] || agentData.name,
-        lastName: agentData.name.split(' ')[1] || '',
+        firstName: agentData.firstName,
+        lastName: agentData.lastName,
         email: agentData.email,
-        password: "Agent123", // Default password - should be changed after first login
-        role: "agent",
         phone: agentData.phone,
+        password: agentData.password,
+        role: "agent",
         storeId: storeId // Associate the agent with the store
       };
       
@@ -207,21 +249,8 @@ const ManageAgentsPage: React.FC = () => {
       }
       
       const registerResult = await registerResponse.json();
+      console.log('Registration result:', registerResult); // Debug log
       
-      // Generate a random color for the avatar
-      const colors = ['#FF5722', '#9C27B0', '#3F51B5', '#009688', '#4CAF50', '#CDDC39', '#FFC107', '#795548'];
-      const randomColor = colors[Math.floor(Math.random() * colors.length)];
-      
-      // Add the new agent to the local state with the ID from the response
-      const newAgent: Agent = {
-        ...agentData,
-        id: registerResult.user._id || registerResult.user.id || Date.now().toString(),
-        avatarColor: randomColor,
-        avatarInitial: agentData.name.charAt(0).toUpperCase(),
-        storeId: storeId
-      };
-      
-      setAgents([...agents, newAgent]);
       setSnackbar({
         open: true,
         message: 'Agent account created successfully!',
@@ -230,14 +259,20 @@ const ManageAgentsPage: React.FC = () => {
       
       // Clear form fields after submission
       setAgentData({
-        name: '',
+        firstName: '',
+        lastName: '',
         email: '',
         phone: '',
+        password: '',
         role: 'agent'
       });
       
       // Hide form after successful submission
       setShowForm(false);
+      
+      // FIXED: Refresh the agents list and count after successful registration
+      await fetchAgents(storeId);
+      await fetchAgentCount(storeId);
       
     } catch (error) {
       console.error('Error creating agent:', error);
@@ -268,6 +303,7 @@ const ManageAgentsPage: React.FC = () => {
       
       // Remove agent from local state
       setAgents(agents.filter(agent => agent.id !== id));
+      setAgentCount(prev => Math.max(0, prev - 1));
       setSnackbar({
         open: true,
         message: 'Agent deleted successfully',
@@ -285,13 +321,15 @@ const ManageAgentsPage: React.FC = () => {
   
   // Filter agents based on search term
   const filteredAgents = agents.filter(agent => 
-    agent.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    agent.email.toLowerCase().includes(searchTerm.toLowerCase())
+    agent.firstName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    agent.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (agent.email && agent.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (agent.phone && agent.phone.toLowerCase().includes(searchTerm.toLowerCase()))
   );
   
-  // Get avatar initials from name
-  const getInitials = (name: string): string => {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase();
+  // Get avatar initials from first name
+  const getInitials = (firstName: string): string => {
+    return firstName.charAt(0).toUpperCase();
   };
 
   return (
@@ -310,9 +348,14 @@ const ManageAgentsPage: React.FC = () => {
         {/* Main Content - with top and bottom padding, and flex-grow to push footer down */}
         <div className="px-4 sm:px-6 py-8 flex-grow max-w-6xl mx-auto w-full">
           <div className="flex justify-between items-center mb-8">
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
-              Manage Agents
-            </h1>
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
+                Manage Agents
+              </h1>
+              <p className="text-sm text-gray-500 mt-1">
+                Total Agents: {agentCount}
+              </p>
+            </div>
             
             <button 
               className={`flex items-center gap-2 px-4 py-2 rounded-md ${showForm ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-600 hover:bg-blue-700'} text-white transition-colors`}
@@ -354,30 +397,45 @@ const ManageAgentsPage: React.FC = () => {
                   </div>
                   
                   <div>
-                    <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
-                      Agent Name
+                    <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
+                      First Name
                     </label>
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs ${agentData.name ? 'bg-blue-600' : 'bg-gray-400'}`}>
-                          {agentData.name ? agentData.name.charAt(0).toUpperCase() : 'A'}
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs ${agentData.firstName ? 'bg-blue-600' : 'bg-gray-400'}`}>
+                          {agentData.firstName ? agentData.firstName.charAt(0).toUpperCase() : 'A'}
                         </div>
                       </div>
                       <input
-                        id="name"
+                        id="firstName"
                         type="text"
-                        className={`pl-12 w-full rounded-md border ${errors.name ? 'border-red-500' : 'border-gray-300'} shadow-sm focus:ring-blue-500 focus:border-blue-500`}
-                        value={agentData.name}
-                        onChange={handleChange('name')}
+                        className={`pl-12 w-full rounded-md border ${errors.firstName ? 'border-red-500' : 'border-gray-300'} shadow-sm focus:ring-blue-500 focus:border-blue-500`}
+                        value={agentData.firstName}
+                        onChange={handleChange('firstName')}
                         required
                       />
                     </div>
-                    {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
+                    {errors.firstName && <p className="mt-1 text-sm text-red-600">{errors.firstName}</p>}
+                  </div>
+                  
+                  <div>
+                    <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">
+                      Last Name
+                    </label>
+                    <input
+                      id="lastName"
+                      type="text"
+                      className={`w-full rounded-md border ${errors.lastName ? 'border-red-500' : 'border-gray-300'} shadow-sm focus:ring-blue-500 focus:border-blue-500`}
+                      value={agentData.lastName}
+                      onChange={handleChange('lastName')}
+                      required
+                    />
+                    {errors.lastName && <p className="mt-1 text-sm text-red-600">{errors.lastName}</p>}
                   </div>
                   
                   <div>
                     <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                      Email
+                      Email <span className="text-red-500">*</span>
                     </label>
                     <input
                       id="email"
@@ -392,7 +450,7 @@ const ManageAgentsPage: React.FC = () => {
                   
                   <div>
                     <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
-                      Phone
+                      Phone Number
                     </label>
                     <input
                       id="phone"
@@ -406,8 +464,20 @@ const ManageAgentsPage: React.FC = () => {
                   </div>
                   
                   <div className="col-span-2">
-                    <p className="text-sm text-gray-500">
-                      A default password will be set for the agent. They can change it after first login.
+                    <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                      Password
+                    </label>
+                    <input
+                      id="password"
+                      type="password"
+                      className={`w-full rounded-md border ${errors.password ? 'border-red-500' : 'border-gray-300'} shadow-sm focus:ring-blue-500 focus:border-blue-500`}
+                      value={agentData.password}
+                      onChange={handleChange('password')}
+                      required
+                    />
+                    {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password}</p>}
+                    <p className="mt-1 text-sm text-gray-500">
+                      Password must be at least 6 characters long
                     </p>
                   </div>
                 </div>
@@ -419,9 +489,11 @@ const ManageAgentsPage: React.FC = () => {
                     onClick={() => {
                       setShowForm(false);
                       setAgentData({
-                        name: '',
+                        firstName: '',
+                        lastName: '',
                         email: '',
                         phone: '',
+                        password: '',
                         role: 'agent'
                       });
                       setErrors({});
@@ -457,7 +529,7 @@ const ManageAgentsPage: React.FC = () => {
               <input
                 type="text"
                 className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                placeholder="Search agents by name or email"
+                placeholder="Search agents by name, last name, email, or phone"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -486,14 +558,14 @@ const ManageAgentsPage: React.FC = () => {
                           className={`w-14 h-14 rounded-full flex items-center justify-center text-white text-xl font-bold ${agent.avatarColor ? '' : 'bg-blue-600'}`}
                           style={{ backgroundColor: agent.avatarColor }}
                         >
-                          {agent.avatarInitial || getInitials(agent.name)}
+                          {agent.avatarInitial || getInitials(agent.firstName)}
                         </div>
                         <div>
                           <h3 className="font-bold text-lg text-gray-800">
-                            {agent.name}
+                            {agent.firstName} {agent.lastName}
                           </h3>
                           <p className="text-sm text-gray-500">
-                            {agent.email}
+                            @{agent.lastName}
                           </p>
                         </div>
                       </div>
@@ -510,6 +582,9 @@ const ManageAgentsPage: React.FC = () => {
                     <div className="border-t border-gray-200 my-4" />
                     
                     <div className="space-y-2">
+                      <p className="text-sm">
+                        <span className="font-medium">Email:</span> {agent.email}
+                      </p>
                       <p className="text-sm">
                         <span className="font-medium">Phone:</span> {agent.phone}
                       </p>

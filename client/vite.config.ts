@@ -14,6 +14,6 @@ export default defineConfig({
     'process.env': process.env
   },
   optimizeDeps: {
-    include: ['process']
+    include: ['@zxing/library']
   }
 })

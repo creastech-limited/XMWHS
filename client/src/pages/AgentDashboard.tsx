@@ -2,65 +2,258 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Footer from '../components/Footer';
 import { QrCode, Send, History, SearchIcon } from 'lucide-react';
-
+import { useAuth } from "../context/AuthContext";
 import AHeader from '../components/AHeader';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging.up.railway.app';
 
 interface Transaction {
   id: number;
   type: 'credit' | 'debit';
   amount: number;
-  store: string;
+  store?: string;
+  description?: string;
   date: string;
+  status?: string;
+  reference?: string;
 }
+
+interface User {
+  _id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  role: string;
+  walletBalance?: number;
+  [key: string]: unknown; // Add index signature for compatibility
+}
+
 
 interface AgentData {
   monthlyTarget: number;
   performance: number;
   targetCompletion: number;
+  walletBalance: number;
 }
 
 const AgentDashboard = () => {
+  const auth = useAuth();
   const [loading, setLoading] = useState<boolean>(true);
+  const [user, setUser] = useState<User | null>(null);
+  // Removed unused token state
   const [agentData, setAgentData] = useState<AgentData | null>(null);
-  const [recentTransactions, setRecentTransactions] = useState<Transaction[]>(
-    []
-  );
+  const [walletBalance, setWalletBalance] = useState<number>(0);
+  const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
+  const [error, setError] = useState<string>('');
 
-  useEffect(() => {
-    setTimeout(() => {
-      setAgentData({
-        monthlyTarget: 500000,
-        performance: 92,
-        targetCompletion: 65,
+  // Fetch user details from API
+  const fetchUserDetails = async (authToken: string): Promise<User> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+        },
       });
 
-      setRecentTransactions([
-        {
-          id: 1,
-          type: 'credit',
-          amount: 50000,
-          store: 'MegaMart',
-          date: '2025-02-28',
-        },
-        {
-          id: 2,
-          type: 'debit',
-          amount: 25000,
-          store: 'ValueStore',
-          date: '2025-02-27',
-        },
-        {
-          id: 3,
-          type: 'credit',
-          amount: 75000,
-          store: 'SuperMart',
-          date: '2025-02-25',
-        },
-      ]);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
-      setLoading(false);
-    }, 1000);
-  }, []);
+      const data = await response.json();
+      console.log('User API Response:', data);
+
+      // Handle different response structures
+      let profile: User;
+      if (data.user?.data) {
+        profile = data.user.data;
+      } else if (data.data) {
+        profile = data.data;
+      } else if (data.user) {
+        profile = data.user as User;
+      } else {
+        profile = data as User;
+      }
+
+      return profile;
+    } catch (error) {
+      console.error('Error fetching user details:', error);
+      throw error;
+    }
+  };
+
+  // Fetch wallet balance
+  const fetchWalletBalance = async (authToken: string): Promise<number> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/wallet/balance`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        // If wallet endpoint doesn't exist, try to get from user data
+        console.warn('Wallet endpoint not available, using user wallet balance');
+        return 0;
+      }
+
+      const data = await response.json();
+      console.log('Wallet API Response:', data);
+
+      // Handle different response structures
+      if (data.balance !== undefined) {
+        return data.balance;
+      } else if (data.data?.balance !== undefined) {
+        return data.data.balance;
+      } else if (data.walletBalance !== undefined) {
+        return data.walletBalance;
+      }
+
+      return 0;
+    } catch (error) {
+      console.error('Error fetching wallet balance:', error);
+      return 0;
+    }
+  };
+
+  // Fetch user transactions
+  const fetchUserTransactions = async (authToken: string): Promise<Transaction[]> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/transaction/getusertransaction`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Transactions API Response:', data);
+
+      // Handle different response structures
+      let transactions: Transaction[] = [];
+      if (data.transactions) {
+        transactions = data.transactions;
+      } else if (data.data) {
+        transactions = Array.isArray(data.data) ? data.data : [data.data];
+      } else if (Array.isArray(data)) {
+        transactions = data;
+      }
+
+      // Transform API response to match our interface
+      return transactions.slice(0, 5).map((txn: Transaction & {
+        _id?: string | number;
+        merchant?: string;
+        note?: string;
+        createdAt?: string;
+        transactionId?: string;
+      }, index: number) => ({
+        id: typeof txn._id === 'number'
+          ? txn._id
+          : typeof txn.id === 'number'
+            ? txn.id
+            : Number(typeof txn._id === 'string' ? txn._id : typeof txn.id === 'string' ? txn.id : index + 1) || index + 1,
+        type: txn.type || (txn.amount > 0 ? 'credit' : 'debit'),
+        amount: Math.abs(txn.amount || 0),
+        store: txn.store || txn.merchant || txn.description || 'Transaction',
+        description: txn.description || txn.note,
+        date: txn.date || txn.createdAt || new Date().toISOString().split('T')[0],
+        status: txn.status,
+        reference: txn.reference || txn.transactionId,
+      }));
+    } catch (error) {
+      console.error('Error fetching transactions:', error);
+      return [];
+    }
+  };
+
+  // Handle authentication errors
+  const handleAuthError = (message: string) => {
+    setError(message);
+    // Optionally redirect to login
+    // navigate('/login');
+  };
+
+  // Initialize authentication and fetch data
+  useEffect(() => {
+    const initializeAuth = async () => {
+      try {
+        setLoading(true);
+        setError('');
+        console.log('Starting auth initialization...');
+
+        let authToken = '';
+        let userProfile: User | null = null;
+
+        // Check if already in context
+        if (auth?.user?._id && auth?.token) {
+          console.log('Found user in auth context:', auth.user);
+          authToken = auth.token;
+          userProfile = auth.user;
+          setUser(auth.user);
+        } else {
+          // Try localStorage
+          const storedToken = localStorage.getItem('token');
+          if (!storedToken) {
+            console.log('No token in localStorage');
+            throw new Error('No authentication token found');
+          }
+
+          console.log('Found token in localStorage');
+          authToken = storedToken;
+
+          // Fetch user from API to ensure fresh data
+          console.log('Fetching user from API...');
+          userProfile = await fetchUserDetails(storedToken);
+          console.log('Successfully fetched user profile:', userProfile);
+          
+          // Ensure 'role' is always a string for AuthContext compatibility
+          const mergedUser: User = {
+            ...userProfile,
+            role: userProfile.role || '',
+          };
+          setUser(mergedUser);
+          // Update auth context if available
+          auth?.login?.(mergedUser, storedToken);
+        }
+
+        // Fetch wallet balance
+        console.log('Fetching wallet balance...');
+        const balance = await fetchWalletBalance(authToken);
+        setWalletBalance(balance);
+
+        // Fetch transactions
+        console.log('Fetching user transactions...');
+        const transactions = await fetchUserTransactions(authToken);
+        setRecentTransactions(transactions);
+
+        // Set agent data with real wallet balance
+        setAgentData({
+          monthlyTarget: 500000,
+          performance: 92,
+          targetCompletion: 65,
+          walletBalance: balance,
+        });
+
+        console.log('Auth initialization completed successfully');
+
+      } catch (error) {
+        console.error('Auth initialization error:', error);
+        handleAuthError('Authentication error. Please login again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initializeAuth();
+  }, [auth]);
 
   const colors = {
     primary: '#3f51b5',
@@ -98,12 +291,43 @@ const AgentDashboard = () => {
     );
   }
 
+  if (error) {
+    return (
+      <div className="flex flex-col min-h-screen bg-[#f8faff]">
+        <AHeader />
+        <main className="flex-grow flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-md p-6 max-w-md w-full text-center">
+            <h2 className="text-xl font-bold text-red-600 mb-4">Authentication Error</h2>
+            <p className="text-gray-600 mb-4">{error}</p>
+            <Link
+              to="/login"
+              className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              Go to Login
+            </Link>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col min-h-screen bg-[#f8faff]">
       <AHeader />
 
       <main className="flex-grow p-4 sm:p-6">
         <div className="container mx-auto">
+          {/* Welcome Message */}
+          {user && (
+            <div className="mb-6">
+              <h1 className="text-2xl font-bold text-gray-800">
+                Welcome back, {user.name}!
+              </h1>
+              <p className="text-gray-600">Here's your dashboard overview</p>
+            </div>
+          )}
+
           {/* Action Buttons */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
             <Link
@@ -147,7 +371,22 @@ const AgentDashboard = () => {
           </div>
 
           {/* Analytics Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+            {/* Wallet Balance */}
+            <div
+              className="rounded-xl shadow-md p-6 text-white"
+              style={{
+                background: `linear-gradient(135deg, ${colors.success} 0%, ${colors.success}CC 100%)`,
+              }}
+            >
+              <h3 className="text-lg">Wallet Balance</h3>
+              <h2 className="text-2xl font-bold">
+                ₦{walletBalance.toLocaleString()}
+              </h2>
+              <p className="text-sm opacity-90 mt-2">Available balance</p>
+            </div>
+
+            {/* Monthly Target */}
             <div
               className="rounded-xl shadow-md p-6 text-white"
               style={{
@@ -171,10 +410,11 @@ const AgentDashboard = () => {
               </div>
             </div>
 
+            {/* Performance */}
             <div
               className="rounded-xl shadow-md p-6 text-white"
               style={{
-                background: `linear-gradient(135deg, ${colors.success} 0%, ${colors.success}CC 100%)`,
+                background: `linear-gradient(135deg, ${colors.info} 0%, ${colors.info}CC 100%)`,
               }}
             >
               <h3 className="text-lg">Performance</h3>
@@ -202,13 +442,6 @@ const AgentDashboard = () => {
                   <SearchIcon style={{ color: '#3f51b5' }} />
                   <Link
                     to="/agent/transactions"
-                    className="p-2 text-gray-600 hover:text-[#3f51b5]"
-                    aria-label="Search transactions"
-                  >
-                    
-                  </Link>
-                  <Link
-                    to="/agent/transactions"
                     className="flex items-center gap-1 px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50"
                     aria-label="View all transactions"
                   >
@@ -220,34 +453,51 @@ const AgentDashboard = () => {
 
               {/* Transactions list */}
               <div className="text-gray-900 space-y-4">
-                {recentTransactions.map((transaction) => (
-                  <div
-                    key={transaction.id}
-                    className="flex justify-between items-center p-3 border-b border-gray-100"
-                  >
-                    <div>
-                      <p className="font-medium">{transaction.store}</p>
-                      <p className="text-sm text-gray-500">
-                        {transaction.date}
-                      </p>
-                    </div>
+                {recentTransactions.length > 0 ? (
+                  recentTransactions.map((transaction) => (
                     <div
-                      className={`font-bold ${
-                        transaction.type === 'credit'
-                          ? 'text-green-500'
-                          : 'text-red-500'
-                      }`}
+                      key={transaction.id}
+                      className="flex justify-between items-center p-3 border-b border-gray-100"
                     >
-                      {transaction.type === 'credit' ? '+' : '-'}₦
-                      {transaction.amount.toLocaleString()}
+                      <div>
+                        <p className="font-medium">{transaction.store}</p>
+                        <p className="text-sm text-gray-500">
+                          {new Date(transaction.date).toLocaleDateString()}
+                        </p>
+                        {transaction.reference && (
+                          <p className="text-xs text-gray-400">
+                            Ref: {transaction.reference}
+                          </p>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <div
+                          className={`font-bold ${
+                            transaction.type === 'credit'
+                              ? 'text-green-500'
+                              : 'text-red-500'
+                          }`}
+                        >
+                          {transaction.type === 'credit' ? '+' : '-'}₦
+                          {transaction.amount.toLocaleString()}
+                        </div>
+                        {transaction.status && (
+                          <p className="text-xs text-gray-500 capitalize">
+                            {transaction.status}
+                          </p>
+                        )}
+                      </div>
                     </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <p>No recent transactions found</p>
                   </div>
-                ))}
+                )}
               </div>
             </div>
           </div>
         </div>
-        
       </main>
 
       <Footer />
