@@ -730,7 +730,7 @@ const handlePay = async (billId: string, amount?: number, pin?: string) => {
           </div>
         </div>
       {showPaymentModal && currentBill && (
-  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4">
     <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
       <h3 className="text-lg font-semibold text-black mb-4">Confirm Payment</h3>
       
