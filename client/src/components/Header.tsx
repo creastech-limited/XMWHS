@@ -44,7 +44,7 @@ export const Header: React.FC = () => {
   const menuRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
 
-  const API_URL = import.meta.env.VITE_API_URL || 'https://nodes-staging.up.railway.app';
+  const API_URL = import.meta.env.VITE_API_URL || 'https://nodes-staging-xp.up.railway.app';
   const token = authToken || localStorage.getItem('token');
 
   // Fetch notifications from API

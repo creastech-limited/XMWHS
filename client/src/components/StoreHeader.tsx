@@ -43,7 +43,7 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
   const [isProfileOpen, setIsProfileOpen] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const API_URL = process.env.REACT_APP_API_URL || 'https://nodes-staging.up.railway.app';
+  const API_URL = process.env.REACT_APP_API_URL || 'https://nodes-staging-xp.up.railway.app';
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
