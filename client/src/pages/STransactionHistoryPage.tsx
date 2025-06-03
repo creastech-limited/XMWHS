@@ -140,8 +140,13 @@ const STransactionHistoryPage = () => {
                         <div className="border-b border-gray-200 mb-4"></div>
 
                         {/* Scrollable container for the table */}
+                        <div className="block md:hidden bg-gray-50 px-2 py-1 text-xs text-gray-600 border-b border-gray-200">
+              Scroll horizontally to view all columns
+              </div>
                         <div className="overflow-x-auto">
+                            
                             <div className="min-w-full inline-block align-middle">
+                                
                                 <div className="overflow-hidden">
                                     <table className="min-w-full divide-y divide-gray-200">
                                         <thead className="bg-gray-50">

@@ -1,4 +1,3 @@
-import React from 'react';
 import { Header } from '../components/Header';
 import Psidebar from '../components/Psidebar';
 import Footer from '../components/Footer';
@@ -19,8 +18,7 @@ const SettingsPage = () => {
         </main>
       </div>
 
-     
-        <Footer />
+      <Footer />
 
     </div>
   );
