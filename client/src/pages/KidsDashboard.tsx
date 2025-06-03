@@ -108,7 +108,7 @@ const KidsDashboard = () => {
   });
 
   const API_URL =
-    process.env.REACT_APP_API_URL || 'https://nodes-staging.up.railway.app';
+    process.env.REACT_APP_API_URL || 'https://nodes-staging-xp.up.railway.app';
   const qrRef = useRef<HTMLDivElement>(null);
   const COLORS = [
     '#4caf50',

@@ -12,8 +12,6 @@ const PaystackCallback: React.FC = () => {
   const [searchParams] = useSearchParams();
   const [verificationStatus, setVerificationStatus] = useState<VerificationStatus>('verifying');
   const [errorMessage, setErrorMessage] = useState<string>('');
-  const [isRedirecting, setIsRedirecting] = useState<boolean>(false);
-  const [countdown, setCountdown] = useState<number>(5);
 
   const getReference = (): string | null => {
     return searchParams.get('reference');
@@ -46,19 +44,12 @@ const PaystackCallback: React.FC = () => {
 
       const data = await response.json();
 
-      if (response.ok && data.success) {
+      // Check if transaction is successful based on the specific success message
+      const isSuccessful = (response.ok && data.success) || 
+                          (data.message && data.message.includes('Payment verified, wallet funded, and transaction updated'));
+
+      if (isSuccessful) {
         setVerificationStatus('success');
-        setIsRedirecting(true);
-        
-        let count = 5;
-        const timer = setInterval(() => {
-          count -= 1;
-          setCountdown(count);
-          if (count <= 0) {
-            clearInterval(timer);
-            handleManualRedirect();
-          }
-        }, 1000);
       } else {
         setVerificationStatus('failed');
         setErrorMessage(data.message || 'Verification failed');
@@ -69,7 +60,7 @@ const PaystackCallback: React.FC = () => {
     }
   };
 
-  const handleManualRedirect = (): void => {
+  const handleProceedToDashboard = (): void => {
     const token = localStorage.getItem('token');
     
     if (!token) {
@@ -91,117 +82,142 @@ const PaystackCallback: React.FC = () => {
     }
   };
 
+  const handleTryAgain = (): void => {
+    const reference = getReference();
+    verifyTransaction(reference);
+  };
+
   useEffect(() => {
     const reference = getReference();
     verifyTransaction(reference);
   }, []);
 
-  return (
-    <div className="min-h-screen bg-gray-50 flex flex-col py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full mx-auto">
-        <div className="bg-white shadow-xl rounded-lg overflow-hidden">
-          {/* Header */}
-          <div className="bg-blue-600 py-4 px-6">
-            <h2 className="text-white text-center text-xl font-bold">Payment Verification</h2>
-          </div>
-          
-          {/* Content */}
-          <div className="p-6 sm:p-8">
-            {/* Verifying state */}
-            {verificationStatus === 'verifying' && (
-              <div className="flex flex-col items-center text-center py-6">
-                <Loader2 className="h-12 w-12 text-blue-600 animate-spin mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Verifying Your Payment</h3>
-                <p className="text-gray-600 max-w-md mx-auto">
-                  Please wait while we confirm your payment details. This should only take a moment.
-                </p>
-              </div>
-            )}
-
-            {/* Success state */}
-            {verificationStatus === 'success' && (
-              <div className="flex flex-col items-center text-center py-6">
-                <div className="relative mb-4">
-                  <div className="absolute inset-0 bg-green-100 rounded-full opacity-75 animate-ping"></div>
-                  <div className="relative flex items-center justify-center h-16 w-16 bg-green-100 rounded-full">
-                    <CheckCircle className="h-10 w-10 text-green-600" />
-                  </div>
-                </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-1">Payment Successful!</h3>
-                <p className="text-green-600 font-medium mb-2">Your transaction has been verified.</p>
-                <p className="text-gray-600 mb-4">
-                  {isRedirecting 
-                    ? `Redirecting to dashboard in ${countdown} seconds...` 
-                    : 'Your payment has been confirmed.'}
-                </p>
-                <div className="w-full bg-gray-200 rounded-full h-2 mb-6">
-                  <div 
-                    className="bg-green-600 h-2 rounded-full" 
-                    style={{ width: `${(countdown / 5) * 100}%` }}
-                  ></div>
-                </div>
-              </div>
-            )}
-
-            {/* Failed state */}
-            {verificationStatus === 'failed' && (
-              <div className="flex flex-col items-center text-center py-6">
-                <div className="h-16 w-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
-                  <XCircle className="h-10 w-10 text-red-600" />
-                </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Verification Failed</h3>
-                <div className="w-full bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-                  <div className="flex flex-col items-center">
-                    <XCircle className="h-6 w-6 text-red-600 mb-1" />
-                    <h4 className="text-red-800 font-medium text-center">Error</h4>
-                    <p className="text-red-700 text-center mt-1">
-                      {errorMessage || 'We could not verify your payment. Please try again.'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="mt-4 text-center">
-              <p className="text-gray-500 text-sm mb-4">
-                If this page does not automatically redirect you, please click the button below.
+  // PENDING/VERIFYING STATE
+  if (verificationStatus === 'verifying') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <div className="max-w-md w-full">
+          <div className="bg-white shadow-lg rounded-lg overflow-hidden">
+            <div className="bg-blue-600 py-4 px-6">
+              <h2 className="text-white text-center text-xl font-bold">Verifying Payment</h2>
+            </div>
+            
+            <div className="p-8 text-center">
+              <Loader2 className="h-16 w-16 text-blue-600 animate-spin mx-auto mb-6" />
+              <h3 className="text-xl font-semibold text-gray-900 mb-3">Processing Your Payment</h3>
+              <p className="text-gray-600 mb-6">
+                Please wait while we verify your transaction. This may take a few moments.
               </p>
+              <div className="flex justify-center">
+                <div className="flex space-x-1">
+                  <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></div>
+                  <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                  <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                </div>
+              </div>
             </div>
           </div>
-
-          {/* Footer */}
-          <div className="bg-gray-50 px-6 py-4 flex justify-center">
-            <button
-              onClick={handleManualRedirect}
-              disabled={verificationStatus === 'verifying'}
-              className={`px-6 py-2 rounded-md font-medium ${
-                verificationStatus === 'verifying' 
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : verificationStatus === 'success'
-                    ? 'bg-green-600 hover:bg-green-700 text-white'
-                    : 'bg-blue-600 hover:bg-blue-700 text-white'
-              } transition-colors duration-200 w-full sm:w-auto`}
-            >
-              {verificationStatus === 'verifying' ? (
-                'Verifying...'
-              ) : verificationStatus === 'success' ? (
-                'Continue to Dashboard'
-              ) : (
-                'Try Again'
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="mt-8 text-center">
-          <p className="text-xs text-gray-500">
-            © {new Date().getFullYear()} Your Creastech. All rights reserved.
-          </p>
         </div>
       </div>
-    </div>
-  );
+    );
+  }
+
+  // SUCCESS STATE
+  if (verificationStatus === 'success') {
+    return (
+      <div className="min-h-screen bg-green-50 flex items-center justify-center px-4">
+        <div className="max-w-md w-full">
+          <div className="bg-white shadow-lg rounded-lg overflow-hidden">
+            <div className="bg-green-600 py-4 px-6">
+              <h2 className="text-white text-center text-xl font-bold">Payment Successful</h2>
+            </div>
+            
+            <div className="p-8 text-center">
+              <div className="relative mb-6">
+                <div className="absolute inset-0 bg-green-100 rounded-full opacity-75 animate-ping"></div>
+                <div className="relative flex items-center justify-center h-20 w-20 bg-green-100 rounded-full mx-auto">
+                  <CheckCircle className="h-12 w-12 text-green-600" />
+                </div>
+              </div>
+              
+              <h3 className="text-2xl font-bold text-green-600 mb-3">Payment Confirmed!</h3>
+              <p className="text-gray-700 mb-6">
+                Your transaction has been successfully verified and processed.
+              </p>
+              
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+                <div className="flex items-center justify-center">
+                  <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
+                  <span className="text-green-800 font-medium">Transaction Complete</span>
+                </div>
+              </div>
+
+              <button
+                onClick={handleProceedToDashboard}
+                className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 shadow-lg"
+              >
+                Proceed to Dashboard
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // FAILED STATE
+  if (verificationStatus === 'failed') {
+    return (
+      <div className="min-h-screen bg-red-50 flex items-center justify-center px-4">
+        <div className="max-w-md w-full">
+          <div className="bg-white shadow-lg rounded-lg overflow-hidden">
+            <div className="bg-red-600 py-4 px-6">
+              <h2 className="text-white text-center text-xl font-bold">Payment Failed</h2>
+            </div>
+            
+            <div className="p-8 text-center">
+              <div className="h-20 w-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <XCircle className="h-12 w-12 text-red-600" />
+              </div>
+              
+              <h3 className="text-2xl font-bold text-red-600 mb-3">Verification Failed</h3>
+              <p className="text-gray-700 mb-6">
+                We were unable to verify your payment. Please try again.
+              </p>
+              
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                <div className="flex items-center justify-center mb-2">
+                  <XCircle className="h-5 w-5 text-red-600 mr-2" />
+                  <span className="text-red-800 font-medium">Error Details</span>
+                </div>
+                <p className="text-red-700 text-sm">
+                  {errorMessage || 'An error occurred while verifying your payment.'}
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <button
+                  onClick={handleTryAgain}
+                  className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 shadow-lg"
+                >
+                  Try Again
+                </button>
+                
+                <button
+                  onClick={() => navigate('/parent')}
+                  className="w-full bg-gray-600 hover:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200"
+                >
+                  Go to Dashboard
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
 };
 
 export default PaystackCallback;

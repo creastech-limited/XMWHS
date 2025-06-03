@@ -64,7 +64,7 @@ export const StorePage: React.FC = () => {
   const [activeStoreCount, setActiveStoreCount] = useState(0);
 
   // Use API base URL from environment variable or default 
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging.up.railway.app';
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging-xp.up.railway.app';
 
   // 1) Fetch user profile to get schoolId and storeLink
   useEffect(() => {

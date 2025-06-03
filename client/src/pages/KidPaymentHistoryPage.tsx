@@ -62,7 +62,7 @@ const KidPaymentHistoryPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   
   // API URL - matching the pattern from other components
-  const API_URL = process.env.REACT_APP_API_URL || 'https://nodes-staging.up.railway.app';
+  const API_URL = process.env.REACT_APP_API_URL || 'https://nodes-staging-xp.up.railway.app';
 
   // Navigation items
   const navItems = [

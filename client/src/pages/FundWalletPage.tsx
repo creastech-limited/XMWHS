@@ -25,7 +25,7 @@ interface UserData {
   lastTransactions: Transaction[];
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging.up.railway.app';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging-xp.up.railway.app';
 
 const FundWalletPage: React.FC = () => {
   const navigate = useNavigate();
