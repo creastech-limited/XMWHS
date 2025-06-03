@@ -89,7 +89,7 @@ const StudentRegistrationForm: React.FC = () => {
   });
 
   const API_BASE_URL =
-    import.meta.env.VITE_API_URL || 'https://nodes-staging.up.railway.app';
+    import.meta.env.VITE_API_URL || 'https://nodes-staging-xp.up.railway.app';
 
   // Fetch school information including classes
   useEffect(() => {
@@ -512,45 +512,45 @@ const StudentRegistrationForm: React.FC = () => {
             </div>
 
             {/* Class Selection */}
-            <div>
-              <label
-                htmlFor="grade"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
-                Class
-              </label>
-              <div className="relative">
-                <BookOpen className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                <select
-                  id="grade"
-                  name="grade"
-                  value={formData.classAdmittedTo}
-                  onChange={handleChange}
-                  required
-                  disabled={schoolLoading}
-                  className="text-gray-500 w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
-                >
-                  <option value="">
-                    {schoolLoading ? 'Loading classes...' : 'Select your class'}
-                  </option>
-                  {schoolInfo?.classes.map((cls, index) => (
-                    <option
-                      key={`${cls.className}-${cls.section}-${index}`}
-                      value={cls.className}
-                    >
-                      {cls.className} 
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {schoolInfo &&
-                schoolInfo.classes.length === 0 &&
-                !schoolLoading && (
-                  <p className="text-sm text-red-500 mt-1 text-black">
-                    No classes available for this school
-                  </p>
-                )}
-            </div>
+           <div>
+  <label
+    htmlFor="classAdmittedTo"  // Also update the htmlFor to match
+    className="block text-sm font-medium text-gray-700 mb-2"
+  >
+    Class
+  </label>
+  <div className="relative">
+    <BookOpen className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+    <select
+      id="classAdmittedTo"  // Update id to match
+      name="classAdmittedTo"  // ✅ Change this from "grade" to "classAdmittedTo"
+      value={formData.classAdmittedTo}
+      onChange={handleChange}
+      required
+      disabled={schoolLoading}
+      className="text-gray-500 w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+    >
+      <option value="">
+        {schoolLoading ? 'Loading classes...' : 'Select your class'}
+      </option>
+      {schoolInfo?.classes.map((cls, index) => (
+        <option
+          key={`${cls.className}-${cls.section}-${index}`}
+          value={cls.className}
+        >
+          {cls.className} 
+        </option>
+      ))}
+    </select>
+  </div>
+  {schoolInfo &&
+    schoolInfo.classes.length === 0 &&
+    !schoolLoading && (
+      <p className="text-sm text-red-500 mt-1">
+        No classes available for this school
+      </p>
+    )}
+</div>
 
             {/* School ID (Read-only) */}
             <div>

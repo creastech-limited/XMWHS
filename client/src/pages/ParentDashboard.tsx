@@ -98,7 +98,7 @@ const ParentDashboard: React.FC = () => {
 
   // API Base URL
   const API_BASE_URL =
-    import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging.up.railway.app';
+    import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging-xp.up.railway.app';
 
   // Fetch transactions
   const fetchTransactions = async () => {

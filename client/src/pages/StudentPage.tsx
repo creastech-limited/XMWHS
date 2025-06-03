@@ -26,7 +26,7 @@ interface Student {
   _id: string;
   name: string;
   email: string;
-  class: string;
+  classAdmittedTo: string;
   status: string;
   createdAt: string;
 }
@@ -80,7 +80,7 @@ const StudentPage: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "https://nodes-staging.up.railway.app";
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "https://nodes-staging-xp.up.railway.app";
   const rowsPerPage = 10;
 
   // Fetch user profile to get schoolLink and schoolId
@@ -206,7 +206,7 @@ const StudentPage: React.FC = () => {
       s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.email.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === "all" || s.status.toLowerCase() === statusFilter.toLowerCase();
-    const matchesGrade = gradeFilter === "all" || s.class === gradeFilter;
+    const matchesGrade = gradeFilter === "all" || s.classAdmittedTo === gradeFilter;
     return matchesSearch && matchesStatus && matchesGrade;
   });
 
@@ -291,9 +291,11 @@ const StudentPage: React.FC = () => {
     });
   };
 
-  const availableClasses = classes.map(cls => cls.className);
+  const availableClasses = [...new Set(students
+  .map(student => student.classAdmittedTo)
+  .filter(className => className && className.trim() !== "")
+)].sort();
 
-  // (Removed unused getClassStats function)
 
 
   return (
@@ -560,7 +562,7 @@ const StudentPage: React.FC = () => {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-2">
                             <BookOpenIcon className="h-4 w-4 text-gray-400" />
-                            <span className="text-sm font-medium text-gray-900">{student.class || "Not Assigned"}</span>
+                            <span className="text-sm font-medium text-gray-900">{student.classAdmittedTo || "Not Assigned"}</span>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">

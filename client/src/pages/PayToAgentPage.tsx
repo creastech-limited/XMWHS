@@ -51,7 +51,7 @@ const PayToAgentPage: React.FC = () => {
   const auth = useAuth();
 
   // API Base URL
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging.up.railway.app';
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging-xp.up.railway.app';
 
   // Get token from auth context or localStorage
   const getAuthToken = (): string | null => {

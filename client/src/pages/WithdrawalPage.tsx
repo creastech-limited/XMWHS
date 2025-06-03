@@ -74,7 +74,7 @@ const WithdrawalPage: React.FC = () => {
   });
 
   // API Base URL from environment variables
-  const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+  const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://nodes-staging-xp.up.railway.app';
 
   // Fetch the logged-in user's profile on mount
   useEffect(() => {

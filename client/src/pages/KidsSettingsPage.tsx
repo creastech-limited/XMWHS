@@ -121,7 +121,7 @@ const KidsSettingsPage: React.FC = () => {
   });
   
   // API Base URL
-  const API_URL = process.env.REACT_APP_API_URL || 'https://nodes-staging.up.railway.app';
+  const API_URL = process.env.REACT_APP_API_URL || 'https://nodes-staging-xp.up.railway.app';
   
   // Navigation items with Lucide icons
   const navItems: NavItem[] = [
