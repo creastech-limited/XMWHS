@@ -23,7 +23,7 @@ import 'react-calendar/dist/Calendar.css';
 import { FaWallet, FaUsers, FaStore, FaCalendarAlt } from 'react-icons/fa';
 
 interface Stats {
-  walletBalance: number;
+  balance: number;
   totalStudents: number;
   totalStores: number;
 }
@@ -55,6 +55,13 @@ interface Transaction {
   amount: number;
   type: 'credit' | 'debit';
 }
+interface Wallet {
+  id: string;
+  balance: number;
+  currency: string;
+  type: string;
+  // ... other wallet properties
+}
 
 interface User {
   _id: string;
@@ -62,6 +69,8 @@ interface User {
   email: string;
   role: string;
   avatar?: string;
+  balance?: number;
+  wallet?: Wallet;
   [key: string]: unknown;
 }
 
@@ -77,12 +86,11 @@ const API_BASE_URL =
 const Dashboard: React.FC = () => {
   const auth = useAuth();
   const [user, setUser] = useState<User | null>(auth?.user || null);
-  // Removed unused token state
   const [loading, setLoading] = useState<boolean>(true);
   const [authError, setAuthError] = useState<string | null>(null);
 
   const [stats, setStats] = useState<Stats>({
-    walletBalance: 0,
+    balance: 0,
     totalStudents: 0,
     totalStores: 0,
   });
@@ -119,120 +127,169 @@ const Dashboard: React.FC = () => {
       setSnackbar({ open: true, message, severity: 'error' });
       auth?.logout?.();
       setUser(null);
-      // setToken(null); // Removed unused token state
     },
     [auth]
   );
 
-  // fetch current user from API
-  interface UserProfileResponse {
-    user?: {
-      data?: User;
-    };
-    data?: User;
-  }
-
-  type FetchUserDetails = (authToken: string) => Promise<User>;
-
-  const fetchUserDetails: FetchUserDetails = useCallback(
-    async (authToken: string): Promise<User> => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
-          headers: { Authorization: `Bearer ${authToken}` },
-        });
-
-        if (!res.ok) throw new Error(`Profile fetch failed (${res.status})`);
-
-        const data: UserProfileResponse = await res.json();
-
-        // Handle different response structures
-        let profile: User | undefined;
-        if (data.user?.data) {
-          profile = data.user.data;
-        } else if (data.data) {
-          profile = data.data;
-        } else if (data.user) {
-          profile = data.user as User;
-        } else {
-          profile = data as User;
-        }
-
-        if (!profile?._id) throw new Error('Invalid user payload');
-
-        setUser(profile);
-        // setToken(authToken); // Removed unused token state
-        auth?.login?.(profile, authToken);
-        return profile;
-      } catch (error) {
-        console.error('Error fetching user details:', error);
-        throw error;
-      }
-    },
-    [auth]
-  );
-
-  // Fetch students data for distribution
-  const fetchStudentsData = useCallback(async (userId: string, authToken: string) => {
+  // Enhanced fetchUserDetails function with better balance handling
+  const fetchUserDetails = useCallback(
+  async (authToken: string): Promise<User> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/getstudentbyid?id=${userId}`, {
+      const res = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
         headers: { Authorization: `Bearer ${authToken}` },
       });
-      
-      if (!response.ok) throw new Error('Failed to fetch students');
-      
-      const data = await response.json();
-      
-      // Process students data for pie chart (class distribution)
-      if (data.data && Array.isArray(data.data)) {
-        const classDistribution: Record<string, number> = {};
-        
-        data.data.forEach((student: Student) => {
-          const classLevel = student.classLevel || 'Unknown';
-          classDistribution[classLevel] = (classDistribution[classLevel] || 0) + 1;
-        });
-        
-        // Convert to pie data format
-        const pieColors = ['#42a5f5', '#66bb6a', '#ffca28', '#ef5350', '#ab47bc', '#26c6da'];
-        const pieData = Object.entries(classDistribution).map(([name, value], index) => ({
-          name,
-          value,
-          color: pieColors[index % pieColors.length]
-        }));
-        
-        setPieData(pieData);
-        setStats(prev => ({...prev, totalStudents: data.data.length}));
-        
-        // Calculate registration rate (last 5 days)
-        const today = new Date();
-        const last5Days = Array.from({length: 5}, (_, i) => {
-          const date = new Date(today);
-          date.setDate(date.getDate() - i);
-          return date.toISOString().split('T')[0];
-        }).reverse();
-        
-        const registrationRate = last5Days.map((date, idx) => {
-          const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
-          // Calculate percentage of total (simplified for demo)
-          const percentage = Math.min(100, Math.max(80, 90 - idx * 2 + Math.random() * 5));
-          
-          return {
-            name: dayNames[idx],
-            attendance: percentage
-          };
-        });
-        
-        setAttendanceData(registrationRate);
-      }
-    } catch (error) {
-      console.error('Error fetching students data:', error);
-      setSnackbar({
-        open: true,
-        message: 'Failed to load student data',
-        severity: 'error'
-      });
-    }
-  }, []);
 
+      if (!res.ok) throw new Error(`Profile fetch failed (${res.status})`);
+
+      const data = await res.json();
+
+      console.log('Full API Response:', JSON.stringify(data, null, 2));
+
+      let profile: User | undefined;
+      let userBalance: number = 0;
+
+      // Try different possible response structures
+      if (data.user?.data) {
+        profile = data.user.data;
+        // Check if wallet exists and has balance
+        if (data.user.wallet?.balance !== undefined) {
+          userBalance = data.user.wallet.balance;
+        }
+      } else if (data.data) {
+        profile = data.data;
+        if (data.wallet?.balance !== undefined) {
+          userBalance = data.wallet.balance;
+        }
+      } else if (data.user) {
+        profile = data.user as User;
+        if (data.user.wallet?.balance !== undefined) {
+          userBalance = data.user.wallet.balance;
+        }
+      } else {
+        profile = data as User;
+        if (data.wallet?.balance !== undefined) {
+          userBalance = data.wallet.balance;
+        }
+      }
+
+      // Convert balance to number if it's a string
+      if (typeof userBalance === 'string') {
+        userBalance = parseFloat(userBalance) || 0;
+      }
+
+      console.log('Extracted profile:', profile);
+      console.log('Extracted balance (raw):', userBalance);
+      console.log('Balance type:', typeof userBalance);
+
+      if (!profile?._id) throw new Error('Invalid user payload');
+
+      // Create updated profile with balance
+      const updatedProfile = { 
+        ...profile, 
+        balance: userBalance 
+      };
+
+      console.log('Updated profile with balance:', updatedProfile);
+
+      // Update user state
+      setUser(updatedProfile);
+      
+      // Update stats with the balance - do this immediately
+      setStats(prevStats => {
+        const newStats = {
+          ...prevStats,
+          balance: userBalance
+        };
+        console.log('Setting stats with balance:', newStats);
+        return newStats;
+      });
+      
+      // Update auth context
+      auth?.login?.(updatedProfile, authToken);
+      
+      return updatedProfile;
+    } catch (error) {
+      console.error('Error fetching user details:', error);
+      throw error;
+    }
+  },
+  [auth]
+);
+
+  // Fetch students data for distribution
+ const fetchStudentsData = useCallback(async (userId: string, authToken: string) => {
+  try {
+    // First fetch the classes data
+    const classesResponse = await fetch(`${API_BASE_URL}/api/users/getclasse`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    
+    if (!classesResponse.ok) throw new Error('Failed to fetch classes');
+    
+    const classesData = await classesResponse.json();
+    
+    // Process classes data for pie chart (class distribution)
+    if (classesData.data && Array.isArray(classesData.data)) {
+      // Create data for pie chart
+      const pieColors = ['#42a5f5', '#66bb6a', '#ffca28', '#ef5350', '#ab47bc', '#26c6da'];
+      
+    interface ClassItem {
+      className: string;
+      students?: Student[];
+      [key: string]: unknown;
+    }
+
+    const pieData: PieDataEntry[] = (classesData.data as ClassItem[])
+      .filter((classItem: ClassItem) => classItem.className) // ensure className exists
+      .map((classItem: ClassItem, index: number): PieDataEntry => ({
+        name: classItem.className,
+        value: classItem.students?.length || 0,
+        color: pieColors[index % pieColors.length]
+      }));
+      
+      // Calculate total students
+      const totalStudents = classesData.data.reduce(
+        (sum: number, classItem: ClassItem) => sum + (classItem.students?.length || 0), 
+        0
+      );
+      
+      setPieData(pieData);
+      setStats(prev => ({
+        ...prev, 
+        totalStudents,
+        totalStores: 0 // You might want to update this with actual store data
+      }));
+      
+      // Calculate registration rate (last 5 days) - keeping this as is
+      const today = new Date();
+      const last5Days = Array.from({length: 5}, (_, i) => {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        return date.toISOString().split('T')[0];
+      }).reverse();
+      
+      const registrationRate = last5Days.map((date, idx) => {
+        const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+        // Calculate percentage of total (simplified for demo)
+        const percentage = Math.min(100, Math.max(80, 90 - idx * 2 + Math.random() * 5));
+        
+        return {
+          name: dayNames[idx],
+          attendance: percentage
+        };
+      });
+      
+      setAttendanceData(registrationRate);
+    }
+  } catch (error) {
+    console.error('Error fetching classes data:', error);
+    setSnackbar({
+      open: true,
+      message: 'Failed to load class data',
+      severity: 'error'
+    });
+  }
+}, []);
   // Fetch transactions data
   const fetchTransactionsData = useCallback(async (authToken: string) => {
     try {
@@ -253,7 +310,7 @@ const Dashboard: React.FC = () => {
             date: tx.date || tx.createdAt,
             description: tx.description || 'Transaction',
             amount: tx.amount,
-            type: tx.type === 'credit' ? 'credit' : 'debit'
+            type: tx.type
           }));
         
         setTransactions(recentTransactions);
@@ -317,30 +374,44 @@ const Dashboard: React.FC = () => {
     }
   }, []);
 
-  // initialize authentication
+  // Enhanced initialization with better balance handling
   useEffect(() => {
     const initializeAuth = async () => {
       try {
         setLoading(true);
 
-        // Already in context?
-        if (auth?.user?._id && auth?.token) {
+        // Check if we already have user data in context with valid balance
+        if (auth?.user?._id && auth?.token && typeof auth.user?.balance === 'number') {
+          console.log('Using context user with balance:', auth.user.balance);
           setUser(auth.user);
-          setToken(auth.token);
+          setStats(prev => ({
+            ...prev,
+            balance: (auth.user && typeof auth.user.balance === 'number') ? auth.user.balance : 0
+          }));
+          
+          // Still fetch other data
+          await Promise.all([
+            fetchStudentsData(auth.user._id, auth.token),
+            fetchTransactionsData(auth.token)
+          ]);
+          
           setLoading(false);
           return;
         }
 
-        // Try localStorage
+        // Try localStorage for token
         const storedToken = localStorage.getItem('token');
         if (!storedToken) {
           throw new Error('No authentication token found');
         }
 
-        // Always fetch user from API to ensure fresh data
+        console.log('Fetching fresh user data...');
+        // Fetch fresh user data
         const profile = await fetchUserDetails(storedToken);
         
-        // After successful auth, fetch all data
+        console.log('Profile fetched, balance should be:', profile.balance);
+
+        // After successful auth, fetch other data
         if (profile._id) {
           await Promise.all([
             fetchStudentsData(profile._id, storedToken),
@@ -356,7 +427,17 @@ const Dashboard: React.FC = () => {
     };
 
     initializeAuth();
-  }, [auth, fetchUserDetails, fetchStudentsData, fetchTransactionsData, handleAuthError]);
+  }, [auth?.token, fetchUserDetails, fetchStudentsData, fetchTransactionsData, handleAuthError]);
+
+  // Debug effect to monitor stats changes
+  useEffect(() => {
+    console.log('Stats updated:', stats);
+  }, [stats]);
+
+  // Debug effect to monitor user changes
+  useEffect(() => {
+    console.log('User updated:', user);
+  }, [user]);
 
   // auto-hide snackbar
   useEffect(() => {
@@ -454,10 +535,10 @@ const Dashboard: React.FC = () => {
                       Wallet Balance
                     </h3>
                     <p className="text-2xl font-bold text-gray-800">
-                      ₦{stats.walletBalance.toLocaleString()}
+                     ₦{stats.balance.toLocaleString()}
                     </p>
                     <p className="text-xs text-green-600 mt-1">
-                      +5.3% from last month
+                     {stats.balance > 0 ? '+5.3% from last month' : 'No balance history'}
                     </p>
                   </div>
                 </div>
@@ -892,9 +973,6 @@ const Dashboard: React.FC = () => {
   );
 };
 
-function setToken(token: string) {
-  localStorage.setItem('token', token);
-}
 
 export default Dashboard;
 
