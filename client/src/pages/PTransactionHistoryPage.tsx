@@ -360,7 +360,7 @@ const TransactionHistoryPage: React.FC = () => {
         )}
 
         {/* Main content with reduced padding on mobile */}
-        <main className="flex-1 p-2 md:p-6 overflow-x-hidden">
+        <main className="md:ml-65 flex-1 p-2 md:p-6 overflow-x-hidden">
           {/* User info card */}
           <div className="bg-white rounded-xl shadow-sm p-3 md:p-4 mb-4 md:mb-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -447,7 +447,7 @@ const TransactionHistoryPage: React.FC = () => {
               </div>
               
               <div className="overflow-x-auto scrollbar-thin">
-                <table className="min-w-full divide-y divide-gray-200" style={{ minWidth: '600px' }}>
+                <table className="w-full divide-y divide-gray-200" style={{ minWidth: '600px' }}>
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-2 md:px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">

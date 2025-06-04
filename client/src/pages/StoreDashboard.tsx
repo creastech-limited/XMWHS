@@ -227,9 +227,12 @@ const StoreDashboard: React.FC = () => {
                 </div>
 
                 <div className="p-6 border-t border-gray-200 text-center">
-                  <button className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
-                    View All Transactions
-                  </button>
+                    <a 
+                    href="/stransactions" 
+                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                    >
+                    <span className="text-white">View All Transactions</span>
+                    </a>
                 </div>
               </div>
             </div>

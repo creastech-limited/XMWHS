@@ -33,6 +33,9 @@ import ManageAgentsPage from './pages/ManageAgentsPage';
 import STransactionHistoryPage from './pages/STransactionHistoryPage';
 import SWithdrawalPage from './pages/SWithdrawalPage';
 import StoreSettingsPage from './pages/StoreSettingsPage.js';
+import EditStudentDetails from './pages/EditStudentDetails';
+import EditStoreDetails from './pages/EditStoreDetails';
+
 
 
 function App() {
@@ -79,6 +82,9 @@ function App() {
           <Route path="/stransactions" element={<STransactionHistoryPage />} />
           <Route path='/swithdrawal' element={<SWithdrawalPage />} />
           <Route path="/store/settings" element={<StoreSettingsPage />} />
+          <Route path="/students/edit/:id" element={<EditStudentDetails />} />
+          <Route path="/stores/edit/:id" element={<EditStoreDetails />} />
+        
 
 
 

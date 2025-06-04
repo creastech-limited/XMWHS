@@ -343,15 +343,13 @@ const FundWalletPage: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50">
-      {/* Header */}
-      <Header />
-      
-      {/* Main Content with Sidebar */}
-      <div className="z-[100] flex flex-1">
-        {/* Sidebar */}
-        <Psidebar />
-        
+   <div className="min-h-screen bg-gray-50">
+         <div className="min-h-screen bg-gray-50 flex flex-col">
+           <Header />
+           
+           <div className="z-[100] flex flex-grow gap-6">
+             <Psidebar />
+         </div>  
         {/* Main Content Area */}
         <main className="flex-1 overflow-y-auto p-6">
           <div className="max-w-4xl mx-auto">

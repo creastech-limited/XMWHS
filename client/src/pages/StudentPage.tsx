@@ -85,7 +85,8 @@ const StudentPage: React.FC = () => {
     left: number;
   }>({ top: 0, left: 0 });
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "https://nodes-staging-xp.up.railway.app";
+  const API_BASE_URL =
+    import.meta.env.VITE_API_URL || 'https://nodes-staging-xp.up.railway.app';
   const rowsPerPage = 10;
 
   // Fetch user profile to get schoolLink and schoolId
@@ -212,8 +213,11 @@ const StudentPage: React.FC = () => {
     const matchesSearch =
       s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.email.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || s.status.toLowerCase() === statusFilter.toLowerCase();
-    const matchesGrade = gradeFilter === "all" || s.classAdmittedTo === gradeFilter;
+    const matchesStatus =
+      statusFilter === 'all' ||
+      s.status.toLowerCase() === statusFilter.toLowerCase();
+    const matchesGrade =
+      gradeFilter === 'all' || s.classAdmittedTo === gradeFilter;
     return matchesSearch && matchesStatus && matchesGrade;
   });
 
@@ -302,12 +306,13 @@ const StudentPage: React.FC = () => {
     });
   };
 
-  const availableClasses = [...new Set(students
-  .map(student => student.classAdmittedTo)
-  .filter(className => className && className.trim() !== "")
-)].sort();
-
-
+  const availableClasses = [
+    ...new Set(
+      students
+        .map((student) => student.classAdmittedTo)
+        .filter((className) => className && className.trim() !== '')
+    ),
+  ].sort();
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
@@ -617,7 +622,9 @@ const StudentPage: React.FC = () => {
                         <td className="px-4 py-3 md:px-6 md:py-4 whitespace-nowrap">
                           <div className="flex items-center gap-2">
                             <BookOpenIcon className="h-4 w-4 text-gray-400" />
-                            <span className="text-sm font-medium text-gray-900">{student.classAdmittedTo || "Not Assigned"}</span>
+                            <span className="text-sm font-medium text-gray-900">
+                              {student.classAdmittedTo || 'Not Assigned'}
+                            </span>
                           </div>
                         </td>
                         <td className="px-4 py-3 md:px-6 md:py-4 whitespace-nowrap">
@@ -733,12 +740,15 @@ const StudentPage: React.FC = () => {
             className="absolute z-20 bg-white rounded-lg shadow-lg py-2 w-56 border border-gray-200"
             style={{
               top: menuPosition.top,
-              left: menuPosition.left,
+              left: menuPosition.left - 150, // Adjusted to move it to the left
             }}
           >
             <button
               className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
-              onClick={handleMenuClose}
+              onClick={() => {
+              handleMenuClose();
+              window.location.href = `/students/edit/:id}`;
+              }}
             >
               <UserIcon className="h-4 w-4" />
               View Details
@@ -813,7 +823,9 @@ const StudentPage: React.FC = () => {
               {snackbar.severity === 'warning' && (
                 <ClockIcon className="h-4 w-4 md:h-5 md:w-5" />
               )}
-              <span className="text-sm md:text-base font-medium">{snackbar.message}</span>
+              <span className="text-sm md:text-base font-medium">
+                {snackbar.message}
+              </span>
             </div>
             <button
               onClick={() => setSnackbar({ ...snackbar, open: false })}

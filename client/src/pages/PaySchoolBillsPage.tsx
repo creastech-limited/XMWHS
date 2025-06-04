@@ -519,9 +519,10 @@ const handlePay = async (billId: string, amount?: number, pin?: string) => {
     <div className="min-h-screen bg-gray-50">
       <div className="min-h-screen bg-gray-50 flex flex-col">
         <Header />
+        
         <div className="z-[100] flex flex-grow gap-6">
           <Psidebar />
-          
+      </div>    
           <div className="flex-grow md:ml-64">
             <div className="bg-white rounded-2xl shadow-sm p-8 mb-8">
               <h1 className="text-3xl font-bold text-center mb-2 text-transparent bg-clip-text bg-gradient-to-r from-indigo-800 to-indigo-600">
@@ -822,7 +823,7 @@ const handlePay = async (billId: string, amount?: number, pin?: string) => {
   </div>
 )}
         <Footer />
-      </div>
+      
       
       {snackbar.open && (
         <div className={`fixed bottom-4 right-4 rounded-lg shadow-lg px-6 py-4 z-50 max-w-md
