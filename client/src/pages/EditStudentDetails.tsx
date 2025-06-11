@@ -73,7 +73,7 @@ const EditStudentDetails = () => {
       setFetchLoading(true);
       setError(null);
       
-      const res = await axios.get(`${API_BASE_URL}/api/user/getuser/${_id}`, {
+      const res = await axios.get(`${API_BASE_URL}/api/users/getuser/${_id}`, {
         headers: { 
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -186,7 +186,7 @@ const EditStudentDetails = () => {
 
     try {
       const response = await axios.put(
-        `${API_BASE_URL}/api/users/update-student/${_id}`,
+        `${API_BASE_URL}/api/users/update-user/${_id}`,
         trimmedProfile,
         {
           headers: { 
@@ -379,7 +379,7 @@ const EditStudentDetails = () => {
                               type="text"
                               value={profile.name}
                               onChange={e => setProfile({ ...profile, name: e.target.value })}
-                              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 transition-colors text-black"
                               disabled={isLoading}
                               required
                               maxLength={100}
@@ -394,7 +394,7 @@ const EditStudentDetails = () => {
                               type="email"
                               value={profile.email}
                               onChange={e => setProfile({ ...profile, email: e.target.value })}
-                              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 transition-colors text-black"
                               disabled={isLoading}
                               required
                               maxLength={100}
@@ -409,7 +409,7 @@ const EditStudentDetails = () => {
                               type="tel"
                               value={profile.phone}
                               onChange={e => setProfile({ ...profile, phone: e.target.value })}
-                              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 transition-colors text-black"
                               disabled={isLoading}
                               maxLength={20}
                             />
@@ -423,7 +423,7 @@ const EditStudentDetails = () => {
                               type="text"
                               value={profile.class}
                               onChange={e => setProfile({ ...profile, class: e.target.value })}
-                              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 transition-colors text-black"
                               disabled={isLoading}
                               maxLength={50}
                             />
@@ -437,7 +437,7 @@ const EditStudentDetails = () => {
                           <textarea
                             value={profile.address}
                             onChange={e => setProfile({ ...profile, address: e.target.value })}
-                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 transition-colors text-black"
                             rows={3}
                             disabled={isLoading}
                             maxLength={200}

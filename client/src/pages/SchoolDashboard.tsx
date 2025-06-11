@@ -203,9 +203,8 @@ const Dashboard: React.FC = () => {
 );
 
   // Fetch students data for distribution
- const fetchStudentsData = useCallback(async (userId: string, authToken: string) => {
+const fetchStudentsData = useCallback(async (authToken: string) => {
   try {
-    // First fetch the classes data
     const classesResponse = await fetch(`${API_BASE_URL}/api/users/getclasse`, {
       headers: { Authorization: `Bearer ${authToken}` },
     });
@@ -359,7 +358,7 @@ const Dashboard: React.FC = () => {
           
           // Still fetch other data
           await Promise.all([
-            fetchStudentsData(auth.user._id, auth.token),
+            fetchStudentsData(auth.token),
             fetchTransactionsData(auth.token)
           ]);
           
@@ -382,7 +381,7 @@ const Dashboard: React.FC = () => {
         // After successful auth, fetch other data
         if (profile._id) {
           await Promise.all([
-            fetchStudentsData(profile._id, storedToken),
+            fetchStudentsData(storedToken),
             fetchTransactionsData(storedToken)
           ]);
         }

@@ -14,6 +14,7 @@ import { useAuth } from '../context/AuthContext';
 
 // API Configuration
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging-xp.up.railway.app';
+
 // Define TypeScript interfaces
 interface Student {
   _id: string;
@@ -22,8 +23,7 @@ interface Student {
   lastName: string;
   fullName: string;
   email: string;
-  className: string;
-  class?: string;
+  className?: string;
   schoolId?: string;
   parentId?: string;
   role?: string;
@@ -38,25 +38,16 @@ interface SchoolFee {
   feeType: string;
   term: string;
   session: string;
-  className: string;
+  className: string; 
   schoolId: string;
   amountPaid: number;
   paymentMethod: string;
   transactionId: string;
-  status: 'Paid' | 'Unpaid';
+  status: 'Paid' | 'Unpaid' | 'partial'; 
   paymentDate: string;
   createdAt: string;
   updatedAt: string;
-}
-
-interface User {
-  _id: string;
-  firstName?: string;
-  lastName?: string;
-  name?: string;
-  email?: string;
-  role?: string;
-  children?: string[];
+  __v?: number;
 }
 
 interface Bill {
@@ -73,13 +64,6 @@ interface Bill {
   transactionId: string;
 }
 
-interface BillsData {
-  [studentId: string]: {
-    student: Student;
-    bills: Bill[];
-  };
-}
-
 interface Summary {
   total: number;
   paid: number;
@@ -92,11 +76,41 @@ interface SnackbarState {
   severity: 'success' | 'error' | 'info' | 'warning';
 }
 
+// Fetch fees for a student by email
+const fetchFeesForStudent = async (authToken: string, email: string): Promise<SchoolFee[]> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/fee/getFeeForStudent/${encodeURIComponent(email)}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    // The API may return { success, data: [...] } or just an array
+    if (Array.isArray(data)) {
+      return data as SchoolFee[];
+    } else if (Array.isArray(data?.data)) {
+      return data.data as SchoolFee[];
+    } else {
+      return [];
+    }
+  } catch (error) {
+    console.error('Error fetching fees for student:', error);
+    return [];
+  }
+};
+
 const ViewStudentTransactions: React.FC = () => {
-  const { id: studentIdFromUrl } = useParams();
-  const [selectedStudent, setSelectedStudent] = useState<string>('');
-  const [students, setStudents] = useState<Student[]>([]);
-  const [bills, setBills] = useState<BillsData>({});
+  const { _id: studentIdFromUrl } = useParams();
+  const [student, setStudent] = useState<Student | null>(null);
+  const [bills, setBills] = useState<Bill[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [loadingFees, setLoadingFees] = useState<boolean>(false);
   const [snackbar, setSnackbar] = useState<SnackbarState>({ 
@@ -106,6 +120,7 @@ const ViewStudentTransactions: React.FC = () => {
   });
 
   const auth = useAuth();
+
   // Show snackbar message
   const showSnackbar = useCallback((message: string, severity: SnackbarState['severity'] = 'info') => {
     setSnackbar({ open: true, message, severity });
@@ -134,15 +149,12 @@ const ViewStudentTransactions: React.FC = () => {
     }
   }, [auth?.token, showSnackbar]);
 
-  // Fetch user details
-  // Fetch user details
-  const fetchUserDetails = useCallback(async (authToken: string): Promise<User | null> => {
+  // Fetch single student by ID
+  const fetchStudentById = useCallback(async (authToken: string, _Id: string): Promise<Student | null> => {
     try {
-      if (auth?.user?._id) {
-        return auth.user;
-      }
-
-      const response = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
+      console.log(`Fetching student with ID: ${_Id}`);
+      
+      const response = await fetch(`${API_BASE_URL}/api/users/getuser/${_Id}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${authToken}`,
@@ -155,134 +167,44 @@ const ViewStudentTransactions: React.FC = () => {
       }
 
       const data = await response.json();
+      console.log('Raw student API response:', data);
       
-      let profile: User | null = null;
-      if (data?.user?.data) {
-        profile = data.user.data;
-      } else if (data?.data) {
-        profile = data.data;
+      let studentData: Student | null = null;
+      
+      if (data?.data) {
+        studentData = data.data;
       } else if (data?.user) {
-        profile = data.user;
+        studentData = data.user;
       } else if (data) {
-        profile = data;
+        studentData = data;
       }
 
-      if (!profile?._id) {
-        throw new Error('Invalid user data structure received');
+      if (!studentData?._id) {
+        throw new Error('Invalid student data structure received');
       }
 
-      return profile;
+      // Process the student data
+      const processedStudent: Student = {
+        _id: studentData.student_id || studentData._id,
+        student_id: studentData.student_id,
+        firstName: studentData.firstName || 'Unknown',
+        lastName: studentData.lastName || '',
+        fullName: studentData.fullName || `${studentData.firstName || 'Unknown'} ${studentData.lastName || ''}`.trim(),
+        email: studentData.email || '',
+        className: studentData.className || 'No Class', // Updated this line
+        schoolId: studentData.schoolId,
+        parentId: studentData.parentId,
+        role: studentData.role,
+        phone: studentData.phone
+      };
+
+      console.log('Processed student:', processedStudent);
+      return processedStudent;
+
     } catch (error) {
-      console.error('Error fetching user details:', error);
-      showSnackbar('Failed to fetch user details. Please try again.', 'error');
+      console.error('Error fetching student:', error);
+      showSnackbar('Failed to fetch student. Please try again.', 'error');
       return null;
-    }
-  }, [auth, showSnackbar]);
-  // Fetch all students
-  const fetchStudents = useCallback(async (authToken: string): Promise<Student[]> => {
-    try {
-      console.log('Fetching students...');
-      
-      const response = await fetch(`${API_BASE_URL}/api/users/getallsudent`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log('Raw students API response:', data);
-      
-      let studentsData: Student[] = [];
-      
-      if (data?.success && Array.isArray(data.data)) {
-        studentsData = data.data;
-      } else if (Array.isArray(data.data)) {
-        studentsData = data.data;
-      } else if (Array.isArray(data)) {
-        studentsData = data;
-      } else {
-        console.log('Unexpected students response structure:', data);
-        throw new Error('Invalid response structure');
-      }
-      
-      const processedStudents: Student[] = studentsData.map(student => ({
-        _id: student.student_id || student._id || `student-${Date.now()}-${Math.random()}`,
-        student_id: student.student_id,
-        firstName: student.firstName || 'Unknown',
-        lastName: student.lastName || '',
-        fullName: student.fullName || `${student.firstName || 'Unknown'} ${student.lastName || ''}`.trim(),
-        email: student.email || '',
-        className: student.class || student.className || 'No Class',
-        class: student.class,
-        schoolId: student.schoolId,
-        parentId: student.parentId,
-        role: student.role,
-        phone: student.phone
-      }));
-      
-      console.log('Processed students:', processedStudents);
-      
-      if (processedStudents.length === 0) {
-        showSnackbar('No students found', 'warning');
-      } else {
-        showSnackbar(`Loaded ${processedStudents.length} students`, 'success');
-      }
-      
-      return processedStudents;
-    } catch (error) {
-      console.error('Error fetching students:', error);
-      showSnackbar('Failed to fetch students. Please try again.', 'error');
-      return [];
-    }
-  }, [showSnackbar]);
-
-  // Fetch fees for a specific student
-  const fetchFeesForStudent = useCallback(async (authToken: string, studentEmail: string): Promise<SchoolFee[]> => {
-    try {
-      console.log(`Fetching fees for student email: ${studentEmail}`);
-      
-      const encodedEmail = encodeURIComponent(studentEmail);
-      
-      const response = await fetch(`${API_BASE_URL}/api/fee/getFeeForStudent/${encodedEmail}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log('Raw fees API response:', data);
-      
-      let feesData: SchoolFee[] = [];
-      
-      if (data?.data && Array.isArray(data.data)) {
-        feesData = data.data;
-      } else if (Array.isArray(data)) {
-        feesData = data;
-      } else if (data?.fees && Array.isArray(data.fees)) {
-        feesData = data.fees;
-      } else {
-        console.log('Unexpected fees response structure:', data);
-        return [];
-      }
-      
-      console.log('Processed fees for student:', feesData);
-      return feesData;
-    } catch (error) {
-      console.error('Error fetching student fees:', error);
-      showSnackbar('Failed to fetch student fees. Please try again.', 'error');
-      return [];
     }
   }, [showSnackbar]);
 
@@ -303,25 +225,17 @@ const ViewStudentTransactions: React.FC = () => {
     }));
   }, []);
 
-  // Load fees for selected student
-  const loadStudentFees = useCallback(async (studentId: string) => {
+  // Load fees for student
+  const loadStudentFees = useCallback(async (studentData: Student) => {
     try {
-      console.log(`Loading fees for student: ${studentId}`);
-      
-      const student = students.find(s => s._id === studentId || s.student_id === studentId);
-      if (!student) {
-        console.error('Student not found in students array');
-        showSnackbar('Student not found', 'error');
-        return;
-      }
+      console.log(`Loading fees for student:`, studentData);
 
-      if (!student.email) {
+      if (!studentData.email) {
         console.error('Student email not found');
         showSnackbar('Student email not found. Cannot fetch fees.', 'error');
         return;
       }
 
-      console.log('Found student:', student);
       setLoadingFees(true);
 
       const authToken = getAuthToken();
@@ -329,24 +243,18 @@ const ViewStudentTransactions: React.FC = () => {
         throw new Error('No authentication token found');
       }
 
-      const studentFees = await fetchFeesForStudent(authToken, student.email);
+      const studentFees = await fetchFeesForStudent(authToken, studentData.email);
       console.log('Fetched fees for student:', studentFees);
       
       const transformedBills = transformFeesToBills(studentFees);
       console.log('Transformed bills:', transformedBills);
 
-      setBills(prevBills => ({
-        ...prevBills,
-        [studentId]: {
-          student,
-          bills: transformedBills
-        }
-      }));
+      setBills(transformedBills);
 
       if (transformedBills.length === 0) {
-        showSnackbar(`No fees found for ${student.fullName}`, 'info');
+        showSnackbar(`No fees found for ${studentData.fullName}`, 'info');
       } else {
-        showSnackbar(`Loaded ${transformedBills.length} transactions for ${student.fullName}`, 'success');
+        showSnackbar(`Loaded ${transformedBills.length} transactions for ${studentData.fullName}`, 'success');
       }
 
     } catch (error) {
@@ -355,67 +263,51 @@ const ViewStudentTransactions: React.FC = () => {
     } finally {
       setLoadingFees(false);
     }
-  }, [students, fetchFeesForStudent, transformFeesToBills, showSnackbar, getAuthToken]);
+  }, [transformFeesToBills, showSnackbar, getAuthToken]);
 
-  // Handle student selection
-  const handleStudentSelect = useCallback(async (studentId: string) => {
-    setSelectedStudent(studentId);
-    
-    if (studentId) {
-      await loadStudentFees(studentId);
-    }
-  }, [loadStudentFees]);
-
-  // Initialize data
+  // Initialize data - Only run once when component mounts
   useEffect(() => {
-  const initializeData = async () => {
-    try {
-      setLoading(true);
-      console.log('Starting data initialization...');
-      
-      const authToken = getAuthToken();
-      if (!authToken) {
-        throw new Error('No authentication token found');
-      }
-      
-      const [, studentsData] = await Promise.all([
-        fetchUserDetails(authToken),
-        fetchStudents(authToken)
-      ]);
-      
-      setStudents(studentsData);
+    const initializeData = async () => {
+      try {
+        setLoading(true);
+        console.log('Starting data initialization...');
         
-        // If there's a student ID in the URL, try to load that student
-      if (studentIdFromUrl) {
-        const studentExists = studentsData.some(s => s._id === studentIdFromUrl);
-        if (studentExists) {
-          await handleStudentSelect(studentIdFromUrl);
-        } else {
-          showSnackbar('Student not found', 'error');
+        const authToken = getAuthToken();
+        if (!authToken) {
+          throw new Error('No authentication token found');
         }
+        
+        // Only fetch if we have a student ID in the URL
+        if (studentIdFromUrl) {
+          const studentData = await fetchStudentById(authToken, studentIdFromUrl);
+          if (studentData) {
+            setStudent(studentData);
+            await loadStudentFees(studentData);
+          } else {
+            showSnackbar('Student not found', 'error');
+          }
+        } else {
+          showSnackbar('No student ID provided', 'error');
+        }
+        
+      } catch (error) {
+        console.error('Data initialization error:', error);
+        showSnackbar('Failed to load data. Please login again.', 'error');
+      } finally {
+        setLoading(false);
       }
-      
-    } catch (error) {
-      console.error('Data initialization error:', error);
-      showSnackbar('Failed to load data. Please login again.', 'error');
-    } finally {
-      setLoading(false);
+    };
+
+    // Only initialize if we haven't already loaded the student
+    if (!student && studentIdFromUrl) {
+      initializeData();
     }
-  };
+  }, [studentIdFromUrl]); // Only depend on studentIdFromUrl
 
-  initializeData();
-}, [getAuthToken, fetchUserDetails, fetchStudents, showSnackbar, studentIdFromUrl]);
-
-
-  // Calculate summary for selected student
+  // Calculate summary
   const calculateSummary = (): Summary => {
-    if (!selectedStudent || !bills[selectedStudent]) {
-      return { total: 0, paid: 0, remaining: 0 };
-    }
-    
-    const studentBills = bills[selectedStudent].bills;
-    const total = studentBills.reduce((sum, bill) => sum + bill.amount, 0);
-    const paid = studentBills.reduce((sum, bill) => sum + bill.amountPaid, 0);
+    const total = bills.reduce((sum, bill) => sum + bill.amount, 0);
+    const paid = bills.reduce((sum, bill) => sum + bill.amountPaid, 0);
     
     return {
       total,
@@ -425,7 +317,6 @@ const ViewStudentTransactions: React.FC = () => {
   };
 
   const summary = calculateSummary();
-  const selectedStudentData = selectedStudent ? bills[selectedStudent] : null;
 
   if (loading) {
     return (
@@ -438,15 +329,42 @@ const ViewStudentTransactions: React.FC = () => {
     );
   }
 
+  if (!student) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-gray-50 flex flex-col">
+          <Header />
+          
+          <div className="flex flex-grow overflow-hidden">
+            <Sidebar />
+            
+            <div className="flex-grow md:ml-64 overflow-y-auto">
+              <div className="bg-white rounded-2xl shadow-sm p-8 mb-8">
+                <div className="flex flex-col items-center justify-center py-16">
+                  <UserIcon className="h-16 w-16 text-red-300 mb-4" />
+                  <p className="text-gray-500 text-lg">Student not found</p>
+                  <p className="text-sm text-gray-400 mt-2">
+                    Please check the student ID and try again
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="min-h-screen bg-gray-50 flex flex-col">
         <Header />
         
-        <div className="flex flex-grow">
+        <div className="flex flex-grow overflow-hidden">
           <Sidebar />
           
-          <div className="flex-grow md:ml-64">
+          <div className="flex-grow md:ml-64 overflow-y-auto">
             <div className="bg-white rounded-2xl shadow-sm p-8 mb-8">
               <h1 className="text-3xl font-bold text-center mb-2 text-transparent bg-clip-text bg-gradient-to-r from-indigo-800 to-indigo-600">
                 Student Transactions
@@ -455,36 +373,6 @@ const ViewStudentTransactions: React.FC = () => {
                 View and manage student fee transactions
               </p>
 
-            {!studentIdFromUrl && (
-  <div className="mb-8">
-    <label htmlFor="select-student" className="block text-sm font-medium text-gray-700 mb-2">
-      Select Student ({students.length} students found)
-    </label>
-    <div className="relative">
-      <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-        <UserIcon className="h-5 w-5 text-gray-500" />
-      </div>
-      <select
-        id="select-student"
-        value={selectedStudent}
-        onChange={(e) => handleStudentSelect(e.target.value)}
-        className="pl-10 block w-full rounded-lg border-gray-300 border py-3 px-4 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-        disabled={students.length === 0}
-      >
-        <option value="">
-          {students.length === 0 ? 'No students available' : 'Select a student'}
-        </option>
-        {students.map((student) => (
-          <option key={student._id} value={student._id}>
-            {student.fullName} - {student.className}
-            {student.email && ` (${student.email})`}
-          </option>
-        ))}
-      </select>
-    </div>
-  </div>
-)}
-
               {loadingFees && (
                 <div className="text-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-4"></div>
@@ -492,7 +380,7 @@ const ViewStudentTransactions: React.FC = () => {
                 </div>
               )}
 
-              {selectedStudentData && !loadingFees && (
+              {student && !loadingFees && (
                 <>
                   <div className="mb-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
                     <div className="flex items-center gap-3">
@@ -501,14 +389,14 @@ const ViewStudentTransactions: React.FC = () => {
                       </div>
                       <div>
                         <h3 className="text-lg font-semibold text-indigo-900">
-                          {selectedStudentData.student.fullName}
+                          {student.fullName}
                         </h3>
                         <p className="text-sm text-indigo-600">
-                          Class: {selectedStudentData.student.className}
+                          Class: {student.className}
                         </p>
-                        {selectedStudentData.student.email && (
+                        {student.email && (
                           <p className="text-xs text-indigo-500">
-                            {selectedStudentData.student.email}
+                            {student.email}
                           </p>
                         )}
                       </div>
@@ -522,7 +410,7 @@ const ViewStudentTransactions: React.FC = () => {
                         ₦{summary.total.toLocaleString()}
                       </p>
                       <p className="text-sm text-gray-500 mt-2">
-                        {selectedStudentData.bills.length} transaction(s)
+                        {bills.length} transaction(s)
                       </p>
                     </div>
                     <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
@@ -546,13 +434,13 @@ const ViewStudentTransactions: React.FC = () => {
                   </div>
 
                   <h2 className="text-xl font-semibold text-gray-800 mb-2">
-                    {selectedStudentData.student.fullName}'s Transactions
+                    {student.fullName}'s Transactions
                   </h2>
                   <hr className="mb-6" />
 
-                  {selectedStudentData.bills.length > 0 ? (
+                  {bills.length > 0 ? (
                     <div className="grid grid-cols-1 gap-6">
-                      {selectedStudentData.bills.map((bill) => (
+                      {bills.map((bill) => (
                         <div 
                           key={bill.id} 
                           className={`bg-white rounded-xl shadow-sm p-6 transition-all duration-200 hover:shadow-md
@@ -626,7 +514,7 @@ const ViewStudentTransactions: React.FC = () => {
                     <div className="flex flex-col items-center justify-center py-16">
                       <DocumentTextIcon className="h-16 w-16 text-gray-300 mb-4" />
                       <p className="text-gray-500 text-lg">
-                        No transactions found for {selectedStudentData.student.fullName}
+                        No transactions found for {student.fullName}
                       </p>
                       <p className="text-sm text-gray-400 mt-2">
                         Transactions will appear here when payments are made
@@ -634,21 +522,6 @@ const ViewStudentTransactions: React.FC = () => {
                     </div>
                   )}
                 </>
-              )}
-
-              {!selectedStudent && !loadingFees && (
-                <div className="flex flex-col items-center justify-center py-16">
-                  <UserIcon className="h-16 w-16 text-indigo-300 mb-4" />
-                  <p className="text-gray-500 text-lg">
-                    Please select a student to view transactions
-                  </p>
-                  <p className="text-sm text-gray-400 mt-2">
-                    {students.length === 0 
-                      ? 'No students found in your account'
-                      : `Choose from ${students.length} available students`
-                    }
-                  </p>
-                </div>
               )}
             </div>
           </div>

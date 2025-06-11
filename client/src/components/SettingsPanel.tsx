@@ -89,7 +89,7 @@ const SettingsPanel = () => {
       }
     };
     fetchUserData();
-  }, [token]);
+  }, [token, API_BASE_URL]);
 
   // Profile Update Handler
   const handleProfileUpdate = async (e: React.FormEvent) => {

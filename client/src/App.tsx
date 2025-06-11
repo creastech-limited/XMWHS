@@ -84,7 +84,7 @@ function App() {
           <Route path='/swithdrawal' element={<SWithdrawalPage />} />
           <Route path="/store/settings" element={<StoreSettingsPage />} />
           <Route path="/students/edit/:_id" element={<EditStudentDetails />} />
-          <Route path="/students/transcations/:_id" element={<ViewStudentTransactions />} />
+          <Route path="/students/transactions/:_id" element={<ViewStudentTransactions />} />
           <Route path="/stores/edit/:id" element={<EditStoreDetails />} />
         </Routes>
       </AuthProvider>

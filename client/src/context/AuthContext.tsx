@@ -59,7 +59,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   // Enhanced logout function with redirect
-  const logout = () => {
+  const logout = React.useCallback(() => {
     localStorage.removeItem('user');
     localStorage.removeItem('token');
     setUser(null);
@@ -69,7 +69,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (location.pathname !== '/login') {
       navigate('/login');
     }
-  };
+  }, [location.pathname, navigate]);
 
   // Original login function - unchanged
   const login = (userData: User, jwt: string) => {
@@ -121,7 +121,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     checkAuthStatus();
-  }, [navigate, location.pathname]);
+  }, [navigate, location.pathname, logout]);
 
   // Set up axios interceptor for automatic 401 handling
   useEffect(() => {
@@ -141,7 +141,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return () => {
       axios.interceptors.response.eject(axiosInterceptor);
     };
-  }, []);
+  }, [logout]);
 
   // Periodic token validation (every 10 minutes)
   useEffect(() => {
@@ -156,7 +156,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }, 10 * 60 * 1000); // 10 minutes
 
     return () => clearInterval(intervalId);
-  }, [token]);
+  }, [token, logout]);
 
   return (
     <AuthContext.Provider value={{ user, token, login, logout, isLoading }}>
