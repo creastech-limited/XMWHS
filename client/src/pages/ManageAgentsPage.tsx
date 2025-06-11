@@ -38,7 +38,7 @@ interface SnackbarState {
 }
 
 const ManageAgentsPage: React.FC = () => {
-  const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://nodes-staging.up.railway.app';
+  const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://nodes-staging-xp.up.railway.app';
   
   // Form state for new agent account
   const [agentData, setAgentData] = useState({

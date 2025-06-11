@@ -57,7 +57,10 @@ const FundWalletPage: React.FC = () => {
 
   // Fetch wallet balance
   const fetchWalletBalance = async () => {
-    if (!authToken) return;
+  if (!authToken) {
+    navigate('/login'); 
+    return;
+  }
     
     try {
       const response = await axios.get(`${API_BASE_URL}/api/wallet/getuserwallet`, {
@@ -92,25 +95,26 @@ const FundWalletPage: React.FC = () => {
   };
 
   // Fetch user profile
-  useEffect(() => {
-    const fetchUserProfile = async () => {
-      if (!authToken) {
-        setIsLoading(false);
-        setSnackbar({
-          open: true,
-          message: 'You need to be logged in to access this page',
-          severity: 'error'
-        });
-        return;
-      }
-      
-      try {
-        const response = await axios.get(`${API_BASE_URL}/api/users/getuserone`, {
-          headers: {
-            Authorization: `Bearer ${authToken}`,
-            'Content-Type': 'application/json'
-          }
-        });
+ useEffect(() => {
+  const fetchUserProfile = async () => {
+    if (!authToken) {
+      setIsLoading(false);
+      navigate('/login'); 
+      setSnackbar({
+        open: true,
+        message: 'You need to be logged in to access this page',
+        severity: 'error'
+      });
+      return;
+    }
+    
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/users/getuserone`, {
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
         
         if (response.data?.user) {
           const profile = response.data.user;
@@ -128,21 +132,25 @@ const FundWalletPage: React.FC = () => {
           await fetchWalletBalance();
         }
       } catch (error: unknown) {
-        console.error('Error fetching user profile:', error);
-        setSnackbar({
-          open: true,
-          message: axios.isAxiosError(error) && error.response?.data?.message 
-            ? error.response.data.message 
-            : 'Failed to fetch user profile',
-          severity: 'error'
-        });
-      } finally {
-        setIsLoading(false);
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
+        // Handle 401 Unauthorized (token expired)
+        navigate('/login'); 
       }
-    };
+      console.error('Error fetching user profile:', error);
+      setSnackbar({
+        open: true,
+        message: axios.isAxiosError(error) && error.response?.data?.message 
+          ? error.response.data.message 
+          : 'Failed to fetch user profile',
+        severity: 'error'
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
     
-    fetchUserProfile();
-  }, [authToken]);
+   fetchUserProfile();
+}, [authToken, navigate]);
 
   // Fetch transactions
   const fetchTransactions = async () => {

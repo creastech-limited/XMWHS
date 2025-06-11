@@ -21,14 +21,19 @@ import {
   XCircleIcon,
 } from 'lucide-react';
 
-// Define TypeScript interfaces
+// Updated TypeScript interfaces
 interface Student {
   _id: string;
+  firstName: string;
+  lastName: string;
   name: string;
   email: string;
-  classAdmittedTo: string;
+  academicDetails: {
+    classAdmittedTo: string;
+  };
   status: string;
   createdAt: string;
+  classAdmittedTo?: string; // For backward compatibility
 }
 
 interface Class {
@@ -61,9 +66,7 @@ const StudentPage: React.FC = () => {
   const authToken = token || localStorage.getItem('token');
 
   const [schoolId, setSchoolId] = useState<string>('');
-  const [schoolProfile, setSchoolProfile] = useState<SchoolProfile | null>(
-    null
-  );
+  const [schoolProfile, setSchoolProfile] = useState<SchoolProfile | null>(null);
   const [registrationLink, setRegistrationLink] = useState<string>('');
   const [students, setStudents] = useState<Student[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
@@ -187,10 +190,20 @@ const StudentPage: React.FC = () => {
         return res.json();
       })
       .then((data) => {
-        // Handle the response structure properly
         let studentArray: Student[] = [];
-        if (data && data.data && Array.isArray(data.data)) {
-          studentArray = data.data;
+        if (data && Array.isArray(data.data)) {
+          studentArray = data.data.map((student: Student) => ({
+           
+            _id: student._id, // For backward compatibility
+            firstName: student.firstName,
+            lastName: student.lastName,
+            name: student.name || `${student.firstName} ${student.lastName}`,
+            email: student.email,
+            academicDetails: student.academicDetails || { classAdmittedTo: '' },
+            classAdmittedTo: student.academicDetails?.classAdmittedTo || 'Not Assigned',
+            status: student.status,
+            createdAt: student.createdAt
+          }));
         } else {
           console.error('Unexpected students data format:', data);
         }
@@ -217,7 +230,9 @@ const StudentPage: React.FC = () => {
       statusFilter === 'all' ||
       s.status.toLowerCase() === statusFilter.toLowerCase();
     const matchesGrade =
-      gradeFilter === 'all' || s.classAdmittedTo === gradeFilter;
+      gradeFilter === 'all' || 
+      s.classAdmittedTo === gradeFilter ||
+      (gradeFilter === 'Not Assigned' && !s.classAdmittedTo);
     return matchesSearch && matchesStatus && matchesGrade;
   });
 
@@ -306,15 +321,15 @@ const StudentPage: React.FC = () => {
     });
   };
 
+  // Get unique classes from both classes API and student records
   const availableClasses = [
-    ...new Set(
-      students
-        .map((student) => student.classAdmittedTo)
-        .filter((className) => className && className.trim() !== '')
-    ),
+    ...new Set([
+      ...classes.map((cls) => cls.className),
+      ...students.map((student) => student.classAdmittedTo)
+    ].filter(className => className && className.trim() !== '' && className !== 'Not Assigned'))
   ].sort();
 
-  return (
+ return (
     <div className="flex flex-col min-h-screen bg-gray-50">
       <Header />
       <div className="flex flex-grow">
@@ -423,7 +438,7 @@ const StudentPage: React.FC = () => {
             </div>
           </div>
 
-          {/* School Classes Overview */}
+             {/* School Classes Overview */}
           {!classesLoading && classes.length > 0 && (
             <div className="bg-white rounded-xl shadow-sm mb-6 md:mb-8 p-4 md:p-6 border border-gray-100">
               <div className="flex items-center gap-2 mb-3 md:mb-4">
@@ -433,26 +448,32 @@ const StudentPage: React.FC = () => {
                 </h2>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
-                {classes.map((cls) => (
-                  <div
-                    key={cls._id}
-                    className="bg-gray-50 rounded-lg p-3 md:p-4 text-center hover:bg-gray-100 transition-colors"
-                  >
-                    <div className="text-sm font-medium text-gray-900 mb-1">
-                      {cls.className}
+                {classes.map((cls) => {
+                  const studentCount = students.filter(s => 
+                    s.classAdmittedTo === cls.className
+                  ).length;
+                  return (
+                    <div
+                      key={cls._id}
+                      className="bg-gray-50 rounded-lg p-3 md:p-4 text-center hover:bg-gray-100 transition-colors"
+                    >
+                      <div className="text-sm font-medium text-gray-900 mb-1">
+                        {cls.className}
+                      </div>
+                      <div className="text-xs text-gray-500 mb-1 md:mb-2">
+                        Section {cls.section}
+                      </div>
+                      <div className="text-base md:text-lg font-bold text-blue-600">
+                        {studentCount}
+                      </div>
+                      <div className="text-xs text-gray-500">students</div>
                     </div>
-                    <div className="text-xs text-gray-500 mb-1 md:mb-2">
-                      Section {cls.section}
-                    </div>
-                    <div className="text-base md:text-lg font-bold text-blue-600">
-                      {cls.students.length}
-                    </div>
-                    <div className="text-xs text-gray-500">students</div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
+
 
           {/* Registration Link Card */}
           <div className="bg-white rounded-xl shadow-sm mb-6 md:mb-8 p-4 md:p-6 border border-gray-100">
@@ -488,7 +509,7 @@ const StudentPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Filters */}
+             {/* Filters */}
           <div className="bg-white rounded-xl shadow-sm p-4 md:p-6 mb-6 md:mb-8 border border-gray-100">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3 md:gap-4">
               <div className="col-span-1 md:col-span-2">
@@ -540,6 +561,7 @@ const StudentPage: React.FC = () => {
                       {className}
                     </option>
                   ))}
+                  <option value="Not Assigned">Not Assigned</option>
                 </select>
               </div>
             </div>
@@ -744,25 +766,21 @@ const StudentPage: React.FC = () => {
             }}
           >
             <button
-              className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
-              onClick={() => {
-              handleMenuClose();
-              window.location.href = `/students/edit/:id}`;
-              }}
-            >
-              <UserIcon className="h-4 w-4" />
-              View Details
-            </button>
+  className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
+  onClick={() => {
+    handleMenuClose();
+    window.location.href = `/students/edit/${menuStudent._id}`;
+  }}
+>
+  <UserIcon className="h-4 w-4" />
+  View Details
+</button>
             <button
               className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
-              onClick={handleMenuClose}
-            >
-              <BookOpenIcon className="h-4 w-4" />
-              Modify Student
-            </button>
-            <button
-              className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
-              onClick={handleMenuClose}
+  onClick={() => {
+    handleMenuClose();
+    window.location.href = `/students/transactions/${menuStudent._id}`;
+  }}
             >
               <CalendarIcon className="h-4 w-4" />
               Transaction Info
