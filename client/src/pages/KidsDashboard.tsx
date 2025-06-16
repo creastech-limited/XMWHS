@@ -504,70 +504,71 @@ const KidsDashboard = () => {
         </div>
       </div>
 
-      {/* Analytics Card */}
-      <div className="md:col-span-2 bg-gray-50 rounded-xl shadow-lg p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-xl font-semibold text-gray-800">
-            Transaction Analytics
-          </h3>
-          <div className="flex space-x-2">
-            <button
-              onClick={() => setActiveChart('pie')}
-              className={`px-3 py-1 rounded-md text-sm ${activeChart === 'pie' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
-            >
-              Overview
-            </button>
-            <button
-              onClick={() => setActiveChart('category')}
-              className={`px-3 py-1 rounded-md text-sm ${activeChart === 'category' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
-            >
-              Categories
-            </button>
-            <button
-              onClick={() => setActiveChart('monthly')}
-              className={`px-3 py-1 rounded-md text-sm ${activeChart === 'monthly' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
-            >
-              Monthly
-            </button>
-          </div>
-        </div>
+{/* Analytics Card */}
+<div className="md:col-span-2 bg-gray-50 rounded-xl shadow-lg p-6">
+  <div className="flex flex-col mb-6">
+    <h3 className="text-xl font-semibold text-gray-800 mb-4 md:mb-0">
+      Transaction Analytics
+    </h3>
+    <div className="flex space-x-2 md:self-end">
+      <button
+        onClick={() => setActiveChart('pie')}
+        className={`px-3 py-1 rounded-md text-sm ${activeChart === 'pie' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+      >
+        Overview
+      </button>
+      <button
+        onClick={() => setActiveChart('category')}
+        className={`px-3 py-1 rounded-md text-sm ${activeChart === 'category' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+      >
+        Categories
+      </button>
+      <button
+        onClick={() => setActiveChart('monthly')}
+        className={`px-3 py-1 rounded-md text-sm ${activeChart === 'monthly' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+      >
+        Monthly
+      </button>
+    </div>
+  </div>
 
-        {loadingTransactions ? (
-          <div className="flex justify-center py-16">
-            <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500"></div>
-          </div>
-        ) : (
-          <>
-            {activeChart === 'pie' && analytics.length > 0 && (
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={analytics}
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={80}
-                      innerRadius={30}
-                      dataKey="value"
-                      label={({ name, percent }) =>
-                        `${name}: ${(percent * 100).toFixed(0)}%`
-                      }
-                      labelLine={false}
-                    >
-                      {analytics.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      formatter={(value: number) =>
-                        `₦${value.toLocaleString()}`
-                      }
-                    />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            )}
+  {loadingTransactions ? (
+    <div className="flex justify-center py-16">
+      <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500"></div>
+    </div>
+  ) : (
+    <>
+      {/* Rest of the chart rendering code remains the same */}
+      {activeChart === 'pie' && analytics.length > 0 && (
+        <div className="h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={analytics}
+                cx="50%"
+                cy="50%"
+                outerRadius={80}
+                innerRadius={30}
+                dataKey="value"
+                label={({ name, percent }) =>
+                  `${name}: ${(percent * 100).toFixed(0)}%`
+                }
+                labelLine={false}
+              >
+                {analytics.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip
+                formatter={(value: number) =>
+                  `₦${value.toLocaleString()}`
+                }
+              />
+              <Legend />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
             {activeChart === 'category' && categoryData.length > 0 && (
               <div className="h-64">
@@ -776,8 +777,8 @@ const KidsDashboard = () => {
 
   // Main render
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 py-4 md:py-6 px-4">
-      <div className="max-w-6xl mx-auto flex flex-col min-h-screen">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-4 md:py-8">
+      <div className="container mx-auto max-w-5xl px-4 flex flex-col min-h-screen">
         {/* Header */}
         <KidsHeader profile={profile} wallet={wallet} />
 
