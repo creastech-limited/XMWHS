@@ -292,7 +292,7 @@ const WithdrawalPage: React.FC = () => {
     <div className="flex flex-col min-h-screen bg-white">
       <Header />
       <div className="flex flex-grow">
-        <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-64 bg-none">
+        <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-none">
           <Asidebar />
         </aside>
         <main className="flex-grow p-4 md:p-8 md:ml-64">
