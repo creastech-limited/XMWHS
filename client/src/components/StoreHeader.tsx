@@ -3,7 +3,6 @@ import {
   Bell,
   User,
   LogOut,
-  Store,
   Settings,
   ChevronDown,
   Search,
@@ -12,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
 
 // TypeScript interfaces
 interface StoreUser {
@@ -21,6 +21,16 @@ interface StoreUser {
   status: 'Online' | 'Away' | 'Offline';
   lastLogin?: string;
   email?: string;
+  _id?: string;
+}
+
+interface Notification {
+  _id: string;
+  title: string;
+  message: string;
+  read: boolean;
+  createdAt: string;
+  type?: string;
 }
 
 interface StoreHeaderProps {
@@ -33,76 +43,138 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
   isSidebarOpen = false 
 }) => {
   const navigate = useNavigate();
+  const auth = useAuth();
+  const user = auth?.user;
+  const token = auth?.token;
+  const logout = auth?.logout;
+  const isAuthenticated = !!auth?.user;
+  const authLoading = auth?.isLoading;
+  
   const [storeUser, setStoreUser] = useState<StoreUser>({
     name: 'Store ABC',
-    notifications: 3,
+    notifications: 0,
     avatar: null,
     status: 'Online',
     email: 'store@example.com'
   });
-  
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isProfileOpen, setIsProfileOpen] = useState<boolean>(false);
+  const [isNotificationOpen, setIsNotificationOpen] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const API_URL = process.env.REACT_APP_API_URL || 'https://nodes-staging-xp.up.railway.app';
+  // Use environment variable with fallback
+  const API_URL = import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging.up.railway.app';
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      try {
-        const parsed = JSON.parse(storedUser);
-        setStoreUser(prev => ({
-          ...prev,
-          name: parsed.name || parsed.storeName || 'Store ABC',
-          avatar: parsed.avatar || null,
-          email: parsed.email || 'store@example.com'
-        }));
-      } catch (error) {
-        console.error('Error parsing stored user:', error);
-      }
-    } else {
-      fetchUser();
+    // Check if user is authenticated
+    if (!isAuthenticated && !authLoading) {
+      navigate('/login');
+      return;
     }
-  }, []);
 
-  const fetchUser = async (): Promise<void> => {
+    // Initialize user data when auth is ready
+    if (isAuthenticated && user && token) {
+      initializeUserData();
+      fetchNotifications();
+    }
+  }, [isAuthenticated, user, token, authLoading, navigate]);
+
+  const initializeUserData = (): void => {
+    if (user) {
+      setStoreUser(prev => ({
+                    ...prev,
+                    name: String(user.name || user.storeName || 'Store ABC'),
+                    avatar: user.avatar || null,
+                    email: user.email || 'store@example.com',
+                    _id: user._id,
+                    lastLogin: typeof user.lastLogin === 'string' ? user.lastLogin : undefined
+                  }));
+    }
+  };
+
+  const fetchUserDetails = async (): Promise<void> => {
+    if (!token) return;
+
     try {
-      setIsLoading(true);
-      const token = localStorage.getItem('token');
-      if (!token) {
-        navigate('/login');
-        return;
-      }
-
       const response = await axios.get(`${API_URL}/api/users/getuserone`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      if (response.data && response.data.user) {
-        const user = response.data.user;
-        localStorage.setItem('user', JSON.stringify(user));
-        setStoreUser(prev => ({
-          ...prev,
-          name: user.name || user.storeName || 'Store ABC',
-          avatar: user.avatar || null,
-          email: user.email || 'store@example.com'
-        }));
+      if (response.data) {
+        // Handle different response structures
+        let profile: StoreUser | undefined;
+        const data = response.data;
+        
+        if (data.user?.data) {
+          profile = data.user.data;
+        } else if (data.data) {
+          profile = data.data;
+        } else if (data.user) {
+          profile = data.user as StoreUser;
+        } else {
+          profile = data as StoreUser;
+        }
+
+        if (profile) {
+          const userProfile = {
+            name: profile.name || 'Store ABC',
+            avatar: profile.avatar || null,
+            email: profile.email || 'store@example.com',
+            _id: profile._id,
+            notifications: storeUser.notifications, // Keep current notification count
+            status: 'Online' as const,
+            lastLogin: profile.lastLogin
+          };
+
+          setStoreUser(prev => ({ ...prev, ...userProfile }));
+        }
       }
     } catch (error) {
-      console.error('Failed to fetch store user:', error);
+      console.error('Failed to fetch user details:', error);
       if (axios.isAxiosError(error) && error.response?.status === 401) {
-        handleLogout();
+        if (logout) logout(); // Use AuthContext logout
       }
-    } finally {
-      setIsLoading(false);
+    }
+  };
+
+  const fetchNotifications = async (): Promise<void> => {
+    if (!token) return;
+
+    try {
+      const response = await axios.get(`${API_URL}/api/notification/get`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.data) {
+        let notificationData: Notification[] = [];
+        
+        // Handle different response structures
+        if (response.data.notifications) {
+          notificationData = response.data.notifications;
+        } else if (Array.isArray(response.data.data)) {
+          notificationData = response.data.data;
+        } else if (Array.isArray(response.data)) {
+          notificationData = response.data;
+        }
+
+        setNotifications(notificationData);
+        
+        // Update unread notification count
+        const unreadCount = notificationData.filter(n => !n.read).length;
+        setStoreUser(prev => ({ ...prev, notifications: unreadCount }));
+      }
+    } catch (error) {
+      console.error('Failed to fetch notifications:', error);
+      // Don't redirect on notification fetch failure
     }
   };
 
   const handleLogout = async (): Promise<void> => {
     try {
       setIsLoading(true);
-      const token = localStorage.getItem('token');
+      
       if (token) {
+        // Call logout endpoint
         await axios.get(`${API_URL}/api/users/logout`, {
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -110,10 +182,32 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
     } catch (error) {
       console.warn('Logout request failed or already expired.', error);
     } finally {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
       setIsLoading(false);
-      navigate('/login');
+      if (logout) logout(); 
+    }
+  };
+
+  const markNotificationAsRead = async (notificationId: string): Promise<void> => {
+    if (!token) return;
+
+    try {
+      await axios.patch(`${API_URL}/api/notification/${notificationId}/read`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      // Update local state
+      setNotifications(prev => 
+        prev.map(n => n._id === notificationId ? { ...n, read: true } : n)
+      );
+
+      // Update unread count
+      const updatedNotifications = notifications.map(n => 
+        n._id === notificationId ? { ...n, read: true } : n
+      );
+      const unreadCount = updatedNotifications.filter(n => !n.read).length;
+      setStoreUser(prev => ({ ...prev, notifications: unreadCount }));
+    } catch (error) {
+      console.error('Failed to mark notification as read:', error);
     }
   };
 
@@ -151,6 +245,37 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
       .substring(0, 2)
       .toUpperCase();
   };
+
+  const formatNotificationTime = (dateString: string): string => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString();
+  };
+
+  // Show loading state while auth is initializing
+  if (authLoading) {
+    return (
+      <header className="fixed top-0 right-0 left-0 md:left-70 z-40 bg-white shadow-sm border-b border-gray-200">
+        <div className="flex items-center justify-center px-4 py-3 md:px-6 md:py-4">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+        </div>
+      </header>
+    );
+  }
+
+  // Don't render if not authenticated
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
     <>
@@ -231,14 +356,83 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
           {/* Right Section - Actions */}
           <div className="flex items-center space-x-2 md:space-x-3">
             {/* Notifications */}
-            <button className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
-              <Bell className="w-5 h-5" />
-              {storeUser.notifications > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-medium">
-                  {storeUser.notifications > 9 ? '9+' : storeUser.notifications}
-                </span>
+            <div className="relative">
+              <button 
+                onClick={() => setIsNotificationOpen(!isNotificationOpen)}
+                className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <Bell className="w-5 h-5" />
+                {storeUser.notifications > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-medium">
+                    {storeUser.notifications > 9 ? '9+' : storeUser.notifications}
+                  </span>
+                )}
+              </button>
+
+              {/* Notifications Dropdown */}
+              {isNotificationOpen && (
+                <>
+                  {/* Backdrop */}
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setIsNotificationOpen(false)}
+                  ></div>
+                  
+                  {/* Dropdown Content */}
+                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-200 z-20 max-h-96 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-100">
+                      <h3 className="font-semibold text-gray-900">Notifications</h3>
+                    </div>
+                    
+                    <div className="max-h-64 overflow-y-auto">
+                      {notifications.length === 0 ? (
+                        <div className="px-4 py-6 text-center text-gray-500 text-sm">
+                          No notifications yet
+                        </div>
+                      ) : (
+                        notifications.map((notification) => (
+                          <div
+                            key={notification._id}
+                            className={`px-4 py-3 border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors ${
+                              !notification.read ? 'bg-blue-50' : ''
+                            }`}
+                            onClick={() => markNotificationAsRead(notification._id)}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <p className="font-medium text-gray-900 text-sm">
+                                  {notification.title}
+                                </p>
+                                <p className="text-gray-600 text-xs mt-1">
+                                  {notification.message}
+                                </p>
+                                <p className="text-gray-400 text-xs mt-1">
+                                  {formatNotificationTime(notification.createdAt)}
+                                </p>
+                              </div>
+                              {!notification.read && (
+                                <div className="w-2 h-2 bg-blue-500 rounded-full mt-1 ml-2"></div>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    
+                    {notifications.length > 0 && (
+                      <div className="px-4 py-2 border-t border-gray-100">
+                        <button 
+                          onClick={fetchNotifications}
+                          className="text-blue-600 text-sm hover:text-blue-800 transition-colors"
+                        >
+                          Refresh notifications
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
-            </button>
+            </div>
 
             {/* Profile Dropdown */}
             <div className="relative">
@@ -288,22 +482,14 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
 
                     {/* Menu Items */}
                     <div className="py-2">
-                        <button
-                        onClick={() => navigate('/store/settings')}
+                      <button 
+                        onClick={fetchUserDetails}
                         className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                        >
+                      >
                         <User className="w-4 h-4 mr-3" />
-                        Profile Settings
-                        </button>
-                      <button 
-                      onClick={() => navigate('/agents')}
-                      className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                        <Store className="w-4 h-4 mr-3" />
-                        Store Management
+                        Refresh Profile
                       </button>
-                      <button 
-                      onClick={() => navigate('/store/settings')}
-                      className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                      <button className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
                         <Settings className="w-4 h-4 mr-3" />
                         Settings
                       </button>
@@ -339,7 +525,7 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
         </div>
 
         {/* Mobile Search Bar */}
-        <div className=" md:hidden px-4 pb-3">
+        <div className="md:hidden px-4 pb-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
