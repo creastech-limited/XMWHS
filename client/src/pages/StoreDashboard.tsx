@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   TrendingUp, 
   MoreVertical, 
@@ -8,15 +8,44 @@ import {
   DollarSign, 
   Bell,
   UserPlus,
-  Plus,
-  FileDown,
   Activity
 } from 'lucide-react';
 import StoreSidebar from '../components/StoreSidebar';
 import StoreHeader from '../components/StoreHeader';
 import Footer from '../components/Footer';
+import { useAuth } from '../context/AuthContext';
+
+// API Configuration
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging.up.railway.app';
 
 // Define TypeScript interfaces
+interface User {
+  _id: string;
+  name: string;
+  email: string;
+  role: string;
+  balance?: number;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  storeName?: string;
+  storeType?: string;
+  schoolName?: string;
+  // Add other user properties as needed
+  [key: string]: unknown;
+}
+
+interface WalletData {
+  id: string;
+  balance: number;
+  currency: string;
+  type: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+}
+
 interface Transaction {
   id: string;
   date: string;
@@ -32,8 +61,16 @@ interface Agent {
   revenue: number;
 }
 
+interface Notification {
+  id: string;
+  message: string;
+  type: string;
+  createdAt: string;
+  read: boolean;
+}
+
 interface DashboardData {
-  walletBalance: number;
+  balance: number;
   dailyRevenue: number;
   numberOfAgents: number;
   growth: {
@@ -42,34 +79,304 @@ interface DashboardData {
   };
   recentTransactions: Transaction[];
   topAgents: Agent[];
+  notifications: Notification[];
 }
 
 const StoreDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<number>(0);
-
-  // Enhanced analytics data
-  const data: DashboardData = {
-    walletBalance: 500000,
-    dailyRevenue: 75000,
-    numberOfAgents: 25,
+  const [loading, setLoading] = useState<boolean>(true);
+  const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [dashboardData, setDashboardData] = useState<DashboardData>({
+    balance: 0,
+    dailyRevenue: 0,
+    numberOfAgents: 0,
     growth: {
-      revenue: 8.5,
-      agents: 12,
+      revenue: 0,
+      agents: 0,
     },
-    recentTransactions: [
-      { id: 'TX78943', date: '28 Feb 2025', amount: 12500, status: 'Completed', customer: 'John Doe' },
-      { id: 'TX78944', date: '27 Feb 2025', amount: 8750, status: 'Pending', customer: 'Sarah Johnson' },
-      { id: 'TX78945', date: '27 Feb 2025', amount: 5000, status: 'Completed', customer: 'Michael Scott' },
-      { id: 'TX78946', date: '26 Feb 2025', amount: 15250, status: 'Failed', customer: 'Emma Thompson' },
-      { id: 'TX78947', date: '25 Feb 2025', amount: 9800, status: 'Completed', customer: 'David Wilson' },
-    ],
-    topAgents: [
-      { name: 'Alice Cooper', sales: 58, performance: 94, revenue: 245000 },
-      { name: 'Bob Smith', sales: 45, performance: 87, revenue: 180000 },
-      { name: 'Claire Davis', sales: 42, performance: 91, revenue: 168000 },
-      { name: 'Daniel Jones', sales: 38, performance: 82, revenue: 152000 },
-    ]
-  };
+    recentTransactions: [],
+    topAgents: [],
+    notifications: []
+  });
+  const [error, setError] = useState<string | null>(null);
+
+  const auth = useAuth();
+
+  // Error handler
+  const handleAuthError = useCallback((message: string) => {
+    setError(message);
+    setUser(null);
+    setToken(null);
+    // Optionally redirect to login
+    // window.location.href = '/login';
+  }, []);
+
+  // Fetch user details from API
+  const fetchUserDetails = useCallback(async (authToken: string): Promise<User> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Raw API response:', data);
+      
+      // Handle the specific response structure from your API
+      let profile: User | undefined;
+      let walletData: WalletData | undefined;
+
+      // Extract user data
+      if (data.user?.data) {
+        profile = data.user.data;
+        walletData = data.user.wallet;
+      } else if (data.data) {
+        profile = data.data;
+        walletData = data.wallet;
+      } else {
+        profile = data;
+        walletData = data.wallet;
+      }
+
+      if (!profile) {
+        throw new Error('Invalid user data received from API');
+      }
+
+      // Transform the data to match our User interface
+      const transformedUser: User = {
+        ...profile,
+        _id: typeof profile['*id'] === 'string'
+          ? profile['*id']
+          : typeof profile._id === 'string'
+          ? profile._id
+          : typeof profile.id === 'string'
+          ? profile.id
+          : '',
+        name: profile.name || `${profile.firstName || ''} ${profile.lastName || ''}`.trim(),
+        role: profile.role || 'store',
+        firstName: profile.firstName || '',
+        lastName: profile.lastName || '',
+        phone: profile.phone || '',
+        storeName: profile.storeName || '',
+        storeType: profile.storeType || '',
+        schoolName: profile.schoolName || '',
+        // Extract balance from wallet data
+        balance: walletData?.balance || 0
+      };
+
+      console.log('Transformed user:', transformedUser);
+
+      if (!transformedUser._id) {
+        throw new Error('Invalid user ID received from API');
+      }
+
+      return transformedUser;
+    } catch (error) {
+      console.error('Failed to fetch user details:', error);
+      throw error;
+    }
+  }, []);
+
+  // Fetch user transactions
+  const fetchUserTransactions = useCallback(async (authToken: string): Promise<Transaction[]> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/transaction/getusertransaction`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      // Transform API data to match our Transaction interface
+      const transactionsArray = (data.transactions || data.data || data || []) as Array<Record<string, unknown>>;
+      const transactions: Transaction[] = transactionsArray.map((tx) => ({
+        id: (typeof tx._id === 'string' ? tx._id : typeof tx.id === 'string' ? tx.id : String(tx._id || tx.id || '')).slice(-8),
+        date: new Date(typeof tx.createdAt === 'string' ? tx.createdAt : typeof tx.date === 'string' ? tx.date : '').toLocaleDateString(),
+        amount: typeof tx.amount === 'number' ? tx.amount : 0,
+        status: typeof tx.status === 'string' ? (tx.status as Transaction['status']) : 'Pending',
+        customer: typeof tx.customerName === 'string'
+          ? tx.customerName
+          : typeof tx.customer === 'string'
+          ? tx.customer
+          : 'Unknown Customer'
+      }));
+
+      return transactions;
+    } catch (error) {
+      console.error('Failed to fetch transactions:', error);
+      return [];
+    }
+  }, []);
+
+  // Fetch notifications
+  const fetchNotifications = useCallback(async (authToken: string): Promise<Notification[]> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/notification/get`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      const notifications: Notification[] = (data.notifications || data.data || data || []).map((notif: Record<string, unknown>) => ({
+        id: String(notif._id || notif.id || Math.random()),
+        message: String(notif.message || notif.title || 'New notification'),
+        type: String(notif.type || 'info'),
+        createdAt: String(notif.createdAt || new Date().toISOString()),
+        read: Boolean(notif.read || false)
+      }));
+
+      return notifications;
+    } catch (error) {
+      console.error('Failed to fetch notifications:', error);
+      return [];
+    }
+  }, []);
+
+  // Fetch agent count
+  const fetchAgentCount = useCallback(async (authToken: string): Promise<number> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/getagentbyidcount`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.count || data.data?.count || 0;
+    } catch (error) {
+      console.error('Failed to fetch agent count:', error);
+      return 0;
+    }
+  }, []);
+
+  // Fetch dashboard data
+  const fetchDashboardData = useCallback(async (authToken: string, userData?: User) => {
+    try {
+      const [transactions, notifications, agentCount] = await Promise.all([
+        fetchUserTransactions(authToken),
+        fetchNotifications(authToken),
+        fetchAgentCount(authToken)
+      ]);
+
+      // Calculate daily revenue from recent transactions
+      const today = new Date().toLocaleDateString();
+      const dailyRevenue = transactions
+        .filter(tx => tx.date === today && tx.status === 'Completed')
+        .reduce((sum, tx) => sum + tx.amount, 0);
+
+      // Mock top agents data (replace with actual API call if available)
+      const topAgents: Agent[] = [
+        { name: 'Alice Cooper', sales: 58, performance: 94, revenue: 245000 },
+        { name: 'Bob Smith', sales: 45, performance: 87, revenue: 180000 },
+        { name: 'Claire Davis', sales: 42, performance: 91, revenue: 168000 },
+        { name: 'Daniel Jones', sales: 38, performance: 82, revenue: 152000 },
+      ];
+
+      const currentUser = userData || user;
+      const userBalance = currentUser?.balance || 0;
+
+      setDashboardData({
+        balance: userBalance,
+        dailyRevenue,
+        numberOfAgents: agentCount,
+        growth: {
+          revenue: 8.5,
+          agents: 12,
+        },
+        recentTransactions: transactions.slice(0, 5), // Show only recent 5
+        topAgents,
+        notifications: notifications.slice(0, 3) // Show only recent 3
+      });
+
+    } catch (error) {
+      console.error('Failed to fetch dashboard data:', error);
+      setError('Failed to load dashboard data');
+    }
+  }, [user, fetchUserTransactions, fetchNotifications, fetchAgentCount]);
+
+  // Authentication initialization
+  useEffect(() => {
+    const initializeAuth = async () => {
+      try {
+        setLoading(true);
+        console.log('Starting auth initialization...');
+        
+        // Check if already in context
+        if (auth?.user?._id && auth?.token) {
+          console.log('Found user in auth context:', auth.user);
+          setUser(auth.user);
+          setToken(auth.token);
+          
+          // Fetch dashboard data
+          await fetchDashboardData(auth.token, auth.user);
+          setLoading(false);
+          return;
+        }
+
+        // Try localStorage
+        const storedToken = localStorage.getItem('token');
+        if (!storedToken) {
+          console.log('No token in localStorage');
+          throw new Error('No authentication token found');
+        }
+
+        console.log('Found token in localStorage');
+        
+        // Fetch user from API to ensure fresh data
+        console.log('Fetching user from API...');
+        const profile = await fetchUserDetails(storedToken);
+        console.log('Successfully fetched user profile:', profile);
+        
+        setUser(profile);
+        setToken(storedToken);
+        
+        // Update auth context
+        if (auth?.login) {
+          auth.login(profile, storedToken);
+        }
+        
+        // Fetch dashboard data
+        await fetchDashboardData(storedToken, profile);
+        
+      } catch (error) {
+        console.error('Auth initialization error:', error);
+        handleAuthError('Authentication error. Please login again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initializeAuth();
+  }, [auth, fetchUserDetails, fetchDashboardData, handleAuthError]);
 
   // Get status badge component
   const getStatusBadge = (status: Transaction['status']) => {
@@ -93,6 +400,45 @@ const StoreDashboard: React.FC = () => {
     return 'bg-red-500';
   };
 
+  // Format notification time
+  const formatNotificationTime = (dateString: string): string => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
+    
+    if (diffInHours < 1) return 'Just now';
+    if (diffInHours < 24) return `${diffInHours} hours ago`;
+    return `${Math.floor(diffInHours / 24)} days ago`;
+  };
+
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">{error}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="text-gray-600 flex min-h-screen flex-col bg-gray-50">
             {/* Header and Sidebar */}
@@ -109,7 +455,7 @@ const StoreDashboard: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-green-100 text-sm font-medium">Wallet Balance</p>
-                  <p className="text-3xl font-bold mt-2">₦{data.walletBalance.toLocaleString()}</p>
+                  <p className="text-3xl font-bold mt-2">₦{dashboardData.balance.toLocaleString()}</p>
                 </div>
                 <div className="bg-white/20 p-3 rounded-lg">
                   <Wallet className="w-6 h-6" />
@@ -122,10 +468,10 @@ const StoreDashboard: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-orange-100 text-sm font-medium">Daily Revenue</p>
-                  <p className="text-3xl font-bold mt-2">₦{data.dailyRevenue.toLocaleString()}</p>
+                  <p className="text-3xl font-bold mt-2">₦{dashboardData.dailyRevenue.toLocaleString()}</p>
                   <div className="flex items-center mt-2">
                     <TrendingUp className="w-4 h-4 mr-1" />
-                    <span className="text-sm">+{data.growth.revenue}%</span>
+                    <span className="text-sm">+{dashboardData.growth.revenue}%</span>
                   </div>
                 </div>
                 <div className="bg-white/20 p-3 rounded-lg">
@@ -139,10 +485,10 @@ const StoreDashboard: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-blue-100 text-sm font-medium">Number of Agents</p>
-                  <p className="text-3xl font-bold mt-2">{data.numberOfAgents}</p>
+                  <p className="text-3xl font-bold mt-2">{dashboardData.numberOfAgents}</p>
                   <div className="flex items-center mt-2">
                     <TrendingUp className="w-4 h-4 mr-1" />
-                    <span className="text-sm">+{data.growth.agents}%</span>
+                    <span className="text-sm">+{dashboardData.growth.agents}%</span>
                   </div>
                 </div>
                 <div className="bg-white/20 p-3 rounded-lg">
@@ -164,6 +510,7 @@ const StoreDashboard: React.FC = () => {
                         className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
                         aria-label="Refresh Transactions"
                         title="Refresh Transactions"
+                        onClick={() => token && fetchDashboardData(token)}
                       >
                         <RefreshCw className="w-4 h-4" />
                       </button>
@@ -200,36 +547,44 @@ const StoreDashboard: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {data.recentTransactions.map((transaction) => (
-                        <tr key={transaction.id} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="text-sm font-medium text-gray-900">{transaction.id}</span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="text-sm text-gray-900">{transaction.customer}</span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="text-sm text-gray-600">{transaction.date}</span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right">
-                            <span className="text-sm font-medium text-gray-900">₦{transaction.amount.toLocaleString()}</span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-center">
-                            {getStatusBadge(transaction.status)}
+                      {dashboardData.recentTransactions.length > 0 ? (
+                        dashboardData.recentTransactions.map((transaction) => (
+                          <tr key={transaction.id} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className="text-sm font-medium text-gray-900">{transaction.id}</span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className="text-sm text-gray-900">{transaction.customer}</span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className="text-sm text-gray-600">{transaction.date}</span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-right">
+                              <span className="text-sm font-medium text-gray-900">₦{transaction.amount.toLocaleString()}</span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-center">
+                              {getStatusBadge(transaction.status)}
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                            No transactions found
                           </td>
                         </tr>
-                      ))}
+                      )}
                     </tbody>
                   </table>
                 </div>
 
                 <div className="p-6 border-t border-gray-200 text-center">
-                    <a 
+                  <a 
                     href="/stransactions" 
                     className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                    >
+                  >
                     <span className="text-white">View All Transactions</span>
-                    </a>
+                  </a>
                 </div>
               </div>
             </div>
@@ -240,40 +595,39 @@ const StoreDashboard: React.FC = () => {
                 <div className="p-6 border-b border-gray-200">
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-semibold text-gray-900">Notifications</h3>
-                    <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">4 New</span>
+                    <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
+                      {dashboardData.notifications.filter(n => !n.read).length} New
+                    </span>
                   </div>
                 </div>
 
                 <div className="p-6 space-y-4">
-                  <div className="flex items-start space-x-3 p-3 bg-orange-50 rounded-lg">
-                    <div className="flex-shrink-0">
-                      <Bell className="w-5 h-5 text-orange-600" />
+                  {dashboardData.notifications.length > 0 ? (
+                    dashboardData.notifications.map((notification) => (
+                      <div key={notification.id} className={`flex items-start space-x-3 p-3 rounded-lg ${
+                        notification.type === 'warning' ? 'bg-orange-50' :
+                        notification.type === 'success' ? 'bg-green-50' : 'bg-blue-50'
+                      }`}>
+                        <div className="flex-shrink-0">
+                          {notification.type === 'warning' ? (
+                            <Bell className="w-5 h-5 text-orange-600" />
+                          ) : notification.type === 'success' ? (
+                            <UserPlus className="w-5 h-5 text-green-600" />
+                          ) : (
+                            <Activity className="w-5 h-5 text-blue-600" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{notification.message}</p>
+                          <p className="text-xs text-gray-500">{formatNotificationTime(notification.createdAt)}</p>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center text-gray-500 py-4">
+                      No notifications
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">Wallet balance alert</p>
-                      <p className="text-xs text-gray-500">2 hours ago</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start space-x-3 p-3 bg-green-50 rounded-lg">
-                    <div className="flex-shrink-0">
-                      <UserPlus className="w-5 h-5 text-green-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">New agent request from John Smith</p>
-                      <p className="text-xs text-gray-500">5 hours ago</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start space-x-3 p-3 bg-blue-50 rounded-lg">
-                    <div className="flex-shrink-0">
-                      <Activity className="w-5 h-5 text-blue-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">Monthly sales report is available</p>
-                      <p className="text-xs text-gray-500">1 day ago</p>
-                    </div>
-                  </div>
+                  )}
                 </div>
 
                 <div className="p-6 border-t border-gray-200 text-center">
@@ -326,7 +680,7 @@ const StoreDashboard: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
-                        {data.topAgents.map((agent) => (
+                        {dashboardData.topAgents.map((agent) => (
                           <tr key={agent.name} className="hover:bg-gray-50 transition-colors">
                             <td className="py-4">
                               <span className="font-medium text-gray-900">{agent.name}</span>
@@ -369,7 +723,7 @@ const StoreDashboard: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
-                        {data.recentTransactions
+                        {dashboardData.recentTransactions
                           .filter(transaction => transaction.status === 'Pending')
                           .map((transaction) => (
                             <tr key={transaction.id} className="hover:bg-gray-50 transition-colors">
@@ -397,6 +751,11 @@ const StoreDashboard: React.FC = () => {
                           ))}
                       </tbody>
                     </table>
+                    {dashboardData.recentTransactions.filter(tx => tx.status === 'Pending').length === 0 && (
+                      <div className="text-center py-8 text-gray-500">
+                        No pending transactions
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -405,35 +764,6 @@ const StoreDashboard: React.FC = () => {
                     View Full Report
                   </button>
                 </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Actions */}
-          <div className="mt-8">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-6">Quick Actions</h3>
-              
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <button className="flex flex-col items-center p-6 border-2 border-blue-200 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition-all duration-200 group">
-                  <Users className="w-8 h-8 text-blue-600 mb-3 group-hover:scale-110 transition-transform" />
-                  <span className="font-medium text-gray-900">Add Agent</span>
-                </button>
-                
-                <button className="flex flex-col items-center p-6 border-2 border-green-200 rounded-xl hover:border-green-400 hover:bg-green-50 transition-all duration-200 group">
-                  <Plus className="w-8 h-8 text-green-600 mb-3 group-hover:scale-110 transition-transform" />
-                  <span className="font-medium text-gray-900">Add Funds</span>
-                </button>
-                
-                <button className="flex flex-col items-center p-6 border-2 border-orange-200 rounded-xl hover:border-orange-400 hover:bg-orange-50 transition-all duration-200 group">
-                  <FileDown className="w-8 h-8 text-orange-600 mb-3 group-hover:scale-110 transition-transform" />
-                  <span className="font-medium text-gray-900">Export Data</span>
-                </button>
-                
-                <button className="flex flex-col items-center p-6 border-2 border-purple-200 rounded-xl hover:border-purple-400 hover:bg-purple-50 transition-all duration-200 group">
-                  <Bell className="w-8 h-8 text-purple-600 mb-3 group-hover:scale-110 transition-transform" />
-                  <span className="font-medium text-gray-900">Notifications</span>
-                </button>
               </div>
             </div>
           </div>
