@@ -333,14 +333,10 @@ const ManageAgentsPage: React.FC = () => {
   };
 
   return (
-    <div className="text-gray-600 flex flex-col bg-gray-50 min-h-screen">
-      {/* Sidebar */}
-      <StoreSidebar />
-      
-      {/* Main content area with left margin for sidebar on larger screens */}
-      <div className="flex-1 ml-0 md:ml-[280px] flex flex-col min-h-screen">
-        {/* Header */}
-        <StoreHeader />
+    <div className="text-gray-600 flex min-h-screen flex-col bg-gray-50">
+            {/* Header and Sidebar */}
+            <StoreHeader />
+            <StoreSidebar />
         
         {/* Added a spacer div to prevent content from clashing with header */}
         <div className="h-[120px] sm:h-[140px]" />
@@ -642,7 +638,6 @@ const ManageAgentsPage: React.FC = () => {
           </div>
         )}
       </div>
-    </div>
   );
 };
 

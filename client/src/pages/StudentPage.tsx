@@ -66,7 +66,9 @@ const StudentPage: React.FC = () => {
   const authToken = token || localStorage.getItem('token');
 
   const [schoolId, setSchoolId] = useState<string>('');
-  const [schoolProfile, setSchoolProfile] = useState<SchoolProfile | null>(null);
+  const [schoolProfile, setSchoolProfile] = useState<SchoolProfile | null>(
+    null
+  );
   const [registrationLink, setRegistrationLink] = useState<string>('');
   const [students, setStudents] = useState<Student[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
@@ -193,16 +195,16 @@ const StudentPage: React.FC = () => {
         let studentArray: Student[] = [];
         if (data && Array.isArray(data.data)) {
           studentArray = data.data.map((student: Student) => ({
-           
             _id: student._id, // For backward compatibility
             firstName: student.firstName,
             lastName: student.lastName,
             name: student.name || `${student.firstName} ${student.lastName}`,
             email: student.email,
             academicDetails: student.academicDetails || { classAdmittedTo: '' },
-            classAdmittedTo: student.academicDetails?.classAdmittedTo || 'Not Assigned',
+            classAdmittedTo:
+              student.academicDetails?.classAdmittedTo || 'Not Assigned',
             status: student.status,
-            createdAt: student.createdAt
+            createdAt: student.createdAt,
           }));
         } else {
           console.error('Unexpected students data format:', data);
@@ -230,7 +232,7 @@ const StudentPage: React.FC = () => {
       statusFilter === 'all' ||
       s.status.toLowerCase() === statusFilter.toLowerCase();
     const matchesGrade =
-      gradeFilter === 'all' || 
+      gradeFilter === 'all' ||
       s.classAdmittedTo === gradeFilter ||
       (gradeFilter === 'Not Assigned' && !s.classAdmittedTo);
     return matchesSearch && matchesStatus && matchesGrade;
@@ -323,20 +325,25 @@ const StudentPage: React.FC = () => {
 
   // Get unique classes from both classes API and student records
   const availableClasses = [
-    ...new Set([
-      ...classes.map((cls) => cls.className),
-      ...students.map((student) => student.classAdmittedTo)
-    ].filter(className => className && className.trim() !== '' && className !== 'Not Assigned'))
+    ...new Set(
+      [
+        ...classes.map((cls) => cls.className),
+        ...students.map((student) => student.classAdmittedTo),
+      ].filter(
+        (className) =>
+          className && className.trim() !== '' && className !== 'Not Assigned'
+      )
+    ),
   ].sort();
 
- return (
+  return (
     <div className="flex flex-col min-h-screen bg-gray-50">
       <Header />
       <div className="flex flex-grow">
         <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-none">
           <Sidebar />
         </aside>
-        <main className="flex-grow p-4 md:p-8 md:ml-64">
+        <main className="flex-grow p-4 md:p-8 md:ml-64 overflow-x-auto">
           {/* Title & Add Button */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
             <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
@@ -438,7 +445,7 @@ const StudentPage: React.FC = () => {
             </div>
           </div>
 
-             {/* School Classes Overview */}
+          {/* School Classes Overview */}
           {!classesLoading && classes.length > 0 && (
             <div className="bg-white rounded-xl shadow-sm mb-6 md:mb-8 p-4 md:p-6 border border-gray-100">
               <div className="flex items-center gap-2 mb-3 md:mb-4">
@@ -449,8 +456,8 @@ const StudentPage: React.FC = () => {
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
                 {classes.map((cls) => {
-                  const studentCount = students.filter(s => 
-                    s.classAdmittedTo === cls.className
+                  const studentCount = students.filter(
+                    (s) => s.classAdmittedTo === cls.className
                   ).length;
                   return (
                     <div
@@ -474,59 +481,54 @@ const StudentPage: React.FC = () => {
             </div>
           )}
 
-
           {/* Registration Link Card */}
-          <div className="bg-white rounded-xl shadow-sm mb-6 md:mb-8 p-4 md:p-6 border border-gray-100">
-            <div className="flex items-center gap-2 mb-3 md:mb-4">
-              <div className="flex items-center justify-center w-8 h-8 md:w-10 md:h-10 bg-blue-100 rounded-lg">
+          <div className="bg-white rounded-xl shadow-sm p-5 mb-6 border border-gray-100 ">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div className="flex items-center gap-2">
                 <MailIcon className="h-4 w-4 md:h-5 md:w-5 text-blue-600" />
+                <h2 className="text-base md:text-lg font-semibold text-gray-900">
+                  Student Registration Link
+                </h2>
               </div>
-              <h2 className="text-base md:text-lg font-semibold text-gray-900">
-                Student Registration Link
-              </h2>
             </div>
-            <div className="flex flex-col sm:flex-row items-center gap-3">
-              <div className="relative w-full">
-                <div className="overflow-x-auto">
-                  <input
-                    readOnly
-                    value={registrationLink}
-                    placeholder="Generating registration link..."
-                    title="Student registration link"
-                    className="w-full px-3 py-2 md:px-4 md:py-3 pr-10 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm md:text-base text-gray-700 bg-gray-50 whitespace-nowrap overflow-x-auto"
-                    style={{ minWidth: '200px' }}
-                  />
-                </div>
-                <button
-                  onClick={handleCopyLink}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-blue-600 transition-colors"
-                  title="Copy registration link"
-                  aria-label="Copy registration link"
-                >
-                  <ClipboardCopyIcon className="h-4 w-4 md:h-5 md:w-5" />
-                </button>
+            <div className="mt-4 flex items-center gap-2 w-full">
+              <div className="flex-1 relative">
+                <input
+                  readOnly
+                  value={registrationLink}
+                  placeholder="Generating registration link..."
+                  title="Student registration link"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-800 text-sm focus:outline-none font-medium"
+                />
               </div>
+              <button
+                onClick={handleCopyLink}
+                className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                title="Copy registration link"
+                aria-label="Copy registration link"
+              >
+                <ClipboardCopyIcon className="h-4 w-4 md:h-5 md:w-5" />
+              </button>
             </div>
           </div>
 
-             {/* Filters */}
-          <div className="bg-white rounded-xl shadow-sm p-4 md:p-6 mb-6 md:mb-8 border border-gray-100">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 md:gap-4">
-              <div className="col-span-1 md:col-span-2">
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="Search by name or email..."
-                    value={searchQuery}
-                    onChange={(e) => {
-                      setSearchQuery(e.target.value);
-                      setPage(1);
-                    }}
-                    className="w-full px-3 py-2 md:px-4 md:py-3 pl-10 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm md:text-base text-gray-700 placeholder-gray-500"
-                  />
-                  <SearchIcon className="h-4 w-4 md:h-5 md:w-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
-                </div>
+          {/* Filters */}
+          <div className="bg-white rounded-xl shadow-sm p-5 mb-6 border border-gray-100">
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="relative flex-1">
+                <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search by store name or email..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setPage(1);
+                  }}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm text-gray-800"
+                />
               </div>
+
               <div>
                 <label htmlFor="statusFilter" className="sr-only">
                   Filter by status
@@ -766,21 +768,21 @@ const StudentPage: React.FC = () => {
             }}
           >
             <button
-  className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
-  onClick={() => {
-    handleMenuClose();
-    window.location.href = `/students/edit/${menuStudent._id}`;
-  }}
->
-  <UserIcon className="h-4 w-4" />
-  View Details
-</button>
+              className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
+              onClick={() => {
+                handleMenuClose();
+                window.location.href = `/students/edit/${menuStudent._id}`;
+              }}
+            >
+              <UserIcon className="h-4 w-4" />
+              View Details
+            </button>
             <button
               className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
-  onClick={() => {
-    handleMenuClose();
-    window.location.href = `/students/transactions/${menuStudent._id}`;
-  }}
+              onClick={() => {
+                handleMenuClose();
+                window.location.href = `/students/transactions/${menuStudent._id}`;
+              }}
             >
               <CalendarIcon className="h-4 w-4" />
               Transaction Info

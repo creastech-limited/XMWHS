@@ -6,7 +6,7 @@ import {
   MoreVertical,
   Download,
   Mail,
-  Copy,
+  ClipboardCopyIcon,
   MapPin,
   Phone,
   Filter,
@@ -298,13 +298,13 @@ export const StorePage: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50">
+    <div className="flex flex-col min-h-screen bg-gray-50 ">
       <Header />
       <div className="flex flex-grow">
         <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-none">
           <Sidebar />
         </aside>
-        <main className="flex-grow p-4 md:p-8 md:ml-64">
+        <main className="flex-grow p-4 md:p-8 md:ml-64 overflow-x-auto">
           {/* Header Section */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
             <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
@@ -367,7 +367,7 @@ export const StorePage: React.FC = () => {
           </div>
 
           {/* Registration Link Card */}
-          <div className="bg-white rounded-xl shadow-sm p-5 mb-6 border border-gray-100">
+          <div className="bg-white rounded-xl shadow-sm p-5 mb-6 border border-gray-100 ">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div className="flex items-center gap-2">
                 <Mail className="h-5 w-5 text-indigo-600" />
@@ -390,7 +390,7 @@ export const StorePage: React.FC = () => {
                 className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
                 title="Copy link"
               >
-                <Copy className="h-5 w-5 text-gray-600" />
+                <ClipboardCopyIcon className="h-4 w-4 md:h-5 md:w-5" />
               </button>
             </div>
           </div>

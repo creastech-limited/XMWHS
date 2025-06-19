@@ -40,6 +40,7 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
     status: 'Online',
     email: 'store@example.com'
   });
+  
   const [isProfileOpen, setIsProfileOpen] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
@@ -287,15 +288,22 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
 
                     {/* Menu Items */}
                     <div className="py-2">
-                      <button className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                        <button
+                        onClick={() => navigate('/store/settings')}
+                        className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                        >
                         <User className="w-4 h-4 mr-3" />
                         Profile Settings
-                      </button>
-                      <button className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                        </button>
+                      <button 
+                      onClick={() => navigate('/agents')}
+                      className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
                         <Store className="w-4 h-4 mr-3" />
                         Store Management
                       </button>
-                      <button className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                      <button 
+                      onClick={() => navigate('/store/settings')}
+                      className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
                         <Settings className="w-4 h-4 mr-3" />
                         Settings
                       </button>

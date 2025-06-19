@@ -17,28 +17,34 @@ interface MenuItem {
   icon: React.ReactNode;
   route: string;
 }
+// Top menu items with updated routes
+const topMenuItems: MenuItem[] = [
+  { text: 'Dashboard', icon: <LayoutDashboard size={20} />, route: '/store' },
+  { text: 'Manage Agents', icon: <Users size={20} />, route: '/agents' },
+  { text: 'Transaction History', icon: <History size={20} />, route: '/stransactions' },
+  { text: 'Withdrawal', icon: <CreditCard size={20} />, route: '/Swithdrawal' }
+];
+
+// Bottom menu items with updated routes
+const bottomMenuItems: MenuItem[] = [
+  { text: 'Settings', icon: <Settings size={20} />, route: '/store/settings' },
+  { text: 'Logout', icon: <LogOut size={20} />, route: '/login' }
+];
 
 const StoreSidebar: React.FC = () => {
-  const [activeItem, setActiveItem] = useState<string>('Dashboard');
+  const [activeItem, setActiveItem] = useState<string>(() => {
+    const currentPath = window.location.pathname;
+    const activeMenuItem = [...topMenuItems, ...bottomMenuItems].find(
+      (item) => item.route === currentPath
+    );
+    return activeMenuItem ? activeMenuItem.text : topMenuItems[0].text;
+  });
   const [mobileOpen, setMobileOpen] = useState<boolean>(false);
 
   const handleDrawerToggle = (): void => {
     setMobileOpen(!mobileOpen);
   };
 
-  // Top menu items with updated routes
-  const topMenuItems: MenuItem[] = [
-    { text: 'Dashboard', icon: <LayoutDashboard size={20} />, route: '/store' },
-    { text: 'Manage Agents', icon: <Users size={20} />, route: '/agents' },
-    { text: 'Transaction History', icon: <History size={20} />, route: '/stransactions' },
-    { text: 'Withdrawal', icon: <CreditCard size={20} />, route: '/Swithdrawal' }
-  ];
-
-  // Bottom menu items with updated routes
-  const bottomMenuItems: MenuItem[] = [
-    { text: 'Settings', icon: <Settings size={20} />, route: '/store/settings' },
-    { text: 'Logout', icon: <LogOut size={20} />, route: '/login' }
-  ];
 
   const handleMenuItemClick = (item: MenuItem): void => {
     setActiveItem(item.text);
