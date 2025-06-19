@@ -507,7 +507,7 @@ const StudentPage: React.FC = () => {
                 title="Copy registration link"
                 aria-label="Copy registration link"
               >
-                <ClipboardCopyIcon className="h-4 w-4 md:h-5 md:w-5" />
+                <ClipboardCopyIcon className="text-indigo-500 h-4 w-4 md:h-5 md:w-5" />
               </button>
             </div>
           </div>
@@ -763,8 +763,9 @@ const StudentPage: React.FC = () => {
           <div
             className="absolute z-20 bg-white rounded-lg shadow-lg py-2 w-56 border border-gray-200"
             style={{
-              top: menuPosition.top,
-              left: menuPosition.left - 150, // Adjusted to move it to the left
+              top: window.innerWidth < 768 ? '150%' : menuPosition.top - 0,
+              left: window.innerWidth < 768 ? 'auto' : menuPosition.left - 100,
+              right: window.innerWidth < 768 ? 0 : 'auto',
             }}
           >
             <button

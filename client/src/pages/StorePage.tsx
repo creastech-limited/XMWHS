@@ -390,7 +390,7 @@ export const StorePage: React.FC = () => {
                 className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
                 title="Copy link"
               >
-                <ClipboardCopyIcon className="h-4 w-4 md:h-5 md:w-5" />
+                <ClipboardCopyIcon className="text-indigo-500 h-4 w-4 md:h-5 md:w-5" />
               </button>
             </div>
           </div>
@@ -472,44 +472,37 @@ export const StorePage: React.FC = () => {
                       <thead className="bg-gray-50">
                         <tr>
                           <th
-                            scope="col"
-                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                           className="px-4 py-3 md:px-6 md:py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider"
                           >
                             Store
                           </th>
                           <th
-                            scope="col"
-                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                            className="px-4 py-3 md:px-6 md:py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider"
                           >
                             Type
                           </th>
                           <th
-                            scope="col"
-                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                           className="px-4 py-3 md:px-6 md:py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider"
                           >
                             Location
                           </th>
                           <th
-                            scope="col"
-                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                            className="px-4 py-3 md:px-6 md:py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider"
                           >
                             Contact
                           </th>
                           <th
-                            scope="col"
-                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                            className="px-4 py-3 md:px-6 md:py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider"
                           >
                             Status
                           </th>
                           <th
-                            scope="col"
-                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                            className="px-4 py-3 md:px-6 md:py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider"
                           >
                             Join Date
                           </th>
                           <th
-                            scope="col"
-                            className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
+                            className="px-4 py-3 md:px-6 md:py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider"
                           >
                             Actions
                           </th>
@@ -517,8 +510,8 @@ export const StorePage: React.FC = () => {
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
                         {paginatedStores.map((store) => (
-                          <tr key={store._id} className="hover:bg-gray-50">
-                            <td className="px-6 py-4 whitespace-nowrap">
+                          <tr key={store._id} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-4 py-3 md:px-6 md:py-4 whitespace-nowrap">
                               <div className="flex items-center">
                                 <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-500">
                                   {store.storeName.charAt(0).toUpperCase()}
