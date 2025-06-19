@@ -17,7 +17,8 @@ import {
   Save,
   Edit,
   Phone,
-  Mail
+  Mail,
+  MessageSquare
 } from 'lucide-react';
 
 // Types to match KidsHeader expectations
@@ -129,7 +130,8 @@ const KidsSettingsPage: React.FC = () => {
     { label: "Pay Agent", icon: <CreditCard className="w-5 h-5" />, route: "/kidpayagent" },
     { label: "History", icon: <History className="w-5 h-5" />, route: "/kidpaymenthistory" },
     { label: "School Bills", icon: <GraduationCap className="w-5 h-5" />, route: "/schoolbills" },
-    { label: "Settings", icon: <Settings className="w-5 h-5" />, route: "/ksettings" }
+    { label: "Settings", icon: <Settings className="w-5 h-5" />, route: "/ksettings" },
+    { label: "Dispute", icon: <MessageSquare className="w-5 h-5" />, route: "/kdispute" },
   ];
   
   const [activeTab, setActiveTab] = useState<number>(4); // Settings tab is index 4

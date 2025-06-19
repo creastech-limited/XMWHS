@@ -15,7 +15,8 @@ import {
   User,
   CreditCard,
   GraduationCap, 
-  Settings
+  Settings,
+  MessageSquare
 } from 'lucide-react';
 
 // Type definitions to match KidsHeader expectations
@@ -71,6 +72,7 @@ const KidPaymentHistoryPage: React.FC = () => {
     { label: "History", icon: <History className="w-5 h-5" />, route: "/kidpaymenthistory" },
     { label: "School Bills", icon: <GraduationCap className="w-5 h-5" />, route: "/schoolbills" },
     { label: "Settings", icon: <Settings className="w-5 h-5" />, route: "/ksettings" },
+     { label: "Dispute", icon: <MessageSquare className="w-5 h-5" />, route: "/kdispute" },
   ];
 
   // Notification helper function

@@ -53,6 +53,8 @@ const Psidebar: React.FC = () => {
     { text: 'Fund Wallet', icon: <WalletIcon className="h-5 w-5" />, route: '/fundwallet' },
     { text: 'School Fees', icon: <CreditCardIcon className="h-5 w-5" />, route: '/payschoolbills' },
     { text: 'Payment History', icon: <ClockIcon className="h-5 w-5" />, route: '/ptransactionhistory' },
+     { text: 'Dispute', icon: <ClockIcon className="h-5 w-5" />, route: '/Pdispute' },
+     
   ];
 
   // Bottom menu items

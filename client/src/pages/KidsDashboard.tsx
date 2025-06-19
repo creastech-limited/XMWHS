@@ -11,6 +11,8 @@ import {
   WalletCards,
   Calendar,
   TrendingUp,
+   MessageSquare
+
 } from 'lucide-react';
 import {
   PieChart,
@@ -146,6 +148,7 @@ const KidsDashboard = () => {
       icon: <Settings className="w-5 h-5" />,
       route: '/ksettings',
     },
+    { label: "Dispute", icon: <MessageSquare className="w-5 h-5" />, route: "/kdispute" },
   ];
 
   // Fetch user profile

@@ -37,7 +37,8 @@ import StoreSettingsPage from './pages/StoreSettingsPage.js';
 import EditStudentDetails from './pages/EditStudentDetails';
 import EditStoreDetails from './pages/EditStoreDetails';
 import ViewStudentTransactions from './pages/ViewStudentTransactions';
-
+import Pdispute from './pages/Pdispute'; // Assuming you have a dispute page for parents
+import Kdispute from './pages/Kdispute'; // Assuming you have a dispute page for kids
 function App() {
   return (
     <Router>
@@ -86,6 +87,11 @@ function App() {
           <Route path="/students/edit/:_id" element={<EditStudentDetails />} />
           <Route path="/students/transactions/:_id" element={<ViewStudentTransactions />} />
           <Route path="/stores/edit/:id" element={<EditStoreDetails />} />
+          <Route path="/pdispute" element={<Pdispute />} />
+          <Route path="/kdispute" element={<Kdispute />} />
+        
+
+          {/* Kids routes */}
         </Routes>
       </AuthProvider>
     </Router>

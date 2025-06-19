@@ -13,7 +13,8 @@ import {
   History,
   GraduationCap,
   Settings,
-  Info
+  Info,
+  MessageSquare
 } from 'lucide-react';
 import KidsHeader from '../components/KidsHeader';
 import Footer from '../components/Footer';
@@ -101,6 +102,7 @@ const SchoolBillsPage: React.FC = () => {
     { label: "History", icon: <History className="w-5 h-5" />, route: "/kidpaymenthistory" },
     { label: "School Bills", icon: <GraduationCap className="w-5 h-5" />, route: "/schoolbills" },
     { label: "Settings", icon: <Settings className="w-5 h-5" />, route: "/ksettings" },
+     { label: "Dispute", icon: <MessageSquare className="w-5 h-5" />, route: "/kdispute" },
   ];
 
   // Transform API data to local Bill interface

@@ -446,76 +446,79 @@ const TransactionHistoryPage: React.FC = () => {
               Scroll horizontally to view all columns
               </div>
               
-              <div className="overflow-x-auto scrollbar-thin">
-                <table className="w-full divide-y divide-gray-200" style={{ minWidth: '600px' }}>
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-2 md:px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Date
-                      </th>
-                      <th className="px-2 md:px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Reference
-                      </th>
-                      <th className="px-2 md:px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Type
-                      </th>
-                      <th className="px-2 md:px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Description
-                      </th>
-                      <th className="px-2 md:px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Amount (₦)
-                      </th>
-                      <th className="px-2 md:px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredTransactions.length > 0 ? (
-                      filteredTransactions
-                        .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                        .map((txn) => (
-                          <tr key={txn._id} className="hover:bg-gray-50">
-                            <td className="px-2 md:px-4 py-2 whitespace-nowrap text-xs md:text-sm text-gray-500">
-                              {formatDate(txn.createdAt)}
-                            </td>
-                            <td className="px-2 md:px-4 py-2 whitespace-nowrap text-xs md:text-sm font-medium text-gray-900">
-                              <div className="max-w-[80px] md:max-w-[120px] truncate" title={txn.reference}>
-                                {txn.reference}
-                              </div>
-                            </td>
-                            <td className="px-2 md:px-4 py-2 whitespace-nowrap text-xs md:text-sm text-gray-500">
-                              {renderTypeBadge(txn.category)}
-                            </td>
-                            <td className="px-2 md:px-4 py-2 text-xs md:text-sm text-gray-500">
-                              <div className="max-w-[100px] md:max-w-[200px] truncate" title={txn.description}>
-                                {txn.description}
-                              </div>
-                            </td>
-                            <td className={`px-2 md:px-4 py-2 whitespace-nowrap text-xs md:text-sm font-medium text-right ${
-                              txn.category === 'credit' ? 'text-green-600' : 'text-red-600'
-                            }`}>
-                              {txn.category === 'credit' ? '+' : '-'}₦{txn.amount.toLocaleString()}
-                            </td>
-                            <td className="px-2 md:px-4 py-2 whitespace-nowrap text-xs md:text-sm text-gray-500">
-                              {renderStatusBadge(txn.status)}
-                            </td>
-                          </tr>
-                        ))
-                    ) : (
-                      <tr>
-                        <td colSpan={6} className="px-2 md:px-4 py-4 text-center text-xs md:text-sm text-gray-500">
-                          <div className="flex flex-col items-center">
-                            <Receipt className="w-6 h-6 text-gray-300 mb-1" />
-                            <p>No transactions found</p>
-                            <p className="text-xs text-gray-400 mt-1">Try adjusting your search or filter</p>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+  <div className="overflow-x-auto scrollbar-thin">
+  <table className="w-full divide-y divide-gray-200" style={{ minWidth: '800px' }}>
+    {/* Increased minWidth to 800px to accommodate all columns */}
+    <thead className="bg-gray-50">
+      <tr>
+        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[120px]">
+          Date
+        </th>
+        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[200px]">
+          Transaction ID
+        </th>
+        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[150px]">
+          Reference
+        </th>
+        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[100px]">
+          Type
+        </th>
+        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+          Description
+        </th>
+        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-[120px]">
+          Amount (₦)
+        </th>
+        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[100px]">
+          Status
+        </th>
+      </tr>
+    </thead>
+    <tbody className="bg-white divide-y divide-gray-200">
+      {filteredTransactions.length > 0 ? (
+        filteredTransactions
+          .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+          .map((txn) => (
+            <tr key={txn._id} className="hover:bg-gray-50">
+              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                {formatDate(txn.createdAt)}
+              </td>
+              <td className="px-4 py-3 whitespace-nowrap text-sm font-mono text-gray-900 break-all">
+                {txn._id}
+              </td>
+              <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+                {txn.reference}
+              </td>
+              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                {renderTypeBadge(txn.category)}
+              </td>
+              <td className="px-4 py-3 text-sm text-gray-500">
+                {txn.description}
+              </td>
+              <td className={`px-4 py-3 whitespace-nowrap text-sm font-medium text-right ${
+                txn.category === 'credit' ? 'text-green-600' : 'text-red-600'
+              }`}>
+                {txn.category === 'credit' ? '+' : '-'}₦{txn.amount.toLocaleString()}
+              </td>
+              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                {renderStatusBadge(txn.status)}
+              </td>
+            </tr>
+          ))
+      ) : (
+        <tr>
+          <td colSpan={7} className="px-4 py-4 text-center text-sm text-gray-500">
+            <div className="flex flex-col items-center">
+              <Receipt className="w-6 h-6 text-gray-300 mb-1" />
+              <p>No transactions found</p>
+              <p className="text-xs text-gray-400 mt-1">Try adjusting your search or filter</p>
+            </div>
+          </td>
+        </tr>
+      )}
+    </tbody>
+  </table>
+</div>
             </div>
 
             {/* Pagination */}
