@@ -469,20 +469,20 @@ const getSortIcon = (key: string): JSX.Element | null => {
               <div className="bg-white p-4 rounded-lg shadow mb-6">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="relative">
-                    <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
+                    <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400 text-black" />
                     <input
                       type="text"
                       placeholder="Search disputes..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
                     />
                   </div>
                   
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
                   >
                     <option value="">All Statuses</option>
                     {statuses.map(status => (
@@ -493,7 +493,7 @@ const getSortIcon = (key: string): JSX.Element | null => {
                   <select
                     value={typeFilter}
                     onChange={(e) => setTypeFilter(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
                   >
                     <option value="">All Types</option>
                     {disputeTypes.map(type => (
@@ -507,7 +507,7 @@ const getSortIcon = (key: string): JSX.Element | null => {
                       setStatusFilter('');
                       setTypeFilter('');
                     }}
-                    className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 flex items-center gap-2 transition-colors"
+                    className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 flex items-center gap-2 transition-colors text-black text-black"
                   >
                     <Filter className="w-4 h-4" />
                     Clear Filters
