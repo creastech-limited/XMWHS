@@ -50,7 +50,7 @@ export const Sidebar: React.FC = () => {
     { name: 'School Fees', path: '/schoolfees', icon: <PaymentIcon className="h-5 w-5" /> },
     { name: 'Transactions', path: '/transactions', icon: <ReceiptLongIcon className="h-5 w-5" />, badge: 12 },
     { name: 'Withdrawal', path: '/withdrawal', icon: <AccountBalanceWalletIcon className="h-5 w-5" /> },
-    { name: 'Disputes', path: '/disputes', icon: <WarningIcon className="h-5 w-5" />, badge: 2 },
+    { name: 'Disputes', path: '/Sdisputes', icon: <WarningIcon className="h-5 w-5" />, badge: 2 },
     { name: 'Settings', path: '/settings', icon: <SettingsIcon className="h-5 w-5" /> },
   ];
   

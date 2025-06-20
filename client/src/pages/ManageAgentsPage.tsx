@@ -7,8 +7,6 @@ import {
   HelpCircle as HelpIcon,
   UserPlus as PersonAddIcon,
   Copy as CopyIcon
-  UserPlus as PersonAddIcon,
-  Copy as CopyIcon
 } from 'lucide-react';
 import StoreHeader from '../components/StoreHeader';
 import StoreSidebar from '../components/StoreSidebar';
@@ -21,29 +19,11 @@ interface Agent {
   firstName: string;
   lastName: string;
   fullName?: string;
-  fullName?: string;
   email?: string;
   phone?: string;
   role: string;
   avatarColor?: string;
   avatarInitial?: string;
-  schoolId?: string; // Changed from storeId to match API response
-}
-
-interface StoreInfo {
-  id: string;
-  name: string;
-  type: string;
-  store_id: string;
-}
-
-interface ApiResponse {
-  message: string;
-  data: {
-    schoolId: string;
-    agent: Agent[];
-    store: StoreInfo;
-  };
   schoolId?: string; // Changed from storeId to match API response
 }
 
@@ -102,23 +82,10 @@ const ManageAgentsPage: React.FC = () => {
   // Store info
   const [storeInfo, setStoreInfo] = useState<StoreInfo | null>(null);
   
-  // Store info
-  const [storeInfo, setStoreInfo] = useState<StoreInfo | null>(null);
-  
   // Loading states
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingAgents, setIsLoadingAgents] = useState(true);
   
-  // Store registration link state
-  const [storeRegistrationLink, setStoreRegistrationLink] = useState<string>('');
-  
-  // Store details from registration link
-  interface StoreDetails {
-    store_id?: string;
-    storeName?: string;
-    storeType?: string;
-  }
-  const [storeDetails, setStoreDetails] = useState<StoreDetails | null>(null);
   // Store registration link state
   const [storeRegistrationLink, setStoreRegistrationLink] = useState<string>('');
   
@@ -138,19 +105,6 @@ const ManageAgentsPage: React.FC = () => {
   // Fetch user profile and store ID on component mount
   useEffect(() => {
     if (!authToken) return;
-
-    const fetchUserProfile = async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
-          headers: {
-            'Authorization': `Bearer ${authToken}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (!response.ok) throw new Error('Failed to fetch user profile');
-
-        const data = await response.json();
 
     const fetchUserProfile = async () => {
       try {
@@ -186,13 +140,6 @@ const ManageAgentsPage: React.FC = () => {
     };
 
     fetchUserProfile();
-        toast.error('Failed to fetch store information');
-      } finally {
-        setIsLoadingAgents(false);
-      }
-    };
-
-    fetchUserProfile();
   }, [authToken, API_BASE_URL]);
   
   // Function to fetch agents - Updated to match API response structure
@@ -204,7 +151,6 @@ const ManageAgentsPage: React.FC = () => {
           'Content-Type': 'application/json'
         }
       });
-
 
       if (!response.ok) {
         throw new Error('Failed to fetch agents');
@@ -259,11 +205,6 @@ const ManageAgentsPage: React.FC = () => {
         delete newErrors[field];
         return newErrors;
       });
-      setErrors(prev => {
-        const newErrors = {...prev};
-        delete newErrors[field];
-        return newErrors;
-      });
     }
   };
   
@@ -271,13 +212,11 @@ const ManageAgentsPage: React.FC = () => {
     const newErrors: FormErrors = {};
     if (!agentData.firstName.trim()) newErrors.firstName = "First name is required";
     if (!agentData.lastName.trim()) newErrors.lastName = "Last name is required";
-    if (!agentData.lastName.trim()) newErrors.lastName = "Last name is required";
     if (!agentData.email.trim()) {
       newErrors.email = "Email is required";
     } else if (!/\S+@\S+\.\S+/.test(agentData.email)) {
       newErrors.email = "Email is invalid";
     }
-    if (!agentData.phone.trim()) newErrors.phone = "Phone number is required";
     if (!agentData.phone.trim()) newErrors.phone = "Phone number is required";
     if (!agentData.password.trim()) {
       newErrors.password = "Password is required";
@@ -322,12 +261,9 @@ const ManageAgentsPage: React.FC = () => {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${authToken}`
-          'Authorization': `Bearer ${authToken}`
         },
         body: JSON.stringify(registrationData)
       });
-      
-      const responseData = await registerResponse.json();
       
       const responseData = await registerResponse.json();
       
@@ -348,7 +284,6 @@ const ManageAgentsPage: React.FC = () => {
         draggable: true,
       });
       
-      // Clear form and hide it
       // Clear form and hide it
       setAgentData({
         firstName: '',
@@ -386,10 +321,7 @@ const ManageAgentsPage: React.FC = () => {
   const handleDelete = async (id: string) => {
     if (!window.confirm('Are you sure you want to delete this agent?')) return;
     
-    if (!window.confirm('Are you sure you want to delete this agent?')) return;
-    
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/${id}`, {
       const response = await fetch(`${API_BASE_URL}/api/users/${id}`, {
         method: 'DELETE',
         headers: {
@@ -402,7 +334,6 @@ const ManageAgentsPage: React.FC = () => {
         throw new Error('Failed to delete agent');
       }
       
-      // Update local state
       // Update local state
       setAgents(agents.filter(agent => agent.id !== id));
       setAgentCount(prev => Math.max(0, prev - 1));
@@ -420,12 +351,10 @@ const ManageAgentsPage: React.FC = () => {
     }
   };
 
-
   // Filter agents based on search term
   const filteredAgents = agents.filter(agent => 
     agent.firstName.toLowerCase().includes(searchTerm.toLowerCase()) || 
     agent.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (agent.fullName && agent.fullName.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (agent.fullName && agent.fullName.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (agent.email && agent.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (agent.phone && agent.phone.toLowerCase().includes(searchTerm.toLowerCase()))

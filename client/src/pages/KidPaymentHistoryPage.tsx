@@ -11,12 +11,13 @@ import {
   History,
   ArrowDown,
   ArrowUp,
-  Award,
   User,
   CreditCard,
   GraduationCap, 
   Settings,
-  MessageSquare
+  MessageSquare,
+  Copy,
+  Check
 } from 'lucide-react';
 
 // Type definitions to match KidsHeader expectations
@@ -38,15 +39,47 @@ interface Wallet {
   currency?: string;
 }
 
+// Updated transaction interface to match API response
+interface APITransaction {
+  _id: string;
+  transactionType: string;
+  category: 'credit' | 'debit';
+  amount: number;
+  description: string;
+  status: string;
+  reference: string;
+  senderWalletId?: {
+    email: string;
+    firstName: string;
+    lastName: string;
+  };
+  receiverWalletId?: {
+    email: string;
+    firstName: string;
+    lastName: string;
+  };
+  metadata?: {
+    senderEmail: string;
+    receiverEmail: string;
+  };
+  createdAt: string;
+  direction: 'credit' | 'debit';
+  balanceBefore: number;
+  balanceAfter: number;
+}
+
 interface Transaction {
   id: string;
-  type: 'deposit' | 'payment' | 'reward';
+  type: 'deposit' | 'payment' | 'reward' | 'transfer';
   amount: number;
   description: string;
   date: string;
   from?: string;
   to?: string;
   status?: string;
+  reference: string;
+  category: 'credit' | 'debit';
+  direction: 'credit' | 'debit';
 }
 
 const KidPaymentHistoryPage: React.FC = () => {
@@ -61,6 +94,7 @@ const KidPaymentHistoryPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [copiedReference, setCopiedReference] = useState<string | null>(null);
   
   // API URL - matching the pattern from other components
   const API_URL = process.env.REACT_APP_API_URL || 'https://nodes-staging-xp.up.railway.app';
@@ -79,6 +113,66 @@ const KidPaymentHistoryPage: React.FC = () => {
   const showNotification = (message: string, type: 'success' | 'error') => {
     console.log(`${type}: ${message}`);
     // You can integrate with your notification system here
+  };
+
+  // Copy reference to clipboard
+  const copyToClipboard = async (reference: string) => {
+    try {
+      await navigator.clipboard.writeText(reference);
+      setCopiedReference(reference);
+      setTimeout(() => setCopiedReference(null), 2000);
+      showNotification("Reference copied to clipboard", "success");
+    } catch (err) {
+      console.error('Failed to copy: ', err);
+      showNotification("Failed to copy reference", "error");
+    }
+  };
+
+  // Transform API transaction to internal format
+  const transformTransaction = (apiTransaction: APITransaction): Transaction => {
+    // Determine transaction type based on transactionType
+    let type: 'deposit' | 'payment' | 'reward' | 'transfer' = 'transfer';
+    if (apiTransaction.transactionType.includes('deposit')) {
+      type = 'deposit';
+    } else if (apiTransaction.transactionType.includes('payment')) {
+      type = 'payment';
+    } else if (apiTransaction.transactionType.includes('reward')) {
+      type = 'reward';
+    }
+
+    // Determine from/to based on direction and available data
+    let from: string | undefined;
+    let to: string | undefined;
+
+    if (apiTransaction.direction === 'credit') {
+      // Money coming in
+      if (apiTransaction.senderWalletId) {
+        from = `${apiTransaction.senderWalletId.firstName} ${apiTransaction.senderWalletId.lastName} (${apiTransaction.senderWalletId.email})`;
+      } else if (apiTransaction.metadata?.senderEmail) {
+        from = apiTransaction.metadata.senderEmail;
+      }
+    } else if (apiTransaction.direction === 'debit') {
+      // Money going out
+      if (apiTransaction.receiverWalletId) {
+        to = `${apiTransaction.receiverWalletId.firstName} ${apiTransaction.receiverWalletId.lastName} (${apiTransaction.receiverWalletId.email})`;
+      } else if (apiTransaction.metadata?.receiverEmail) {
+        to = apiTransaction.metadata.receiverEmail;
+      }
+    }
+
+    return {
+      id: apiTransaction._id,
+      type,
+      amount: apiTransaction.direction === 'credit' ? apiTransaction.amount : -apiTransaction.amount,
+      description: apiTransaction.description || 'Transaction',
+      date: apiTransaction.createdAt,
+      from,
+      to,
+      status: apiTransaction.status,
+      reference: apiTransaction.reference,
+      category: apiTransaction.category,
+      direction: apiTransaction.direction
+    };
   };
 
   // Fetch user profile
@@ -154,18 +248,26 @@ const KidPaymentHistoryPage: React.FC = () => {
         }
       });
       
+      console.log('API Response:', response.data); // Debug log
+      
       // Handle different response structures for transactions
-      let transactionList: Transaction[];
-      if (response.data.transactions) {
-        transactionList = response.data.transactions;
-      } else if (response.data.data) {
-        transactionList = response.data.data;
+      let apiTransactionList: APITransaction[];
+      if (response.data.data) {
+        apiTransactionList = response.data.data;
+      } else if (response.data.transactions) {
+        apiTransactionList = response.data.transactions;
       } else {
-        transactionList = response.data as Transaction[];
+        apiTransactionList = response.data as APITransaction[];
       }
       
-      setTransactions(transactionList);
-      return transactionList;
+      // Transform API transactions to internal format
+      const transformedTransactions = apiTransactionList.map(transformTransaction);
+      
+      // Sort by date (newest first)
+      transformedTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      
+      setTransactions(transformedTransactions);
+      return transformedTransactions;
     } catch (err) {
       console.error('Error fetching transactions:', err);
       showNotification("Error fetching transactions", "error");
@@ -215,31 +317,21 @@ const KidPaymentHistoryPage: React.FC = () => {
     return new Date(dateString).toLocaleDateString(undefined, options);
   };
 
-  // Transaction icon based on type
-  const getTransactionIcon = (type: string) => {
-    switch (type) {
-      case 'deposit':
-        return <ArrowDown className="w-5 h-5 text-white" />;
-      case 'payment':
-        return <ArrowUp className="w-5 h-5 text-white" />;
-      case 'reward':
-        return <Award className="w-5 h-5 text-white" />;
-      default:
-        return <History className="w-5 h-5 text-white" />;
+  // Transaction icon based on type and direction
+  const getTransactionIcon = (transaction: Transaction) => {
+    if (transaction.direction === 'credit') {
+      return <ArrowDown className="w-5 h-5 text-white" />;
+    } else {
+      return <ArrowUp className="w-5 h-5 text-white" />;
     }
   };
 
-  // Transaction background color based on type
-  const getTransactionColor = (type: string): string => {
-    switch (type) {
-      case 'deposit':
-        return 'bg-green-500';
-      case 'payment':
-        return 'bg-red-500';
-      case 'reward':
-        return 'bg-amber-500';
-      default:
-        return 'bg-blue-500';
+  // Transaction background color based on direction
+  const getTransactionColor = (transaction: Transaction): string => {
+    if (transaction.direction === 'credit') {
+      return 'bg-green-500';
+    } else {
+      return 'bg-red-500';
     }
   };
 
@@ -336,20 +428,48 @@ const KidPaymentHistoryPage: React.FC = () => {
               {transactions.map((transaction) => (
                 <div key={transaction.id} className="p-4 hover:bg-gray-50 transition-colors">
                   <div className="flex items-center gap-3">
-                    <div className={`rounded-full p-3 ${getTransactionColor(transaction.type)}`}>
-                      {getTransactionIcon(transaction.type)}
+                    <div className={`rounded-full p-3 ${getTransactionColor(transaction)}`}>
+                      {getTransactionIcon(transaction)}
                     </div>
                     
                     <div className="flex-1">
                       <div className="flex justify-between items-start">
-                        <div>
+                        <div className="flex-1">
                           <h3 className="font-medium text-gray-900">{transaction.description}</h3>
-                          <p className="text-sm text-gray-500">
-                            {transaction.from ? `From: ${transaction.from}` : 
-                             transaction.to ? `To: ${transaction.to}` : ''}
-                          </p>
+                          
+                          {/* Show sender/receiver info */}
+                          {transaction.from && (
+                            <p className="text-sm text-gray-600 mt-1">
+                              <span className="font-medium">From:</span> {transaction.from}
+                            </p>
+                          )}
+                          {transaction.to && (
+                            <p className="text-sm text-gray-600 mt-1">
+                              <span className="font-medium">To:</span> {transaction.to}
+                            </p>
+                          )}
+                          
+                          {/* Reference number with copy functionality */}
+                          <div className="flex items-center gap-2 mt-2">
+                            <span className="text-xs text-gray-500">Ref:</span>
+                            <code className="text-xs bg-gray-100 px-2 py-1 rounded font-mono text-black">
+                              {transaction.reference}
+                            </code>
+                            <button
+                              onClick={() => copyToClipboard(transaction.reference)}
+                              className="p-1 hover:bg-gray-200 rounded transition-colors text-black"
+                              title="Copy reference"
+                            >
+                              {copiedReference === transaction.reference ? (
+                                <Check className="w-3 h-3 text-green-600" />
+                              ) : (
+                                <Copy className="w-3 h-3 text-gray-500" />
+                              )}
+                            </button>
+                          </div>
                         </div>
-                        <div className="text-right">
+                        
+                        <div className="text-right ml-4">
                           <p className={`font-semibold ${transaction.amount > 0 ? 'text-green-600' : 'text-red-600'}`}>
                             {transaction.amount > 0 ? '+' : ''}
                             ₦{Math.abs(transaction.amount).toLocaleString()}
@@ -359,13 +479,14 @@ const KidPaymentHistoryPage: React.FC = () => {
                       </div>
                       
                       {transaction.status && (
-                        <div className="mt-1">
+                        <div className="mt-2">
                           <span className={`text-xs px-2 py-1 rounded-full ${
-                            transaction.status.toLowerCase() === 'completed' ? 'bg-green-100 text-green-800' :
+                            transaction.status.toLowerCase() === 'success' ? 'bg-green-100 text-green-800' :
                             transaction.status.toLowerCase() === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                            transaction.status.toLowerCase() === 'failed' ? 'bg-red-100 text-red-800' :
                             'bg-gray-100 text-gray-800'
                           }`}>
-                            {transaction.status}
+                            {transaction.status.charAt(0).toUpperCase() + transaction.status.slice(1)}
                           </span>
                         </div>
                       )}
