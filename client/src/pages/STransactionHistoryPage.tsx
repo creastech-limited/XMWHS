@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { 
     ArrowLeft,
@@ -47,7 +47,6 @@ const STransactionHistoryPage = () => {
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
-    // Removed unused token state
     const [error, setError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
 
@@ -194,7 +193,6 @@ const STransactionHistoryPage = () => {
                 if (auth?.user?._id && auth?.token) {
                     console.log('Found user in auth context:', auth.user);
                     setUser(auth.user);
-                    // setUser(auth.user); // Removed unused user state
                     
                     // Fetch transactions with existing token
                     try {
@@ -226,7 +224,6 @@ const STransactionHistoryPage = () => {
 
                 // Update local state
                 setUser(profile);
-                // setUser(profile); // Removed unused user state
 
                 // Update auth context
                 auth?.login?.(profile, storedToken);
@@ -539,5 +536,5 @@ const STransactionHistoryPage = () => {
 function setUser(user: User) {
     localStorage.setItem('user', JSON.stringify(user));
 }
-export default STransactionHistoryPage;
 
+export default STransactionHistoryPage;
