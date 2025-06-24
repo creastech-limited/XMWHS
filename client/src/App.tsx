@@ -40,6 +40,7 @@ import ViewStudentTransactions from './pages/ViewStudentTransactions';
 import Pdispute from './pages/Pdispute'; // Assuming you have a dispute page for parents
 import Kdispute from './pages/Kdispute'; 
 import DisputePage from './pages/Sdiputes';
+import Storedispute from './pages/Storedispute';
 
 function App() {
   return (
@@ -92,6 +93,9 @@ function App() {
           <Route path="/pdispute" element={<Pdispute />} />
           <Route path="/kdispute" element={<Kdispute />} />
           <Route path="/Sdisputes" element={<DisputePage />} />
+          <Route path="/Storedispute" element={<Storedispute />} />
+
+          {/* Fallback route */}
         
 
           {/* Kids routes */}

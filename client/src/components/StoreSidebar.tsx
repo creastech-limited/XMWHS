@@ -9,7 +9,8 @@ import {
   LogOut,
   Menu,
   X,
-  House
+  House,
+  AlertTriangle
 } from 'lucide-react';
 
 interface MenuItem {
@@ -22,7 +23,8 @@ const topMenuItems: MenuItem[] = [
   { text: 'Dashboard', icon: <LayoutDashboard size={20} />, route: '/store' },
   { text: 'Manage Agents', icon: <Users size={20} />, route: '/agents' },
   { text: 'Transaction History', icon: <History size={20} />, route: '/stransactions' },
-  { text: 'Withdrawal', icon: <CreditCard size={20} />, route: '/Swithdrawal' }
+  { text: 'Withdrawal', icon: <CreditCard size={20} />, route: '/Swithdrawal' },
+ { text: 'Dispute', icon: <AlertTriangle size={20} />, route: '/Storedispute' }
 ];
 
 // Bottom menu items with updated routes

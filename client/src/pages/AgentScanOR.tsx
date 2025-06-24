@@ -1,6 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
-import { BrowserMultiFormatReader, NotFoundException } from '@zxing/library';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   QrCode, 
   ArrowLeft, 
@@ -9,20 +7,30 @@ import {
   RefreshCw,
   User,
   Mail,
-  Wallet
+  Wallet,
+  CreditCard,
+  Shield,
+  X
 } from 'lucide-react';
-import Footer from '../components/Footer';
-import AHeader from '../components/AHeader';
-import { useAuth } from "../context/AuthContext";
+import { Html5Qrcode } from 'html5-qrcode';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging.up.railway.app';
+const API_BASE_URL = 'https://nodes-staging.up.railway.app';
 
 interface QRCodeData {
-  id: string;
+  userId: string;
   name: string;
+  firstName: string;
+  lastName: string;
   email: string;
-  walletBalance: number;
+  role: string;
+  accountNumber: string;
+  walletId: string;
+  balance: number;
+  currency: string;
   pin: string;
+  timestamp: number;
+  transactionType: string;
+  qrCodeVersion: string;
 }
 
 interface ScanResult {
@@ -37,17 +45,17 @@ interface TransactionData {
   pin: string;
 }
 
+interface PinVerificationData {
+  userId: string;
+  pin: string;
+}
+
 interface TransactionResponse {
   transactionId: string;
   message: string;
 }
 
 const AgentScanQR: React.FC = () => {
-  const auth = useAuth();
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const codeReader = useRef<BrowserMultiFormatReader | null>(null);
-  const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
-  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
   const [scanning, setScanning] = useState<boolean>(false);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -55,14 +63,19 @@ const AgentScanQR: React.FC = () => {
   const [showConfirmDialog, setShowConfirmDialog] = useState<boolean>(false);
   const [showPinDialog, setShowPinDialog] = useState<boolean>(false);
   const [processingTransaction, setProcessingTransaction] = useState<boolean>(false);
+  const [verifyingPin, setVerifyingPin] = useState<boolean>(false);
   const [transactionComplete, setTransactionComplete] = useState<boolean>(false);
   const [amount, setAmount] = useState<string>('');
   const [description, setDescription] = useState<string>('');
-  const [pin, setPin] = useState<string>('');
+  const [userEnteredPin, setUserEnteredPin] = useState<string>('');
   const [transactionId, setTransactionId] = useState<string | null>(null);
   const [token, setToken] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
-  const [cameraPermissionGranted, setCameraPermissionGranted] = useState<boolean>(false);
+  const [availableCameras, setAvailableCameras] = useState<MediaDeviceInfo[]>([]);
+  const [selectedCameraId, setSelectedCameraId] = useState<string>('');
+
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const qrBoxId = 'qr-reader';
 
   const colors = {
     primary: '#3f51b5',
@@ -71,75 +84,199 @@ const AgentScanQR: React.FC = () => {
     background: '#f8faff',
   };
 
-  // Initialize code reader and get video devices
+  // Initialize authentication and camera
   useEffect(() => {
-    codeReader.current = new BrowserMultiFormatReader();
-    
-    const initializeCamera = async () => {
-      try {
-        // First request camera access
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        setCameraPermissionGranted(true);
-        
-        // Stop the stream immediately after getting permission
-        stream.getTracks().forEach(track => track.stop());
-        
-        // Then list devices
-        const devices = await codeReader.current!.listVideoInputDevices();
-        setVideoDevices(devices);
-        
-        if (devices.length > 0) {
-          const backCamera = devices.find(device => 
-            device.label.toLowerCase().includes('back') || 
-            device.label.toLowerCase().includes('rear') ||
-            device.label.toLowerCase().includes('environment')
-          );
-          setSelectedDeviceId(backCamera?.deviceId || devices[0].deviceId);
-        } else {
-          setCameraError('No cameras found on this device');
-        }
-      } catch (err) {
-        console.error('Camera initialization error:', err);
-        setCameraError('Camera access denied or not available');
-      }
-    };
-    
-    initializeCamera();
+    const storedToken = localStorage.getItem('token');
+    if (!storedToken) {
+      setError('Authentication required. Please login.');
+      return;
+    }
+    setToken(storedToken);
+    enumerateCameras();
+    setLoading(false);
 
     return () => {
-      stopScanning();
+      if (scannerRef.current) {
+        try {
+          scannerRef.current.stop().catch(() => {});
+          scannerRef.current.clear();
+        } catch (error) {
+          console.error("Failed to clear html5 qrcode scanner", error);
+        }
+      }
     };
   }, []);
 
-  // Initialize authentication
-  useEffect(() => {
-    const initializeAuth = async () => {
+  // Enumerate available cameras
+  const enumerateCameras = async () => {
+    try {
+      // First request permission
+      await navigator.mediaDevices.getUserMedia({ video: true });
+      
+      // Then enumerate devices
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(device => device.kind === 'videoinput');
+      
+      if (videoDevices.length === 0) {
+        throw new Error('No cameras found');
+      }
+      
+      setAvailableCameras(videoDevices);
+      
+      // Set default camera (prefer rear camera if available)
+      const rearCamera = videoDevices.find(device => 
+        device.label.toLowerCase().includes('back') || 
+        device.label.toLowerCase().includes('rear')
+      );
+      setSelectedCameraId(rearCamera?.deviceId || videoDevices[0].deviceId);
+    } catch (err) {
+      console.error('Camera enumeration error:', err);
+      setCameraError('Could not access camera. Please ensure permissions are granted and a camera is available.');
+    }
+  };
+
+  const parseQRData = (data: string): QRCodeData => {
+    try {
+      // Try to parse directly first
       try {
-        setLoading(true);
+        return JSON.parse(data);
+      } catch {
+        // If direct parse fails, try base64 decoding
+        try {
+          const decodedData = atob(data);
+          return JSON.parse(decodedData);
+        } catch {
+          // If still fails, try URI component decoding
+          const uriDecoded = decodeURIComponent(data);
+          return JSON.parse(uriDecoded);
+        }
+      }
+    } catch (error) {
+      console.error('QR decode error:', error);
+      throw new Error('Invalid QR code format');
+    }
+  };
+
+  const handleScan = useCallback((data: string) => {
+    if (data && !scanResult) {
+      try {
+        const qrData = parseQRData(data);
         
-        if (auth?.user?._id && auth?.token) {
-          setToken(auth.token);
-          setLoading(false);
+        if (!qrData.userId || !qrData.name || !qrData.email || !qrData.walletId) {
+          throw new Error('Invalid QR code format');
+        }
+
+        if (qrData.transactionType !== 'payment') {
+          throw new Error('Invalid QR code - not a payment QR code');
+        }
+        
+        setScanResult({ qrData });
+        setShowConfirmDialog(true);
+        stopScanning();
+      } catch (decodeError) {
+        console.error('QR decode error:', decodeError);
+        setError("Invalid QR code format. Please ensure this is a valid payment QR code.");
+      }
+    }
+  }, [scanResult]);
+
+  const startScanning = useCallback(() => {
+    if (!selectedCameraId) {
+      setCameraError('No camera selected');
+      return;
+    }
+
+    setScanning(true);
+    setError(null);
+    setScanResult(null);
+
+    // Configuration for the scanner
+    const config = {
+      fps: 10,
+      qrbox: { width: 250, height: 250 }
+    };
+
+    // Initialize the scanner
+    scannerRef.current = new Html5Qrcode(qrBoxId);
+
+    scannerRef.current.start(
+      { deviceId: { exact: selectedCameraId } },
+      config,
+      (decodedText: string) => {
+        handleScan(decodedText);
+      },
+      (errorMessage: string) => {
+        // Parse error message to handle specific cases
+        if (errorMessage.includes('No MultiFormat Readers were able to detect the code')) {
+          // This is normal - just means no QR code is detected yet
           return;
         }
-        
-        const storedToken = localStorage.getItem('token');
-        if (!storedToken) {
-          throw new Error('No authentication token found');
+
+        console.error('QR Scanner error:', errorMessage);
+
+        // Handle camera start errors specifically
+        if (errorMessage.includes('Could not start video stream')) {
+          setCameraError('Could not start camera. Please check permissions and try again.');
+        } else {
+          setCameraError(errorMessage);
         }
-        
-        setToken(storedToken);
-        
-      } catch (error) {
-        console.error('Auth initialization error:', error);
-        setError('Authentication error. Please login again.');
-      } finally {
-        setLoading(false);
+
+        stopScanning();
       }
-    };
-    
-    initializeAuth();
-  }, [auth]);
+    ).catch((err: unknown) => {
+      console.error('Failed to start scanner:', err);
+      setCameraError('Failed to start camera. Please try again.');
+      stopScanning();
+    });
+  }, [selectedCameraId, handleScan]);
+
+  const stopScanning = () => {
+    if (scannerRef.current) {
+      scannerRef.current.stop().catch(() => {});
+      scannerRef.current.clear();
+      scannerRef.current = null;
+    }
+    setScanning(false);
+  };
+
+  const toggleScanning = () => {
+    if (scanning) {
+      stopScanning();
+    } else {
+      startScanning();
+    }
+  };
+
+  const switchCamera = async (deviceId: string) => {
+    setSelectedCameraId(deviceId);
+    if (scanning) {
+      await stopScanning();
+      // Small delay to ensure scanner is fully stopped before restarting
+      setTimeout(startScanning, 300);
+    }
+  };
+
+  const verifyUserPin = async (pinData: PinVerificationData): Promise<boolean> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/pin/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(pinData),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'PIN verification failed');
+      }
+      return data.success || data.verified;
+    } catch (error) {
+      console.error('PIN verification error:', error);
+      throw error;
+    }
+  };
 
   const processWalletTransfer = async (transactionData: TransactionData): Promise<TransactionResponse> => {
     try {
@@ -163,191 +300,70 @@ const AgentScanQR: React.FC = () => {
     }
   };
 
-  const startScanning = async (): Promise<void> => {
-    if (!codeReader.current || !videoRef.current) {
-      setCameraError('Scanner not initialized');
-      return;
-    }
-
-    try {
-      setScanning(true);
-      setError(null);
-      setCameraError(null);
-
-      // Start video stream
-      const constraints = {
-        video: {
-          deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined,
-          facingMode: 'environment'
-        }
-      };
-
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-
-      // Start QR code scanning
-      codeReader.current.decodeFromVideoDevice(
-        selectedDeviceId || null,
-        videoRef.current, 
-        (result, err) => {
-          if (result) {
-            try {
-              const decodedData = atob(result.getText());
-              const qrData: QRCodeData = JSON.parse(decodedData);
-              
-              if (!qrData.id || !qrData.name || !qrData.email || !qrData.pin) {
-                throw new Error('Invalid QR code format');
-              }
-              
-              setScanResult({ qrData });
-              setShowConfirmDialog(true);
-              stopScanning();
-            } catch (decodeError) {
-              console.error('QR decode error:', decodeError);
-              setError("Invalid QR code format. Please try again.");
-            }
-          }
-          
-          if (err && !(err instanceof NotFoundException)) {
-            console.error('Scan error:', err);
-            setCameraError('Scanning error occurred');
-          }
-        }
-      );
-    } catch (err) {
-      console.error('Camera access error:', err);
-      setCameraError('Failed to access camera. Please ensure permissions are granted.');
-      setScanning(false);
-    }
-  };
-
-  const stopScanning = (): void => {
-    if (codeReader.current) {
-      codeReader.current.reset();
-    }
-    
-    if (videoRef.current?.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach(track => track.stop());
-      videoRef.current.srcObject = null;
-    }
-    
-    setScanning(false);
-  };
-
-  const handleStartScan = (): void => {
-    if (scanning) {
-      stopScanning();
-    } else {
-      startScanning();
-    }
-  };
-
-  const switchCamera = (): void => {
-    if (videoDevices.length > 1) {
-      const currentIndex = videoDevices.findIndex(device => device.deviceId === selectedDeviceId);
-      const nextIndex = (currentIndex + 1) % videoDevices.length;
-      setSelectedDeviceId(videoDevices[nextIndex].deviceId);
-      
-      if (scanning) {
-        stopScanning();
-        setTimeout(() => startScanning(), 100);
-      }
-    }
-  };
-
-  const handleConfirmTransaction = (): void => {
+  const handleConfirmTransaction = () => {
     if (!scanResult || !amount) return;
     setShowConfirmDialog(false);
     setShowPinDialog(true);
   };
 
-  const handlePinSubmit = async (): Promise<void> => {
-    if (!scanResult || !amount || !pin) return;
+  const handlePinSubmit = async () => {
+    if (!scanResult || !amount || !userEnteredPin) return;
 
-    if (pin !== scanResult.qrData.pin) {
-      setError('Invalid PIN. Transaction cancelled.');
-      setShowPinDialog(false);
-      setPin('');
-      return;
-    }
-
-    setProcessingTransaction(true);
-    setShowPinDialog(false);
+    setVerifyingPin(true);
     
     try {
+      const pinVerificationData: PinVerificationData = {
+        userId: scanResult.qrData.userId,
+        pin: userEnteredPin
+      };
+
+      const isPinValid = await verifyUserPin(pinVerificationData);
+      
+      if (!isPinValid) {
+        setError('Invalid PIN. Please ask the customer to enter their correct PIN.');
+        setVerifyingPin(false);
+        setUserEnteredPin('');
+        return;
+      }
+
+      setVerifyingPin(false);
+      setProcessingTransaction(true);
+      setShowPinDialog(false);
+      
       const transactionData: TransactionData = {
-        recipientId: scanResult.qrData.id,
+        recipientId: scanResult.qrData.userId,
         amount: parseFloat(amount),
-        description: description || 'QR Code Transfer',
-        pin: pin
+        description: description || 'QR Code Payment',
+        pin: scanResult.qrData.pin
       };
 
       const result = await processWalletTransfer(transactionData);
       setTransactionId(result.transactionId);
       setProcessingTransaction(false);
       setTransactionComplete(true);
-      setPin('');
+      setUserEnteredPin('');
     } catch (err) {
+      setVerifyingPin(false);
       setProcessingTransaction(false);
       setError(`Transaction failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
-      setPin('');
+      setUserEnteredPin('');
     }
   };
 
-  const resetScan = (): void => {
+  const resetScan = () => {
     stopScanning();
     setScanResult(null);
     setAmount('');
     setDescription('');
-    setPin('');
+    setUserEnteredPin('');
     setError(null);
     setTransactionComplete(false);
     setCameraError(null);
   };
 
-  const handleManualEntry = (): void => {
-    const userIdInput = document.getElementById('userId') as HTMLInputElement;
-    const nameInput = document.getElementById('name') as HTMLInputElement;
-    const emailInput = document.getElementById('email') as HTMLInputElement;
-    const pinInput = document.getElementById('manualPin') as HTMLInputElement;
-    
-    if (!userIdInput?.value || !nameInput?.value || !emailInput?.value || !pinInput?.value) {
-      setError('Please fill in all required fields');
-      return;
-    }
-
-    const manualQRData: QRCodeData = {
-      id: userIdInput.value,
-      name: nameInput.value,
-      email: emailInput.value,
-      walletBalance: 0,
-      pin: pinInput.value
-    };
-
-    setScanResult({ qrData: manualQRData, manual: true });
-    setShowConfirmDialog(true);
-  };
-
-  const requestCameraAccess = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      setCameraPermissionGranted(true);
-      stream.getTracks().forEach(track => track.stop());
-      
-      const devices = await codeReader.current?.listVideoInputDevices();
-      if (devices && devices.length > 0) {
-        setVideoDevices(devices);
-        setSelectedDeviceId(devices[0].deviceId);
-      }
-    } catch (err) {
-      console.error('Camera access error:', err);
-      setCameraError('Camera access denied. Please allow camera permissions.');
-    }
+  const formatCurrency = (amount: number, currency: string = 'NGN'): string => {
+    const symbol = currency === 'NGN' ? '₦' : currency;
+    return `${symbol}${amount.toLocaleString()}`;
   };
 
   if (loading) {
@@ -360,7 +376,6 @@ const AgentScanQR: React.FC = () => {
 
   return (
     <div className="flex flex-col min-h-screen" style={{ backgroundColor: colors.background }}>
-      <AHeader />
       <main className="flex-grow p-4 sm:p-6">
         <div className="container mx-auto py-6 px-4 flex-grow max-w-4xl">
           <div className="bg-white rounded-xl shadow-md p-6 mb-6 text-center">
@@ -370,7 +385,7 @@ const AgentScanQR: React.FC = () => {
                 {cameraError && (
                   <div className="text-sm">
                     <p>Make sure:</p>
-                    <ul className="list-disc pl-5">
+                    <ul className="list-disc pl-5 text-left">
                       <li>You've granted camera permissions</li>
                       <li>Your device has a working camera</li>
                       <li>No other app is using the camera</li>
@@ -389,11 +404,14 @@ const AgentScanQR: React.FC = () => {
             {transactionComplete ? (
               <>
                 <CheckCircle2 size={80} className="mx-auto mb-4" style={{ color: colors.success }} />
-                <h3 className="text-xl font-bold mb-2">Transaction Successful!</h3>
+                <h3 className="text-xl font-bold mb-2">Payment Successful!</h3>
                 <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                  <p className="text-lg font-semibold">₦{parseFloat(amount).toLocaleString()}</p>
-                  <p className="text-sm text-gray-600">Sent to: {scanResult?.qrData.name}</p>
-                  <p className="text-sm text-gray-600">Transaction ID: {transactionId}</p>
+                  <p className="text-2xl font-bold text-green-600">
+                    {formatCurrency(parseFloat(amount), scanResult?.qrData.currency)}
+                  </p>
+                  <p className="text-sm text-gray-600">Paid to: {scanResult?.qrData.name}</p>
+                  <p className="text-sm text-gray-600">Account: {scanResult?.qrData.accountNumber}</p>
+                  <p className="text-xs text-gray-500 mt-2">Transaction ID: {transactionId}</p>
                 </div>
                 <div className="mt-6 flex gap-4 justify-center">
                   <button 
@@ -401,66 +419,35 @@ const AgentScanQR: React.FC = () => {
                     onClick={resetScan}
                   >
                     <RefreshCw size={18} />
-                    <span>Scan Another</span>
+                    <span>Process Another Payment</span>
                   </button>
-                  <Link
-                    to="/agent"
+                  <button
                     className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                    onClick={() => window.history.back()}
                   >
                     <ArrowLeft size={18} />
                     <span>Back to Dashboard</span>
-                  </Link>
+                  </button>
                 </div>
               </>
             ) : (
               <>
+                <h2 className="text-2xl font-bold mb-4 text-gray-800">QR Code Payment Scanner</h2>
+                <p className="text-gray-600 mb-6">Scan customer's payment QR code to process transaction</p>
+                
                 <div className="w-full max-w-[350px] h-[350px] bg-black rounded-lg relative overflow-hidden mx-auto">
                   {scanning ? (
-                    <>
-                      <video
-                        ref={videoRef}
-                        className="w-full h-full object-cover"
-                        autoPlay
-                        playsInline
-                        muted
-                      />
-                      
-                      <div className="absolute inset-0 border-2 border-white opacity-30">
-                        <div className="absolute inset-4 border-2 border-blue-500 rounded-lg">
-                          <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-blue-500"></div>
-                          <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-blue-500"></div>
-                          <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-blue-500"></div>
-                          <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-blue-500"></div>
-                        </div>
-                      </div>
-                      
-                      <div className="absolute bottom-4 right-4 flex gap-2">
-                        {videoDevices.length > 1 && (
-                          <button 
-                            onClick={switchCamera}
-                            className="p-2 bg-white bg-opacity-20 rounded-full hover:bg-opacity-30"
-                            aria-label="Switch camera"
-                          >
-                            <RefreshCw size={20} className="text-white" />
-                          </button>
-                        )}
-                      </div>
-                      
-                      <div className="absolute bottom-4 left-4">
-                        <p className="text-white text-sm bg-black bg-opacity-50 px-2 py-1 rounded">
-                          Position QR code within the frame
-                        </p>
-                      </div>
-                    </>
+                    <div id={qrBoxId} className="w-full h-full"></div>
                   ) : (
                     <div className="flex flex-col items-center justify-center h-full">
-                      <Camera size={60} className="text-white" />
-                      <p className="text-white mt-2">
-                        {cameraPermissionGranted ? 'Click below to start scanning' : 'Camera access required'}
+                      <QrCode size={60} className="text-white mb-2" />
+                      <Camera size={40} className="text-white" />
+                      <p className="text-white mt-2 text-center">
+                        {availableCameras.length > 0 ? 'Ready to scan payment QR code' : 'Camera access required'}
                       </p>
-                      {!cameraPermissionGranted && (
+                      {availableCameras.length === 0 && (
                         <button
-                          onClick={requestCameraAccess}
+                          onClick={enumerateCameras}
                           className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                         >
                           Allow Camera Access
@@ -470,15 +457,39 @@ const AgentScanQR: React.FC = () => {
                   )}
                 </div>
 
-                <div className="mt-4">
+                {/* Camera selection dropdown */}
+                {availableCameras.length > 1 && (
+                  <div className="mt-4">
+                    <label htmlFor="camera-select" className="block text-sm font-medium text-gray-700 mb-1">
+                      Select Camera:
+                    </label>
+                    <select
+                      id="camera-select"
+                      value={selectedCameraId}
+                      onChange={(e) => switchCamera(e.target.value)}
+                      className="block w-full max-w-xs mx-auto p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                      disabled={scanning}
+                    >
+                      {availableCameras.map((camera) => (
+                        <option key={camera.deviceId} value={camera.deviceId}>
+                          {camera.label || `Camera ${availableCameras.indexOf(camera) + 1}`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div className="mt-6">
                   <button
-                    className={`flex items-center gap-2 px-6 py-3 rounded-lg mx-auto ${
-                      !selectedDeviceId || !cameraPermissionGranted
-                        ? 'bg-gray-400 cursor-not-allowed'
+                    className={`flex items-center gap-2 px-6 py-3 rounded-lg mx-auto font-medium ${
+                      availableCameras.length === 0
+                        ? 'bg-gray-400 cursor-not-allowed text-gray-200'
+                        : scanning
+                        ? 'bg-red-600 hover:bg-red-700 text-white'
                         : 'bg-blue-600 hover:bg-blue-700 text-white'
                     }`}
-                    onClick={handleStartScan}
-                    disabled={!selectedDeviceId || !cameraPermissionGranted}
+                    onClick={toggleScanning}
+                    disabled={availableCameras.length === 0}
                   >
                     <QrCode size={20} />
                     {scanning ? 'Stop Scanning' : 'Start Scanning'}
@@ -487,55 +498,6 @@ const AgentScanQR: React.FC = () => {
               </>
             )}
           </div>
-
-          {/* Manual Entry Form */}
-          <div className="bg-white rounded-xl shadow-md p-6 text-center">
-            <h3 className="text-gray-600 text-lg font-medium mb-4">Can't scan? Enter payment manually</h3>
-            <div className="mt-4 max-w-md mx-auto">
-              <div className="mb-4">
-                <label htmlFor="userId" className="text-gray-600 block text-left mb-2">User ID *</label>
-                <input
-                  type="text"
-                  id="userId"
-                  className="text-gray-600 w-full p-3 border border-gray-300 rounded-lg"
-                  placeholder="Enter user ID"
-                />
-              </div>
-              <div className="mb-4">
-                <label htmlFor="name" className="text-gray-600 block text-left mb-2">Name *</label>
-                <input
-                  type="text"
-                  id="name"
-                  className="text-gray-600 w-full p-3 border border-gray-300 rounded-lg"
-                  placeholder="Enter recipient name"
-                />
-              </div>
-              <div className="mb-4">
-                <label htmlFor="email" className="text-gray-600 block text-left mb-2">Email *</label>
-                <input
-                  type="email"
-                  id="email"
-                  className="text-gray-600 w-full p-3 border border-gray-300 rounded-lg"
-                  placeholder="Enter recipient email"
-                />
-              </div>
-              <div className="mb-4">
-                <label htmlFor="manualPin" className="text-gray-600 block text-left mb-2">PIN *</label>
-                <input
-                  type="password"
-                  id="manualPin"
-                  className="text-gray-600 w-full p-3 border border-gray-300 rounded-lg"
-                  placeholder="Enter recipient PIN"
-                />
-              </div>
-              <button
-                className="text-white bg-blue-600 w-full px-4 py-3 border border-gray-300 rounded-lg hover:bg-blue-700"
-                onClick={handleManualEntry}
-              >
-                Continue with Manual Entry
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* Confirm Transaction Dialog */}
@@ -543,50 +505,77 @@ const AgentScanQR: React.FC = () => {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
               <div className="p-6">
-                <h3 className="text-gray-600 text-lg font-bold mb-4">Confirm Transaction</h3>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-bold text-gray-800">Confirm Payment Details</h3>
+                  <button
+                    onClick={() => setShowConfirmDialog(false)}
+                    className="p-1 hover:bg-gray-100 rounded"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
                 
-                <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                  <h4 className="font-semibold mb-2 text-gray-700">Recipient Details:</h4>
-                  <div className="flex items-center gap-2 mb-2">
-                    <User size={16} className="text-gray-500" />
-                    <span className="text-gray-600">{scanResult.qrData.name}</span>
-                  </div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <Mail size={16} className="text-gray-500" />
-                    <span className="text-gray-600">{scanResult.qrData.email}</span>
-                  </div>
-                  {!scanResult.manual && (
+                <div className="bg-blue-50 rounded-lg p-4 mb-4">
+                  <h4 className="font-semibold mb-3 text-blue-800 flex items-center gap-2">
+                    <User size={16} />
+                    Customer Information:
+                  </h4>
+                  <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <Wallet size={16} className="text-gray-500" />
-                      <span className="text-gray-600">Balance: ₦{scanResult.qrData.walletBalance?.toLocaleString()}</span>
+                      <User size={14} className="text-blue-600" />
+                      <span className="text-blue-700 font-medium">{scanResult.qrData.name}</span>
+                      <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">
+                        {scanResult.qrData.role}
+                      </span>
                     </div>
-                  )}
+                    <div className="flex items-center gap-2">
+                      <Mail size={14} className="text-blue-600" />
+                      <span className="text-blue-700">{scanResult.qrData.email}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <CreditCard size={14} className="text-blue-600" />
+                      <span className="text-blue-700">Account: {scanResult.qrData.accountNumber}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Wallet size={14} className="text-blue-600" />
+                      <span className="text-blue-700">
+                        Balance: {formatCurrency(scanResult.qrData.balance, scanResult.qrData.currency)}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="mb-4">
-                  <label htmlFor="confirmAmount" className="text-gray-600 block text-left mb-2">Amount (₦) *</label>
+                  <label htmlFor="confirmAmount" className="block text-left mb-2 font-medium text-gray-700">
+                    Payment Amount ({scanResult.qrData.currency || 'NGN'}) *
+                  </label>
                   <input
                     type="number"
                     id="confirmAmount"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
-                    className="text-gray-600 w-full p-3 border border-gray-300 rounded-lg"
-                    placeholder="Enter amount"
+                    className="w-full p-3 border border-gray-300 rounded-lg text-lg"
+                    placeholder="0.00"
+                    min="0"
+                    step="0.01"
                   />
                 </div>
-                <div className="mb-4">
-                  <label htmlFor="confirmDescription" className="text-gray-600 block text-left mb-2">Description (Optional)</label>
+                
+                <div className="mb-6">
+                  <label htmlFor="confirmDescription" className="block text-left mb-2 font-medium text-gray-700">
+                    Payment Description (Optional)
+                  </label>
                   <input
                     type="text"
                     id="confirmDescription"
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    className="text-gray-600 w-full p-3 border border-gray-300 rounded-lg"
-                    placeholder="Enter description"
+                    className="w-full p-3 border border-gray-300 rounded-lg"
+                    placeholder="e.g., School fees, Meal payment"
                   />
                 </div>
 
-                <div className="text-gray-600 flex justify-end gap-3">
+                <div className="flex justify-end gap-3">
                   <button 
                     className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
                     onClick={() => setShowConfirmDialog(false)}
@@ -596,9 +585,9 @@ const AgentScanQR: React.FC = () => {
                   <button 
                     className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
                     onClick={handleConfirmTransaction}
-                    disabled={!amount}
+                    disabled={!amount || parseFloat(amount) <= 0}
                   >
-                    Continue
+                    Continue to PIN Verification
                   </button>
                 </div>
               </div>
@@ -611,45 +600,80 @@ const AgentScanQR: React.FC = () => {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
               <div className="p-6">
-                <h3 className="text-gray-600 text-lg font-bold mb-4">PIN Verification</h3>
-                <p className="text-gray-600 mb-4">Please ask <strong>{scanResult.qrData.name}</strong> to enter their PIN to verify this transaction:</p>
+                <div className="flex items-center gap-2 mb-4">
+                  <Shield className="text-green-600" size={24} />
+                  <h3 className="text-lg font-bold text-gray-800">Customer PIN Verification</h3>
+                </div>
                 
-                <div className="bg-blue-50 rounded-lg p-4 mb-4">
-                  <p className="text-blue-800 font-semibold">Transaction Summary:</p>
-                  <p className="text-blue-700">Amount: ₦{parseFloat(amount).toLocaleString()}</p>
-                  <p className="text-blue-700">To: {scanResult.qrData.name}</p>
-                  {description && <p className="text-blue-700">Note: {description}</p>}
+                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+                  <p className="text-yellow-800 font-medium">
+                    🔒 Ask customer to enter their PIN to authorize this payment
+                  </p>
+                </div>
+                
+                <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                  <h4 className="font-semibold text-gray-800 mb-2">Payment Summary:</h4>
+                  <div className="space-y-1">
+                    <p className="text-gray-700">
+                      <span className="font-medium">Amount:</span> {formatCurrency(parseFloat(amount), scanResult.qrData.currency)}
+                    </p>
+                    <p className="text-gray-700">
+                      <span className="font-medium">To:</span> {scanResult.qrData.name}
+                    </p>
+                    <p className="text-gray-700">
+                      <span className="font-medium">Account:</span> {scanResult.qrData.accountNumber}
+                    </p>
+                    {description && (
+                      <p className="text-gray-700">
+                        <span className="font-medium">Description:</span> {description}
+                      </p>
+                    )}
+                  </div>
                 </div>
 
-                <div className="mb-4">
-                  <label htmlFor="pinInput" className="text-gray-600 block text-left mb-2">Enter PIN:</label>
+                <div className="mb-6">
+                  <label htmlFor="pinInput" className="block text-left mb-2 font-medium text-gray-700">
+                    Customer's PIN:
+                  </label>
                   <input
                     type="password"
                     id="pinInput"
-                    value={pin}
-                    onChange={(e) => setPin(e.target.value)}
-                    className="text-gray-600 w-full p-3 border border-gray-300 rounded-lg text-center text-lg tracking-wider"
+                    value={userEnteredPin}
+                    onChange={(e) => setUserEnteredPin(e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg text-center text-xl tracking-widest"
                     placeholder="••••"
                     maxLength={4}
+                    disabled={verifyingPin}
                   />
+                  <p className="text-xs text-gray-500 mt-1 text-center">
+                    The customer must enter their 4-digit PIN
+                  </p>
                 </div>
 
-                <div className="text-gray-600 flex justify-end gap-3">
+                <div className="flex justify-end gap-3">
                   <button 
                     className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
                     onClick={() => {
                       setShowPinDialog(false);
-                      setPin('');
+                      setUserEnteredPin('');
                     }}
+                    disabled={verifyingPin}
                   >
                     Cancel
                   </button>
                   <button 
-                    className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                    className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
                     onClick={handlePinSubmit}
-                    disabled={!pin || pin.length < 4}
+                    disabled={!userEnteredPin || userEnteredPin.length !== 4 || verifyingPin}
                   >
-                    Verify & Process
+                    {verifyingPin ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Verifying...
+                      </>
+                    ) : (
+                      'Verify & Process Payment'
+                    )}
                   </button>
                 </div>
               </div>
@@ -662,21 +686,22 @@ const AgentScanQR: React.FC = () => {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-lg shadow-xl p-6 flex flex-col items-center">
               <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-              <p>Processing wallet transfer...</p>
+              <p className="text-lg font-medium">Processing payment...</p>
+              <p className="text-sm text-gray-600 mt-2">Please wait while we complete the transaction</p>
             </div>
           </div>
         )}
 
         <div className="text-center mt-6">
-          <Link
-            to="/agent"
-            className="bg-blue-600 px-6 py-2 rounded hover:bg-blue-700"
+          <button
+            onClick={() => window.history.back()}
+            className="inline-flex items-center gap-2 bg-gray-600 px-6 py-2 rounded hover:bg-gray-700 text-white"
           >
-            <span className="text-white">Back to Dashboard</span>
-          </Link>
+            <ArrowLeft size={18} />
+            <span>Back to Dashboard</span>
+          </button>
         </div>
       </main>
-      <Footer />
     </div>
   );
 };
