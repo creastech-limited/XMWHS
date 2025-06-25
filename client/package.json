@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "serve -s dist -l $PORT"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
@@ -38,6 +39,7 @@
     "react-router-dom": "^6.30.0",
     "react-toastify": "^11.0.5",
     "recharts": "^2.15.3",
+    "serve": "^14.2.4",
     "tailwindcss": "^4.1.6",
     "zod": "^3.24.4",
     "zustand": "^5.0.4"
