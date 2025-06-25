@@ -7,7 +7,7 @@ import {
   RefreshCw,
   User,
   Mail,
-  Wallet,
+  Wallet, 
   CreditCard,
   Shield,
   X
