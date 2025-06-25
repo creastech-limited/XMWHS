@@ -14,13 +14,14 @@ export default defineConfig({
   },
   
   server: {
-    host: '0.0.0.0',  // Changed from 'localhost'
+    host: '0.0.0.0', 
     port: 5174,
   },
   
   preview: {
-    host: '0.0.0.0',  // Added for production preview
-    port: 5174
+    host: '0.0.0.0',  
+    port: 5174,
+    allowedHosts: true
   },
   
   define: {
