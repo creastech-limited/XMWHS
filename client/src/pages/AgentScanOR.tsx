@@ -12,9 +12,17 @@ import {
   Shield,
   X
 } from 'lucide-react';
-import { Html5Qrcode } from 'html5-qrcode';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 
 const API_BASE_URL = 'https://nodes-staging.up.railway.app';
+
+interface IScannerProps {
+  onResult: (result: { text: string } | null) => void;
+  onError: (error: unknown) => void;
+  constraints: { facingMode: string };
+  containerStyle: { width: string; height: string };
+  videoStyle: { width: string; height: string; objectFit: string };
+}
 
 interface QRCodeData {
   userId: string;
@@ -55,7 +63,7 @@ interface TransactionResponse {
   message: string;
 }
 
-const AgentScanQR: React.FC = () => {
+const AgentScanQR: React.FC<IScannerProps> = () => {
   const [scanning, setScanning] = useState<boolean>(false);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -193,7 +201,8 @@ const AgentScanQR: React.FC = () => {
     // Configuration for the scanner
     const config = {
       fps: 10,
-      qrbox: { width: 250, height: 250 }
+      qrbox: { width: 250, height: 250 },
+      formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE]
     };
 
     // Initialize the scanner
@@ -205,20 +214,30 @@ const AgentScanQR: React.FC = () => {
       (decodedText: string) => {
         handleScan(decodedText);
       },
-      (errorMessage: string) => {
+      (error: unknown) => {
         // Parse error message to handle specific cases
-        if (errorMessage.includes('No MultiFormat Readers were able to detect the code')) {
-          // This is normal - just means no QR code is detected yet
-          return;
-        }
+        if (
+          typeof error === 'object' &&
+          error !== null &&
+          'message' in error &&
+          typeof (error as Record<string, unknown>).message === 'string'
+        ) {
+          const message = (error as Record<string, unknown>).message as string;
+          if (message.includes('No MultiFormat Readers were able to detect the code')) {
+            // This is normal - just means no QR code is detected yet
+            return;
+          }
 
-        console.error('QR Scanner error:', errorMessage);
+          console.error('QR Scanner error:', message);
 
-        // Handle camera start errors specifically
-        if (errorMessage.includes('Could not start video stream')) {
-          setCameraError('Could not start camera. Please check permissions and try again.');
+          // Handle camera start errors specifically
+          if (message.includes('Could not start video stream')) {
+            setCameraError('Could not start camera. Please check permissions and try again.');
+          } else {
+            setCameraError(message);
+          }
         } else {
-          setCameraError(errorMessage);
+          setCameraError('Unknown scanner error');
         }
 
         stopScanning();
