@@ -80,7 +80,18 @@ function App() {
           <Route path="/stores/new" element={<StoreRegistrationForm />} />
           <Route path="/store" element={<StoreDashboard />} />
           <Route path="/agent" element={<AgentDashboard />} />
-          <Route path="/agent/scanqr" element={<AgentScanQR />} />
+          <Route
+            path="/agent/scanqr"
+            element={
+              <AgentScanQR
+                onResult={() => {}}
+                onError={() => {}}
+                constraints={{ facingMode: "environment" }}
+                containerStyle={{ width: "100%", height: "100%" }}
+                videoStyle={{ width: "100%", height: "100%", objectFit: "cover" }}
+              />
+            }
+          />
           <Route path="/agent/transfertostore" element={<AgentTransferToStore />} />
           <Route path="/agent/transactions" element={<AgentTransactionHistory />} />
           <Route path="/agents" element={<ManageAgentsPage />} />
