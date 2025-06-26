@@ -106,10 +106,7 @@ function App() {
           <Route path="/Sdisputes" element={<DisputePage />} />
           <Route path="/Storedispute" element={<Storedispute />} />
 
-          {/* Fallback route */}
         
-
-          {/* Kids routes */}
         </Routes>
       </AuthProvider>
     </Router>

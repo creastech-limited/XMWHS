@@ -89,8 +89,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       if (!storedToken || !storedUser) {
         setIsLoading(false);
-        // Only redirect if not on public pages
-        const publicPages = ['/login', '/register', '/forgot-password', '/'];
+        // FIXED: Updated public pages to match your actual routes
+        const publicPages = ['/login', '/signup', '/schoolsignup', '/forgot-password', '/'];
         if (!publicPages.includes(location.pathname)) {
           navigate('/login');
         }

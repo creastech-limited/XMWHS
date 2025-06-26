@@ -83,7 +83,8 @@ const AgentScanQR: React.FC<IScannerProps> = () => {
   const [selectedCameraId, setSelectedCameraId] = useState<string>('');
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
-  const qrBoxId = 'qr-reader';
+  const qrBoxId = 'qr-reader-' + Math.random().toString(36).substring(2);
+  const scannerContainerRef = useRef<HTMLDivElement>(null);
 
   const colors = {
     primary: '#3f51b5',
@@ -194,15 +195,29 @@ const AgentScanQR: React.FC<IScannerProps> = () => {
       return;
     }
 
+    // Ensure the scanner container exists before initializing
+    if (!scannerContainerRef.current) {
+      setCameraError('Scanner container not found');
+      return;
+    }
+
     setScanning(true);
     setError(null);
     setScanResult(null);
+
+    // Clear any previous scanner instance
+    if (scannerRef.current) {
+      scannerRef.current.clear();
+    }
 
     // Configuration for the scanner
     const config = {
       fps: 10,
       qrbox: { width: 250, height: 250 },
-      formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE]
+      formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+      rememberLastUsedCamera: false,
+      showZoomSliderIfSupported: false,
+      defaultZoomValueIfSupported: 1
     };
 
     // Initialize the scanner
@@ -395,6 +410,31 @@ const AgentScanQR: React.FC<IScannerProps> = () => {
 
   return (
     <div className="flex flex-col min-h-screen" style={{ backgroundColor: colors.background }}>
+      {/* Add global styles for the scanner */}
+      <style>
+        {`
+          #${qrBoxId} {
+            width: 100% !important;
+            height: 100% !important;
+            position: relative !important;
+          }
+          
+          #${qrBoxId} video {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: cover !important;
+          }
+          
+          #${qrBoxId}__dashboard_section_csr {
+            display: none !important;
+          }
+          
+          #${qrBoxId}__dashboard_section {
+            padding: 0 !important;
+          }
+        `}
+      </style>
+
       <main className="flex-grow p-4 sm:p-6">
         <div className="container mx-auto py-6 px-4 flex-grow max-w-4xl">
           <div className="bg-white rounded-xl shadow-md p-6 mb-6 text-center">
@@ -456,7 +496,11 @@ const AgentScanQR: React.FC<IScannerProps> = () => {
                 
                 <div className="w-full max-w-[350px] h-[350px] bg-black rounded-lg relative overflow-hidden mx-auto">
                   {scanning ? (
-                    <div id={qrBoxId} className="w-full h-full"></div>
+                    <div 
+                      id={qrBoxId}
+                      ref={scannerContainerRef}
+                      className="w-full h-full"
+                    ></div>
                   ) : (
                     <div className="flex flex-col items-center justify-center h-full">
                       <QrCode size={60} className="text-white mb-2" />

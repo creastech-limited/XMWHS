@@ -246,7 +246,7 @@ const LoginPage: React.FC = () => {
         <div className="mt-6 text-center">
           <RouterLink
             to="/signup"
-            className="text-indigo-900 font-medium hover:text-indigo-700 transition"
+            className="text-indigo-900 font-medium hover:text-indigo-700 transition-colors duration-200 inline-block"
           >
             Don't have an account? <span className="font-bold underline">Sign Up</span>
           </RouterLink>
