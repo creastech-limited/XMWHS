@@ -16,6 +16,7 @@ export default defineConfig({
   server: {
     host: '0.0.0.0', 
     port: 5174,
+    allowedHosts: ['nodes-production-2b39.up.railway.app']
   },
   
   preview: {
