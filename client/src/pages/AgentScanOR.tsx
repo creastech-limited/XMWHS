@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   QrCode, 
   ArrowLeft, 
@@ -12,17 +12,9 @@ import {
   Shield,
   X
 } from 'lucide-react';
-import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
+import { Scanner } from '@yudiel/react-qr-scanner';
 
 const API_BASE_URL = 'https://nodes-staging.up.railway.app';
-
-interface IScannerProps {
-  onResult: (result: { text: string } | null) => void;
-  onError: (error: unknown) => void;
-  constraints: { facingMode: string };
-  containerStyle: { width: string; height: string };
-  videoStyle: { width: string; height: string; objectFit: string };
-}
 
 interface QRCodeData {
   userId: string;
@@ -43,7 +35,7 @@ interface QRCodeData {
 
 interface ScanResult {
   qrData: QRCodeData;
-  manual?: boolean;
+  manual?: boolean;  
 }
 
 interface TransactionData {
@@ -63,7 +55,7 @@ interface TransactionResponse {
   message: string;
 }
 
-const AgentScanQR: React.FC<IScannerProps> = () => {
+const AgentScanQR: React.FC = () => {
   const [scanning, setScanning] = useState<boolean>(false);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -80,11 +72,7 @@ const AgentScanQR: React.FC<IScannerProps> = () => {
   const [token, setToken] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
   const [availableCameras, setAvailableCameras] = useState<MediaDeviceInfo[]>([]);
-  const [selectedCameraId, setSelectedCameraId] = useState<string>('');
-
-  const scannerRef = useRef<Html5Qrcode | null>(null);
-  const qrBoxId = 'qr-reader-' + Math.random().toString(36).substring(2);
-  const scannerContainerRef = useRef<HTMLDivElement>(null);
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
 
   const colors = {
     primary: '#3f51b5',
@@ -103,17 +91,6 @@ const AgentScanQR: React.FC<IScannerProps> = () => {
     setToken(storedToken);
     enumerateCameras();
     setLoading(false);
-
-    return () => {
-      if (scannerRef.current) {
-        try {
-          scannerRef.current.stop().catch(() => {});
-          scannerRef.current.clear();
-        } catch (error) {
-          console.error("Failed to clear html5 qrcode scanner", error);
-        }
-      }
-    };
   }, []);
 
   // Enumerate available cameras
@@ -131,13 +108,6 @@ const AgentScanQR: React.FC<IScannerProps> = () => {
       }
       
       setAvailableCameras(videoDevices);
-      
-      // Set default camera (prefer rear camera if available)
-      const rearCamera = videoDevices.find(device => 
-        device.label.toLowerCase().includes('back') || 
-        device.label.toLowerCase().includes('rear')
-      );
-      setSelectedCameraId(rearCamera?.deviceId || videoDevices[0].deviceId);
     } catch (err) {
       console.error('Camera enumeration error:', err);
       setCameraError('Could not access camera. Please ensure permissions are granted and a camera is available.');
@@ -167,9 +137,9 @@ const AgentScanQR: React.FC<IScannerProps> = () => {
   };
 
   const handleScan = useCallback((data: string) => {
-    if (data && !scanResult) {
-      try {
-        const qrData = parseQRData(data);
+  if (data && !scanResult) {
+    try {
+      const qrData = parseQRData(data);
         
         if (!qrData.userId || !qrData.name || !qrData.email || !qrData.walletId) {
           throw new Error('Invalid QR code format');
@@ -181,7 +151,7 @@ const AgentScanQR: React.FC<IScannerProps> = () => {
         
         setScanResult({ qrData });
         setShowConfirmDialog(true);
-        stopScanning();
+        setScanning(false);
       } catch (decodeError) {
         console.error('QR decode error:', decodeError);
         setError("Invalid QR code format. Please ensure this is a valid payment QR code.");
@@ -189,105 +159,15 @@ const AgentScanQR: React.FC<IScannerProps> = () => {
     }
   }, [scanResult]);
 
-  const startScanning = useCallback(() => {
-    if (!selectedCameraId) {
-      setCameraError('No camera selected');
-      return;
-    }
-
-    // Ensure the scanner container exists before initializing
-    if (!scannerContainerRef.current) {
-      setCameraError('Scanner container not found');
-      return;
-    }
-
-    setScanning(true);
-    setError(null);
-    setScanResult(null);
-
-    // Clear any previous scanner instance
-    if (scannerRef.current) {
-      scannerRef.current.clear();
-    }
-
-    // Configuration for the scanner
-    const config = {
-      fps: 10,
-      qrbox: { width: 250, height: 250 },
-      formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
-      rememberLastUsedCamera: false,
-      showZoomSliderIfSupported: false,
-      defaultZoomValueIfSupported: 1
-    };
-
-    // Initialize the scanner
-    scannerRef.current = new Html5Qrcode(qrBoxId);
-
-    scannerRef.current.start(
-      { deviceId: { exact: selectedCameraId } },
-      config,
-      (decodedText: string) => {
-        handleScan(decodedText);
-      },
-      (error: unknown) => {
-        // Parse error message to handle specific cases
-        if (
-          typeof error === 'object' &&
-          error !== null &&
-          'message' in error &&
-          typeof (error as Record<string, unknown>).message === 'string'
-        ) {
-          const message = (error as Record<string, unknown>).message as string;
-          if (message.includes('No MultiFormat Readers were able to detect the code')) {
-            // This is normal - just means no QR code is detected yet
-            return;
-          }
-
-          console.error('QR Scanner error:', message);
-
-          // Handle camera start errors specifically
-          if (message.includes('Could not start video stream')) {
-            setCameraError('Could not start camera. Please check permissions and try again.');
-          } else {
-            setCameraError(message);
-          }
-        } else {
-          setCameraError('Unknown scanner error');
-        }
-
-        stopScanning();
-      }
-    ).catch((err: unknown) => {
-      console.error('Failed to start scanner:', err);
-      setCameraError('Failed to start camera. Please try again.');
-      stopScanning();
-    });
-  }, [selectedCameraId, handleScan]);
-
-  const stopScanning = () => {
-    if (scannerRef.current) {
-      scannerRef.current.stop().catch(() => {});
-      scannerRef.current.clear();
-      scannerRef.current = null;
-    }
-    setScanning(false);
-  };
 
   const toggleScanning = () => {
-    if (scanning) {
-      stopScanning();
-    } else {
-      startScanning();
-    }
+    setScanning(!scanning);
+    setError(null);
+    setScanResult(null);
   };
 
-  const switchCamera = async (deviceId: string) => {
-    setSelectedCameraId(deviceId);
-    if (scanning) {
-      await stopScanning();
-      // Small delay to ensure scanner is fully stopped before restarting
-      setTimeout(startScanning, 300);
-    }
+  const switchCamera = () => {
+    setFacingMode(prev => prev === 'environment' ? 'user' : 'environment');
   };
 
   const verifyUserPin = async (pinData: PinVerificationData): Promise<boolean> => {
@@ -385,7 +265,7 @@ const AgentScanQR: React.FC<IScannerProps> = () => {
   };
 
   const resetScan = () => {
-    stopScanning();
+    setScanning(false);
     setScanResult(null);
     setAmount('');
     setDescription('');
@@ -410,31 +290,6 @@ const AgentScanQR: React.FC<IScannerProps> = () => {
 
   return (
     <div className="flex flex-col min-h-screen" style={{ backgroundColor: colors.background }}>
-      {/* Add global styles for the scanner */}
-      <style>
-        {`
-          #${qrBoxId} {
-            width: 100% !important;
-            height: 100% !important;
-            position: relative !important;
-          }
-          
-          #${qrBoxId} video {
-            width: 100% !important;
-            height: 100% !important;
-            object-fit: cover !important;
-          }
-          
-          #${qrBoxId}__dashboard_section_csr {
-            display: none !important;
-          }
-          
-          #${qrBoxId}__dashboard_section {
-            padding: 0 !important;
-          }
-        `}
-      </style>
-
       <main className="flex-grow p-4 sm:p-6">
         <div className="container mx-auto py-6 px-4 flex-grow max-w-4xl">
           <div className="bg-white rounded-xl shadow-md p-6 mb-6 text-center">
@@ -495,50 +350,57 @@ const AgentScanQR: React.FC<IScannerProps> = () => {
                 <p className="text-gray-600 mb-6">Scan customer's payment QR code to process transaction</p>
                 
                 <div className="w-full max-w-[350px] h-[350px] bg-black rounded-lg relative overflow-hidden mx-auto">
-                  {scanning ? (
-                    <div 
-                      id={qrBoxId}
-                      ref={scannerContainerRef}
-                      className="w-full h-full"
-                    ></div>
-                  ) : (
+                    {scanning ? (
+ <Scanner
+   onScan={(detectedCodes) => {
+     if (Array.isArray(detectedCodes) && detectedCodes.length > 0) {
+       const code = detectedCodes[0];
+       if (code.rawValue) {
+         handleScan(code.rawValue);
+       }
+     }
+   }}
+  constraints={{ facingMode }}
+  components={{}}
+  styles={{
+    container: {
+      width: '100%',
+      height: '100%'
+    },
+    video: {
+      width: '100%',
+      height: '100%',
+      objectFit: 'cover'
+    }
+  }}
+/>
+                    ) : (
                     <div className="flex flex-col items-center justify-center h-full">
                       <QrCode size={60} className="text-white mb-2" />
                       <Camera size={40} className="text-white" />
                       <p className="text-white mt-2 text-center">
-                        {availableCameras.length > 0 ? 'Ready to scan payment QR code' : 'Camera access required'}
+                      {availableCameras.length > 0 ? 'Ready to scan payment QR code' : 'Camera access required'}
                       </p>
                       {availableCameras.length === 0 && (
-                        <button
-                          onClick={enumerateCameras}
-                          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                        >
-                          Allow Camera Access
-                        </button>
+                      <button
+                        onClick={enumerateCameras}
+                        className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                      >
+                        Allow Camera Access
+                      </button>
                       )}
                     </div>
-                  )}
+                    )}
                 </div>
 
-                {/* Camera selection dropdown */}
-                {availableCameras.length > 1 && (
+                {scanning && availableCameras.length > 1 && (
                   <div className="mt-4">
-                    <label htmlFor="camera-select" className="block text-sm font-medium text-gray-700 mb-1">
-                      Select Camera:
-                    </label>
-                    <select
-                      id="camera-select"
-                      value={selectedCameraId}
-                      onChange={(e) => switchCamera(e.target.value)}
-                      className="block w-full max-w-xs mx-auto p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                      disabled={scanning}
+                    <button
+                      onClick={switchCamera}
+                      className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded"
                     >
-                      {availableCameras.map((camera) => (
-                        <option key={camera.deviceId} value={camera.deviceId}>
-                          {camera.label || `Camera ${availableCameras.indexOf(camera) + 1}`}
-                        </option>
-                      ))}
-                    </select>
+                      Switch to {facingMode === 'environment' ? 'Front' : 'Rear'} Camera
+                    </button>
                   </div>
                 )}
 

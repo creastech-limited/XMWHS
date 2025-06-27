@@ -85,7 +85,7 @@ const SignUpPage: React.FC = () => {
     };
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/register2`, {
+      const response = await fetch(`${API_BASE_URL}/api/users/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

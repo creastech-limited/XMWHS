@@ -1,15 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { AlertCircle, FileText, DollarSign, User, ChevronDown, CheckCircle, XCircle, Eye, Calendar } from 'lucide-react';
+import { AlertCircle, FileText, DollarSign, User, ChevronDown, CheckCircle, XCircle, Eye, Calendar, School } from 'lucide-react';
 
 // Types
 interface User {
-  [key: string]: unknown; // Allow extra properties for compatibility with AuthContext
+  [key: string]: unknown;
   _id: string;
   name: string;
   email: string;
   role: string;
+  schoolId?: string;
+  data?: {
+    schoolId?: string;
+    academicDetails?: {
+      schoolId?: string;
+    };
+  };
   // Add other user properties as needed
+}
+
+interface School {
+  school_id: string;
+  schoolName: string;
+  schoolAddress: string;
+  schoolType: string;
 }
 
 interface DisputeFormData {
@@ -19,7 +33,9 @@ interface DisputeFormData {
   paymentCategory: string;
   amount: number | '';
   supportingDocuments: string;
+  schoolId?: string;
 }
+
 interface Transaction {
   _id: string;
   senderWalletId: string;
@@ -49,7 +65,7 @@ interface Dispute {
   description: string;
   disputeDate: string;
   status: string;
-  transactionId: Transaction; // Changed from string to Transaction
+  transactionId: Transaction;
   paymentCategory: string;
   amount: number;
   supportingDocuments: string[];
@@ -57,7 +73,6 @@ interface Dispute {
   updatedAt: string;
   __v: number;
 }
-
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging.up.railway.app';
 
@@ -76,13 +91,19 @@ const RaiseDispute: React.FC = () => {
   const [disputesLoading, setDisputesLoading] = useState(false);
   const [disputesError, setDisputesError] = useState('');
 
+  // Schools list for parents
+  const [schools, setSchools] = useState<School[]>([]);
+  const [schoolsLoading, setSchoolsLoading] = useState(false);
+  const [schoolsError, setSchoolsError] = useState('');
+
   const [formData, setFormData] = useState<DisputeFormData>({
     disputeType: '',
     description: '',
     transactionId: '',
     paymentCategory: '',
     amount: '',
-    supportingDocuments: ''
+    supportingDocuments: '',
+    schoolId: ''
   });
 
   // Dropdown options
@@ -176,6 +197,32 @@ const RaiseDispute: React.FC = () => {
     }
   };
 
+  // Fetch schools list for parents
+  const fetchSchools = async (authToken: string): Promise<School[]> => {
+    try {
+      setSchoolsLoading(true);
+      const response = await fetch(`${API_BASE_URL}/api/users/getallSchools`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.schools || data.data || [];
+    } catch (error) {
+      console.error('Error fetching schools:', error);
+      throw error;
+    } finally {
+      setSchoolsLoading(false);
+    }
+  };
+
   // Load user disputes
   const loadUserDisputes = async () => {
     if (!token) return;
@@ -233,6 +280,7 @@ const RaiseDispute: React.FC = () => {
           name: typeof profile.name === 'string' ? profile.name : '',
           email: typeof profile.email === 'string' ? profile.email : '',
           role: typeof profile.role === 'string' ? profile.role : '',
+          schoolId: profile.schoolId || profile.data?.schoolId || profile.data?.academicDetails?.schoolId || '',
         };
         auth?.login?.(mergedUser, storedToken);
         
@@ -254,6 +302,40 @@ const RaiseDispute: React.FC = () => {
     }
   }, [token, activeTab]);
 
+  // Load schools if user is a parent
+  useEffect(() => {
+    if (token && user?.role === 'parent') {
+      const loadSchools = async () => {
+        try {
+          const schoolsList = await fetchSchools(token);
+          setSchools(schoolsList);
+        } catch (error) {
+          console.error('Error loading schools:', error);
+          setSchoolsError('Failed to load schools. Please try again.');
+        }
+      };
+      loadSchools();
+    }
+  }, [token, user?.role]);
+
+  // Set schoolId in form data based on user role
+  useEffect(() => {
+    if (user) {
+      // For store or kid roles, automatically set the schoolId
+      if (['store', 'kid', 'student'].includes(user.role)) {
+        const schoolId = user.schoolId || 
+                         (user.data && (user.data.schoolId || 
+                                       (user.data.academicDetails && user.data.academicDetails.schoolId)));
+        if (schoolId) {
+          setFormData(prev => ({
+            ...prev,
+            schoolId: schoolId as string
+          }));
+        }
+      }
+    }
+  }, [user]);
+
   // Handle form input changes
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -265,7 +347,6 @@ const RaiseDispute: React.FC = () => {
 
   // Submit dispute
   const handleSubmit = async () => {
-    
     if (!token || !user) {
       setErrorMessage('Authentication required. Please login again.');
       return;
@@ -275,6 +356,12 @@ const RaiseDispute: React.FC = () => {
     if (!formData.disputeType || !formData.description || !formData.transactionId || 
         !formData.paymentCategory || formData.amount === '') {
       setErrorMessage('Please fill in all required fields.');
+      return;
+    }
+
+    // Additional validation for parents to select a school
+    if (user.role === 'parent' && !formData.schoolId) {
+      setErrorMessage('Please select a school for your dispute.');
       return;
     }
 
@@ -289,7 +376,8 @@ const RaiseDispute: React.FC = () => {
         transactionId: formData.transactionId,
         paymentCategory: formData.paymentCategory,
         amount: Number(formData.amount),
-        supportingDocuments: formData.supportingDocuments || ""
+        supportingDocuments: formData.supportingDocuments || "",
+        schoolId: formData.schoolId || undefined
       };
 
       const response = await fetch(`${API_BASE_URL}/api/dispute/createdispute`, {
@@ -317,7 +405,8 @@ const RaiseDispute: React.FC = () => {
         transactionId: '',
         paymentCategory: '',
         amount: '',
-        supportingDocuments: ''
+        supportingDocuments: '',
+        schoolId: user.role === 'parent' ? '' : formData.schoolId // Keep school if not parent
       });
 
       // Refresh disputes list if on list tab
@@ -415,6 +504,9 @@ const RaiseDispute: React.FC = () => {
             <User className="h-5 w-5 text-gray-500" />
             <span className="font-medium">Logged in as:</span>
             <span className="text-gray-800 font-semibold">{user.name || user.email || user._id}</span>
+            <span className="ml-2 px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+              {user.role || 'user'}
+            </span>
           </div>
 
           {/* Tab Navigation */}
@@ -471,6 +563,57 @@ const RaiseDispute: React.FC = () => {
           // Create Dispute Form
           <div className="bg-white rounded-xl shadow-sm p-6 sm:p-8 border border-gray-200">
             <div className="space-y-8">
+              {/* School Selection for Parents */}
+              {user.role === 'parent' && (
+                <div>
+                  <label htmlFor="schoolId" className="block text-base font-semibold text-gray-800 mb-3">
+                    Select School *
+                  </label>
+                  {schoolsLoading ? (
+                    <div className="flex items-center justify-center p-4 bg-gray-50 rounded-lg">
+                      <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-200 border-t-blue-600 mr-3"></div>
+                      <span className="text-gray-600">Loading schools...</span>
+                    </div>
+                  ) : schoolsError ? (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-800">
+                      {schoolsError}
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <select
+                        id="schoolId"
+                        name="schoolId"
+                        value={formData.schoolId || ''}
+                        onChange={handleInputChange}
+                        required
+                        className="w-full px-4 py-3 text-base border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white text-gray-900 transition-all duration-200"
+                      >
+                        <option value="" className="text-gray-500">Select your school</option>
+                        {schools.map((school) => (
+                          <option key={school.school_id} value={school.school_id} className="text-gray-900">
+                            {school.schoolName} - {school.schoolAddress}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-4 top-3.5 h-5 w-5 text-gray-400 pointer-events-none" />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Display School for Store/Kid roles */}
+              {['store', 'kid', 'student'].includes(user.role) && formData.schoolId && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center space-x-3">
+                    <School className="h-5 w-5 text-blue-600" />
+                    <div>
+                      <p className="text-blue-800 font-medium">School:</p>
+                      <p className="text-blue-900">{formData.schoolId}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Dispute Type */}
               <div>
                 <label htmlFor="disputeType" className="block text-base font-semibold text-gray-800 mb-3">
@@ -668,49 +811,49 @@ const RaiseDispute: React.FC = () => {
                 </div>
               ) : (
                 <div className="space-y-4">
-              {disputes.map((dispute) => (
-  <div key={dispute._id} className="border border-gray-200 rounded-lg p-4 sm:p-6 hover:shadow-md transition-all duration-200">
-    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-4">
-      <div className="flex-1">
-        <div className="flex items-center space-x-3 mb-2">
-          <h3 className="text-lg font-semibold text-gray-900">{dispute.disputeType}</h3>
-          <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusBadgeColor(dispute.status)}`}>
-            {dispute.status || 'Pending'}
-          </span>
-        </div>
-        <p className="text-gray-600 text-sm mb-2">{dispute.description}</p>
-        <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
-          <div className="flex items-center space-x-1">
-            <DollarSign className="h-4 w-4" />
-            <span>₦{dispute.amount}</span>
-          </div>
-          <div className="flex items-center space-x-1">
-            <FileText className="h-4 w-4" />
-            <span>{dispute.paymentCategory}</span>
-          </div>
-          <div className="flex items-center space-x-1">
-            <Calendar className="h-4 w-4" />
-            <span>{formatDate(dispute.createdAt)}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-    
-    <div className="pt-4 border-t border-gray-100">
-      <div className="flex flex-col sm:flex-row sm:justify-between text-sm text-gray-600">
-        <span><strong>Transaction ID:</strong> {dispute.transactionId._id}</span>
-        <span><strong>Reference:</strong> {dispute.transactionId.reference}</span>
-        {dispute.supportingDocuments && dispute.supportingDocuments[0] && (
-          <span><strong>Documents:</strong> {dispute.supportingDocuments[0]}</span>
-        )}
-      </div>
-      <div className="mt-2 text-sm text-gray-600">
-        <p><strong>Transaction Details:</strong> {dispute.transactionId.description}</p>
-        <p><strong>Amount:</strong> ₦{dispute.transactionId.amount}</p>
-      </div>
-    </div>
-  </div>
-))}
+                  {disputes.map((dispute) => (
+                    <div key={dispute._id} className="border border-gray-200 rounded-lg p-4 sm:p-6 hover:shadow-md transition-all duration-200">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-4">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-3 mb-2">
+                            <h3 className="text-lg font-semibold text-gray-900">{dispute.disputeType}</h3>
+                            <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusBadgeColor(dispute.status)}`}>
+                              {dispute.status || 'Pending'}
+                            </span>
+                          </div>
+                          <p className="text-gray-600 text-sm mb-2">{dispute.description}</p>
+                          <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
+                            <div className="flex items-center space-x-1">
+                              <DollarSign className="h-4 w-4" />
+                              <span>₦{dispute.amount}</span>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                              <FileText className="h-4 w-4" />
+                              <span>{dispute.paymentCategory}</span>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                              <Calendar className="h-4 w-4" />
+                              <span>{formatDate(dispute.createdAt)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="pt-4 border-t border-gray-100">
+                        <div className="flex flex-col sm:flex-row sm:justify-between text-sm text-gray-600">
+                          <span><strong>Transaction ID:</strong> {dispute.transactionId._id}</span>
+                          <span><strong>Reference:</strong> {dispute.transactionId.reference}</span>
+                          {dispute.supportingDocuments && dispute.supportingDocuments[0] && (
+                            <span><strong>Documents:</strong> {dispute.supportingDocuments[0]}</span>
+                          )}
+                        </div>
+                        <div className="mt-2 text-sm text-gray-600">
+                          <p><strong>Transaction Details:</strong> {dispute.transactionId.description}</p>
+                          <p><strong>Amount:</strong> ₦{dispute.transactionId.amount}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
