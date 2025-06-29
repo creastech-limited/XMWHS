@@ -83,13 +83,7 @@ function App() {
           <Route
             path="/agent/scanqr"
             element={
-              <AgentScanQR
-                onResult={() => {}}
-                onError={() => {}}
-                constraints={{ facingMode: "environment" }}
-                containerStyle={{ width: "100%", height: "100%" }}
-                videoStyle={{ width: "100%", height: "100%", objectFit: "cover" }}
-              />
+              <AgentScanQR />
             }
           />
           <Route path="/agent/transfertostore" element={<AgentTransferToStore />} />
