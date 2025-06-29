@@ -34,6 +34,10 @@ interface Profile {
   fullName?: string;
   avatar?: string;
   _id?: string;
+  wallet?: {
+    balance: number;
+    [key: string]: number | undefined;
+  };
 }
 
 interface Transaction {
@@ -183,12 +187,14 @@ const ParentDashboard: React.FC = () => {
         },
       });
 
-      let userData;
-      if (response.data.user) {
-        userData = response.data.user.data || response.data.user;
-      } else {
-        userData = response.data.data || response.data;
-      }
+      console.log('Full API Response:', response.data); // Debug log
+
+      // Based on your API response structure, the user data is directly in response.data.user
+      // And the wallet is a separate property within that user object
+      const userData = response.data.user;
+      
+      console.log('User data:', userData); // Debug log
+      console.log('Wallet data:', userData?.wallet); // Debug log
 
       setProfile(userData);
       await fetchTransactions();
@@ -213,7 +219,45 @@ const ParentDashboard: React.FC = () => {
     }
   }, [auth?.token]);
 
-  const moneyIn = transactionStats.totalCredit.success;
+  // Enhanced wallet balance extraction with better error handling
+  const getWalletBalance = (): number => {
+    console.log('Getting wallet balance. Profile:', profile); // Debug log
+    
+    if (!profile) {
+      console.log('No profile data available');
+      return 0;
+    }
+
+    // Based on your API response, wallet should be directly accessible
+    if (profile.wallet && typeof profile.wallet.balance === 'number') {
+      console.log('Found wallet balance:', profile.wallet.balance);
+      return profile.wallet.balance;
+    }
+
+    // Try alternative paths just in case
+    // Try alternative balance property if present
+    const altBalance = (profile as { balance?: number }).balance;
+    if (typeof altBalance === 'number') {
+      console.log('Found alternative balance:', altBalance);
+      return altBalance;
+    }
+
+    // Try data.wallet if there's a nested data object
+    const dataWallet =
+      typeof (profile as { data?: { wallet?: { balance?: number } } }).data?.wallet?.balance === 'number'
+        ? (profile as { data?: { wallet?: { balance?: number } } }).data!.wallet!.balance
+        : undefined;
+    if (typeof dataWallet === 'number') {
+      console.log('Found data.wallet.balance:', dataWallet);
+      return dataWallet;
+    }
+
+    console.log('No wallet balance found anywhere, defaulting to 0');
+    console.log('Profile structure:', Object.keys(profile));
+    return 0;
+  };
+
+  const walletBalance = getWalletBalance();
   const moneyOut = transactionStats.totalDebit.success;
 
   const prepareTrendData = (): TrendData[] => {
@@ -388,17 +432,16 @@ const ParentDashboard: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                 <div className="bg-gradient-to-r from-emerald-600 to-emerald-400 text-white rounded-xl shadow-md p-5">
                   <div className="flex justify-between items-center mb-3">
-                    <h3 className="text-lg font-medium">Money In</h3>
-                    <ArrowDownIcon className="w-5 h-5" />
+                    <h3 className="text-lg font-medium">Wallet Balance</h3>
+                    <CreditCardIcon className="w-5 h-5" />
                   </div>
                   <p className="text-2xl font-bold">
-                    ₦{moneyIn.toLocaleString()}
+                    ₦{walletBalance.toLocaleString()}
                   </p>
                   <p className="text-sm mt-2 opacity-90">
-                    {transactionStats.totalCredit.pending > 0
-                      ? `+${((transactionStats.totalCredit.pending / (moneyIn || 1)) * 100).toFixed(2)}% pending`
-                      : '+0% pending'}
+                    Available balance
                   </p>
+                
                 </div>
 
                 <div className="bg-gradient-to-r from-rose-600 to-rose-400 text-white rounded-xl shadow-md p-5">

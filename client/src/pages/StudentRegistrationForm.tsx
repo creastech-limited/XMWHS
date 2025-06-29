@@ -37,7 +37,7 @@ interface FormData {
   firstName: string;
   lastName: string;
   email: string;
- classAdmittedTo: string;
+  classAdmittedTo: string;
   password: string;
   confirmPassword: string;
   school: string;
@@ -78,9 +78,9 @@ const StudentRegistrationForm: React.FC = () => {
 
   const [schoolInfo, setSchoolInfo] = useState<SchoolInfo | null>(null);
   const [schoolLoading, setSchoolLoading] = useState<boolean>(true);
+  const [schoolNotFound, setSchoolNotFound] = useState<boolean>(false);
   const [showPassword, setShowPassword] = useState<boolean>(false);
-  const [showConfirmPassword, setShowConfirmPassword] =
-    useState<boolean>(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [snackbar, setSnackbar] = useState<SnackbarState>({
     open: false,
@@ -88,8 +88,7 @@ const StudentRegistrationForm: React.FC = () => {
     severity: 'success',
   });
 
-  const API_BASE_URL =
-    import.meta.env.VITE_API_URL || 'https://nodes-staging-xp.up.railway.app';
+  const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://nodes-staging-xp.up.railway.app';
 
   // Fetch school information including classes
   useEffect(() => {
@@ -99,6 +98,8 @@ const StudentRegistrationForm: React.FC = () => {
         message: 'Invalid school registration link - missing school ID',
         severity: 'error',
       });
+      setSchoolNotFound(true);
+      setSchoolLoading(false);
       return;
     }
 
@@ -115,51 +116,51 @@ const StudentRegistrationForm: React.FC = () => {
           }
         );
 
-        if (response.ok) {
-          const result = await response.json();
-          if (result.success && result.data) {
-            const data = result.data;
+        const result = await response.json();
 
-            setSchoolInfo({
-              _id: data._id,
-              schoolName: data.schoolName || 'Unknown School',
-              schoolType: data.schoolType || 'secondary',
-              ownership: data.ownership || 'private',
-              schoolAddress: data.schoolAddress || schoolAddress,
-              classes: data.classes || [],
+        if (!response.ok) {
+          if (result.message === "School with provided ID not found") {
+            setSchoolNotFound(true);
+            setSnackbar({
+              open: true,
+              message: 'School not found with the provided ID',
+              severity: 'error',
             });
-
-            setFormData((prev) => ({
-              ...prev,
-              schoolName: data.schoolName || schoolName,
-              schoolAddress: data.schoolAddress || schoolAddress,
-              school: data._id || schoolId,
-            }));
           } else {
-            throw new Error('Invalid response format');
+            throw new Error(result.message || 'Failed to fetch school information');
           }
+          return;
+        }
+
+        if (result.success && result.data) {
+          const data = result.data;
+          
+          setSchoolInfo({
+            _id: data._id,
+            schoolName: data.schoolName || 'Unknown School',
+            schoolType: data.schoolType || 'secondary',
+            ownership: data.ownership || 'private',
+            schoolAddress: data.schoolAddress || schoolAddress,
+            classes: data.classes || [],
+          });
+
+          setFormData((prev) => ({
+            ...prev,
+            schoolName: data.schoolName || schoolName,
+            schoolAddress: data.schoolAddress || schoolAddress,
+            school: data._id || schoolId,
+          }));
         } else {
-          throw new Error(`HTTP error! status: ${response.status}`);
+          throw new Error('Invalid response format');
         }
       } catch (error) {
         console.error('Error fetching school info:', error);
-
-        // Fallback to URL params if API fails
-        setSchoolInfo({
-          _id: schoolId,
-          schoolName: schoolName || 'Unknown School',
-          schoolType: 'secondary',
-          ownership: 'private',
-          schoolAddress: schoolAddress || '',
-          classes: [],
-        });
-
         setSnackbar({
           open: true,
-          message:
-            'Could not load school information completely. Some features may be limited.',
-          severity: 'warning',
+          message: 'Error loading school information. Please try again later.',
+          severity: 'error',
         });
+        setSchoolNotFound(true);
       } finally {
         setSchoolLoading(false);
       }
@@ -182,6 +183,15 @@ const StudentRegistrationForm: React.FC = () => {
   };
 
   const validateForm = (): boolean => {
+    if (schoolNotFound) {
+      setSnackbar({
+        open: true,
+        message: 'Cannot register - school not found',
+        severity: 'error',
+      });
+      return false;
+    }
+
     const {
       firstName,
       lastName,
@@ -366,6 +376,32 @@ const StudentRegistrationForm: React.FC = () => {
     }
   };
 
+  if (schoolNotFound) {
+    return (
+      <div className="min-h-screen bg-cover bg-center bg-no-repeat flex items-center justify-center p-4 relative" style={{ backgroundImage: `url(${bgImage})` }}>
+        <div className="absolute inset-0 bg-black opacity-50"></div>
+        <div className="relative z-10 w-full max-w-md">
+          <div className="bg-white/95 backdrop-blur-lg rounded-2xl shadow-2xl p-8 text-center">
+            <div className="flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mx-auto mb-4">
+              <XCircle className="h-8 w-8 text-red-600" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-4">School Not Found</h1>
+            <p className="text-gray-600 mb-6">
+              The school with ID <span className="font-semibold">{schoolId}</span> could not be found.
+              Please check the registration link and try again.
+            </p>
+            <button
+              onClick={() => window.location.href = '/'}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors duration-200"
+            >
+              Return to Home
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className="min-h-screen bg-cover bg-center bg-no-repeat flex items-center justify-center p-4 relative"
@@ -374,7 +410,7 @@ const StudentRegistrationForm: React.FC = () => {
       {/* Background overlay */}
       <div className="absolute inset-0 bg-black opacity-50"></div>
 
-      <div className="relative z-10 w-full w-lg">
+      <div className="relative z-10 w-full max-w-lg">
         <div className="bg-white/95 backdrop-blur-lg rounded-2xl shadow-2xl p-8">
           {/* Header */}
           <div className="text-center mb-8">
@@ -512,45 +548,45 @@ const StudentRegistrationForm: React.FC = () => {
             </div>
 
             {/* Class Selection */}
-           <div>
-  <label
-    htmlFor="classAdmittedTo"  // Also update the htmlFor to match
-    className="block text-sm font-medium text-gray-700 mb-2"
-  >
-    Class
-  </label>
-  <div className="relative">
-    <BookOpen className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-    <select
-      id="classAdmittedTo"  // Update id to match
-      name="classAdmittedTo"  // ✅ Change this from "grade" to "classAdmittedTo"
-      value={formData.classAdmittedTo}
-      onChange={handleChange}
-      required
-      disabled={schoolLoading}
-      className="text-gray-500 w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
-    >
-      <option value="">
-        {schoolLoading ? 'Loading classes...' : 'Select your class'}
-      </option>
-      {schoolInfo?.classes.map((cls, index) => (
-        <option
-          key={`${cls.className}-${cls.section}-${index}`}
-          value={cls.className}
-        >
-          {cls.className} 
-        </option>
-      ))}
-    </select>
-  </div>
-  {schoolInfo &&
-    schoolInfo.classes.length === 0 &&
-    !schoolLoading && (
-      <p className="text-sm text-red-500 mt-1">
-        No classes available for this school
-      </p>
-    )}
-</div>
+            <div>
+              <label
+                htmlFor="classAdmittedTo"
+                className="block text-sm font-medium text-gray-700 mb-2"
+              >
+                Class
+              </label>
+              <div className="relative">
+                <BookOpen className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <select
+                  id="classAdmittedTo"
+                  name="classAdmittedTo"
+                  value={formData.classAdmittedTo}
+                  onChange={handleChange}
+                  required
+                  disabled={schoolLoading || !schoolInfo}
+                  className="text-gray-500 w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                >
+                  <option value="">
+                    {schoolLoading ? 'Loading classes...' : 'Select your class'}
+                  </option>
+                  {schoolInfo?.classes.map((cls, index) => (
+                    <option
+                      key={`${cls.className}-${cls.section}-${index}`}
+                      value={cls.className}
+                    >
+                      {cls.className} 
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {schoolInfo &&
+                schoolInfo.classes.length === 0 &&
+                !schoolLoading && (
+                  <p className="text-sm text-red-500 mt-1">
+                    No classes available for this school
+                  </p>
+                )}
+            </div>
 
             {/* School ID (Read-only) */}
             <div>
@@ -675,6 +711,7 @@ const StudentRegistrationForm: React.FC = () => {
               disabled={
                 isSubmitting ||
                 schoolLoading ||
+                schoolNotFound ||
                 (!!schoolInfo && schoolInfo.classes.length === 0)
               }
               className="bg-blue-600 w-full hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2"

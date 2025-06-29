@@ -756,69 +756,71 @@ const StudentPage: React.FC = () => {
       </div>
       <Footer />
 
-      {/* Context Menu */}
-      {isMenuOpen && menuStudent && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={handleMenuClose}></div>
-          <div
-            className="absolute z-20 bg-white rounded-lg shadow-lg py-2 w-56 border border-gray-200"
-            style={{
-              top: window.innerWidth < 768 ? '150%' : menuPosition.top - 0,
-              left: window.innerWidth < 768 ? 'auto' : menuPosition.left - 100,
-              right: window.innerWidth < 768 ? 0 : 'auto',
-            }}
-          >
-            <button
-              className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
-              onClick={() => {
-                handleMenuClose();
-                window.location.href = `/students/edit/${menuStudent._id}`;
-              }}
-            >
-              <UserIcon className="h-4 w-4" />
-              View Details
-            </button>
-            <button
-              className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
-              onClick={() => {
-                handleMenuClose();
-                window.location.href = `/students/transactions/${menuStudent._id}`;
-              }}
-            >
-              <CalendarIcon className="h-4 w-4" />
-              Transaction Info
-            </button>
-            <button
-              className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
-              onClick={handleMenuClose}
-            >
-              <MailIcon className="h-4 w-4" />
-              Reset Password
-            </button>
-            <div className="border-t border-gray-100 my-1"></div>
-            <button
-              className={`flex items-center gap-3 px-4 py-2 text-sm hover:bg-gray-50 w-full text-left ${
-                menuStudent.status.toLowerCase() === 'active'
-                  ? 'text-red-600'
-                  : 'text-green-600'
-              }`}
-              onClick={handleMenuClose}
-            >
-              {menuStudent.status.toLowerCase() === 'active' ? (
-                <>
-                  <XCircleIcon className="h-4 w-4" />
-                  Deactivate Student
-                </>
-              ) : (
-                <>
-                  <CheckCircleIcon className="h-4 w-4" />
-                  Activate Student
-                </>
-              )}
-            </button>
-          </div>
-        </>
-      )}
+   {/* Context Menu */}
+{isMenuOpen && menuStudent && (
+  <>
+    <div 
+      className="fixed inset-0 z-10" 
+      onClick={handleMenuClose}
+    ></div>
+    <div
+      className="fixed z-20 bg-white rounded-lg shadow-lg py-2 w-56 border border-gray-200"
+      style={{
+        top: `${Math.min(menuPosition.top, window.innerHeight - 200)}px`,
+        left: `${Math.min(menuPosition.left - 100, window.innerWidth - 224)}px`,
+      }}
+    >
+      <button
+        className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
+        onClick={() => {
+          handleMenuClose();
+          window.location.href = `/students/edit/${menuStudent._id}`;
+        }}
+      >
+        <UserIcon className="h-4 w-4" />
+        View Details
+      </button>
+      <button
+        className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
+        onClick={() => {
+          handleMenuClose();
+          window.location.href = `/students/transactions/${menuStudent._id}`;
+        }}
+      >
+        <CalendarIcon className="h-4 w-4" />
+        Transaction Info
+      </button>
+      <button
+        className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
+        onClick={handleMenuClose}
+      >
+        <MailIcon className="h-4 w-4" />
+        Reset Password
+      </button>
+      <div className="border-t border-gray-100 my-1"></div>
+      <button
+        className={`flex items-center gap-3 px-4 py-2 text-sm hover:bg-gray-50 w-full text-left ${
+          menuStudent.status.toLowerCase() === 'active'
+            ? 'text-red-600'
+            : 'text-green-600'
+        }`}
+        onClick={handleMenuClose}
+      >
+        {menuStudent.status.toLowerCase() === 'active' ? (
+          <>
+            <XCircleIcon className="h-4 w-4" />
+            Deactivate Student
+          </>
+        ) : (
+          <>
+            <CheckCircleIcon className="h-4 w-4" />
+            Activate Student
+          </>
+        )}
+      </button>
+    </div>
+  </>
+)}
 
       {/* Snackbar */}
       {snackbar.open && (
