@@ -26,7 +26,7 @@ const SignUpPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [schoolType, setSchoolType] = useState<SchoolType>('primary');
 
-  const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://nodes-staging.up.railway.app';
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging-xp.up.railway.app';
 
   const handleRoleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     setRole(event.target.value);
@@ -46,30 +46,39 @@ const SignUpPage: React.FC = () => {
     setSuccessMessage('');
     setLoading(true);
 
-    const form = event.currentTarget;
-    const formElements = form.elements as typeof form.elements & {
-      firstName: HTMLInputElement;
-      lastName: HTMLInputElement;
-      email: HTMLInputElement;
-      password: HTMLInputElement;
-      schoolName: HTMLInputElement;
-      schoolAddress: HTMLInputElement;
-      phone: HTMLInputElement;
-    };
+      const form = event.currentTarget;
+  const formElements = form.elements as typeof form.elements & {
+    firstName: HTMLInputElement;
+    lastName: HTMLInputElement;
+    email: HTMLInputElement;
+    password: HTMLInputElement;
+    schoolName: HTMLInputElement;
+    schoolAddress: HTMLInputElement;
+    phone: HTMLInputElement;
+    confirmPassword: HTMLInputElement;
+  };
+
 
     const firstName = formElements.firstName.value.trim();
-    const lastName = formElements.lastName.value.trim();
-    const email = formElements.email.value.trim();
-    const password = formElements.password.value;
-    const schoolName = formElements.schoolName.value.trim();
-    const schoolAddress = formElements.schoolAddress.value.trim();
-    const phone = formElements.phone.value.trim();
+  const lastName = formElements.lastName.value.trim();
+  const email = formElements.email.value.trim();
+  const password = formElements.password.value;
+  const confirmPassword = formElements.confirmPassword.value;
+  const schoolName = formElements.schoolName.value.trim();
+  const schoolAddress = formElements.schoolAddress.value.trim();
+  const phone = formElements.phone.value.trim();
 
-    if (!firstName || !lastName || !email || !password || !role || !schoolName || !schoolAddress || !phone || !schoolType) {
-      setErrorMessage('All fields are required.');
-      setLoading(false);
-      return;
-    }
+  if (!firstName || !lastName || !email || !password || !confirmPassword || 
+      !schoolName || !schoolAddress || !phone) {
+    setErrorMessage('All fields are required.');
+    setLoading(false);
+    return;
+  }
+   if (password !== confirmPassword) {
+    setErrorMessage('Passwords do not match.');
+    setLoading(false);
+    return;
+  }
 
     // Prepare data
     const data = { 
@@ -85,35 +94,45 @@ const SignUpPage: React.FC = () => {
     };
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'ngrok-skip-browser-warning': 'skip-browser-warning',
-        },
-        body: JSON.stringify(data)
-      });
-    
-      if (!response.ok) {
-        const errorResult = await response.json();
-        throw new Error(errorResult.message || 'Registration failed');
-      }
+    const response = await fetch(`${API_BASE_URL}/api/users/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'skip-browser-warning',
+      },
+      body: JSON.stringify(data)
+    });
 
-      const result = await response.json();
-      setSuccessMessage(result.message || 'User registered successfully');
-      form.reset();
-      setRole('school');
-      setSchoolType('primary');
-    } catch (error) {
-      if (error instanceof Error) {
-        setErrorMessage(error.message || 'Something went wrong. Please try again.');
-      } else {
-        setErrorMessage('Something went wrong. Please try again.');
-      }
-    } finally {
-      setLoading(false);
+    const responseText = await response.text();
+    
+    // Try to parse the response as JSON, but fall back to text if it fails
+    let result;
+    try {
+      result = responseText ? JSON.parse(responseText) : {};
+    } catch (e) {
+      console.error('Failed to parse JSON:', e);
+      result = { message: responseText || 'Registration successful' };
     }
-  };
+
+    if (!response.ok) {
+      throw new Error(result.message || 'Registration failed');
+    }
+
+    setSuccessMessage(result.message || 'User registered successfully');
+    form.reset();
+    setRole('school');
+    setSchoolType('primary');
+  } catch (error) {
+    console.error('Registration error:', error);
+    if (error instanceof Error) {
+      setErrorMessage(error.message || 'Something went wrong. Please try again.');
+    } else {
+      setErrorMessage('Something went wrong. Please try again.');
+    }
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div

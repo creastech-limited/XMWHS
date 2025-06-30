@@ -24,7 +24,7 @@ interface Agent {
   role: string;
   avatarColor?: string;
   avatarInitial?: string;
-  schoolId?: string; // Changed from storeId to match API response
+  schoolId: string; 
 }
 
 interface StoreInfo {
@@ -32,6 +32,7 @@ interface StoreInfo {
   name: string;
   type: string;
   store_id: string;
+  schoolId?: string;
 }
 
 interface ApiResponse {
@@ -94,6 +95,7 @@ const ManageAgentsPage: React.FC = () => {
     store_id?: string;
     storeName?: string;
     storeType?: string;
+    schoolId?: string;
   }
   const [storeDetails, setStoreDetails] = useState<StoreDetails | null>(null);
   
@@ -143,58 +145,64 @@ const ManageAgentsPage: React.FC = () => {
   }, [authToken, API_BASE_URL]);
   
   // Function to fetch agents - Updated to match API response structure
-  const fetchAgents = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/users/getagentbyid`, {
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch agents');
+ const fetchAgents = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/users/getagentbyid`, {
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+        'Content-Type': 'application/json'
       }
+    });
 
-      const apiResponse: ApiResponse = await response.json();
-      console.log('API Response:', apiResponse); // Debug log
-      
-      // Extract agents from the correct path in response
-      const agentsData = apiResponse.data?.agent || [];
-      const storeData = apiResponse.data?.store || null;
-      
-      setAgents(Array.isArray(agentsData) ? agentsData : []);
-      setAgentCount(agentsData.length);
-      setStoreInfo(storeData);
-      
-    } catch (error) {
-      console.error('Error fetching agents:', error);
-      setAgents([]);
-      setAgentCount(0);
-      toast.error('Failed to fetch agents');
+    if (!response.ok) {
+      throw new Error('Failed to fetch agents');
     }
-  };
+
+    const apiResponse: ApiResponse = await response.json();
+    console.log('API Response:', apiResponse); // Debug log
+    
+    // Extract agents from the correct path in response
+    const agentsData = apiResponse.data?.agent || [];
+    const storeData = apiResponse.data?.store || null;
+    
+    // If storeData exists, make sure schoolId is properly set
+    if (storeData) {
+      storeData.schoolId = storeData.schoolId || (storeData.store_id ? storeData.store_id.split('/')[0] : '');
+    }
+    
+    setAgents(Array.isArray(agentsData) ? agentsData : []);
+    setAgentCount(agentsData.length);
+    setStoreInfo(storeData);
+    
+  } catch (error) {
+    console.error('Error fetching agents:', error);
+    setAgents([]);
+    setAgentCount(0);
+    toast.error('Failed to fetch agents');
+  }
+};
   
   // Function to parse store registration link and extract parameters
-  const parseStoreRegistrationLink = (link: string): StoreDetails | null => {
-    if (!link) return null;
-    try {
-      // Remove any leading '?' if present
-      const queryString = link.startsWith('?') ? link.substring(1) : link;
-      // Split into key-value pairs
-      const params = new URLSearchParams(queryString);
+ const parseStoreRegistrationLink = (link: string): StoreDetails | null => {
+  if (!link) return null;
+  try {
+    // Remove any leading '?' if present
+    const queryString = link.startsWith('?') ? link.substring(1) : link;
+    // Split into key-value pairs
+    const params = new URLSearchParams(queryString);
 
-      return {
-        store_id: params.get('store_id') || '',
-        storeName: params.get('storeName') || '',
-        storeType: params.get('storeType') || ''
-      };
-    } catch (error) {
-      console.error('Error parsing store registration link:', error);
-      toast.error('Invalid store registration link');
-      return null;
-    }
-  };
+    return {
+      store_id: params.get('store_id') || '',
+      storeName: params.get('storeName') || '',
+      storeType: params.get('storeType') || '',
+      schoolId: params.get('schoolId') || params.get('store_id')?.split('/')[0] || ''
+    };
+  } catch (error) {
+    console.error('Error parsing store registration link:', error);
+    toast.error('Invalid store registration link');
+    return null;
+  }
+};
   
   const handleChange = (field: keyof FormErrors) => (event: React.ChangeEvent<HTMLInputElement>) => {
     setAgentData({ ...agentData, [field]: event.target.value });
@@ -228,32 +236,38 @@ const ManageAgentsPage: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
   
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!validateForm()) return;
-    
-    // Use store info from API response or fallback to parsed details
-    const storeId = storeInfo?.store_id || storeDetails?.store_id;
-    
-    if (!storeId) {
-      toast.error('Store information not available');
-      return;
-    }
-    
-    setIsLoading(true);
-    
-    try {
-      // Prepare data for registration
-      const registrationData = {
-        firstName: agentData.firstName,
-        lastName: agentData.lastName,
-        email: agentData.email,
-        phone: agentData.phone,
-        password: agentData.password,
-        role: "agent",
-        store_id: storeId,
-      };
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  
+  if (!validateForm()) return;
+  
+  // Use store info from API response or fallback to parsed details
+  const storeId = storeInfo?.store_id || storeDetails?.store_id;
+  // Get schoolId from storeInfo first, then from parsed details, and make sure to split if it contains '/'
+  const schoolId = storeInfo?.schoolId || 
+                  (storeInfo?.store_id ? storeInfo.store_id.split('/')[0] : '') || 
+                  storeDetails?.schoolId || 
+                  (storeDetails?.store_id ? storeDetails.store_id.split('/')[0] : '');
+  
+  if (!storeId || !schoolId) {
+    toast.error('Store information not available');
+    return;
+  }
+  
+  setIsLoading(true);
+  
+  try {
+    // Prepare data for registration
+    const registrationData = {
+      firstName: agentData.firstName,
+      lastName: agentData.lastName,
+      email: agentData.email,
+      phone: agentData.phone,
+      password: agentData.password,
+      role: "agent",
+      store_id: storeId,
+      schoolId: schoolId, // Use the properly extracted schoolId
+    };
       
       // Register the agent
       const registerResponse = await fetch(`${API_BASE_URL}/api/users/register`, {

@@ -30,7 +30,7 @@ interface SchoolInfo {
   ownership: string;
   schoolAddress: string;
   classes: ClassInfo[];
-  schoolId?: string;
+  schoolId: string;
 }
 
 interface FormData {
@@ -137,6 +137,7 @@ const StudentRegistrationForm: React.FC = () => {
           
           setSchoolInfo({
             _id: data._id,
+            schoolId: data.schoolId || '',
             schoolName: data.schoolName || 'Unknown School',
             schoolType: data.schoolType || 'secondary',
             ownership: data.ownership || 'private',
@@ -148,7 +149,7 @@ const StudentRegistrationForm: React.FC = () => {
             ...prev,
             schoolName: data.schoolName || schoolName,
             schoolAddress: data.schoolAddress || schoolAddress,
-            school: data._id || schoolId,
+            school: schoolId,
           }));
         } else {
           throw new Error('Invalid response format');
@@ -284,7 +285,7 @@ const StudentRegistrationForm: React.FC = () => {
       academicDetails: {
         classAdmittedTo: formData.classAdmittedTo,
       },
-      schoolId: formData.school,
+       schoolId: schoolId,
     };
 
     try {
