@@ -350,31 +350,46 @@ const AgentScanQR: React.FC = () => {
                 <p className="text-gray-600 mb-6">Scan customer's payment QR code to process transaction</p>
                 
                 <div className="w-full max-w-[350px] h-[350px] bg-black rounded-lg relative overflow-hidden mx-auto">
-                    {scanning ? (
- <Scanner
-   onScan={(detectedCodes) => {
-     if (Array.isArray(detectedCodes) && detectedCodes.length > 0) {
-       const code = detectedCodes[0];
-       if (code.rawValue) {
-         handleScan(code.rawValue);
-       }
-     }
-   }}
-  constraints={{ facingMode }}
-  components={{}}
-  styles={{
-    container: {
-      width: '100%',
-      height: '100%'
-    },
-    video: {
-      width: '100%',
-      height: '100%',
-      objectFit: 'cover'
-    }
-  }}
-/>
-                    ) : (
+       {scanning ? (
+  <div className="relative w-full h-full">
+    <Scanner
+      onScan={(detectedCodes) => {
+        if (Array.isArray(detectedCodes) && detectedCodes.length > 0) {
+          const code = detectedCodes[0];
+          if (code.rawValue) {
+            handleScan(code.rawValue);
+          }
+        }
+      }}
+      constraints={{
+        facingMode,
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      }}
+      onError={(error) => {
+        console.error('Scanner error:', error);
+        setCameraError('Failed to access camera. Please ensure permissions are granted.');
+        setScanning(false);
+      }}
+      components={{
+      }}
+      styles={{
+        container: {
+          width: '100%',
+          height: '100%',
+          position: 'relative'
+        },
+        video: {
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          transform: facingMode === 'user' ? 'scaleX(-1)' : 'none'
+        }
+      }}
+    />
+    <div className="absolute inset-0 border-4 border-blue-500 rounded-lg pointer-events-none"></div>
+  </div>
+) : (
                     <div className="flex flex-col items-center justify-center h-full">
                       <QrCode size={60} className="text-white mb-2" />
                       <Camera size={40} className="text-white" />
@@ -479,7 +494,7 @@ const AgentScanQR: React.FC = () => {
                     id="confirmAmount"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg text-lg"
+                    className="w-full p-3 border border-gray-300 rounded-lg text-lg text-black"
                     placeholder="0.00"
                     min="0"
                     step="0.01"
@@ -495,14 +510,14 @@ const AgentScanQR: React.FC = () => {
                     id="confirmDescription"
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg"
+                    className="w-full p-3 border border-gray-300 rounded-lg text-black"
                     placeholder="e.g., School fees, Meal payment"
                   />
                 </div>
 
                 <div className="flex justify-end gap-3">
                   <button 
-                    className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
+                    className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50 text-black"
                     onClick={() => setShowConfirmDialog(false)}
                   >
                     Cancel
@@ -565,7 +580,7 @@ const AgentScanQR: React.FC = () => {
                     id="pinInput"
                     value={userEnteredPin}
                     onChange={(e) => setUserEnteredPin(e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg text-center text-xl tracking-widest"
+                    className="w-full p-3 border border-gray-300 rounded-lg text-center text-xl tracking-wides text-black"
                     placeholder="••••"
                     maxLength={4}
                     disabled={verifyingPin}
@@ -577,7 +592,7 @@ const AgentScanQR: React.FC = () => {
 
                 <div className="flex justify-end gap-3">
                   <button 
-                    className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
+                    className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50 text-black"
                     onClick={() => {
                       setShowPinDialog(false);
                       setUserEnteredPin('');
