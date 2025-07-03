@@ -133,12 +133,25 @@ interface Dispute {
     status?: string;
     createdAt?: string;
     updatedAt?: string;
+    raisedByName?: string;
+    raisedByEmail?: string;
+    resolvedBy?: {
+        _id?: string;
+        email?: string;
+    };
+    resolvedDate?: string;
+    [key: string]: unknown;
+}
+
+interface FetchDisputesResponse {
+    message?: string;
+    disputes?: Dispute[];
     [key: string]: unknown;
 }
 
 const fetchDisputes = async (authToken: string): Promise<Dispute[]> => {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/dispute/getdispute`, {
+        const response = await fetch(`${API_BASE_URL}/api/dispute/getschDispute`, {
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${authToken}`,
@@ -150,8 +163,10 @@ const fetchDisputes = async (authToken: string): Promise<Dispute[]> => {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
 
-        const data = await response.json();
-        return Array.isArray(data) ? data as Dispute[] : [];
+        const data: FetchDisputesResponse = await response.json();
+        
+        // Extract disputes from the nested response structure
+        return Array.isArray(data.disputes) ? data.disputes : [];
     } catch (error) {
         console.error('Error fetching disputes:', error);
         return [];
@@ -292,7 +307,9 @@ const requestSort = (key: string) => {
       filtered = filtered.filter(dispute => 
         dispute.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         dispute.disputeType?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        dispute._id?.toLowerCase().includes(searchTerm.toLowerCase())
+        dispute._id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        dispute.raisedByName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        dispute.raisedByEmail?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
@@ -394,12 +411,14 @@ const getSortIcon = (key: string): JSX.Element | null => {
     );
   }
 
+
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50">
-      <Header />
-      
-      <div className="flex flex-1">
-        <Asidebar />
+     <div className="flex flex-col min-h-screen bg-gray-50">
+            <Header />
+            <div className="flex flex-grow">
+              <div className="z-[100] hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-white shadow z-10">
+                <Asidebar />
+              </div>
         
         <main className="flex-1 p-6">
           <div className="max-w-7xl mx-auto">
@@ -542,6 +561,15 @@ const getSortIcon = (key: string): JSX.Element | null => {
                       </th>
                       <th 
                         className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                        onClick={() => requestSort('raisedByName')}
+                      >
+                        <div className="flex items-center">
+                          Raised By
+                          {getSortIcon('raisedByName')}
+                        </div>
+                      </th>
+                      <th 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
                         onClick={() => requestSort('amount')}
                       >
                         <div className="flex items-center">
@@ -588,6 +616,10 @@ const getSortIcon = (key: string): JSX.Element | null => {
                         <td className="px-6 py-4">
                           <div className="text-sm text-gray-900">{dispute.disputeType || 'N/A'}</div>
                           <div className="text-sm text-gray-500">{dispute.paymentCategory || 'N/A'}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm text-gray-900">{dispute.raisedByName || 'N/A'}</div>
+                          <div className="text-sm text-gray-500">{dispute.raisedByEmail || 'N/A'}</div>
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-900">
                           ₦{dispute.amount?.toLocaleString() || 'N/A'}
@@ -639,7 +671,6 @@ const getSortIcon = (key: string): JSX.Element | null => {
           </div>
         </main>
       </div>
-
       {/* Create Dispute Modal */}
       {showCreateForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -826,7 +857,7 @@ const getSortIcon = (key: string): JSX.Element | null => {
                   <div>
                     <label className="block text-sm font-medium text-gray-500">Transaction Details</label>
                     {typeof selectedDispute.transactionId === 'object' ? (
-                      <div className="bg-gray-50 p-3 rounded-lg text-sm">
+                      <div className="bg-gray-50 p-3 rounded-lg text-sm text-black">
                         <p><strong>ID:</strong> {selectedDispute.transactionId._id || 'N/A'}</p>
                         <p><strong>Reference:</strong> {selectedDispute.transactionId.reference || 'N/A'}</p>
                         <p><strong>Amount:</strong> ₦{selectedDispute.transactionId.amount?.toLocaleString() || 'N/A'}</p>
