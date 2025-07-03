@@ -90,7 +90,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (!storedToken || !storedUser) {
         setIsLoading(false);
         // FIXED: Updated public pages to match your actual routes
-        const publicPages = ['/login', '/signup', '/schoolsignup', '/forgot-password', '/'];
+        const publicPages = ['/login', '/signup', '/schoolsignup', '/forgot-password', '/students/new', '/stores/new'];
         if (!publicPages.includes(location.pathname)) {
           navigate('/login');
         }
