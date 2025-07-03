@@ -518,9 +518,9 @@ const fetchStudentsData = useCallback(async (authToken: string) => {
                 <p className="text-2xl font-bold text-gray-800">
                  ₦{stats.balance.toLocaleString()}
                 </p>
-                <p className="text-xs text-green-600 mt-1">
+                {/* <p className="text-xs text-green-600 mt-1">
                  {stats.balance > 0 ? '+5.3% from last month' : 'No balance history'}
-                </p>
+                </p> */}
               </div>
             </div>
             <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100 hover:shadow-md transition-all duration-300 flex items-start">
@@ -534,9 +534,9 @@ const fetchStudentsData = useCallback(async (authToken: string) => {
                 <p className="text-2xl font-bold text-gray-800">
                   {stats.totalStudents.toLocaleString()}
                 </p>
-                <p className="text-xs text-green-600 mt-1">
+                {/* <p className="text-xs text-green-600 mt-1">
                   +12 new this week
-                </p>
+                </p> */}
               </div>
             </div>
             <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100 hover:shadow-md transition-all duration-300 flex items-start">
@@ -550,9 +550,9 @@ const fetchStudentsData = useCallback(async (authToken: string) => {
                 <p className="text-2xl font-bold text-gray-800">
                   {stats.totalStores.toLocaleString()}
                 </p>
-                <p className="text-xs text-green-600 mt-1">
+                {/* <p className="text-xs text-green-600 mt-1">
                   {stats.totalStores > 0 ? '+2 new this month' : 'No stores yet'}
-                </p>
+                </p> */}
               </div>
             </div>
           </div>
