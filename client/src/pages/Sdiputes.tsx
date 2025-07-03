@@ -413,27 +413,27 @@ const getSortIcon = (key: string): JSX.Element | null => {
 
 
   return (
-     <div className="flex flex-col min-h-screen bg-gray-50">
-            <Header />
-            <div className="flex flex-grow">
-              <div className="z-[100] hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-white shadow z-10">
+    <div className="flex flex-col min-h-screen bg-gray-50">
+          <Header profilePath="/settings" />
+          <div className="flex flex-grow">
+              <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-none">
                 <Asidebar />
-              </div>
+              </aside>
         
-        <main className="flex-1 p-6">
+        <main className="flex-grow p-4 md:p-8 md:ml-64 overflow-x-auto">
           <div className="max-w-7xl mx-auto">
-            {/* Header Section */}
+           
             <div className="mb-6">
-              <div className="flex justify-between items-center mb-4">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                 <div>
                   <h1 className="text-2xl font-bold text-gray-900">Dispute Management</h1>
                   <p className="text-gray-600">Manage disputes from users and escalate issues to development team</p>
                 </div>
                 <button
                   onClick={() => setShowCreateForm(true)}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 transition-colors"
+                  className="flex items-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition-colors shadow-sm"
                 >
-                  <Plus className="w-4 h-4" />
+                  <Plus className="w-5 h-5" />
                   Create Dispute
                 </button>
               </div>
@@ -538,7 +538,7 @@ const getSortIcon = (key: string): JSX.Element | null => {
             {/* Disputes Table */}
             <div className="bg-white rounded-lg shadow overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
                       <th 

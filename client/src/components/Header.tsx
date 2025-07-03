@@ -32,7 +32,11 @@ interface Notification {
   __v: number;
 }
 
-export const Header: React.FC = () => {
+interface HeaderProps {
+  profilePath: string;
+}
+
+export const Header: React.FC<HeaderProps> = ({ profilePath }) =>  {
   const { user: authUser, token: authToken, logout } = useAuth() || {};
   const [user, setUser] = useState<User | null>(authUser || null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -255,9 +259,9 @@ export const Header: React.FC = () => {
   const getDisplayRole = () => user?.role ? `${user.role.charAt(0).toUpperCase()}${user.role.slice(1)}` : 'User';
 
   function handleProfileClick(event: React.MouseEvent<HTMLButtonElement, MouseEvent>): void {
-    event.preventDefault();
-    navigate('/profile');
-  }
+  event.preventDefault();
+  navigate(profilePath); 
+}
 
   // Get unread notifications count
   const unreadCount = notifications.filter(n => !n.read).length;
@@ -487,6 +491,7 @@ export const Header: React.FC = () => {
                     Your Profile
                   </button>
                   <button 
+                  onClick={handleProfileClick}
                     className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                   >
                     <Cog6ToothIcon className="h-4 w-4 mr-3 text-gray-500" />

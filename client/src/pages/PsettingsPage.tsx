@@ -6,7 +6,7 @@ import SettingsPanel from '../components/SettingsPanel';
 const SettingsPage = () => {
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
-         <Header />
+         <Header profilePath="/psettings"/>
          <div className="z-[100] flex flex-1">
            <Psidebar />
 </div>

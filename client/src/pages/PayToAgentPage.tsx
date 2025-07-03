@@ -239,7 +239,7 @@ const PayToAgentPage: React.FC = () => {
   if (loading) {
     return (
       <div className="flex flex-col min-h-screen bg-gray-50">
-        <Header />
+        <Header profilePath="/psettings"/>
         <div className="flex flex-grow">
           <div className="w-64 bg-white shadow-md">
             <Psidebar />
@@ -259,7 +259,7 @@ const PayToAgentPage: React.FC = () => {
   if (error) {
     return (
       <div className="flex flex-col min-h-screen bg-gray-50">
-        <Header />
+        <Header profilePath="/psettings"/>
         <div className="flex flex-grow">
           <div className="w-64 bg-white shadow-md">
             <Psidebar />
@@ -290,7 +290,7 @@ const PayToAgentPage: React.FC = () => {
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
       {/* Header - Full width at the top */}
-      <Header />
+      <Header profilePath="/psettings"/>
      
       {/* Main content area with sidebar and content */}
       <div className="flex flex-grow">

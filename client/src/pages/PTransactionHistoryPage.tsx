@@ -330,8 +330,8 @@ const TransactionHistoryPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <Header />
-      
+      <Header profilePath="/psettings" />
+
       <div className="flex flex-1 relative">
         {/* Sidebar - hidden on mobile */}
         <div className=" z-[100] fixed top-20 left-0 h-[calc(100vh-6rem)]">

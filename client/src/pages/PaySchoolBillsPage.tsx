@@ -565,7 +565,7 @@ const PaySchoolBillsPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="min-h-screen bg-gray-50 flex flex-col">
-        <Header />
+        <Header profilePath="/psettings"/>
         
         <div className="z-[100] flex flex-grow gap-6">
           <Psidebar />

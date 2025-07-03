@@ -340,7 +340,7 @@ const TransferToKidsPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header />
+      <Header profilePath="/psettings"/>
       
       <div className="flex min-h-screen">
         {/* Sidebar */}
