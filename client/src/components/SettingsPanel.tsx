@@ -21,6 +21,7 @@ interface UserData {
   phone: string;
   profilePic: string;
   createdAt?: string;
+  hasPin?: boolean;
 }
 
 // Tabs without the Payment option
@@ -55,7 +56,11 @@ const SettingsPanel = () => {
   });
 
   // PIN State
-  const [pinData, setPinData] = useState({ pin: '', confirmPin: '' });
+  const [pinData, setPinData] = useState({ 
+    currentPin: '', 
+    newPin: '', 
+    confirmPin: '' 
+  });
 
   // Notification Preferences State
   const [notifications, setNotifications] = useState({
@@ -71,17 +76,24 @@ const SettingsPanel = () => {
     const fetchUserData = async () => {
       if (!token) return;
       try {
-        const res = await axios.get(`${API_BASE_URL}/api/users/getuserone`, {
+        const userRes = await axios.get(`${API_BASE_URL}/api/users/getuserone`, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        if (res.data?.user?.data) {
-          setUser(res.data.user.data);
+        
+        if (userRes.data?.user?.data) {
+          const userData = userRes.data.user.data;
+          // Check if user has PIN by trying to detect it from user data or assume they might have one
+          // We'll start with assuming they might have a PIN and let them choose
+          setUser({
+            ...userData,
+            hasPin: true // Default to true for existing users, they can switch modes
+          });
           setProfile({
-            name: res.data.user.data.name,
-            email: res.data.user.data.email,
-            phone: res.data.user.data.phone,
-            profilePic: res.data.user.data.profilePic,
-            createdAt: res.data.user.data.createdAt || '',
+            name: userData.name,
+            email: userData.email,
+            phone: userData.phone,
+            profilePic: userData.profilePic,
+            createdAt: userData.createdAt || '',
           });
         }
       } catch (error) {
@@ -118,33 +130,113 @@ const SettingsPanel = () => {
       alert('New passwords do not match');
       return;
     }
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-      alert('Password updated successfully!');
-    }, 1200);
+   setIsLoading(true);
+try {
+  await axios.post(`${API_BASE_URL}/api/users/updatePassword`, {
+    currentPassword: passwordData.currentPassword,
+    newPassword: passwordData.newPassword
+  }, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  
+  setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  alert('Password updated successfully!');
+} catch (error) {
+  console.error('Password update failed:', error);
+  alert('Failed to update password. Please check your current password.');
+} finally {
+  setIsLoading(false);
+}
   };
 
   // PIN Update Handler
   const handlePinUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (pinData.pin !== pinData.confirmPin) {
-      alert('PINs do not match');
-      return;
-    }
-    setIsLoading(true);
-    try {
-      await axios.post(`${API_BASE_URL}/api/pin/set`, { pin: pinData.pin }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      alert('PIN updated successfully');
-      setPinData({ pin: '', confirmPin: '' });
-    } catch (error) {
-      console.error('PIN update failed:', error);
-      alert('Failed to update PIN');
-    } finally {
-      setIsLoading(false);
+    
+    // Check if user wants to set new PIN or update existing PIN
+    const isSettingNewPin = !user?.hasPin || !pinData.currentPin;
+    
+    if (isSettingNewPin) {
+      // Setting new PIN
+      if (pinData.newPin !== pinData.confirmPin) {
+        alert('PINs do not match');
+        return;
+      }
+      if (pinData.newPin.length !== 4) {
+        alert('PIN must be 4 digits');
+        return;
+      }
+      
+      setIsLoading(true);
+      try {
+        await axios.post(`${API_BASE_URL}/api/pin/set`, { 
+          newPin: pinData.newPin 
+        }, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        alert('PIN set successfully');
+        setPinData({ currentPin: '', newPin: '', confirmPin: '' });
+        // Update the user's pin status
+        if (user) {
+          setUser({ ...user, hasPin: true });
+        }
+      } catch (error) {
+        console.error('PIN set failed:', error);
+        alert('Failed to set PIN');
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      // Updating existing PIN
+      if (pinData.newPin !== pinData.confirmPin) {
+        alert('New PINs do not match');
+        return;
+      }
+      if (pinData.newPin.length !== 4 || pinData.currentPin.length !== 4) {
+        alert('PIN must be 4 digits');
+        return;
+      }
+      if (!pinData.currentPin) {
+        alert('Please enter your current PIN');
+        return;
+      }
+      
+      setIsLoading(true);
+      try {
+        await axios.post(`${API_BASE_URL}/api/pin/update`, { 
+          currentPin: pinData.currentPin,
+          newPin: pinData.newPin 
+        }, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        alert('PIN updated successfully');
+        setPinData({ currentPin: '', newPin: '', confirmPin: '' });
+      } catch (error) {
+        console.error('PIN update failed:', error);
+        // If update fails, it might mean they don't have a PIN yet
+        // Import AxiosError at the top: import type { AxiosError } from 'axios';
+        if (
+          typeof error === 'object' &&
+          error !== null &&
+          'response' in error &&
+          typeof (error as import('axios').AxiosError).response === 'object' &&
+          (error as import('axios').AxiosError).response !== null &&
+          (error as import('axios').AxiosError).response !== undefined &&
+          ((error as import('axios').AxiosError).response !== undefined && 'status' in (error as import('axios').AxiosError).response!)
+        ) {
+          const status = (error as import('axios').AxiosError).response?.status;
+          if (status === 400 || status === 404) {
+            alert('It seems you don\'t have a PIN set yet. Please try setting a new PIN instead.');
+            setUser(prev => prev ? { ...prev, hasPin: false } : null);
+          } else {
+            alert('Failed to update PIN. Please check your current PIN.');
+          }
+        } else {
+          alert('Failed to update PIN. Please check your current PIN.');
+        }
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -368,34 +460,73 @@ const SettingsPanel = () => {
 
               {/* PIN Management Section */}
               <div className="pt-8 sm:pt-10 border-t border-gray-200">
-                <h3 className="text-lg sm:text-xl font-semibold text-gray-900 flex items-center mb-4 sm:mb-6">
-                  <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6 mr-2 sm:mr-3 text-indigo-500" />
-                  Set Security PIN
-                </h3>
+                <div className="flex items-center justify-between mb-4 sm:mb-6">
+                  <h3 className="text-lg sm:text-xl font-semibold text-gray-900 flex items-center">
+                    <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6 mr-2 sm:mr-3 text-indigo-500" />
+                    Security PIN
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setUser(prev => prev ? { ...prev, hasPin: !prev.hasPin } : null)}
+                    className="text-sm text-indigo-600 hover:text-indigo-800 underline"
+                  >
+                    {user?.hasPin ? 'Set New PIN Instead' : 'Update Existing PIN Instead'}
+                  </button>
+                </div>
+                
+                <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    {user?.hasPin 
+                      ? 'You can update your existing PIN by entering your current PIN and setting a new one.'
+                      : 'You can set a new 4-digit security PIN for your account.'
+                    }
+                  </p>
+                </div>
+
                 <form className="space-y-6 sm:space-y-8" onSubmit={handlePinUpdate}>
-                  <div className="grid grid-cols-1 gap-y-6 gap-x-6 sm:grid-cols-2">
+                  {user?.hasPin && (
                     <div>
-                      <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">PIN</label>
+                      <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
+                        Current PIN
+                      </label>
                       <input
                         type="password"
-                        value={pinData.pin}
-                        onChange={(e) => setPinData({ ...pinData, pin: e.target.value })}
+                        value={pinData.currentPin}
+                        onChange={(e) => setPinData({ ...pinData, currentPin: e.target.value })}
                         className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                        placeholder="4-digit PIN"
-                        maxLength={6}
+                        placeholder="Enter current 4-digit PIN"
+                        maxLength={4}
+                        disabled={isLoading}
+                      />
+                    </div>
+                  )}
+                  <div className="grid grid-cols-1 gap-y-6 gap-x-6 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
+                        {user?.hasPin ? 'New PIN' : 'PIN'}
+                      </label>
+                      <input
+                        type="password"
+                        value={pinData.newPin}
+                        onChange={(e) => setPinData({ ...pinData, newPin: e.target.value })}
+                        className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        placeholder={user?.hasPin ? 'Enter new 4-digit PIN' : 'Create 4-digit PIN'}
+                        maxLength={4}
                         disabled={isLoading}
                       />
                       <p className="text-xs sm:text-sm text-gray-500 mt-1">Enter a 4-digit security PIN</p>
                     </div>
                     <div>
-                      <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">Confirm PIN</label>
+                      <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
+                        {user?.hasPin ? 'Confirm New PIN' : 'Confirm PIN'}
+                      </label>
                       <input
                         type="password"
                         value={pinData.confirmPin}
                         onChange={(e) => setPinData({ ...pinData, confirmPin: e.target.value })}
                         className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                        placeholder="Confirm PIN"
-                        maxLength={6}
+                        placeholder={user?.hasPin ? 'Confirm new PIN' : 'Confirm PIN'}
+                        maxLength={4}
                         disabled={isLoading}
                       />
                     </div>
@@ -406,7 +537,11 @@ const SettingsPanel = () => {
                       disabled={isLoading}
                       className="px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
                     >
-                      {isLoading ? 'Saving...' : 'Set PIN'}
+                      {isLoading 
+                        ? 'Processing...' 
+                        : user?.hasPin 
+                          ? 'Update PIN' 
+                          : 'Set PIN'}
                     </button>
                   </div>
                 </form>

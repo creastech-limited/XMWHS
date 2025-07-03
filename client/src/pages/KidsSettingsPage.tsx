@@ -18,10 +18,10 @@ import {
   Edit,
   Phone,
   Mail,
-  MessageSquare
+  MessageSquare,
+  Key
 } from 'lucide-react';
 
-// Types to match KidsHeader expectations
 interface Profile {
   _id: string;
   name?: string;
@@ -39,6 +39,7 @@ interface Profile {
     lowBalanceAlert: boolean;
     monthlyReports: boolean;
   };
+  hasPin?: boolean;
 }
 
 interface Wallet {
@@ -57,6 +58,8 @@ type PasswordErrors = {
   currentPassword?: string;
   newPassword?: string;
   confirmPassword?: string;
+  email?: string;
+  phone?: string;
 };
 
 type Notifications = {
@@ -71,13 +74,43 @@ type NavItem = {
   route: string;
 };
 
+type PinData = {
+  currentPin: string;
+  newPin: string;
+  confirmPin: string;
+};
+
+type PinErrors = {
+  currentPin?: string;
+  newPin?: string;
+  confirmPin?: string;
+};
+
+const validateEmail = (email: string): boolean => {
+  const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return re.test(email);
+};
+
+const validatePhone = (phone: string): boolean => {
+  const re = /^\+?[\d\s-]{10,15}$/;
+  return re.test(phone);
+};
+
+const validatePasswordStrength = (password: string): {valid: boolean, message?: string} => {
+  if (password.length < 8) return {valid: false, message: 'Password must be at least 8 characters'};
+  if (!/[A-Z]/.test(password)) return {valid: false, message: 'Password must contain at least one uppercase letter'};
+  if (!/[a-z]/.test(password)) return {valid: false, message: 'Password must contain at least one lowercase letter'};
+  if (!/[0-9]/.test(password)) return {valid: false, message: 'Password must contain at least one number'};
+  if (!/[^A-Za-z0-9]/.test(password)) return {valid: false, message: 'Password must contain at least one special character'};
+  return {valid: true};
+};
+
 const KidsSettingsPage: React.FC = () => {
-  // Auth context for token management
   const auth = useAuth();
   const token = auth?.token;
   
-  // State for user profile and wallet
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [user, setUser] = useState<Profile | null>(null);
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [editMode, setEditMode] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
@@ -89,7 +122,6 @@ const KidsSettingsPage: React.FC = () => {
     severity: 'success' as 'success' | 'error' | 'warning' | 'info' 
   });
   
-  // Local form data for editing
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -97,34 +129,41 @@ const KidsSettingsPage: React.FC = () => {
     joinDate: ''
   });
   
-  // Password data state
   const [passwordData, setPasswordData] = useState<PasswordData>({
     currentPassword: '',
     newPassword: '',
     confirmPassword: ''
   });
   
-  // Password errors state
   const [passwordErrors, setPasswordErrors] = useState<PasswordErrors>({});
   
-  // Password visibility state
   const [showPassword, setShowPassword] = useState({
     current: false,
     new: false,
     confirm: false
   });
   
-  // Notification settings
   const [notifications, setNotifications] = useState<Notifications>({
     transactionNotifications: true,
     lowBalanceAlert: true,
     monthlyReports: true
   });
+
+  const [pinData, setPinData] = useState<PinData>({
+    currentPin: '',
+    newPin: '',
+    confirmPin: ''
+  });
   
-  // API Base URL
+  const [pinErrors, setPinErrors] = useState<PinErrors>({});
+  const [showPin, setShowPin] = useState({
+    current: false,
+    new: false,
+    confirm: false
+  });
+  
   const API_URL = process.env.REACT_APP_API_URL || 'https://nodes-staging-xp.up.railway.app';
   
-  // Navigation items with Lucide icons
   const navItems: NavItem[] = [
     { label: "Dashboard", icon: <User className="w-5 h-5" />, route: "/kidswallet" },
     { label: "Pay Agent", icon: <CreditCard className="w-5 h-5" />, route: "/kidpayagent" },
@@ -134,14 +173,19 @@ const KidsSettingsPage: React.FC = () => {
     { label: "Dispute", icon: <MessageSquare className="w-5 h-5" />, route: "/kdispute" },
   ];
   
-  const [activeTab, setActiveTab] = useState<number>(4); // Settings tab is index 4
+  const [activeTab, setActiveTab] = useState<number>(4);
 
-  // Notification helper function
   const showNotification = (message: string, type: 'success' | 'error' | 'warning' | 'info') => {
     setSnackbar({ open: true, message, severity: type });
+    setTimeout(() => setSnackbar(prev => ({ ...prev, open: false })), 5000);
   };
 
-  // Fetch user profile
+  useEffect(() => {
+    if (!editMode) {
+      setPasswordErrors({});
+    }
+  }, [editMode]);
+
   const fetchUserProfile = async () => {
     if (!token) {
       setError("Authentication required");
@@ -158,13 +202,15 @@ const KidsSettingsPage: React.FC = () => {
       });
 
       let userData: Profile;
-      if (response.data.user) {
+      if (response.data.success && response.data.data) {
+        userData = response.data.data;
+      } else if (response.data.user) {
         userData = response.data.user.data || response.data.user;
       } else {
         userData = response.data.data || response.data;
       }
 
-      // Ensure we have the proper name structure for KidsHeader
+      // Normalize name fields
       if (userData.firstName && userData.lastName && !userData.fullName) {
         userData.fullName = `${userData.firstName} ${userData.lastName}`;
       }
@@ -173,6 +219,7 @@ const KidsSettingsPage: React.FC = () => {
       }
 
       setProfile(userData);
+      setUser(userData);
       
       // Update form data
       setFormData({
@@ -190,15 +237,30 @@ const KidsSettingsPage: React.FC = () => {
       });
 
       return userData;
-    } catch (err) {
+      
+    } catch (err: unknown) {
       console.error('Error fetching profile:', err);
-      setError("Failed to load profile data");
+      let errorMessage = 'Failed to load profile data';
+      if (
+        err &&
+        typeof err === 'object' &&
+        'response' in err &&
+        (err as { response?: { status?: number; data?: { message?: string } } }).response
+      ) {
+        const response = (err as { response?: { status?: number; data?: { message?: string } } }).response;
+        if (response?.status === 401) {
+          errorMessage = 'Session expired. Please log in again.';
+        } else if (response?.data?.message) {
+          errorMessage = response.data.message;
+        }
+      }
+
+      setError(errorMessage);
       showNotification("Error fetching profile", "error");
       throw err;
     }
   };
 
-  // Fetch user wallet
   const fetchUserWallet = async () => {
     try {
       const response = await axios.get(`${API_URL}/api/wallet/getuserwallet`, {
@@ -214,22 +276,17 @@ const KidsSettingsPage: React.FC = () => {
     } catch (err) {
       console.error('Error fetching wallet:', err);
       showNotification("Error fetching wallet data", "error");
-      // Don't throw here as wallet is not critical for settings page functionality
       setWallet({ balance: 0 });
     }
   };
 
-  // Fetch data on component mount
   useEffect(() => {
     const fetchAllData = async () => {
       try {
         setLoading(true);
         setError(null);
         
-        // Fetch profile first
         await fetchUserProfile();
-        
-        // Fetch wallet (non-blocking)
         await fetchUserWallet();
         
       } catch (err) {
@@ -242,79 +299,136 @@ const KidsSettingsPage: React.FC = () => {
     fetchAllData();
   }, [token, API_URL]);
   
-  // Toggle password visibility
   const togglePasswordVisibility = (field: keyof typeof showPassword) => () => {
     setShowPassword(prev => ({ ...prev, [field]: !prev[field] }));
   };
   
-  // Handle form change
   const handleFormChange = (field: keyof typeof formData) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({ ...prev, [field]: e.target.value }));
+    if (field === 'email' && passwordErrors.email) {
+      setPasswordErrors(prev => ({ ...prev, email: undefined }));
+    }
+    if (field === 'phone' && passwordErrors.phone) {
+      setPasswordErrors(prev => ({ ...prev, phone: undefined }));
+    }
   };
   
-  // Handle notification change
   const handleNotificationChange = (field: keyof Notifications) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setNotifications(prev => ({ ...prev, [field]: e.target.checked }));
   };
   
-  // Handle password change
   const handlePasswordChange = (field: keyof PasswordData) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setPasswordData(prev => ({ ...prev, [field]: e.target.value }));
+    if (field === 'newPassword' && passwordErrors.newPassword) {
+      setPasswordErrors(prev => ({ ...prev, newPassword: undefined }));
+    }
+    if (field === 'confirmPassword' && passwordErrors.confirmPassword) {
+      setPasswordErrors(prev => ({ ...prev, confirmPassword: undefined }));
+    }
   };
   
-  // Validate password form
   const validatePasswordForm = (): boolean => {
     const errors: PasswordErrors = {};
-    if (!passwordData.currentPassword) errors.currentPassword = 'Required';
-    if (!passwordData.newPassword) errors.newPassword = 'Required';
-    else if (passwordData.newPassword.length < 8) errors.newPassword = 'Minimum 8 characters required';
-    if (passwordData.newPassword !== passwordData.confirmPassword) errors.confirmPassword = 'Passwords do not match';
-    
+    let isValid = true;
+
+    if (!passwordData.currentPassword) {
+      errors.currentPassword = 'Current password is required';
+      isValid = false;
+    }
+
+    if (!passwordData.newPassword) {
+      errors.newPassword = 'New password is required';
+      isValid = false;
+    } else {
+      const strengthCheck = validatePasswordStrength(passwordData.newPassword);
+      if (!strengthCheck.valid) {
+        errors.newPassword = strengthCheck.message;
+        isValid = false;
+      }
+    }
+
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      errors.confirmPassword = 'Passwords do not match';
+      isValid = false;
+    }
+
     setPasswordErrors(errors);
-    return Object.keys(errors).length === 0;
+    return isValid;
   };
   
-  // Handle profile update
   const handleProfileSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    
+    const errors: PasswordErrors = {};
+    if (!formData.email) {
+      errors.email = 'Email is required';
+    } else if (!validateEmail(formData.email)) {
+      errors.email = 'Please enter a valid email address';
+    }
+
+    if (formData.phone && !validatePhone(formData.phone)) {
+      errors.phone = 'Please enter a valid phone number (e.g., +1234567890)';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setPasswordErrors(errors);
+      showNotification('Please fix the errors in the form', 'error');
+      return;
+    }
+
     setIsLoading(true);
     
     try {
       const userid = profile?._id;
       if (!userid) throw new Error("User ID not found");
       
-      await axios.put(`${API_URL}/api/users/update-user/${userid}`, {
+      const updateData = {
         name: formData.name,
         email: formData.email,
-        phone: formData.phone,
+        ...(formData.phone && { phone: formData.phone }),
         settings: notifications
-      }, { 
-        headers: { Authorization: `Bearer ${token}` } 
+      };
+      
+      const response = await axios.put(`${API_URL}/api/users/update-user/${userid}`, updateData, { 
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        } 
       });
+      
+      if (response.data.user) {
+        setProfile(response.data.user);
+        setUser(response.data.user);
+      }
       
       showNotification('Profile updated successfully!', 'success');
       setEditMode(false);
       
-      // Refresh user data after update
       await fetchUserProfile();
+      
     } catch (err: unknown) {
       let errorMessage = 'Profile update failed';
       if (
         err &&
         typeof err === 'object' &&
         'response' in err &&
-        (err as { response?: { data?: { message?: string } } }).response?.data?.message
+        (err as { response?: { data?: { message?: string; error?: string } } }).response
       ) {
-        errorMessage = (err as { response?: { data?: { message?: string } } }).response!.data!.message!;
+        const response = (err as { response?: { data?: { message?: string; error?: string } } }).response;
+        if (response?.data?.message) {
+          errorMessage = response.data.message;
+        } else if (response?.data?.error) {
+          errorMessage = response.data.error;
+        }
       }
+      
+      console.error('Profile update error:', err);
       showNotification(errorMessage, 'error');
-      console.error(errorMessage, err);
     } finally {
       setIsLoading(false);
     }
   };
   
-  // Handle password update
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -326,34 +440,53 @@ const KidsSettingsPage: React.FC = () => {
         currentPassword: passwordData.currentPassword,
         newPassword: passwordData.newPassword
       }, { 
-        headers: { Authorization: `Bearer ${token}` } 
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        } 
       });
       
       showNotification('Password updated successfully!', 'success');
+      
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setPasswordErrors({});
+      setShowPassword({ current: false, new: false, confirm: false });
+      
     } catch (err: unknown) {
       let errorMessage = 'Password update failed';
+
       if (
         err &&
         typeof err === 'object' &&
         'response' in err &&
-        (err as { response?: { data?: { message?: string } } }).response?.data?.message
+        (err as { response?: { status?: number; data?: { message?: string; error?: string } } }).response
       ) {
-        errorMessage = (err as { response?: { data?: { message?: string } } }).response!.data!.message!;
+        const response = (err as { response?: { status?: number; data?: { message?: string; error?: string } } }).response;
+        if (response?.status === 400) {
+          errorMessage = 'Current password is incorrect';
+        } else if (response?.data?.message) {
+          errorMessage = response.data.message;
+        } else if (response?.data?.error) {
+          errorMessage = response.data.error;
+        }
+        if (response?.status === 400) {
+          setPasswordData(prev => ({ ...prev, currentPassword: '' }));
+        }
       }
+
+      console.error('Password update error:', err);
       showNotification(errorMessage, 'error');
     } finally {
       setIsLoading(false);
     }
   };
-  
-  // Handle forgot password
+
   const handleForgotPassword = async () => {
     try {
       await axios.post(`${API_URL}/api/users/forgotpassword`, { email: formData.email });
-      showNotification('Reset link sent to email', 'success');
+      showNotification('Reset link sent to your email', 'success');
     } catch (err: unknown) {
-      let errorMessage = 'Request failed';
+      let errorMessage = 'Failed to send reset link';
       if (
         err &&
         typeof err === 'object' &&
@@ -366,17 +499,122 @@ const KidsSettingsPage: React.FC = () => {
     }
   };
 
-  // Navigation tab handler
+  const togglePinVisibility = (field: keyof typeof showPin) => () => {
+    setShowPin(prev => ({ ...prev, [field]: !prev[field] }));
+  };
+
+  const handlePinChange = (field: keyof PinData) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, '').slice(0, 4);
+    setPinData(prev => ({ ...prev, [field]: value }));
+    
+    if (pinErrors[field]) {
+      setPinErrors(prev => ({ ...prev, [field]: undefined }));
+    }
+  };
+
+  const handlePinUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const cleanNewPin = pinData.newPin.replace(/\D/g, '');
+    const cleanConfirmPin = pinData.confirmPin.replace(/\D/g, '');
+    const cleanCurrentPin = pinData.currentPin.replace(/\D/g, '');
+
+    const isSettingNewPin = !user?.hasPin || !cleanCurrentPin;
+    
+    const errors: PinErrors = {};
+    let isValid = true;
+
+    if (isSettingNewPin) {
+      if (cleanNewPin.length !== 4) {
+        errors.newPin = 'PIN must be exactly 4 digits';
+        isValid = false;
+      }
+    } else {
+      if (cleanCurrentPin.length !== 4) {
+        errors.currentPin = 'Current PIN must be 4 digits';
+        isValid = false;
+      }
+      
+      if (cleanNewPin.length !== 4) {
+        errors.newPin = 'New PIN must be exactly 4 digits';
+        isValid = false;
+      }
+    }
+
+    if (cleanNewPin !== cleanConfirmPin) {
+      errors.confirmPin = 'PINs do not match';
+      isValid = false;
+    }
+
+    if (!isValid) {
+      setPinErrors(errors);
+      showNotification('Please fix the PIN errors', 'error');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const endpoint = isSettingNewPin ? 'set' : 'update';
+      const payload = isSettingNewPin 
+        ? { newPin: cleanNewPin }
+        : { currentPin: cleanCurrentPin, newPin: cleanNewPin };
+
+      await axios.post(
+        `${API_URL}/api/pin/${endpoint}`,
+        payload,
+        {
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      showNotification(
+        isSettingNewPin ? 'PIN set successfully' : 'PIN updated successfully',
+        'success'
+      );
+      
+      setPinData({ currentPin: '', newPin: '', confirmPin: '' });
+      setPinErrors({});
+      setUser(prev => prev ? { ...prev, hasPin: true } : null);
+      
+    } catch (error) {
+      console.error('PIN operation failed:', error);
+      
+      let errorMessage = 'Failed to process PIN request';
+      
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 400 || error.response?.status === 404) {
+          errorMessage = "You don't have a PIN set yet. Please set a new PIN.";
+          setUser(prev => prev ? { ...prev, hasPin: false } : null);
+        } else if (error.response?.data?.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.response?.data?.error) {
+          errorMessage = error.response.data.error;
+        }
+      }
+      
+      showNotification(errorMessage, 'error');
+      
+      setPinData(prev => ({
+        currentPin: '',
+        newPin: prev.newPin,
+        confirmPin: prev.confirmPin
+      }));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleNavTabChange = (newValue: number) => {
     setActiveTab(newValue);
   };
   
-  // Snackbar close handler
   const handleSnackbarClose = () => {
     setSnackbar(prev => ({ ...prev, open: false }));
   };
 
-  // Loading state
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
@@ -388,7 +626,6 @@ const KidsSettingsPage: React.FC = () => {
     );
   }
 
-  // Error state
   if (error && !profile) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
@@ -416,13 +653,11 @@ const KidsSettingsPage: React.FC = () => {
   return (
     <div className="bg-gradient-to-b from-blue-50 to-indigo-50 min-h-screen py-4 md:py-6">
       <div className="container mx-auto px-4 flex flex-col min-h-screen">
-        {/* Header Section - Using imported KidsHeader with real data */}
         <KidsHeader 
           profile={profile}
           wallet={wallet || { balance: 0 }}
         />
   
-        {/* Navigation Tabs */}
         <div className="mb-6 bg-white rounded-xl shadow-md overflow-hidden">
           <div className="flex overflow-x-auto">
             {navItems.map((item, index) => (
@@ -439,10 +674,9 @@ const KidsSettingsPage: React.FC = () => {
           </div>
         </div>
   
-        {/* Main Settings Content */}
         <div className="flex-1 mb-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Profile Settings */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Profile Information Section */}
             <div className="bg-white p-6 rounded-xl shadow-lg">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-bold flex items-center gap-2">
@@ -450,16 +684,21 @@ const KidsSettingsPage: React.FC = () => {
                 </h2>
                 {editMode ? (
                   <button 
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     onClick={handleProfileSubmit}
                     disabled={isLoading}
                   >
                     {isLoading ? (
-                      <span className="animate-spin inline-block w-5 h-5 border-2 border-white border-t-transparent rounded-full"></span>
+                      <>
+                        <span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full"></span>
+                        Saving...
+                      </>
                     ) : (
-                      <Save className="w-4 h-4" />
+                      <>
+                        <Save className="w-4 h-4" />
+                        Save Changes
+                      </>
                     )}
-                    Save Changes
                   </button>
                 ) : (
                   <button 
@@ -484,28 +723,33 @@ const KidsSettingsPage: React.FC = () => {
                       value={formData.name}
                       onChange={handleFormChange('name')}
                       disabled={!editMode}
-                        placeholder="Enter your full name"
-                        title="Full Name"
+                      placeholder="Enter your full name"
+                      title="Full Name"
+                      required
                     />
                   </div>
                 </div>
                 
                 <div>
-                  <label className="block text-gray-700 mb-1">Email</label>
+                  <label className="block text-gray-700 mb-1">Email*</label>
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
                       <Mail className="w-4 h-4" />
                     </span>
                     <input
                       type="email"
-                      className={`block text-gray-700 mb-2 w-full pl-10 pr-4 py-2 rounded-lg border ${editMode ? 'border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500' : 'bg-gray-100 border-transparent'}`}
+                      className={`block text-gray-700 mb-2 w-full pl-10 pr-4 py-2 rounded-lg border ${passwordErrors.email ? 'border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500' : editMode ? 'border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500' : 'bg-gray-100 border-transparent'}`}
                       value={formData.email}
                       onChange={handleFormChange('email')}
                       disabled={!editMode}
                       placeholder="Enter your email"
                       title="Email"
+                      required
                     />
                   </div>
+                  {passwordErrors.email && (
+                    <p className="mt-1 text-sm text-red-600">{passwordErrors.email}</p>
+                  )}
                 </div>
                 
                 <div>
@@ -516,12 +760,16 @@ const KidsSettingsPage: React.FC = () => {
                     </span>
                     <input
                       type="tel"
-                      className={`block text-gray-700 mb-2 w-full pl-10 pr-4 py-2 rounded-lg border ${editMode ? 'border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500' : 'bg-gray-100 border-transparent'}`}
+                      className={`block text-gray-700 mb-2 w-full pl-10 pr-4 py-2 rounded-lg border ${passwordErrors.phone ? 'border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500' : editMode ? 'border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500' : 'bg-gray-100 border-transparent'}`}
                       value={formData.phone}
                       onChange={handleFormChange('phone')}
                       disabled={!editMode}
+                      placeholder="e.g. +1234567890"
                     />
                   </div>
+                  {passwordErrors.phone && (
+                    <p className="mt-1 text-sm text-red-600">{passwordErrors.phone}</p>
+                  )}
                 </div>
                 
                 <div>
@@ -538,7 +786,6 @@ const KidsSettingsPage: React.FC = () => {
               </div>
             </div>
             
-            {/* Password Settings */}
             <div className="bg-white p-6 rounded-xl shadow-lg">
               <h2 className="text-xl font-bold flex items-center gap-2 mb-6">
                 <Lock className="w-5 h-5 text-blue-500" /> Change Password
@@ -628,6 +875,17 @@ const KidsSettingsPage: React.FC = () => {
                     <p className="mt-1 text-sm text-red-600">{passwordErrors.confirmPassword}</p>
                   )}
                 </div>
+
+                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-blue-800 text-sm font-medium">Password Requirements:</p>
+                  <ul className="list-disc pl-5 text-blue-800 text-sm mt-1">
+                    <li className={passwordData.newPassword.length >= 8 ? 'text-green-600' : ''}>At least 8 characters</li>
+                    <li className={/[A-Z]/.test(passwordData.newPassword) ? 'text-green-600' : ''}>One uppercase letter</li>
+                    <li className={/[a-z]/.test(passwordData.newPassword) ? 'text-green-600' : ''}>One lowercase letter</li>
+                    <li className={/[0-9]/.test(passwordData.newPassword) ? 'text-green-600' : ''}>One number</li>
+                    <li className={/[^A-Za-z0-9]/.test(passwordData.newPassword) ? 'text-green-600' : ''}>One special character</li>
+                  </ul>
+                </div>
                 
                 <button
                   type="submit"
@@ -651,9 +909,149 @@ const KidsSettingsPage: React.FC = () => {
                 </button>
               </form>
             </div>
+      {/* PIN Settings Section */}
+<div className="bg-white p-6 rounded-xl shadow-lg">
+  <div className="flex justify-between items-center mb-6">
+    <h2 className="text-xl font-bold flex items-center gap-2">
+      <Key className="w-5 h-5 text-blue-500" /> 
+      {user?.hasPin ? 'Change PIN' : 'Set Transaction PIN'}
+    </h2>
+    <button
+      type="button"
+      onClick={() => setUser(prev => prev ? { ...prev, hasPin: !prev.hasPin } : null)}
+      className="text-sm text-blue-600 hover:text-blue-800 underline"
+    >
+      {user?.hasPin ? 'Set New PIN Instead' : 'Update Existing PIN Instead'}
+    </button>
+  </div>
+  
+  <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+    <p className="text-sm text-blue-800">
+      {user?.hasPin 
+        ? 'You can update your existing PIN by entering your current PIN and setting a new one.'
+        : 'You can set a new 4-digit security PIN for your account.'
+      }
+    </p>
+  </div>
+
+  <form onSubmit={handlePinUpdate} className="space-y-4">
+    {user?.hasPin && (
+      <div>
+        <label className="block text-gray-700 mb-1">Current PIN</label>
+        <div className="relative">
+          <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
+            <Lock className="w-4 h-4" />
+          </span>
+          <input
+            type={showPin.current ? 'text' : 'password'}
+            className={`block w-full pl-10 pr-10 py-2 rounded-lg border ${
+              pinErrors.currentPin ? 'border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500' : 'border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-black'
+            }`}
+            value={pinData.currentPin}
+            onChange={handlePinChange('currentPin')}
+            placeholder="Enter current PIN"
+            inputMode="numeric"
+            maxLength={4}
+          />
+          <button
+            type="button"
+            className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-700"
+            onClick={togglePinVisibility('current')}
+            title={showPin.current ? "Hide PIN" : "Show PIN"}
+          >
+            {showPin.current ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        </div>
+        {pinErrors.currentPin && (
+          <p className="mt-1 text-sm text-red-600">{pinErrors.currentPin}</p>
+        )}
+      </div>
+    )}
+    
+    <div>
+      <label className="block text-gray-700 mb-1">{user?.hasPin ? 'New PIN' : 'Set PIN'}</label>
+      <div className="relative">
+        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
+          <Lock className="w-4 h-4" />
+        </span>
+        <input
+          type={showPin.new ? 'text' : 'password'}
+          className={`block w-full pl-10 pr-10 py-2 rounded-lg border ${
+            pinErrors.newPin ? 'border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500' : 'border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-black'
+          }`}
+          value={pinData.newPin}
+          onChange={handlePinChange('newPin')}
+          placeholder="Enter 4-digit PIN"
+          inputMode="numeric"
+          maxLength={4}
+        />
+        <button
+          type="button"
+          className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-700"
+          onClick={togglePinVisibility('new')}
+          title={showPin.new ? "Hide PIN" : "Show PIN"}
+        >
+          {showPin.new ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+        </button>
+      </div>
+      {pinErrors.newPin && (
+        <p className="mt-1 text-sm text-red-600">{pinErrors.newPin}</p>
+      )}
+    </div>
+    
+    <div>
+      <label className="block text-gray-700 mb-1">Confirm {user?.hasPin ? 'New PIN' : 'PIN'}</label>
+      <div className="relative">
+        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
+          <Lock className="w-4 h-4" />
+        </span>
+        <input
+          type={showPin.confirm ? 'text' : 'password'}
+          className={`block w-full pl-10 pr-10 py-2 rounded-lg border ${
+            pinErrors.confirmPin ? 'border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500' : 'border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-black'
+          }`}
+          value={pinData.confirmPin}
+          onChange={handlePinChange('confirmPin')}
+          placeholder="Confirm 4-digit PIN"
+          inputMode="numeric"
+          maxLength={4}
+        />
+        <button
+          type="button"
+          className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-700"
+          onClick={togglePinVisibility('confirm')}
+          title={showPin.confirm ? "Hide PIN" : "Show PIN"}
+        >
+          {showPin.confirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+        </button>
+      </div>
+      {pinErrors.confirmPin && (
+        <p className="mt-1 text-sm text-red-600">{pinErrors.confirmPin}</p>
+      )}
+    </div>
+    
+    <button
+      type="submit"
+      className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      disabled={isLoading}
+    >
+      {isLoading ? (
+        <span className="flex items-center justify-center gap-2">
+          <span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full"></span>
+          {user?.hasPin ? 'Updating...' : 'Setting...'}
+        </span>
+      ) : user?.hasPin ? 'Update PIN' : 'Set PIN'}
+    </button>
+  </form>
+  
+  <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+    <p className="text-yellow-800 text-sm">
+      <strong>Note:</strong> Your PIN must be exactly 4 digits and will be used to authorize transactions.
+    </p>
+  </div>
+</div>
             
-            {/* Notification Settings */}
-            <div className="bg-white p-6 rounded-xl shadow-lg col-span-1 lg:col-span-2">
+            <div className="bg-white p-6 rounded-xl shadow-lg col-span-1 lg:col-span-3">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-bold flex items-center gap-2">
                   <Bell className="w-5 h-5 text-blue-500" /> Notification Preferences
@@ -680,8 +1078,6 @@ const KidsSettingsPage: React.FC = () => {
                       className="sr-only peer"
                       checked={notifications.transactionNotifications}
                       onChange={handleNotificationChange('transactionNotifications')}
-                      title="Transaction Notifications"
-                      placeholder="Transaction Notifications"
                     />
                     <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                     <span className="ml-3 text-gray-700">Transaction Notifications</span>
@@ -696,8 +1092,6 @@ const KidsSettingsPage: React.FC = () => {
                       className="sr-only peer"
                       checked={notifications.lowBalanceAlert}
                       onChange={handleNotificationChange('lowBalanceAlert')}
-                      title="Low Balance Alerts"
-                      placeholder="Low Balance Alerts"
                     />
                     <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                     <span className="ml-3 text-gray-700">Low Balance Alerts</span>
@@ -712,8 +1106,6 @@ const KidsSettingsPage: React.FC = () => {
                       className="sr-only peer"
                       checked={notifications.monthlyReports}
                       onChange={handleNotificationChange('monthlyReports')}
-                      title="Monthly Reports"
-                      placeholder="Monthly Reports"
                     />
                     <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                     <span className="ml-3 text-gray-700">Monthly Reports</span>
@@ -728,7 +1120,6 @@ const KidsSettingsPage: React.FC = () => {
         <Footer />
       </div>
       
-      {/* Snackbar Notification */}
       {snackbar.open && (
         <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-50 px-4 py-2 rounded-lg shadow-lg max-w-md w-full ${snackbar.severity === 'success' ? 'bg-green-100 text-green-800' : snackbar.severity === 'error' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'}`}>
           <div className="flex justify-between items-center">

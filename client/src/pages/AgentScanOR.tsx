@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 
-const API_BASE_URL = 'https://nodes-staging.up.railway.app';
+const API_BASE_URL = 'https://nodes-staging-xp.up.railway.app';
 
 interface QRCodeData {
   userId: string;
@@ -171,27 +171,31 @@ const AgentScanQR: React.FC = () => {
   };
 
   const verifyUserPin = async (pinData: PinVerificationData): Promise<boolean> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/pin/verify`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(pinData),
-      });
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/pin/verify`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        userId: pinData.userId,  
+        pin: pinData.pin         
+      }),
+    });
 
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || 'PIN verification failed');
-      }
-      return data.success || data.verified;
-    } catch (error) {
-      console.error('PIN verification error:', error);
-      throw error;
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'PIN verification failed');
     }
-  };
 
+    const data = await response.json();
+    return data.isValid;  
+  } catch (error) {
+    console.error('PIN verification error:', error);
+    throw error;
+  }
+};
   const processWalletTransfer = async (transactionData: TransactionData): Promise<TransactionResponse> => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/wallet/walletToWalletTransfer`, {
