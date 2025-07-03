@@ -6,14 +6,11 @@ import RaiseDispute from '../components/RaiseDispute';
 
 const Pdispute: React.FC = () => {
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Header */}
-      <Header />
-      
-      <div className="flex flex-1">
-        {/* Sidebar */}
-        <Psidebar />
-        
+    <div className="flex flex-col min-h-screen bg-gray-50">
+         <Header profilePath="/psettings"/>
+         <div className="z-[100] flex flex-1">
+           <Psidebar />
+</div>
         {/* Main Content Area */}
         <div className="flex-1">
           {/* Content Container */}
@@ -28,7 +25,7 @@ const Pdispute: React.FC = () => {
           </div>
         </div>
       </div>
-    </div>
+
   );
 };
 

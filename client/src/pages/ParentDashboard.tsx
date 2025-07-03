@@ -404,7 +404,7 @@ const ParentDashboard: React.FC = () => {
 
   return (
     <div className="bg-gray-50 min-h-screen">
-      <Header />
+      <Header profilePath="/psettings" />
 
       <div className="container mx-auto px-4 py-6">
         <div className="flex flex-col min-h-screen">
