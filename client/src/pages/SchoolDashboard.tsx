@@ -202,6 +202,47 @@ const Dashboard: React.FC = () => {
   [auth]
 );
 
+  // Fetch store count data
+  const fetchStoreCount = useCallback(async (authToken: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/getstorebyidcount`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      
+      if (!response.ok) throw new Error('Failed to fetch store count');
+      
+      const data = await response.json();
+      
+      console.log('Store Count API Response:', JSON.stringify(data, null, 2));
+      
+      // Extract store count from response
+      let storeCount = 0;
+      if (typeof data.data === 'number') {
+        storeCount = data.data;
+      } else if (data.count !== undefined) {
+        storeCount = data.count;
+      } else if (data.totalStores !== undefined) {
+        storeCount = data.totalStores;
+      }
+      
+      console.log('Extracted store count:', storeCount);
+      
+      // Update stats with store count
+      setStats(prev => ({
+        ...prev,
+        totalStores: storeCount
+      }));
+      
+    } catch (error) {
+      console.error('Error fetching store count:', error);
+      setSnackbar({
+        open: true,
+        message: 'Failed to load store count',
+        severity: 'error'
+      });
+    }
+  }, []);
+
   // Fetch students data for distribution
 const fetchStudentsData = useCallback(async (authToken: string) => {
   try {
@@ -241,8 +282,7 @@ const fetchStudentsData = useCallback(async (authToken: string) => {
       setPieData(pieData);
       setStats(prev => ({
         ...prev, 
-        totalStudents,
-        totalStores: 0 // You might want to update this with actual store data
+        totalStudents
       }));
     }
   } catch (error) {
@@ -356,10 +396,11 @@ const fetchStudentsData = useCallback(async (authToken: string) => {
             balance: (auth.user && typeof auth.user.balance === 'number') ? auth.user.balance : 0
           }));
           
-          // Still fetch other data
+          // Still fetch other data including store count
           await Promise.all([
             fetchStudentsData(auth.token),
-            fetchTransactionsData(auth.token)
+            fetchTransactionsData(auth.token),
+            fetchStoreCount(auth.token)
           ]);
           
           setLoading(false);
@@ -378,11 +419,12 @@ const fetchStudentsData = useCallback(async (authToken: string) => {
         
         console.log('Profile fetched, balance should be:', profile.balance);
 
-        // After successful auth, fetch other data
+        // After successful auth, fetch other data including store count
         if (profile._id) {
           await Promise.all([
             fetchStudentsData(storedToken),
-            fetchTransactionsData(storedToken)
+            fetchTransactionsData(storedToken),
+            fetchStoreCount(storedToken)
           ]);
         }
       } catch (error) {
@@ -394,7 +436,7 @@ const fetchStudentsData = useCallback(async (authToken: string) => {
     };
 
     initializeAuth();
-  }, [auth?.token, fetchUserDetails, fetchStudentsData, fetchTransactionsData, handleAuthError]);
+  }, [auth?.token, fetchUserDetails, fetchStudentsData, fetchTransactionsData, fetchStoreCount, handleAuthError]);
 
   // Debug effect to monitor stats changes
   useEffect(() => {
@@ -509,7 +551,7 @@ const fetchStudentsData = useCallback(async (authToken: string) => {
                   {stats.totalStores.toLocaleString()}
                 </p>
                 <p className="text-xs text-green-600 mt-1">
-                  +2 new this month
+                  {stats.totalStores > 0 ? '+2 new this month' : 'No stores yet'}
                 </p>
               </div>
             </div>
