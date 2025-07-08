@@ -1,7 +1,30 @@
 import { useNavigate } from 'react-router-dom';
-import { Bell, LogOut, Wallet, User } from 'lucide-react';
+import { Bell, LogOut, Wallet, User, X, Clock, AlertCircle, CheckCircle, Info, DollarSign } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useState, useEffect, useRef } from 'react';
+
+interface User {
+  _id: string;
+  name?: string;
+  firstName?: string;
+  lastName?: string;
+  email: string;
+  role: string;
+  avatar?: string;
+  profilePicture?: string;
+  [key: string]: unknown;
+}
+
+interface Notification {
+  _id: string;
+  userId: string;
+  type: string;
+  title: string;
+  message: string;
+  read: boolean;
+  createdAt: string;
+  __v: number;
+}
 
 interface Profile {
   name?: string;
@@ -22,11 +45,145 @@ interface KidsHeaderProps {
 
 const KidsHeader = ({ profile, wallet }: KidsHeaderProps) => {
   const navigate = useNavigate();
-  const { logout } = useAuth() || {};
+  const { user: authUser, token: authToken, logout } = useAuth() || {};
+  const [user, setUser] = useState<User | null>(authUser || null);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
+  const [showNotificationModal, setShowNotificationModal] = useState(false);
   const [isMobile, setIsMobile] = useState(window.matchMedia("(max-width: 768px)").matches);
+  const [loading, setLoading] = useState(true);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
   const notificationRef = useRef<HTMLDivElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
   
+  const API_URL = import.meta.env.VITE_API_URL || 'https://nodes-staging-xp.up.railway.app';
+  const token = authToken || localStorage.getItem('token');
+
+  // Fetch notifications from API
+  const fetchNotifications = async () => {
+    if (!token) return;
+    
+    try {
+      setNotificationsLoading(true);
+      const response = await fetch(`${API_URL}/api/notification/get`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.status === 401) {
+        logout?.();
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        navigate('/login');
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch notifications: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const notificationsList = Array.isArray(data) ? data : data.notifications || data.data || [];
+      setNotifications(notificationsList);
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  };
+
+  // Mark notification as read
+  const markAsRead = async (notificationId: string) => {
+    if (!token) return;
+
+    try {
+      const response = await fetch(`${API_URL}/api/notification/read/${notificationId}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        setNotifications(prev => 
+          prev.map(notif => 
+            notif._id === notificationId 
+              ? { ...notif, read: true }
+              : notif
+          )
+        );
+      }
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+
+  // Mark all notifications as read
+  const markAllAsRead = async () => {
+    if (!token) return;
+
+    try {
+      const unreadNotifications = notifications.filter(n => !n.read);
+      
+      await Promise.all(
+        unreadNotifications.map(notif => 
+          fetch(`${API_URL}/api/notification/read/${notif._id}`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          })
+        )
+      );
+
+      setNotifications(prev => 
+        prev.map(notif => ({ ...notif, read: true }))
+      );
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+    }
+  };
+
+  // Handle notification click - Show modal instead of navigating
+  const handleNotificationClick = (notification: Notification) => {
+    setSelectedNotification(notification);
+    setShowNotificationModal(true);
+    setShowNotifications(false); // Close dropdown
+  };
+
+  // Handle modal close - Mark as read when modal is closed
+  const handleModalClose = async () => {
+    if (selectedNotification && !selectedNotification.read) {
+      await markAsRead(selectedNotification._id);
+    }
+    setShowNotificationModal(false);
+    setSelectedNotification(null);
+  };
+
+  // Get notification icon based on type
+  const getNotificationIcon = (type: string) => {
+    switch (type.toLowerCase()) {
+      case 'info':
+        return <Info className="w-5 h-5 text-blue-500" />;
+      case 'warning':
+        return <AlertCircle className="w-5 h-5 text-yellow-500" />;
+      case 'error':
+        return <AlertCircle className="w-5 h-5 text-red-500" />;
+      case 'success':
+        return <CheckCircle className="w-5 h-5 text-green-500" />;
+      case 'wallet':
+      case 'payment':
+        return <DollarSign className="w-5 h-5 text-purple-500" />;
+      default:
+        return <Bell className="w-5 h-5 text-gray-500" />;
+    }
+  };
+
   // Handle screen size changes
   useEffect(() => {
     const mediaQuery = window.matchMedia("(max-width: 768px)");
@@ -36,14 +193,88 @@ const KidsHeader = ({ profile, wallet }: KidsHeaderProps) => {
     return () => mediaQuery.removeEventListener('change', handleResize);
   }, []);
 
-  const handleLogout = () => {
-    if (logout) {
-      logout();
-    } else {
-      localStorage.removeItem('token');
-      navigate('/login');
+  // Load user data
+  useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        setLoading(true);
+
+        if (authUser) {
+          setUser(authUser);
+          return;
+        }
+
+        const stored = localStorage.getItem('user');
+        if (stored) {
+          const parsed = JSON.parse(stored) as User;
+          const fullName = parsed.name
+            ?? ((parsed.firstName && parsed.lastName) ? `${parsed.firstName} ${parsed.lastName}` : (parsed.firstName ?? parsed.lastName ?? ''));
+          setUser({ ...parsed, name: fullName.trim() || 'User' });
+          return;
+        }
+
+        if (token) {
+          const res = await fetch(`${API_URL}/api/users/getuserone`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          });
+
+          if (res.status === 401) {
+            logout?.();
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            navigate('/login');
+            return;
+          }
+
+          if (!res.ok) throw new Error(`Failed to fetch user: ${res.status}`);
+
+          const json = await res.json();
+          const payload = json.user?.data ?? json.data ?? json.user ?? json;
+
+          const fullName = payload.name
+            ?? (payload.firstName && payload.lastName ? `${payload.firstName} ${payload.lastName}` : payload.firstName ?? payload.lastName ?? '');
+
+          const formatted: User = {
+            _id: payload._id,
+            name: fullName.trim() || 'User',
+            firstName: payload.firstName,
+            lastName: payload.lastName,
+            email: payload.email,
+            role: payload.role,
+            avatar: payload.avatar,
+            profilePicture: payload.profilePicture,
+          };
+
+          setUser(formatted);
+          localStorage.setItem('user', JSON.stringify(formatted));
+        }
+      } catch (err) {
+        console.error('Error loading user:', err);
+        const fallback = localStorage.getItem('user');
+        if (fallback) {
+          try {
+            setUser(JSON.parse(fallback));
+          } catch {
+            // ignore parse errors
+          }
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadUserData();
+  }, [API_URL, authUser, token, logout, navigate]);
+
+  // Fetch notifications when component mounts and when user is loaded
+  useEffect(() => {
+    if (user && token) {
+      fetchNotifications();
     }
-  };
+  }, [user, token]);
 
   // Close notifications when clicking outside
   useEffect(() => {
@@ -61,122 +292,397 @@ const KidsHeader = ({ profile, wallet }: KidsHeaderProps) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const username = profile ? profile.name || profile.fullName : "Kid User";
+  // Close modal when clicking outside or pressing Escape
+  useEffect(() => {
+    const handleModalClickOutside = (event: MouseEvent) => {
+      if (
+        modalRef.current &&
+        event.target &&
+        !modalRef.current.contains(event.target as Node)
+      ) {
+        handleModalClose();
+      }
+    };
+
+    const handleEscapeKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        handleModalClose();
+      }
+    };
+
+    if (showNotificationModal) {
+      document.addEventListener('mousedown', handleModalClickOutside);
+      document.addEventListener('keydown', handleEscapeKey);
+      // Prevent body scroll when modal is open
+      document.body.style.overflow = 'hidden';
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleModalClickOutside);
+      document.removeEventListener('keydown', handleEscapeKey);
+      document.body.style.overflow = 'unset';
+    };
+  }, [showNotificationModal]);
+
+  const handleLogout = () => {
+    if (logout) {
+      logout();
+    } else {
+      localStorage.removeItem('token');
+    }
+    localStorage.removeItem('user');
+    navigate('/login');
+  };
+
+  const formatDate = (s: string) => {
+    const d = new Date(s);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    if (d.getFullYear() === now.getFullYear()) return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  const formatFullDate = (s: string) => {
+    const d = new Date(s);
+    return d.toLocaleDateString([], { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const getDisplayName = () => {
+    if (user?.name && user.name !== 'User') return user.name;
+    if (user?.firstName || user?.lastName) return `${user?.firstName ?? ''} ${user?.lastName ?? ''}`.trim();
+    return user?.email ?? 'Guest';
+  };
+
+  const getUserAvatar = () => {
+    if (user?.profilePicture) {
+      if (user.profilePicture.startsWith('/uploads/')) {
+        return `${API_URL}${user.profilePicture}`;
+      }
+      if (user.profilePicture.startsWith('http')) {
+        return user.profilePicture;
+      }
+      return `${API_URL}/${user.profilePicture}`;
+    }
+    
+    if (user?.avatar) {
+      if (user.avatar.startsWith('/uploads/')) {
+        return `${API_URL}${user.avatar}`;
+      }
+      if (user.avatar.startsWith('http')) {
+        return user.avatar;
+      }
+      return `${API_URL}/${user.avatar}`;
+    }
+    
+    return '/default-avatar.png';
+  };
+
+  const getNotificationTypeColor = (type: string) => {
+    switch (type.toLowerCase()) {
+      case 'info':
+        return 'border-blue-500';
+      case 'warning':
+        return 'border-yellow-500';
+      case 'error':
+        return 'border-red-500';
+      case 'success':
+        return 'border-green-500';
+      case 'wallet':
+      case 'payment':
+        return 'border-purple-500';
+      default:
+        return 'border-gray-300';
+    }
+  };
+
+  const getNotificationBgColor = (type: string) => {
+    switch (type.toLowerCase()) {
+      case 'info':
+        return 'bg-blue-50';
+      case 'warning':
+        return 'bg-yellow-50';
+      case 'error':
+        return 'bg-red-50';
+      case 'success':
+        return 'bg-green-50';
+      case 'wallet':
+      case 'payment':
+        return 'bg-purple-50';
+      default:
+        return 'bg-gray-50';
+    }
+  };
+
+  const unreadCount = notifications.filter(n => !n.read).length;
+  const username = loading ? "Loading..." : (getDisplayName() || profile?.name || profile?.fullName || "Kid User");
   const walletBalance = wallet ? wallet.balance : 0;
-  const avatar = profile && profile.profilePic ? profile.profilePic : '/default-avatar.png';
+  const avatar = getUserAvatar();
 
   return (
-    <div className="rounded-xl overflow-hidden mb-6 shadow-xl border border-gray-100">
-      <div className="bg-gradient-to-r from-blue-900 via-blue-800 to-blue-700 text-white">
-        {/* Main Header Content */}
-        <div className="p-5 md:p-6">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-5">
-            {/* Profile Section */}
-            <div className="flex items-center gap-5 w-full md:w-auto">
-              <div className="relative">
-                <div className="w-20 h-20 rounded-full bg-white p-1 shadow-lg overflow-hidden border-4 border-white">
-                  <img 
-                    src={avatar} 
-                    alt={username}
-                    className="w-full h-full object-cover rounded-full"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = '/default-avatar.png';
-                    }}
-                  />
-                </div>
-                <div className="absolute -bottom-1 -right-1 bg-green-500 w-6 h-6 rounded-full border-2 border-white flex items-center justify-center">
-                  <span className="text-white text-xs">✓</span>
-                </div>
-              </div>
-              <div>
-                <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white">{username}</h1>
-                <p className="text-blue-100 font-medium flex items-center gap-2 mt-1">
-                  <User className="w-4 h-4" />
-                  <span>Kids Wallet Dashboard</span>
-                </p>
-              </div>
-            </div>
-            
-            {/* Controls Section */}
-            <div className="flex items-center gap-5 w-full md:w-auto justify-between md:justify-end">
-              {/* Wallet Balance */}
-              <div className="text-right">
-                <p className="text-blue-100 text-sm font-medium">Wallet Balance</p>
-                <p className="text-2xl md:text-3xl font-bold text-white">
-                  ₦{walletBalance.toLocaleString()}
-                </p>
-              </div>
-              
-              {/* Notifications */}
-              <div className="relative" ref={notificationRef}>
-                <button 
-                  onClick={() => setShowNotifications(!showNotifications)}
-                  className="relative p-2 rounded-full hover:bg-white hover:bg-opacity-10 transition duration-200"
-                  aria-label="Notifications"
-                >
-                  <Bell className="w-6 h-6 text-white" />
-                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full border-2 border-blue-800 flex items-center justify-center text-xs font-bold">
-                    2
-                  </span>
-                </button>
-                
-                {showNotifications && (
-                  <div className="absolute right-0 mt-3 w-80 bg-white rounded-xl shadow-2xl z-50 overflow-hidden animate-fadeIn">
-                    <div className="px-4 py-3 bg-gradient-to-r from-blue-800 to-blue-600 text-white font-semibold flex items-center justify-between">
-                      <span>Notifications</span>
-                      <span className="bg-white text-blue-600 text-xs rounded-full px-2 py-0.5">2 new</span>
-                    </div>
-                    <div className="divide-y divide-gray-100">
-                      <div className="px-4 py-3 hover:bg-gray-50 transition">
-                        <div className="flex items-start gap-3">
-                          <div className="p-2 bg-blue-100 rounded-full text-blue-600">
-                            <Wallet className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-gray-800">Allowance Received</p>
-                            <p className="text-xs text-gray-500 mt-1">You received ₦5,000 from Mom</p>
-                            <p className="text-xs text-gray-400 mt-2">Just now</p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="px-4 py-3 hover:bg-gray-50 transition">
-                        <div className="flex items-start gap-3">
-                          <div className="p-2 bg-purple-100 rounded-full text-purple-600">
-                            <Bell className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-gray-800">Savings Goal Reached</p>
-                            <p className="text-xs text-gray-500 mt-1">You've reached 50% of your savings goal!</p>
-                            <p className="text-xs text-gray-400 mt-2">2 hours ago</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="px-4 py-3 bg-gray-50 text-center">
-                      <button className="text-sm font-medium text-blue-600 hover:text-blue-800">
-                        View all notifications
-                      </button>
-                    </div>
+    <>
+      <div className="rounded-xl overflow-visible mb-6 shadow-xl border border-gray-100 relative">
+        <div className="bg-gradient-to-r from-blue-900 via-blue-800 to-blue-700 text-white">
+          <div className="p-5 md:p-6">
+            <div className="flex flex-col md:flex-row justify-between items-center gap-5">
+              {/* Profile Section */}
+              <div className="flex items-center gap-5 w-full md:w-auto">
+                <div className="relative">
+                  <div className="w-20 h-20 rounded-full bg-white p-1 shadow-lg overflow-hidden border-4 border-white">
+                    {loading ? (
+                      <div className="w-full h-full rounded-full bg-gray-200 animate-pulse" />
+                    ) : (
+                      <img 
+                        src={avatar} 
+                        alt={username}
+                        className="w-full h-full object-cover rounded-full"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = '/default-avatar.png';
+                        }}
+                      />
+                    )}
                   </div>
-                )}
+                  <div className="absolute -bottom-1 -right-1 bg-green-500 w-6 h-6 rounded-full border-2 border-white flex items-center justify-center">
+                    <span className="text-white text-xs">✓</span>
+                  </div>
+                </div>
+                <div>
+                  <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white">
+                    {loading ? (
+                      <div className="w-32 h-8 bg-white bg-opacity-20 rounded animate-pulse" />
+                    ) : (
+                      username
+                    )}
+                  </h1>
+                  <p className="text-blue-100 font-medium flex items-center gap-2 mt-1">
+                    <User className="w-4 h-4" />
+                    <span>Kids Wallet Dashboard</span>
+                  </p>
+                </div>
               </div>
               
-              {/* Logout Button */}
-              <button
-                onClick={handleLogout}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 transition duration-200 rounded-lg flex items-center gap-2 font-medium text-white"
-                aria-label="Logout"
-              >
-                <LogOut className="w-5 h-5" />
-                <span className={isMobile ? "hidden" : "block"}>Logout</span>
-              </button>
+              {/* Controls Section */}
+              <div className="flex items-center gap-5 w-full md:w-auto justify-between md:justify-end">
+                {/* Wallet Balance */}
+                <div className="text-right">
+                  <p className="text-blue-100 text-sm font-medium">Wallet Balance</p>
+                  <p className="text-2xl md:text-3xl font-bold text-white">
+                    ₦{walletBalance.toLocaleString()}
+                  </p>
+                </div>
+
+                {/* Notifications */}
+                <div className="relative" ref={notificationRef}>
+                  <button 
+                    onClick={() => {
+                      setShowNotifications(!showNotifications);
+                      if (!showNotifications) {
+                        fetchNotifications();
+                      }
+                    }}
+                    className="relative p-3 rounded-full hover:bg-white hover:bg-opacity-10 transition-all duration-200 group"
+                    aria-label="Notifications"
+                  >
+                    <Bell className="w-6 h-6 text-white group-hover:scale-110 transition-transform" />
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full border-2 border-blue-800 flex items-center justify-center text-xs font-bold animate-pulse">
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </span>
+                    )}
+                  </button>
+                </div>
+                
+                {/* Logout Button */}
+                <button
+                  onClick={handleLogout}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 transition-all duration-200 rounded-lg flex items-center gap-2 font-medium text-white shadow-lg hover:shadow-xl hover:scale-105"
+                  aria-label="Logout"
+                >
+                  <LogOut className="w-5 h-5" />
+                  <span className={isMobile ? "hidden" : "block"}>Logout</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
-        
 
+        {/* Notification Panel */}
+        {showNotifications && (
+          <div className="origin-top-right absolute top-full right-4 mt-2 w-80 rounded-lg shadow-xl bg-white ring-1 ring-black ring-opacity-5 divide-y divide-gray-100 z-[100] overflow-hidden">
+            {/* Header */}
+            <div className="px-4 py-3 bg-gray-50 flex justify-between items-center">
+              <p className="text-sm font-medium text-gray-900">Notifications</p>
+              {unreadCount > 0 && (
+                <span className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                  {unreadCount} new
+                </span>
+              )}
+            </div>
+            
+            {/* Content */}
+            <div className="py-1 max-h-96 overflow-y-auto">
+              {notificationsLoading ? (
+                <div className="px-4 py-6 text-center">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto"></div>
+                  <p className="text-sm text-gray-500 mt-2">Loading notifications...</p>
+                </div>
+              ) : notifications.length > 0 ? (
+                notifications.map((notification) => (
+                  <div 
+                    key={notification._id} 
+                    className={`px-4 py-3 hover:bg-gray-50 border-l-4 ${getNotificationTypeColor(notification.type)} ${
+                      !notification.read ? 'bg-blue-50' : 'border-transparent hover:border-blue-500'
+                    } transition-all duration-200 cursor-pointer`}
+                    onClick={() => handleNotificationClick(notification)}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="text-sm font-medium text-gray-900 mb-1">
+                          {notification.title}
+                        </div>
+                        <div className="text-sm text-gray-700 line-clamp-2">
+                          {notification.message}
+                        </div>
+                        <div className="text-xs text-gray-400 mt-1">
+                          {formatDate(notification.createdAt)}
+                        </div>
+                      </div>
+                      {!notification.read && (
+                        <div className="ml-2 mt-1">
+                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="px-4 py-6 text-sm text-gray-500 text-center">
+                  <div className="flex justify-center mb-3">
+                    <Bell className="h-8 w-8 text-gray-300" />
+                  </div>
+                  <p>No notifications yet</p>
+                  <p className="text-xs mt-1">We'll notify you when something happens</p>
+                </div>
+              )}
+            </div>
+            
+            {/* Footer */}
+            {notifications.length > 0 && (
+              <div className="px-4 py-2 bg-gray-50 flex justify-between">
+                <button 
+                  onClick={markAllAsRead}
+                  className="text-xs text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50"
+                  disabled={unreadCount === 0}
+                >
+                  Mark all as read
+                </button>
+                <button 
+                  onClick={() => {
+                    setShowNotifications(false);
+                    navigate('/ptransactionhistory');
+                  }}
+                  className="text-xs text-gray-600 hover:text-gray-800 font-medium"
+                >
+                  See all
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
-    </div>
+
+      {/* Notification Modal */}
+      {showNotificationModal && selectedNotification && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[200] p-4">
+          <div 
+            ref={modalRef}
+            className={`bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 transform transition-all duration-300 ${
+              showNotificationModal ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
+            }`}
+          >
+            {/* Modal Header */}
+            <div className={`px-6 py-4 rounded-t-xl ${getNotificationBgColor(selectedNotification.type)} border-b border-gray-200`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {getNotificationIcon(selectedNotification.type)}
+                  <h3 className="text-lg font-semibold text-gray-900 capitalize">
+                    {selectedNotification.type} Notification
+                  </h3>
+                </div>
+                <button
+                  onClick={handleModalClose}
+                  className="p-1 hover:bg-gray-200 rounded-full transition-colors"
+                  aria-label="Close notification"
+                >
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Content */}
+            <div className="px-6 py-6">
+              <div className="space-y-4">
+                <div>
+                  <h4 className="text-xl font-bold text-gray-900 mb-2">
+                    {selectedNotification.title}
+                  </h4>
+                  <p className="text-gray-700 leading-relaxed">
+                    {selectedNotification.message}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <Clock className="w-4 h-4" />
+                  <span>{formatFullDate(selectedNotification.createdAt)}</span>
+                </div>
+
+                {!selectedNotification.read && (
+                  <div className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 px-3 py-2 rounded-lg">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                    <span>This notification will be marked as read when you close it</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-gray-50 rounded-b-xl border-t border-gray-200">
+              <div className="flex justify-between items-center">
+                <button
+                  onClick={() => {
+                    handleModalClose();
+                    navigate('/transactions');
+                  }}
+                  className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  View Transactions
+                </button>
+                <button
+                  onClick={handleModalClose}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 

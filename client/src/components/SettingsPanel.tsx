@@ -12,6 +12,8 @@ import {
   Smartphone,
   DollarSign,
   Megaphone,
+  Check,
+  X,
 } from 'lucide-react';
 
 interface UserData {
@@ -19,12 +21,16 @@ interface UserData {
   name: string;
   email: string;
   phone: string;
-  profilePic: string;
+  profilePicture: string;
   createdAt?: string;
-  hasPin?: boolean;
+  isPinSet?: boolean;
+  wallet?: {
+    balance: number;
+    currency: string;
+    walletId: string;
+  };
 }
 
-// Tabs without the Payment option
 const TABS = [
   { label: 'Profile', icon: <User className="w-4 h-4 sm:w-5 sm:h-5 mr-2" /> },
   { label: 'Security', icon: <Lock className="w-4 h-4 sm:w-5 sm:h-5 mr-2" /> },
@@ -38,31 +44,31 @@ const SettingsPanel = () => {
   const [activeTab, setActiveTab] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [showImageActions, setShowImageActions] = useState(false);
 
-  // Profile State
   const [profile, setProfile] = useState({
     name: '',
     email: '',
     phone: '',
-    profilePic: '',
+    profilePicture: '',
     createdAt: '',
   });
 
-  // Password State
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
   });
 
-  // PIN State
   const [pinData, setPinData] = useState({ 
     currentPin: '', 
-    newPin: '', 
-    confirmPin: '' 
+    pin: '', 
+     newPin: '' 
   });
 
-  // Notification Preferences State
   const [notifications, setNotifications] = useState({
     email: true,
     push: true,
@@ -70,7 +76,8 @@ const SettingsPanel = () => {
     marketing: false,
   });
 
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging.up.railway.app';
+  
+   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging-xp.up.railway.app';
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -82,19 +89,32 @@ const SettingsPanel = () => {
         
         if (userRes.data?.user?.data) {
           const userData = userRes.data.user.data;
-          // Check if user has PIN by trying to detect it from user data or assume they might have one
-          // We'll start with assuming they might have a PIN and let them choose
+          const walletData = userRes.data.user.wallet;
+          
+          const fullProfilePictureUrl = userData.profilePicture 
+            ? `${API_BASE_URL}${userData.profilePicture}`
+            : '';
+
           setUser({
             ...userData,
-            hasPin: true // Default to true for existing users, they can switch modes
+            name: userData.name || `${userData.firstName} ${userData.lastName}`,
+            profilePicture: fullProfilePictureUrl,
+            isPinSet: userData.isPinSet,
+            wallet: walletData
           });
+          
           setProfile({
-            name: userData.name,
+            name: userData.name || `${userData.firstName} ${userData.lastName}`,
             email: userData.email,
             phone: userData.phone,
-            profilePic: userData.profilePic,
-            createdAt: userData.createdAt || '',
+            profilePicture: fullProfilePictureUrl,
+            createdAt: userData.createdAt || userData.registrationDate || '',
           });
+
+          // Clear any existing image selection when user data loads
+          setSelectedImage(null);
+          setImagePreview(null);
+          setShowImageActions(false);
         }
       } catch (error) {
         console.error('Error fetching user data:', error);
@@ -108,136 +128,229 @@ const SettingsPanel = () => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      await axios.put(`${API_BASE_URL}/api/users/update-user/${user?._id}`, {
+      const response = await axios.put(`${API_BASE_URL}/api/users/update-user/${user?._id}`, {
         name: profile.name,
         email: profile.email,
         phone: profile.phone
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      
+      // Update local state with the response
+      if (response.data) {
+        setUser(prev => prev ? { ...prev, ...response.data } : null);
+        alert('Profile updated successfully!');
+      }
       setIsEditing(false);
     } catch (error) {
       console.error('Profile update failed:', error);
+      alert('Failed to update profile. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Password Update Handler (Dummy)
+  // Password Update Handler
   const handlePasswordUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (passwordData.newPassword !== passwordData.confirmPassword) {
       alert('New passwords do not match');
       return;
     }
-   setIsLoading(true);
-try {
-  await axios.post(`${API_BASE_URL}/api/users/updatePassword`, {
-    currentPassword: passwordData.currentPassword,
-    newPassword: passwordData.newPassword
-  }, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  
-  setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-  alert('Password updated successfully!');
-} catch (error) {
-  console.error('Password update failed:', error);
-  alert('Failed to update password. Please check your current password.');
-} finally {
-  setIsLoading(false);
-}
+    setIsLoading(true);
+    try {
+      await axios.post(`${API_BASE_URL}/api/users/updatePassword`, {
+        currentPassword: passwordData.currentPassword,
+        newPassword: passwordData.newPassword
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      alert('Password updated successfully!');
+    } catch (error) {
+      console.error('Password update failed:', error);
+      alert('Failed to update password. Please check your current password.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // PIN Update Handler
   const handlePinUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Check if user wants to set new PIN or update existing PIN
-    const isSettingNewPin = !user?.hasPin || !pinData.currentPin;
+    // Validation
+    if (pinData.pin !== pinData. newPin) {
+      alert('PINs do not match. Please ensure both PIN fields are identical.');
+      return;
+    }
     
-    if (isSettingNewPin) {
-      // Setting new PIN
-      if (pinData.newPin !== pinData.confirmPin) {
-        alert('PINs do not match');
-        return;
-      }
-      if (pinData.newPin.length !== 4) {
-        alert('PIN must be 4 digits');
-        return;
-      }
-      
-      setIsLoading(true);
-      try {
-        await axios.post(`${API_BASE_URL}/api/pin/set`, { 
-          newPin: pinData.newPin 
-        }, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        alert('PIN set successfully');
-        setPinData({ currentPin: '', newPin: '', confirmPin: '' });
-        // Update the user's pin status
-        if (user) {
-          setUser({ ...user, hasPin: true });
+    if (pinData.pin.length !== 4) {
+      alert('PIN must be exactly 4 digits long.');
+      return;
+    }
+    
+    // Check if PIN contains only numbers
+    if (!/^\d{4}$/.test(pinData.pin)) {
+      alert('PIN must contain only numbers (0-9).');
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    try {
+      if (user?.isPinSet) {
+        // Update existing PIN
+        if (!pinData.currentPin || pinData.currentPin.length !== 4) {
+          alert('Please enter your current 4-digit PIN.');
+          setIsLoading(false);
+          return;
         }
-      } catch (error) {
-        console.error('PIN set failed:', error);
-        alert('Failed to set PIN');
-      } finally {
-        setIsLoading(false);
-      }
-    } else {
-      // Updating existing PIN
-      if (pinData.newPin !== pinData.confirmPin) {
-        alert('New PINs do not match');
-        return;
-      }
-      if (pinData.newPin.length !== 4 || pinData.currentPin.length !== 4) {
-        alert('PIN must be 4 digits');
-        return;
-      }
-      if (!pinData.currentPin) {
-        alert('Please enter your current PIN');
-        return;
-      }
-      
-      setIsLoading(true);
-      try {
+        
+        if (!/^\d{4}$/.test(pinData.currentPin)) {
+          alert('Current PIN must be 4 digits.');
+          setIsLoading(false);
+          return;
+        }
+        
         await axios.post(`${API_BASE_URL}/api/pin/update`, { 
           currentPin: pinData.currentPin,
-          newPin: pinData.newPin 
+           newPin: pinData. newPin 
         }, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        alert('PIN updated successfully');
-        setPinData({ currentPin: '', newPin: '', confirmPin: '' });
-      } catch (error) {
-        console.error('PIN update failed:', error);
-        // If update fails, it might mean they don't have a PIN yet
-        // Import AxiosError at the top: import type { AxiosError } from 'axios';
-        if (
-          typeof error === 'object' &&
-          error !== null &&
-          'response' in error &&
-          typeof (error as import('axios').AxiosError).response === 'object' &&
-          (error as import('axios').AxiosError).response !== null &&
-          (error as import('axios').AxiosError).response !== undefined &&
-          ((error as import('axios').AxiosError).response !== undefined && 'status' in (error as import('axios').AxiosError).response!)
-        ) {
-          const status = (error as import('axios').AxiosError).response?.status;
-          if (status === 400 || status === 404) {
-            alert('It seems you don\'t have a PIN set yet. Please try setting a new PIN instead.');
-            setUser(prev => prev ? { ...prev, hasPin: false } : null);
-          } else {
-            alert('Failed to update PIN. Please check your current PIN.');
-          }
-        } else {
-          alert('Failed to update PIN. Please check your current PIN.');
-        }
-      } finally {
-        setIsLoading(false);
+        
+        alert('PIN updated successfully! Your new PIN is now active.');
+      } else {
+        // Set new PIN
+        await axios.post(`${API_BASE_URL}/api/pin/set`, { 
+          pin: pinData.pin 
+        }, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        alert('PIN set successfully! Your account is now more secure.');
+        setUser(prev => prev ? { ...prev, isPinSet: true } : null);
       }
+      
+      // Clear form data
+      setPinData({ currentPin: '', pin: '',  newPin: '' });
+      
+    } catch (error: unknown) {
+      console.error('PIN operation failed:', error);
+
+      // More specific error messages
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'response' in error &&
+        typeof (error as { response?: { status?: number } }).response === 'object'
+      ) {
+        const response = (error as { response?: { status?: number } }).response;
+        if (response?.status === 401) {
+          alert('Current PIN is incorrect. Please try again.');
+        } else if (response?.status === 400) {
+          alert('Invalid PIN format. Please ensure your PIN is 4 digits.');
+        } else {
+          alert(`Failed to ${user?.isPinSet ? 'update' : 'set'} PIN. Please try again.`);
+        }
+      } else {
+        alert(`Failed to ${user?.isPinSet ? 'update' : 'set'} PIN. Please try again.`);
+      }
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  // Profile Picture Upload Handler
+    const handleProfilePicChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please select a valid image file (JPEG, PNG, etc.)');
+      return;
+    }
+
+    // Validate file size (5MB limit)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image size should be less than 5MB');
+      return;
+    }
+
+    // Create preview URL
+    const previewUrl = URL.createObjectURL(file);
+    setImagePreview(previewUrl);
+    setSelectedImage(file);
+    setShowImageActions(true);
+  };
+
+  const handleProfilePicUpload = async () => {
+    if (!selectedImage || !token) return;
+
+    setUploadingImage(true);
+    
+    try {
+      const formData = new FormData();
+      formData.append('profile', selectedImage);
+      
+      const response = await axios.post(`${API_BASE_URL}/api/users/upload-profile`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          Authorization: `Bearer ${token}`
+        }
+      });
+      
+      if (response.data && response.data.profilePicture) {
+        const newProfilePic = `${API_BASE_URL}${response.data.profilePicture}`;
+        
+        // Update both profile and user states
+        setProfile(prev => ({
+          ...prev,
+          profilePicture: newProfilePic
+        }));
+        
+        setUser(prev => prev ? { 
+          ...prev, 
+          profilePicture: newProfilePic 
+        } : null);
+        
+        // Clear the selected image and preview
+        setSelectedImage(null);
+        setImagePreview(null);
+        setShowImageActions(false);
+        
+        alert('Profile picture updated successfully!');
+      } else {
+        throw new Error('Invalid response format');
+      }
+    } catch (error) {
+      console.error('Profile picture upload failed:', error);
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 413) {
+          alert('Image file is too large. Please choose a smaller image.');
+        } else if (error.response?.status === 400) {
+          alert('Invalid image format. Please choose a valid image file.');
+        } else {
+          alert('Failed to upload profile picture. Please try again.');
+        }
+      } else {
+        alert('Failed to upload profile picture. Please try again.');
+      }
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const cancelProfilePicUpload = () => {
+    setSelectedImage(null);
+    if (imagePreview) {
+      URL.revokeObjectURL(imagePreview);
+      setImagePreview(null);
+    }
+    setShowImageActions(false);
   };
 
   // Notification Preferences Update Handler
@@ -257,24 +370,13 @@ try {
     }
   };
 
-  // Profile Picture Upload Handler
-  const handleProfilePicChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setProfile(prev => ({
-        ...prev,
-        profilePic: URL.createObjectURL(file)
-      }));
-    }
-  };
-
-  return (
+    return (
     <div className="min-h-screen bg-gray-50 py-6 sm:py-12 px-4 sm:px-6">
       <div className="max-w-4xl mx-auto">
         <h1 className="text-2xl sm:text-3xl font-bold text-indigo-900 mb-6 sm:mb-8">Account Settings</h1>
         
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-          {/* Tab Navigation - Responsive */}
+          {/* Tab Navigation */}
           <div className="border-b border-gray-200">
             <nav className="flex overflow-x-auto">
               {TABS.map((tab, index) => (
@@ -299,28 +401,72 @@ try {
             <div className="p-4 sm:p-10">
               <form onSubmit={handleProfileUpdate} className="space-y-6 sm:space-y-8">
                 <div className="flex flex-col sm:flex-row items-center sm:space-x-8 space-y-6 sm:space-y-0 mb-6 sm:mb-10">
-                  <div className="relative group">
-                    <img
-                      className="h-24 w-24 sm:h-32 sm:w-32 rounded-full object-cover shadow-lg border-4 border-indigo-100"
-                      src={profile.profilePic || '/default-avatar.png'}
-                      alt="Profile"
-                    />
-                    <label className="absolute bottom-0 right-0 bg-indigo-600 text-white p-2 sm:p-3 rounded-full cursor-pointer shadow-md hover:bg-indigo-700 transition-colors">
-                      <Camera className="h-4 w-4 sm:h-5 sm:w-5" />
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleProfilePicChange}
+                  <div className="relative group flex flex-col items-center">
+                    <div className="relative">
+                      <img
+                        className="h-24 w-24 sm:h-32 sm:w-32 rounded-full object-cover shadow-lg border-4 border-indigo-100"
+                        src={
+                          imagePreview || 
+                          profile.profilePicture || 
+                          '/default-avatar.png'
+                        }
+                        alt="Profile"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = '/default-avatar.png';
+                        }}
                       />
-                    </label>
+                      <label className="absolute bottom-0 right-0 bg-indigo-600 text-white p-2 sm:p-3 rounded-full cursor-pointer shadow-md hover:bg-indigo-700 transition-colors">
+                        <Camera className="h-4 w-4 sm:h-5 sm:w-5" />
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleProfilePicChange}
+                          disabled={uploadingImage}
+                        />
+                      </label>
+                    </div>
+                    
+                    {/* Profile picture upload controls */}
+                    {showImageActions && (
+                      <div className="flex gap-2 mt-4">
+                        <button
+                          type="button"
+                          onClick={handleProfilePicUpload}
+                          disabled={uploadingImage}
+                          className="flex items-center justify-center px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm"
+                        >
+                          {uploadingImage ? (
+                            <span className="loading loading-spinner loading-xs mr-1"></span>
+                          ) : (
+                            <Check className="w-4 h-4 mr-1" />
+                          )}
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelProfilePicUpload}
+                          disabled={uploadingImage}
+                          className="flex items-center justify-center px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 text-sm"
+                        >
+                          <X className="w-4 h-4 mr-1" />
+                          Cancel
+                        </button>
+                      </div>
+                    )}
                   </div>
+                  
                   <div className="text-center sm:text-left">
                     <h2 className="text-xl sm:text-3xl font-bold text-gray-900">{profile.name}</h2>
                     <p className="text-sm sm:text-xl text-gray-600 mt-1">{profile.email}</p>
                     {profile.createdAt && (
                       <p className="text-xs sm:text-sm text-gray-500 mt-2">
                         Member since {new Date(profile.createdAt).toLocaleDateString()}
+                      </p>
+                    )}
+                    {user?.wallet && (
+                      <p className="text-xs sm:text-sm text-gray-500 mt-2">
+                        Wallet Balance: {user.wallet.currency} {user.wallet.balance.toLocaleString()}
                       </p>
                     )}
                   </div>
@@ -460,90 +606,152 @@ try {
 
               {/* PIN Management Section */}
               <div className="pt-8 sm:pt-10 border-t border-gray-200">
-                <div className="flex items-center justify-between mb-4 sm:mb-6">
-                  <h3 className="text-lg sm:text-xl font-semibold text-gray-900 flex items-center">
-                    <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6 mr-2 sm:mr-3 text-indigo-500" />
-                    Security PIN
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={() => setUser(prev => prev ? { ...prev, hasPin: !prev.hasPin } : null)}
-                    className="text-sm text-indigo-600 hover:text-indigo-800 underline"
-                  >
-                    {user?.hasPin ? 'Set New PIN Instead' : 'Update Existing PIN Instead'}
-                  </button>
-                </div>
+                <h3 className="text-lg sm:text-xl font-semibold text-gray-900 flex items-center mb-4 sm:mb-6">
+                  <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6 mr-2 sm:mr-3 text-indigo-500" />
+                  {user?.isPinSet ? 'Update Security PIN' : 'Set Up Security PIN'}
+                </h3>
                 
                 <div className="mb-4 p-3 bg-blue-50 rounded-lg">
                   <p className="text-sm text-blue-800">
-                    {user?.hasPin 
-                      ? 'You can update your existing PIN by entering your current PIN and setting a new one.'
-                      : 'You can set a new 4-digit security PIN for your account.'
+                    {user?.isPinSet 
+                      ? 'You have a security PIN set. Enter your current PIN and create a new 4-digit PIN to update it.'
+                      : 'Enhance your account security by setting up a 4-digit PIN. This PIN will be required for sensitive operations.'
                     }
                   </p>
                 </div>
 
                 <form className="space-y-6 sm:space-y-8" onSubmit={handlePinUpdate}>
-                  {user?.hasPin && (
-                    <div>
-                      <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
-                        Current PIN
-                      </label>
-                      <input
-                        type="password"
-                        value={pinData.currentPin}
-                        onChange={(e) => setPinData({ ...pinData, currentPin: e.target.value })}
-                        className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                        placeholder="Enter current 4-digit PIN"
-                        maxLength={4}
-                        disabled={isLoading}
-                      />
-                    </div>
+                  {user?.isPinSet ? (
+                    // UPDATE PIN FORM (when user has existing PIN)
+                    <>
+                      <div>
+                        <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
+                          Current PIN *
+                        </label>
+                        <input
+                          type="password"
+                          value={pinData.currentPin}
+                          onChange={(e) => {
+                            // Only allow numeric input and limit to 4 digits
+                            const value = e.target.value.replace(/\D/g, '').slice(0, 4);
+                            setPinData({ ...pinData, currentPin: value });
+                          }}
+                          className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                          placeholder="Enter your current 4-digit PIN"
+                          maxLength={4}
+                          disabled={isLoading}
+                          required
+                        />
+                      </div>
+                      
+                      <div className="grid grid-cols-1 gap-y-6 gap-x-6 sm:grid-cols-2">
+                        <div>
+                          <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
+                            New PIN *
+                          </label>
+                          <input
+                            type="password"
+                            value={pinData.pin}
+                            onChange={(e) => {
+                              // Only allow numeric input and limit to 4 digits
+                              const value = e.target.value.replace(/\D/g, '').slice(0, 4);
+                              setPinData({ ...pinData, pin: value });
+                            }}
+                            className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            placeholder="Enter new 4-digit PIN"
+                            maxLength={4}
+                            disabled={isLoading}
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
+                            Confirm New PIN *
+                          </label>
+                          <input
+                            type="password"
+                            value={pinData. newPin}
+                            onChange={(e) => {
+                              // Only allow numeric input and limit to 4 digits
+                              const value = e.target.value.replace(/\D/g, '').slice(0, 4);
+                              setPinData({ ...pinData,  newPin: value });
+                            }}
+                            className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            placeholder="Confirm new 4-digit PIN"
+                            maxLength={4}
+                            disabled={isLoading}
+                            required
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="flex justify-end">
+                        <button
+                          type="submit"
+                          disabled={isLoading || pinData.currentPin.length !== 4 || pinData.pin.length !== 4 || pinData. newPin.length !== 4}
+                          className="px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isLoading ? 'Updating PIN...' : 'Update PIN'}
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    // SET NEW PIN FORM (when user doesn't have PIN)
+                    <>
+                      <div className="grid grid-cols-1 gap-y-6 gap-x-6 sm:grid-cols-2">
+                        <div>
+                          <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
+                            Create PIN *
+                          </label>
+                          <input
+                            type="password"
+                            value={pinData.pin}
+                            onChange={(e) => {
+                              // Only allow numeric input and limit to 4 digits
+                              const value = e.target.value.replace(/\D/g, '').slice(0, 4);
+                              setPinData({ ...pinData, pin: value });
+                            }}
+                            className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            placeholder="Create 4-digit PIN"
+                            maxLength={4}
+                            disabled={isLoading}
+                            required
+                          />
+                          <p className="text-xs sm:text-sm text-gray-500 mt-1">Choose a secure 4-digit PIN</p>
+                        </div>
+                        <div>
+                          <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
+                            Confirm PIN *
+                          </label>
+                          <input
+                            type="password"
+                            value={pinData. newPin}
+                            onChange={(e) => {
+                              // Only allow numeric input and limit to 4 digits
+                              const value = e.target.value.replace(/\D/g, '').slice(0, 4);
+                              setPinData({ ...pinData,  newPin: value });
+                            }}
+                            className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            placeholder="Confirm 4-digit PIN"
+                            maxLength={4}
+                            disabled={isLoading}
+                            required
+                          />
+                          <p className="text-xs sm:text-sm text-gray-500 mt-1">Re-enter your PIN to confirm</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex justify-end">
+                        <button
+                          type="submit"
+                          disabled={isLoading || pinData.pin.length !== 4 || pinData. newPin.length !== 4}
+                          className="px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isLoading ? 'Setting PIN...' : 'Set PIN'}
+                        </button>
+                      </div>
+                    </>
                   )}
-                  <div className="grid grid-cols-1 gap-y-6 gap-x-6 sm:grid-cols-2">
-                    <div>
-                      <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
-                        {user?.hasPin ? 'New PIN' : 'PIN'}
-                      </label>
-                      <input
-                        type="password"
-                        value={pinData.newPin}
-                        onChange={(e) => setPinData({ ...pinData, newPin: e.target.value })}
-                        className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                        placeholder={user?.hasPin ? 'Enter new 4-digit PIN' : 'Create 4-digit PIN'}
-                        maxLength={4}
-                        disabled={isLoading}
-                      />
-                      <p className="text-xs sm:text-sm text-gray-500 mt-1">Enter a 4-digit security PIN</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
-                        {user?.hasPin ? 'Confirm New PIN' : 'Confirm PIN'}
-                      </label>
-                      <input
-                        type="password"
-                        value={pinData.confirmPin}
-                        onChange={(e) => setPinData({ ...pinData, confirmPin: e.target.value })}
-                        className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                        placeholder={user?.hasPin ? 'Confirm new PIN' : 'Confirm PIN'}
-                        maxLength={4}
-                        disabled={isLoading}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex justify-end">
-                    <button
-                      type="submit"
-                      disabled={isLoading}
-                      className="px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
-                    >
-                      {isLoading 
-                        ? 'Processing...' 
-                        : user?.hasPin 
-                          ? 'Update PIN' 
-                          : 'Set PIN'}
-                    </button>
-                  </div>
                 </form>
               </div>
             </div>

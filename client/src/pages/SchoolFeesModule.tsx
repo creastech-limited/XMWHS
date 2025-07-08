@@ -372,54 +372,56 @@ const SchoolFeesModule: React.FC = () => {
     setEditMode(true);
   };
 
-  const handleDelete = async () => {
-    if (!selectedBill) return;
+ const handleDelete = async () => {
+  if (!selectedBill) return;
 
-    try {
-      const token = getAuthToken();
-      if (!token) {
-        setSnackbar({
-          open: true,
-          message: 'Authentication required',
-          severity: 'error',
-        });
-        return;
-      }
-
-      const response = await fetch(
-        `${API_BASE_URL}/api/fees/${selectedBill._id}`,
-        {
-          method: 'DELETE',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      if (response.ok) {
-        setBills(bills.filter((bill) => bill._id !== selectedBill._id));
-        setSnackbar({
-          open: true,
-          message: 'Fee bill deleted successfully',
-          severity: 'success',
-        });
-      } else {
-        const result = await response.json();
-        throw new Error(result.message || 'Failed to delete fee bill');
-      }
-    } catch (error) {
-      console.error('Error deleting fee bill:', error);
+  try {
+    const token = getAuthToken();
+    if (!token) {
       setSnackbar({
         open: true,
-        message:
-          error instanceof Error ? error.message : 'Error deleting fee bill',
+        message: 'Authentication required',
         severity: 'error',
       });
+      return;
     }
+
+    const response = await fetch(
+      `${API_BASE_URL}/api/fee/delete/${selectedBill._id}`,
+      {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const result = await response.json();
+      throw new Error(result.message || 'Failed to delete fee bill');
+    }
+
+    // Remove the deleted bill from the local state
+    setBills(bills.filter((bill) => bill._id !== selectedBill._id));
+    setSnackbar({
+      open: true,
+      message: 'Fee bill deleted successfully',
+      severity: 'success',
+    });
+  } catch (error) {
+    console.error('Error deleting fee bill:', error);
+    setSnackbar({
+      open: true,
+      message:
+        error instanceof Error ? error.message : 'Error deleting fee bill',
+      severity: 'error',
+    });
+  } finally {
     setDeleteDialogOpen(false);
     setSelectedBill(null);
-  };
+  }
+};
 
   const cancelEdit = () => {
     setEditMode(false);
@@ -756,35 +758,34 @@ const SchoolFeesModule: React.FC = () => {
               </div>
             </div>
           </div>
-
-          {/* Delete Confirmation Dialog */}
-          {deleteDialogOpen && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
-                <h3 className="text-xl font-bold text-gray-800 mb-4">
-                  Delete Fee Bill
-                </h3>
-                <p className="text-gray-700 mb-6">
-                  Are you sure you want to delete this fee bill? This action
-                  cannot be undone.
-                </p>
-                <div className="flex justify-end space-x-3">
-                  <button
-                    onClick={() => setDeleteDialogOpen(false)}
-                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleDelete}
-                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+{/* Delete Confirmation Dialog */}
+{deleteDialogOpen && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
+      <h3 className="text-xl font-bold text-gray-800 mb-4">
+        Delete Fee Bill
+      </h3>
+      <p className="text-gray-700 mb-6">
+        Are you sure you want to delete this fee bill? This action
+        cannot be undone.
+      </p>
+      <div className="flex justify-end space-x-3">
+        <button
+          onClick={() => setDeleteDialogOpen(false)}
+          className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleDelete}
+          className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+        >
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
           {/* Snackbar/Toast Notification */}
           {snackbar.open && (

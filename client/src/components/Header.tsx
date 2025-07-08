@@ -1,10 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   BellIcon,
-  UserIcon,
   Cog6ToothIcon,
   ArrowLeftOnRectangleIcon as LogoutIcon,
-  MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -18,6 +16,7 @@ interface User {
   email: string;
   role: string;
   avatar?: string;
+  profilePicture?: string;
   [key: string]: unknown;
 }
 
@@ -92,8 +91,8 @@ export const Header: React.FC<HeaderProps> = ({ profilePath }) =>  {
     if (!token) return;
 
     try {
-      const response = await fetch(`${API_URL}/api/notification/${notificationId}/read`, {
-        method: 'PATCH',
+      const response = await fetch(`${API_URL}/api/notification/read/${notificationId}`, {
+        method: 'PUT',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -124,8 +123,8 @@ export const Header: React.FC<HeaderProps> = ({ profilePath }) =>  {
       // Update all unread notifications
       await Promise.all(
         unreadNotifications.map(notif => 
-          fetch(`${API_URL}/api/notification/${notif._id}/read`, {
-            method: 'PATCH',
+          fetch(`${API_URL}/api/notification/read/${notif._id}`, {
+            method: 'POST',
             headers: {
               Authorization: `Bearer ${token}`,
               'Content-Type': 'application/json',
@@ -140,6 +139,20 @@ export const Header: React.FC<HeaderProps> = ({ profilePath }) =>  {
     } catch (error) {
       console.error('Error marking all notifications as read:', error);
     }
+  };
+
+  // Handle notification click
+  const handleNotificationClick = async (notification: Notification) => {
+    // Mark as read if not already read
+    if (!notification.read) {
+      await markAsRead(notification._id);
+    }
+    
+    // Navigate to transactions page
+    navigate('/transactions');
+    
+    // Close notifications dropdown
+    setNotifOpen(false);
   };
 
   useEffect(() => {
@@ -193,6 +206,7 @@ export const Header: React.FC<HeaderProps> = ({ profilePath }) =>  {
             email: payload.email,
             role: payload.role,
             avatar: payload.avatar,
+            profilePicture: payload.profilePicture,
           };
 
           setUser(formatted);
@@ -258,10 +272,16 @@ export const Header: React.FC<HeaderProps> = ({ profilePath }) =>  {
 
   const getDisplayRole = () => user?.role ? `${user.role.charAt(0).toUpperCase()}${user.role.slice(1)}` : 'User';
 
-  function handleProfileClick(event: React.MouseEvent<HTMLButtonElement, MouseEvent>): void {
-  event.preventDefault();
-  navigate(profilePath); 
-}
+  const getUserAvatar = () => {
+    if (user?.profilePicture) {
+      // If profilePicture starts with '/uploads/', prepend the API URL
+      if (user.profilePicture.startsWith('/uploads/')) {
+        return `${API_URL}${user.profilePicture}`;
+      }
+      return user.profilePicture;
+    }
+    return user?.avatar || '/default-avatar.png';
+  };
 
   // Get unread notifications count
   const unreadCount = notifications.filter(n => !n.read).length;
@@ -288,26 +308,15 @@ export const Header: React.FC<HeaderProps> = ({ profilePath }) =>  {
         {/* Logo/Brand */}
         <div className="flex-shrink-0 flex items-center ml-20 sm:ml-70">
           <img 
-        src={logo} 
-        alt="Logo" 
-        className="h-8 w-auto cursor-pointer"
-        onClick={() => navigate('')}
+            src={logo} 
+            alt="Logo" 
+            className="h-8 w-auto cursor-pointer"
+            onClick={() => navigate('')}
           />
         </div>
         
-        {/* Search bar - with proper sizing */}
-        <div className="flex-1 max-w-xl mx-4 hidden sm:block">
-          <div className="relative group">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <MagnifyingGlassIcon className="h-4 w-4 text-gray-400 group-focus-within:text-blue-500" />
-            </div>
-            <input
-              type="text"
-              placeholder="Search..."
-              className="text-gray-500 block w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg text-sm leading-5 bg-gray-50 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white transition-colors duration-200"
-            />
-          </div>
-        </div>
+        {/* Spacer to push content to the right */}
+        <div className="flex-1"></div>
 
         {/* Right-aligned action buttons */}
         <div className="flex items-center space-x-1 sm:space-x-3">
@@ -356,7 +365,7 @@ export const Header: React.FC<HeaderProps> = ({ profilePath }) =>  {
                         className={`px-4 py-3 hover:bg-gray-50 border-l-4 ${getNotificationTypeColor(notification.type)} ${
                           !notification.read ? 'bg-blue-50' : 'border-transparent hover:border-blue-500'
                         } transition-all duration-200 cursor-pointer`}
-                        onClick={() => !notification.read && markAsRead(notification._id)}
+                        onClick={() => handleNotificationClick(notification)}
                       >
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
@@ -426,7 +435,7 @@ export const Header: React.FC<HeaderProps> = ({ profilePath }) =>  {
                   <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse" />
                 ) : (
                   <img
-                    src={user?.avatar || '/default-avatar.png'}
+                    src={getUserAvatar()}
                     alt="User profile"
                     className="h-8 w-8 rounded-full object-cover border-2 border-white shadow-sm"
                     onError={(e) => {
@@ -463,7 +472,7 @@ export const Header: React.FC<HeaderProps> = ({ profilePath }) =>  {
                 <div className="p-4 border-b border-gray-100">
                   <div className="flex items-center space-x-3">
                     <img
-                      src={user?.avatar || '/default-avatar.png'}
+                      src={getUserAvatar()}
                       alt="User profile"
                       className="h-10 w-10 rounded-full object-cover"
                       onError={(e) => {
@@ -484,14 +493,10 @@ export const Header: React.FC<HeaderProps> = ({ profilePath }) =>  {
                 
                 <div className="py-1">
                   <button
-                    onClick={handleProfileClick}
-                    className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                  >
-                    <UserIcon className="h-4 w-4 mr-3 text-gray-500" />
-                    Your Profile
-                  </button>
-                  <button 
-                  onClick={handleProfileClick}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      navigate(profilePath);
+                    }}
                     className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                   >
                     <Cog6ToothIcon className="h-4 w-4 mr-3 text-gray-500" />

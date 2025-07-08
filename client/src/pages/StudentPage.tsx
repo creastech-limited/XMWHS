@@ -335,7 +335,61 @@ const StudentPage: React.FC = () => {
       )
     ),
   ].sort();
+    const handleActivateDeactivate = async (student: Student) => {
+  if (!authToken) {
+    setSnackbar({
+      open: true,
+      message: 'Authentication token missing',
+      severity: 'error',
+    });
+    return;
+  }
 
+  const endpoint = 
+    student.status.toLowerCase() === 'active'
+      ? `${API_BASE_URL}/api/users/deactive/${student._id}`
+      : `${API_BASE_URL}/api/users/active/${student._id}`;
+
+  try {
+    const response = await fetch(endpoint, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to update student status');
+    }
+
+    const data = await response.json();
+    
+    // Update the student status in the local state
+    setStudents(prevStudents =>
+      prevStudents.map(s =>
+        s._id === student._id
+          ? { ...s, status: data.status || (student.status.toLowerCase() === 'active' ? 'inactive' : 'active') }
+          : s
+      )
+    );
+
+    setSnackbar({
+      open: true,
+      message: `Student ${student.status.toLowerCase() === 'active' ? 'deactivated' : 'activated'} successfully`,
+      severity: 'success',
+    });
+  } catch (error) {
+    console.error('Error updating student status:', error);
+    setSnackbar({
+      open: true,
+      message: error instanceof Error ? error.message : 'Failed to update student status',
+      severity: 'error',
+    });
+  } finally {
+    handleMenuClose();
+  }
+};
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
       <Header profilePath="/settings"/>
@@ -798,26 +852,26 @@ const StudentPage: React.FC = () => {
         Reset Password
       </button>
       <div className="border-t border-gray-100 my-1"></div>
-      <button
-        className={`flex items-center gap-3 px-4 py-2 text-sm hover:bg-gray-50 w-full text-left ${
-          menuStudent.status.toLowerCase() === 'active'
-            ? 'text-red-600'
-            : 'text-green-600'
-        }`}
-        onClick={handleMenuClose}
-      >
-        {menuStudent.status.toLowerCase() === 'active' ? (
-          <>
-            <XCircleIcon className="h-4 w-4" />
-            Deactivate Student
-          </>
-        ) : (
-          <>
-            <CheckCircleIcon className="h-4 w-4" />
-            Activate Student
-          </>
-        )}
-      </button>
+    <button
+  className={`flex items-center gap-3 px-4 py-2 text-sm hover:bg-gray-50 w-full text-left ${
+    menuStudent.status.toLowerCase() === 'active'
+      ? 'text-red-600'
+      : 'text-green-600'
+  }`}
+  onClick={() => handleActivateDeactivate(menuStudent)}
+>
+  {menuStudent.status.toLowerCase() === 'active' ? (
+    <>
+      <XCircleIcon className="h-4 w-4" />
+      Deactivate Student
+    </>
+  ) : (
+    <>
+      <CheckCircleIcon className="h-4 w-4" />
+      Activate Student
+    </>
+  )}
+</button>
     </div>
   </>
 )}
