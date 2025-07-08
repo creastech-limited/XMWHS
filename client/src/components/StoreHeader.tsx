@@ -92,50 +92,50 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
     }
   };
 
-  const fetchUserDetails = async (): Promise<void> => {
-    if (!token) return;
+  // const fetchUserDetails = async (): Promise<void> => {
+  //   if (!token) return;
 
-    try {
-      const response = await axios.get(`${API_URL}/api/users/getuserone`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+  //   try {
+  //     const response = await axios.get(`${API_URL}/api/users/getuserone`, {
+  //       headers: { Authorization: `Bearer ${token}` }
+  //     });
 
-      if (response.data) {
-        // Handle different response structures
-        let profile: StoreUser | undefined;
-        const data = response.data;
+  //     if (response.data) {
+  //       // Handle different response structures
+  //       let profile: StoreUser | undefined;
+  //       const data = response.data;
         
-        if (data.user?.data) {
-          profile = data.user.data;
-        } else if (data.data) {
-          profile = data.data;
-        } else if (data.user) {
-          profile = data.user as StoreUser;
-        } else {
-          profile = data as StoreUser;
-        }
+  //       if (data.user?.data) {
+  //         profile = data.user.data;
+  //       } else if (data.data) {
+  //         profile = data.data;
+  //       } else if (data.user) {
+  //         profile = data.user as StoreUser;
+  //       } else {
+  //         profile = data as StoreUser;
+  //       }
 
-        if (profile) {
-          const userProfile = {
-            name: profile.name || 'Store ABC',
-            avatar: profile.avatar || null,
-            email: profile.email || 'store@example.com',
-            _id: profile._id,
-            notifications: storeUser.notifications, // Keep current notification count
-            status: 'Online' as const,
-            lastLogin: profile.lastLogin
-          };
+  //       if (profile) {
+  //         const userProfile = {
+  //           name: profile.name || 'Store ABC',
+  //           avatar: profile.avatar || null,
+  //           email: profile.email || 'store@example.com',
+  //           _id: profile._id,
+  //           notifications: storeUser.notifications, // Keep current notification count
+  //           status: 'Online' as const,
+  //           lastLogin: profile.lastLogin
+  //         };
 
-          setStoreUser(prev => ({ ...prev, ...userProfile }));
-        }
-      }
-    } catch (error) {
-      console.error('Failed to fetch user details:', error);
-      if (axios.isAxiosError(error) && error.response?.status === 401) {
-        if (logout) logout(); // Use AuthContext logout
-      }
-    }
-  };
+  //         setStoreUser(prev => ({ ...prev, ...userProfile }));
+  //       }
+  //     }
+  //   } catch (error) {
+  //     console.error('Failed to fetch user details:', error);
+  //     if (axios.isAxiosError(error) && error.response?.status === 401) {
+  //       if (logout) logout(); // Use AuthContext logout
+  //     }
+  //   }
+  // };
 
   const fetchNotifications = async (): Promise<void> => {
     if (!token) return;
@@ -483,16 +483,19 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
                     {/* Menu Items */}
                     <div className="py-2">
                       <button 
-                        onClick={fetchUserDetails}
+                        onClick={() => navigate('/store/settings')}
                         className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                       >
                         <User className="w-4 h-4 mr-3" />
                         Refresh Profile
                       </button>
-                      <button className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                        <button
+                        className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                        onClick={() => navigate('/store/settings')}
+                        >
                         <Settings className="w-4 h-4 mr-3" />
                         Settings
-                      </button>
+                        </button>
                     </div>
 
                     {/* Logout */}

@@ -13,7 +13,9 @@ import {
   Lock,
   Building,
   AlertCircle,
-  X
+  X,
+  EyeOff,
+  Eye,
 } from 'lucide-react';
 
 import bgImage from './bg.jpeg';
@@ -186,6 +188,7 @@ const StoreRegistrationForm: React.FC = () => {
     severity: 'success' 
   });
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [showPassword, setShowPassword] = useState<boolean>(false);
 
   const handleChange = (field: keyof FormData) => (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setFormData({ ...formData, [field]: event.target.value });
@@ -385,10 +388,11 @@ const StoreRegistrationForm: React.FC = () => {
         );
       case 2:
         return (
-          <div className="space-y-6">
-            <InputField
+            <div className="space-y-6">
+            <div className="relative">
+              <InputField
               label="Password"
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               name="password"
               value={formData.password}
               onChange={handleChange('password')}
@@ -396,10 +400,20 @@ const StoreRegistrationForm: React.FC = () => {
               icon={<Lock size={20} />}
               helperText="Password must be at least 8 characters"
               placeholder="Create a secure password"
-            />
+              />
+              <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-13 transform -translate-y-1/2 text-gray-500 hover:text-indigo-700 focus:outline-none transition-colors duration-200"
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              tabIndex={-1}
+              >
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
             <InputField
               label="Confirm Password"
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               name="confirmPassword"
               value={formData.confirmPassword}
               onChange={handleChange('confirmPassword')}
@@ -409,7 +423,7 @@ const StoreRegistrationForm: React.FC = () => {
               helperText={formData.password !== formData.confirmPassword && formData.confirmPassword !== '' ? "Passwords don't match" : 'Re-enter your password to confirm'}
               placeholder="Confirm your password"
             />
-          </div>
+            </div>
         );
       default:
         return <div>Unknown step</div>;
