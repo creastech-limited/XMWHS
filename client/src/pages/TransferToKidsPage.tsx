@@ -340,11 +340,12 @@ const TransferToKidsPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header profilePath="/psettings"/>
-      
-      <div className="flex min-h-screen">
-        {/* Sidebar */}
-        <Psidebar />
+         <div className="min-h-screen bg-gray-50 flex flex-col">
+           <Header profilePath="/psettings"/>
+           
+           <div className="z-[100] flex flex-grow gap-6">
+             <Psidebar />
+         </div>  
         
         {/* Main Content */}
         <div className="flex-1 p-6 lg:ml-64">

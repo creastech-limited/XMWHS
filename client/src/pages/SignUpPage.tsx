@@ -106,12 +106,28 @@ const SignUpPage: React.FC = () => {
     return isValid;
   };
 
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setErrorMessage('');
     setSuccessMessage('');
     
     if (!validateForm()) {
+      return;
+    }
+
+    // Check for weak password
+    // Example: at least 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char
+    const weakPassword =
+      formValues.password.length < 8 ||
+      !/[A-Z]/.test(formValues.password) ||
+      !/[a-z]/.test(formValues.password) ||
+      !/[0-9]/.test(formValues.password) ||
+      !/[!@#$%^&*()_+=-]/.test(formValues.password);
+
+    if (weakPassword) {
+      setErrorMessage('Password must be at least 8 characters and include uppercase, lowercase, a number, and a special character.');
+      setLoading(false);
       return;
     }
     

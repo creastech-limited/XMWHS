@@ -238,12 +238,13 @@ const PayToAgentPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex flex-col min-h-screen bg-gray-50">
-        <Header profilePath="/psettings"/>
-        <div className="flex flex-grow">
-          <div className="w-64 bg-white shadow-md">
-            <Psidebar />
-          </div>
+      <div className="min-h-screen bg-gray-50">
+         <div className="min-h-screen bg-gray-50 flex flex-col">
+           <Header profilePath="/psettings"/>
+           
+           <div className="z-[100] flex flex-grow gap-6">
+             <Psidebar />
+         </div>  
           <div className="flex-grow p-6 flex items-center justify-center">
             <div className="bg-white p-8 rounded-lg shadow-md text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-700 mx-auto mb-4"></div>
@@ -258,12 +259,13 @@ const PayToAgentPage: React.FC = () => {
 
   if (error) {
     return (
-      <div className="flex flex-col min-h-screen bg-gray-50">
-        <Header profilePath="/psettings"/>
-        <div className="flex flex-grow">
-          <div className="w-64 bg-white shadow-md">
-            <Psidebar />
-          </div>
+      <div className="min-h-screen bg-gray-50">
+         <div className="min-h-screen bg-gray-50 flex flex-col">
+           <Header profilePath="/psettings"/>
+           
+           <div className="z-[100] flex flex-grow gap-6">
+             <Psidebar />
+         </div>  
           <div className="flex-grow p-6 flex items-center justify-center">
             <div className="bg-white p-8 rounded-lg shadow-md text-center">
               <div className="text-red-500 mb-4">
@@ -288,24 +290,21 @@ const PayToAgentPage: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50">
-      {/* Header - Full width at the top */}
-      <Header profilePath="/psettings"/>
-     
-      {/* Main content area with sidebar and content */}
-      <div className="flex flex-grow">
-        {/* Sidebar - Fixed width */}
-        <div className="w-64 bg-white shadow-md">
-          <Psidebar />
-        </div>
+    <div className="min-h-screen bg-gray-50">
+         <div className="min-h-screen bg-gray-50 flex flex-col">
+           <Header profilePath="/psettings"/>
+           
+           <div className="z-[100] flex flex-grow gap-6">
+             <Psidebar />
+         </div>  
        
         {/* Main content - Flexible width */}
-        <div className="flex-grow p-6">
-          <div className="bg-white p-8 rounded-lg shadow-md">
-            <h1 className="text-2xl font-bold text-center mb-2">
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="max-w-4xl mx-auto">
+            <h1 className="text-indigo-600 text-2xl font-bold text-center mb-2">
               Pay to Agent
             </h1>
-            <p className="text-center mb-4">
+            <p className="text-gray-600 text-center mb-4">
               Use your unique QR Code to pay for goods and services at the agent.
             </p>
 
