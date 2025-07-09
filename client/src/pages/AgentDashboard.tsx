@@ -28,11 +28,11 @@ interface User {
   [key: string]: unknown; // Add index signature for compatibility
 }
 
-
 interface AgentData {
   monthlyTarget: number;
   performance: number;
-  targetCompletion: number;
+  monthlySalesTrack: number;
+  monthlySalesAmount: number;
   walletBalance: number;
 }
 
@@ -44,6 +44,7 @@ const AgentDashboard = () => {
   const [agentData, setAgentData] = useState<AgentData | null>(null);
   const [walletBalance, setWalletBalance] = useState<number>(0);
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
+  const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
   const [error, setError] = useState<string>('');
 
   // Fetch user details from API
@@ -148,7 +149,7 @@ const AgentDashboard = () => {
       }
 
       // Transform API response to match our interface
-      return transactions.slice(0, 5).map((txn: Transaction & {
+      return transactions.map((txn: Transaction & {
         _id?: string | number;
         merchant?: string;
         note?: string;
@@ -172,6 +173,64 @@ const AgentDashboard = () => {
       console.error('Error fetching transactions:', error);
       return [];
     }
+  };
+
+  // Calculate monthly sales track percentage and amount
+  const calculateMonthlySalesData = (transactions: Transaction[]): { percentage: number; amount: number } => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    
+    // Filter transactions for current month
+    const currentMonthTransactions = transactions.filter(txn => {
+      const txnDate = new Date(txn.date);
+      return txnDate.getMonth() === currentMonth && txnDate.getFullYear() === currentYear;
+    });
+    
+    // Calculate total sales (credit transactions) for current month
+    const totalSales = currentMonthTransactions
+      .filter(txn => txn.type === 'credit')
+      .reduce((sum, txn) => sum + txn.amount, 0);
+    
+    
+    const monthlyTarget = 100000;
+    
+    // Calculate percentage
+    const percentage = Math.min((totalSales / monthlyTarget) * 100, 100);
+    
+    return {
+      percentage: Math.round(percentage),
+      amount: totalSales
+    };
+  };
+
+  // Calculate performance based on transaction records
+  const calculatePerformance = (transactions: Transaction[]): number => {
+    if (transactions.length === 0) return 0;
+    
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
+    
+    // Filter transactions for last 30 days
+    const recentTransactions = transactions.filter(txn => {
+      const txnDate = new Date(txn.date);
+      return txnDate >= thirtyDaysAgo && txnDate <= now;
+    });
+    
+    // Calculate successful transactions (completed status or credit transactions)
+    const successfulTransactions = recentTransactions.filter(txn => 
+      txn.status === 'completed' || txn.status === 'success' || txn.type === 'credit'
+    );
+    
+    // Calculate performance percentage
+    const performance = recentTransactions.length > 0 
+      ? (successfulTransactions.length / recentTransactions.length) * 100 
+      : 0;
+    
+    // Factor in transaction volume (more transactions = better performance)
+    const volumeBonus = Math.min(recentTransactions.length / 10, 1) * 10; // Up to 10% bonus
+    
+    return Math.min(Math.round(performance + volumeBonus), 100);
   };
 
   // Handle authentication errors
@@ -232,17 +291,26 @@ const AgentDashboard = () => {
         // Fetch transactions
         console.log('Fetching user transactions...');
         const transactions = await fetchUserTransactions(authToken);
-        setRecentTransactions(transactions);
+        setAllTransactions(transactions);
+        setRecentTransactions(transactions.slice(0, 5));
 
-        // Set agent data with real wallet balance
+        // Calculate monthly sales track and performance
+        const monthlySalesData = calculateMonthlySalesData(transactions);
+        const performance = calculatePerformance(transactions);
+
+        // Set agent data with calculated values
         setAgentData({
-          monthlyTarget: 500000,
-          performance: 92,
-          targetCompletion: 65,
+          monthlyTarget: 100000,
+          performance: performance,
+          monthlySalesTrack: monthlySalesData.percentage,
+          monthlySalesAmount: monthlySalesData.amount,
           walletBalance: balance,
         });
 
         console.log('Auth initialization completed successfully');
+        console.log('Monthly Sales Track:', monthlySalesData.percentage + '%');
+        console.log('Monthly Sales Amount:', '₦' + monthlySalesData.amount.toLocaleString());
+        console.log('Performance:', performance + '%');
 
       } catch (error) {
         console.error('Auth initialization error:', error);
@@ -386,25 +454,25 @@ const AgentDashboard = () => {
               <p className="text-sm opacity-90 mt-2">Available balance</p>
             </div>
 
-            {/* Monthly Target */}
+            {/* Monthly Sales Track */}
             <div
               className="rounded-xl shadow-md p-6 text-white"
               style={{
                 background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.primary}CC 100%)`,
               }}
             >
-              <h3 className="text-lg">Monthly Target</h3>
+              <h3 className="text-lg">Monthly Sales Track</h3>
               <h2 className="text-2xl font-bold">
-                ₦{agentData?.monthlyTarget.toLocaleString()}
+                ₦{agentData?.monthlySalesAmount.toLocaleString()}
               </h2>
               <div className="mt-4 mb-2">
                 <p className="text-sm mb-1">
-                  Progress: {agentData?.targetCompletion}%
+                  Progress: {agentData?.monthlySalesTrack}% of ₦{agentData?.monthlyTarget.toLocaleString()}
                 </p>
                 <div className="w-full bg-white bg-opacity-30 rounded-full h-2.5">
                   <div
-                    className="bg-white h-2.5 rounded-full"
-                    style={{ width: `${agentData?.targetCompletion}%` }}
+                    className="bg-white h-2.5 rounded-full transition-all duration-300"
+                    style={{ width: `${agentData?.monthlySalesTrack}%` }}
                   ></div>
                 </div>
               </div>
@@ -420,11 +488,13 @@ const AgentDashboard = () => {
               <h3 className="text-lg">Performance</h3>
               <h2 className="text-2xl font-bold">{agentData?.performance}%</h2>
               <div className="mt-4 mb-2">
-                <p className="text-sm mb-1">Agent Ranking: Top 10%</p>
+                <p className="text-sm mb-1">
+                  Based on {allTransactions.length} transactions
+                </p>
                 <div className="w-full bg-white bg-opacity-30 rounded-full h-2.5">
                   <div
-                    className="bg-white h-2.5 rounded-full"
-                    style={{ width: `90%` }}
+                    className="bg-white h-2.5 rounded-full transition-all duration-300"
+                    style={{ width: `${agentData?.performance}%` }}
                   ></div>
                 </div>
               </div>

@@ -12,6 +12,8 @@ import {
   Filter,
   ChevronLeft,
   ChevronRight,
+  XCircle,
+  CheckCircle,
 } from 'lucide-react';
 import { Header } from '../components/Header';
 import { Sidebar } from '../components/Sidebar';
@@ -43,7 +45,7 @@ export const StorePage: React.FC = () => {
 
   // UI state
   const [dropdownOpen, setDropdownOpen] = useState<string | null>(null);
-  // Removed unused mobileMenuOpen state
+  const [menuStore, setMenuStore] = useState<Store | null>(null);
 
   // Store data state
   const [schoolId, setSchoolId] = useState('');
@@ -248,6 +250,93 @@ export const StorePage: React.FC = () => {
     // Implement export functionality as needed
   };
 
+  // Handle menu close
+  const handleMenuClose = () => {
+    setDropdownOpen(null);
+    setMenuStore(null);
+  };
+
+  // Handle Reset Password
+  const handleResetPassword = async (store: Store) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/resetpassword`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: store.email }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to reset password');
+      }
+
+      setSnackbar({
+        open: true,
+        message: `Password reset email sent to ${store.email}`,
+        severity: 'success',
+      });
+    } catch (error) {
+      console.error('Error resetting password:', error);
+      setSnackbar({
+        open: true,
+        message: error instanceof Error ? error.message : 'Failed to reset password',
+        severity: 'error',
+      });
+    } finally {
+      handleMenuClose();
+    }
+  };
+
+  // Handle Activate/Deactivate Store
+  const handleActivateDeactivate = async (store: Store) => {
+    const endpoint = 
+      store.status.toLowerCase() === 'active'
+        ? `${API_BASE_URL}/api/users/deactive/${store._id}`
+        : `${API_BASE_URL}/api/users/active/${store._id}`;
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update store status');
+      }
+
+      const data = await response.json();
+      
+      // Update the store status in the local state
+      setStores(prevStores =>
+        prevStores.map(s =>
+          s._id === store._id
+            ? { ...s, status: data.status || (store.status.toLowerCase() === 'active' ? 'inactive' : 'active') }
+            : s
+        )
+      );
+
+      setSnackbar({
+        open: true,
+        message: `Store ${store.status.toLowerCase() === 'active' ? 'deactivated' : 'activated'} successfully`,
+        severity: 'success',
+      });
+    } catch (error) {
+      console.error('Error updating store status:', error);
+      setSnackbar({
+        open: true,
+        message: error instanceof Error ? error.message : 'Failed to update store status',
+        severity: 'error',
+      });
+    } finally {
+      handleMenuClose();
+    }
+  };
+
   // Get unique store types for filtering
   const storeTypes = [
     ...new Set(stores.map((store) => store?.storeType).filter(Boolean)),
@@ -289,11 +378,13 @@ export const StorePage: React.FC = () => {
   };
 
   // Toggle dropdown menu for a store
-  const toggleDropdown = (id: string) => {
+  const toggleDropdown = (id: string, store: Store) => {
     if (dropdownOpen === id) {
       setDropdownOpen(null);
+      setMenuStore(null);
     } else {
       setDropdownOpen(id);
+      setMenuStore(store);
     }
   };
 
@@ -567,18 +658,18 @@ export const StorePage: React.FC = () => {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium relative">
                               <button
-                                onClick={() => toggleDropdown(store._id)}
+                                onClick={() => toggleDropdown(store._id, store)}
                                 className="text-gray-400 hover:text-gray-500"
                                 title="More actions"
                               >
                                 <MoreVertical className="h-5 w-5" />
                               </button>
-                              {dropdownOpen === store._id && (
+                              {dropdownOpen === store._id && menuStore && (
                                 <div
                                   className="absolute z-20 bg-white rounded-lg shadow-lg py-2 w-56 border border-gray-200"
                                   style={{
-                                    top: 0, // Replace with appropriate value or logic
-                                    left: -60, // Adjusted to move it to the left
+                                    top: 0,
+                                    left: -60,
                                   }}
                                 >
                                   <button
@@ -589,6 +680,34 @@ export const StorePage: React.FC = () => {
                                     }}
                                   >
                                     View Details
+                                  </button>
+                                  <button
+                                    className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
+                                    onClick={() => handleResetPassword(menuStore)}
+                                  >
+                                    <Mail className="h-4 w-4" />
+                                    Reset Password
+                                  </button>
+                                  <div className="border-t border-gray-100 my-1"></div>
+                                  <button
+                                    className={`flex items-center gap-3 px-4 py-2 text-sm hover:bg-gray-50 w-full text-left ${
+                                      menuStore.status.toLowerCase() === 'active'
+                                        ? 'text-red-600'
+                                        : 'text-green-600'
+                                    }`}
+                                    onClick={() => handleActivateDeactivate(menuStore)}
+                                  >
+                                    {menuStore.status.toLowerCase() === 'active' ? (
+                                      <>
+                                        <XCircle className="h-4 w-4" />
+                                        Deactivate Store
+                                      </>
+                                    ) : (
+                                      <>
+                                        <CheckCircle className="h-4 w-4" />
+                                        Activate Store
+                                      </>
+                                    )}
                                   </button>
                                 </div>
                               )}
