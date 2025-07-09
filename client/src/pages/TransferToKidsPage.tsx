@@ -249,15 +249,14 @@ const TransferToKidsPage: React.FC = () => {
     setLoading(true);
     
     try {
-      // Make the transfer with PIN included
+      
       const response = await axios.post(
-        `${API_BASE_URL}/api/transaction/transfer`,
-        {
-          receiverEmail: selectedKid.email,
-          amount: Number(amount),
-          description: note || "Transfer",
-          pin: pin
-        },
+  `${API_BASE_URL}/api/transaction/transfer`,
+  {
+    receiverEmail: selectedKid.email,
+    amount: Number(amount),
+    pin: pin
+  },
         {
           headers: {
             Authorization: `Bearer ${token}`
@@ -302,15 +301,23 @@ const TransferToKidsPage: React.FC = () => {
         throw new Error(response.data.message || 'Transfer failed');
       }
     } catch (error) {
-      console.error('Transfer error:', error);
-      if (axios.isAxiosError(error)) {
-        setSnackbarMessage(error.response?.data?.message || 'Transfer failed. Please try again.');
-      } else {
-        setSnackbarMessage('Transfer failed. Please try again.');
-      }
-      setSnackbarSeverity('error');
-      setShowSnackbar(true);
-    } finally {
+  console.error('Transfer error:', error);
+  if (axios.isAxiosError(error) && error.response?.data) {
+    const errorData = error.response.data;
+    setSnackbarMessage(errorData.message || 'Transfer failed. Please try again.');
+    
+    // Log the full error for debugging
+    console.error('Full error details:', {
+      status: errorData.status,
+      message: errorData.message,
+      error: errorData.error
+    });
+  } else {
+    setSnackbarMessage('Transfer failed. Please try again.');
+  }
+  setSnackbarSeverity('error');
+  setShowSnackbar(true);
+} finally {
       setLoading(false);
       setPinDialogOpen(false);
       

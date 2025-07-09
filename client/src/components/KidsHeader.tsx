@@ -149,18 +149,20 @@ const KidsHeader = ({ profile, wallet }: KidsHeaderProps) => {
     }
   };
 
-  // Handle notification click - Show modal instead of navigating
-  const handleNotificationClick = (notification: Notification) => {
+  // Handle notification click - Show modal without closing panel
+  const handleNotificationClick = async (notification: Notification) => {
+    // Mark as read if not already read
+    if (!notification.read) {
+      await markAsRead(notification._id);
+    }
+    
+    // Set the selected notification and open modal
     setSelectedNotification(notification);
     setShowNotificationModal(true);
-    setShowNotifications(false); // Close dropdown
   };
 
-  // Handle modal close - Mark as read when modal is closed
-  const handleModalClose = async () => {
-    if (selectedNotification && !selectedNotification.read) {
-      await markAsRead(selectedNotification._id);
-    }
+  // Handle modal close
+  const handleModalClose = () => {
     setShowNotificationModal(false);
     setSelectedNotification(null);
   };
@@ -281,8 +283,8 @@ const KidsHeader = ({ profile, wallet }: KidsHeaderProps) => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
         notificationRef.current &&
-        event.target &&
-        !notificationRef.current.contains(event.target as Node)
+        !notificationRef.current.contains(event.target as Node) &&
+        !(modalRef.current?.contains(event.target as Node))
       ) {
         setShowNotifications(false);
       }
@@ -294,16 +296,6 @@ const KidsHeader = ({ profile, wallet }: KidsHeaderProps) => {
 
   // Close modal when clicking outside or pressing Escape
   useEffect(() => {
-    const handleModalClickOutside = (event: MouseEvent) => {
-      if (
-        modalRef.current &&
-        event.target &&
-        !modalRef.current.contains(event.target as Node)
-      ) {
-        handleModalClose();
-      }
-    };
-
     const handleEscapeKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         handleModalClose();
@@ -311,14 +303,11 @@ const KidsHeader = ({ profile, wallet }: KidsHeaderProps) => {
     };
 
     if (showNotificationModal) {
-      document.addEventListener('mousedown', handleModalClickOutside);
       document.addEventListener('keydown', handleEscapeKey);
-      // Prevent body scroll when modal is open
       document.body.style.overflow = 'hidden';
     }
 
     return () => {
-      document.removeEventListener('mousedown', handleModalClickOutside);
       document.removeEventListener('keydown', handleEscapeKey);
       document.body.style.overflow = 'unset';
     };
@@ -504,6 +493,87 @@ const KidsHeader = ({ profile, wallet }: KidsHeaderProps) => {
                       </span>
                     )}
                   </button>
+
+                  {/* Notification Panel */}
+                  {showNotifications && (
+                    <div className="origin-top-right absolute right-0 mt-2 w-80 rounded-lg shadow-xl bg-white ring-1 ring-black ring-opacity-5 divide-y divide-gray-100 z-[100] overflow-hidden">
+                      {/* Header */}
+                      <div className="px-4 py-3 bg-gray-50 flex justify-between items-center">
+                        <p className="text-sm font-medium text-gray-900">Notifications</p>
+                        {unreadCount > 0 && (
+                          <span className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                            {unreadCount} new
+                          </span>
+                        )}
+                      </div>
+                      
+                      {/* Content */}
+                      <div className="py-1 max-h-96 overflow-y-auto">
+                        {notificationsLoading ? (
+                          <div className="px-4 py-6 text-center">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto"></div>
+                            <p className="text-sm text-gray-500 mt-2">Loading notifications...</p>
+                          </div>
+                        ) : notifications.length > 0 ? (
+                          notifications.map((notification) => (
+                            <div 
+                              key={notification._id} 
+                              className={`px-4 py-3 hover:bg-gray-50 border-l-4 ${getNotificationTypeColor(notification.type)} ${
+                                !notification.read ? 'bg-blue-50' : 'border-transparent hover:border-blue-500'
+                              } transition-all duration-200 cursor-pointer`}
+                              onClick={() => handleNotificationClick(notification)}
+                            >
+                              <div className="flex justify-between items-start">
+                                <div className="flex-1">
+                                  <div className="text-sm font-medium text-gray-900 mb-1">
+                                    {notification.title}
+                                  </div>
+                                  <div className="text-sm text-gray-700 line-clamp-2">
+                                    {notification.message}
+                                  </div>
+                                  <div className="text-xs text-gray-400 mt-1">
+                                    {formatDate(notification.createdAt)}
+                                  </div>
+                                </div>
+                                {!notification.read && (
+                                  <div className="ml-2 mt-1">
+                                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="px-4 py-6 text-sm text-gray-500 text-center">
+                            <div className="flex justify-center mb-3">
+                              <Bell className="h-8 w-8 text-gray-300" />
+                            </div>
+                            <p>No notifications yet</p>
+                            <p className="text-xs mt-1">We'll notify you when something happens</p>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Footer */}
+                      {notifications.length > 0 && (
+                        <div className="px-4 py-2 bg-gray-50 flex justify-between">
+                          <button 
+                            onClick={markAllAsRead}
+                            className="text-xs text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50"
+                            disabled={unreadCount === 0}
+                          >
+                            Mark all as read
+                          </button>
+                          <button 
+                            onClick={() => setShowNotifications(false)}
+                            className="text-xs text-gray-600 hover:text-gray-800 font-medium"
+                          >
+                            Close
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 
                 {/* Logout Button */}
@@ -519,90 +589,6 @@ const KidsHeader = ({ profile, wallet }: KidsHeaderProps) => {
             </div>
           </div>
         </div>
-
-        {/* Notification Panel */}
-        {showNotifications && (
-          <div className="origin-top-right absolute top-full right-4 mt-2 w-80 rounded-lg shadow-xl bg-white ring-1 ring-black ring-opacity-5 divide-y divide-gray-100 z-[100] overflow-hidden">
-            {/* Header */}
-            <div className="px-4 py-3 bg-gray-50 flex justify-between items-center">
-              <p className="text-sm font-medium text-gray-900">Notifications</p>
-              {unreadCount > 0 && (
-                <span className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                  {unreadCount} new
-                </span>
-              )}
-            </div>
-            
-            {/* Content */}
-            <div className="py-1 max-h-96 overflow-y-auto">
-              {notificationsLoading ? (
-                <div className="px-4 py-6 text-center">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto"></div>
-                  <p className="text-sm text-gray-500 mt-2">Loading notifications...</p>
-                </div>
-              ) : notifications.length > 0 ? (
-                notifications.map((notification) => (
-                  <div 
-                    key={notification._id} 
-                    className={`px-4 py-3 hover:bg-gray-50 border-l-4 ${getNotificationTypeColor(notification.type)} ${
-                      !notification.read ? 'bg-blue-50' : 'border-transparent hover:border-blue-500'
-                    } transition-all duration-200 cursor-pointer`}
-                    onClick={() => handleNotificationClick(notification)}
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="text-sm font-medium text-gray-900 mb-1">
-                          {notification.title}
-                        </div>
-                        <div className="text-sm text-gray-700 line-clamp-2">
-                          {notification.message}
-                        </div>
-                        <div className="text-xs text-gray-400 mt-1">
-                          {formatDate(notification.createdAt)}
-                        </div>
-                      </div>
-                      {!notification.read && (
-                        <div className="ml-2 mt-1">
-                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="px-4 py-6 text-sm text-gray-500 text-center">
-                  <div className="flex justify-center mb-3">
-                    <Bell className="h-8 w-8 text-gray-300" />
-                  </div>
-                  <p>No notifications yet</p>
-                  <p className="text-xs mt-1">We'll notify you when something happens</p>
-                </div>
-              )}
-            </div>
-            
-            {/* Footer */}
-            {notifications.length > 0 && (
-              <div className="px-4 py-2 bg-gray-50 flex justify-between">
-                <button 
-                  onClick={markAllAsRead}
-                  className="text-xs text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50"
-                  disabled={unreadCount === 0}
-                >
-                  Mark all as read
-                </button>
-                <button 
-                  onClick={() => {
-                    setShowNotifications(false);
-                    navigate('/ptransactionhistory');
-                  }}
-                  className="text-xs text-gray-600 hover:text-gray-800 font-medium"
-                >
-                  See all
-                </button>
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       {/* Notification Modal */}
@@ -610,74 +596,53 @@ const KidsHeader = ({ profile, wallet }: KidsHeaderProps) => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[200] p-4">
           <div 
             ref={modalRef}
-            className={`bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 transform transition-all duration-300 ${
+            className={`bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto transform transition-all duration-300 ${
               showNotificationModal ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
             }`}
           >
             {/* Modal Header */}
-            <div className={`px-6 py-4 rounded-t-xl ${getNotificationBgColor(selectedNotification.type)} border-b border-gray-200`}>
-              <div className="flex items-center justify-between">
+            <div className={`p-4 border-b ${getNotificationBgColor(selectedNotification.type)}`}>
+              <div className="flex justify-between items-center">
                 <div className="flex items-center gap-3">
                   {getNotificationIcon(selectedNotification.type)}
-                  <h3 className="text-lg font-semibold text-gray-900 capitalize">
-                    {selectedNotification.type} Notification
+                  <h3 className="text-lg font-medium text-gray-900">
+                    {selectedNotification.title}
                   </h3>
                 </div>
                 <button
                   onClick={handleModalClose}
-                  className="p-1 hover:bg-gray-200 rounded-full transition-colors"
-                  aria-label="Close notification"
+                  className="text-gray-400 hover:text-gray-500"
                 >
-                  <X className="w-5 h-5 text-gray-500" />
+                  <X className="h-6 w-6" />
                 </button>
               </div>
             </div>
-
+            
             {/* Modal Content */}
-            <div className="px-6 py-6">
-              <div className="space-y-4">
-                <div>
-                  <h4 className="text-xl font-bold text-gray-900 mb-2">
-                    {selectedNotification.title}
-                  </h4>
-                  <p className="text-gray-700 leading-relaxed">
-                    {selectedNotification.message}
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2 text-sm text-gray-500">
+            <div className="p-6">
+              <div className={`border-l-4 ${getNotificationTypeColor(selectedNotification.type)} pl-4 mb-4`}>
+                <p className="text-sm text-gray-700 whitespace-pre-line">
+                  {selectedNotification.message}
+                </p>
+              </div>
+              
+              <div className="flex justify-between items-center text-sm text-gray-500">
+                <div className="flex items-center gap-2">
                   <Clock className="w-4 h-4" />
                   <span>{formatFullDate(selectedNotification.createdAt)}</span>
                 </div>
-
-                {!selectedNotification.read && (
-                  <div className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 px-3 py-2 rounded-lg">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                    <span>This notification will be marked as read when you close it</span>
-                  </div>
-                )}
+                <span className="capitalize">{selectedNotification.type}</span>
               </div>
             </div>
-
+            
             {/* Modal Footer */}
-            <div className="px-6 py-4 bg-gray-50 rounded-b-xl border-t border-gray-200">
-              <div className="flex justify-between items-center">
-                <button
-                  onClick={() => {
-                    handleModalClose();
-                    navigate('/transactions');
-                  }}
-                  className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-                >
-                  View Transactions
-                </button>
-                <button
-                  onClick={handleModalClose}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
-                >
-                  Close
-                </button>
-              </div>
+            <div className="bg-gray-50 px-6 py-4 flex justify-end border-t border-gray-200">
+              <button
+                onClick={handleModalClose}
+                className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

@@ -46,6 +46,8 @@ export const Header: React.FC<HeaderProps> = ({ profilePath }) =>  {
   const navigate = useNavigate();
   const menuRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
+  const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
+const [notificationModalOpen, setNotificationModalOpen] = useState(false);
 
   const API_URL = import.meta.env.VITE_API_URL || 'https://nodes-staging-xp.up.railway.app';
   const token = authToken || localStorage.getItem('token');
@@ -142,18 +144,19 @@ export const Header: React.FC<HeaderProps> = ({ profilePath }) =>  {
   };
 
   // Handle notification click
-  const handleNotificationClick = async (notification: Notification) => {
-    // Mark as read if not already read
-    if (!notification.read) {
-      await markAsRead(notification._id);
-    }
-    
-    // Navigate to transactions page
-    navigate('/transactions');
-    
-    // Close notifications dropdown
-    setNotifOpen(false);
-  };
+ const handleNotificationClick = async (notification: Notification) => {
+  // Mark as read if not already read
+  if (!notification.read) {
+    await markAsRead(notification._id);
+  }
+  
+  // Set the selected notification and open modal
+  setSelectedNotification(notification);
+  setNotificationModalOpen(true);
+  
+  // Close notifications dropdown
+  setNotifOpen(false);
+};
 
   useEffect(() => {
     const loadUserData = async () => {
@@ -396,26 +399,23 @@ export const Header: React.FC<HeaderProps> = ({ profilePath }) =>  {
                   )}
                 </div>
                 
-                {notifications.length > 0 && (
-                  <div className="px-4 py-2 bg-gray-50 flex justify-between">
-                    <button 
-                      onClick={markAllAsRead}
-                      className="text-xs text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50"
-                      disabled={unreadCount === 0}
-                    >
-                      Mark all as read
-                    </button>
-                    <button 
-                      onClick={() => {
-                        setNotifOpen(false);
-                        navigate('/ptransactionhistory');
-                      }}
-                      className="text-xs text-gray-600 hover:text-gray-800 font-medium"
-                    >
-                      See all
-                    </button>
-                  </div>
-                )}
+              {notifications.length > 0 && (
+  <div className="px-4 py-2 bg-gray-50 flex justify-between">
+    <button 
+      onClick={markAllAsRead}
+      className="text-xs text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50"
+      disabled={unreadCount === 0}
+    >
+      Mark all as read
+    </button>
+    <button 
+      onClick={() => setNotifOpen(false)}
+      className="text-xs text-gray-600 hover:text-gray-800 font-medium"
+    >
+      Close
+    </button>
+  </div>
+)}
               </div>
             )}
           </div>
@@ -517,6 +517,47 @@ export const Header: React.FC<HeaderProps> = ({ profilePath }) =>  {
           </div>
         </div>
       </div>
+      {notificationModalOpen && selectedNotification && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+      <div className="p-6">
+        <div className="flex justify-between items-start mb-4">
+          <h3 className="text-lg font-medium text-gray-900">
+            {selectedNotification.title}
+          </h3>
+          <button
+            onClick={() => setNotificationModalOpen(false)}
+            className="text-gray-400 hover:text-gray-500"
+          >
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        
+        <div className={`border-l-4 ${getNotificationTypeColor(selectedNotification.type)} pl-4 mb-4`}>
+          <p className="text-sm text-gray-700 whitespace-pre-line">
+            {selectedNotification.message}
+          </p>
+        </div>
+        
+        <div className="flex justify-between items-center text-sm text-gray-500">
+          <span>{formatDate(selectedNotification.createdAt)}</span>
+          <span className="capitalize">{selectedNotification.type}</span>
+        </div>
+      </div>
+      
+      <div className="bg-gray-50 px-4 py-3 flex justify-end">
+        <button
+          onClick={() => setNotificationModalOpen(false)}
+          className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </header>
   );
 };

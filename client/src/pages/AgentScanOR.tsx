@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import axios from 'axios';
 import { 
   QrCode, 
   ArrowLeft, 
@@ -17,20 +18,25 @@ import { Scanner } from '@yudiel/react-qr-scanner';
 const API_BASE_URL = 'https://nodes-staging-xp.up.railway.app';
 
 interface QRCodeData {
-  userId: string;
+  userld?: string; 
+  userId?: string;
   name: string;
-  firstName: string;
-  lastName: string;
+  firstName?: string;
+  lastName?: string;
   email: string;
   role: string;
   accountNumber: string;
-  walletId: string;
-  balance: number;
-  currency: string;
-  pin: string;
-  timestamp: number;
+  walletId?: string;
+  wallet?: {
+    currency: string;
+  };
+  balance?: number;
+  currency?: string;
+  pin?: string;
+  timestamp: number | string;
   transactionType: string;
-  qrCodeVersion: string;
+  qrCodeVersion?: string;
+  type?: string; 
 }
 
 interface ScanResult {
@@ -39,20 +45,15 @@ interface ScanResult {
 }
 
 interface TransactionData {
-  recipientId: string;
+  receiverEmail: string;
   amount: number;
-  description: string;
-  pin: string;
-}
-
-interface PinVerificationData {
-  userId: string;
   pin: string;
 }
 
 interface TransactionResponse {
-  transactionId: string;
+  transactionId?: string;
   message: string;
+  // Add other possible response fields based on your API
 }
 
 const AgentScanQR: React.FC = () => {
@@ -63,7 +64,6 @@ const AgentScanQR: React.FC = () => {
   const [showConfirmDialog, setShowConfirmDialog] = useState<boolean>(false);
   const [showPinDialog, setShowPinDialog] = useState<boolean>(false);
   const [processingTransaction, setProcessingTransaction] = useState<boolean>(false);
-  const [verifyingPin, setVerifyingPin] = useState<boolean>(false);
   const [transactionComplete, setTransactionComplete] = useState<boolean>(false);
   const [amount, setAmount] = useState<string>('');
   const [description, setDescription] = useState<string>('');
@@ -114,51 +114,73 @@ const AgentScanQR: React.FC = () => {
     }
   };
 
-  const parseQRData = (data: string): QRCodeData => {
+ const parseQRData = (data: string): QRCodeData => {
+  try {
+    // First try to parse directly
+    let parsedData: unknown;
     try {
-      // Try to parse directly first
-      try {
-        return JSON.parse(data);
-      } catch {
-        // If direct parse fails, try base64 decoding
-        try {
-          const decodedData = atob(data);
-          return JSON.parse(decodedData);
-        } catch {
-          // If still fails, try URI component decoding
-          const uriDecoded = decodeURIComponent(data);
-          return JSON.parse(uriDecoded);
-        }
-      }
-    } catch (error) {
-      console.error('QR decode error:', error);
+      parsedData = JSON.parse(data);
+    } catch {
+      // If direct parse fails, try cleaning the string
+      const cleanedData = data
+        .replace(/['']/g, '"') // Replace curly quotes
+        .replace(/'/g, '"');    // Replace single quotes
+      parsedData = JSON.parse(cleanedData);
+    }
+
+    // Normalize the data structure
+    if (typeof parsedData !== 'object' || parsedData === null) {
       throw new Error('Invalid QR code format');
     }
-  };
+    const normalizedData: QRCodeData = {
+      ...(parsedData as object),
+      // Handle userld vs userId
+      userId: (typeof parsedData === 'object' && parsedData !== null && 'userId' in parsedData ? (parsedData as { userId?: string }).userId : undefined)
+        || (typeof parsedData === 'object' && parsedData !== null && 'userld' in parsedData ? (parsedData as { userld?: string }).userld : undefined),
+      // Required fields with fallback to empty string if missing
+      name: (parsedData as Record<string, unknown>).name as string || '',
+      email: (parsedData as Record<string, unknown>).email as string || '',
+      role: (parsedData as Record<string, unknown>).role as string || '',
+      accountNumber: (parsedData as Record<string, unknown>).accountNumber as string || '',
+      timestamp: (parsedData as Record<string, unknown>).timestamp as number || Date.now(),
+      // Handle wallet currency
+      currency: (parsedData as Record<string, unknown>).currency as string || ((parsedData as Record<string, unknown>).wallet as { currency?: string } | undefined)?.currency,
+      // Handle different transaction type fields
+      transactionType: (parsedData as Record<string, unknown>).transactionType as string || (parsedData as Record<string, unknown>).type as string,
+    };
 
-  const handleScan = useCallback((data: string) => {
+    // Validate required fields
+    if (!normalizedData.userId || !normalizedData.name || !normalizedData.accountNumber || !normalizedData.email) {
+      throw new Error('Invalid QR code - missing required fields');
+    }
+
+    return normalizedData;
+  } catch (error) {
+    console.error('QR decode error:', error);
+    throw new Error('Invalid QR code format');
+  }
+};
+
+ const handleScan = useCallback((data: string) => {
   if (data && !scanResult) {
     try {
       const qrData = parseQRData(data);
-        
-        if (!qrData.userId || !qrData.name || !qrData.email || !qrData.walletId) {
-          throw new Error('Invalid QR code format');
-        }
-
-        if (qrData.transactionType !== 'payment') {
-          throw new Error('Invalid QR code - not a payment QR code');
-        }
-        
-        setScanResult({ qrData });
-        setShowConfirmDialog(true);
-        setScanning(false);
-      } catch (decodeError) {
-        console.error('QR decode error:', decodeError);
-        setError("Invalid QR code format. Please ensure this is a valid payment QR code.");
+      
+      // Check if this is a payment QR code
+      if (qrData.transactionType !== 'payment' && qrData.type !== 'payment_request') {
+        throw new Error('Invalid QR code - not a payment QR code');
       }
+      
+      setScanResult({ qrData });
+      setShowConfirmDialog(true);
+      setScanning(false);
+    } catch (decodeError) {
+      console.error('QR decode error:', decodeError);
+      setError("Couldn't read QR code. Please ensure this is a valid payment QR code.");
+      setScanning(false);
     }
-  }, [scanResult]);
-
+  }
+}, [scanResult]);
 
   const toggleScanning = () => {
     setScanning(!scanning);
@@ -170,51 +192,34 @@ const AgentScanQR: React.FC = () => {
     setFacingMode(prev => prev === 'environment' ? 'user' : 'environment');
   };
 
-  const verifyUserPin = async (pinData: PinVerificationData): Promise<boolean> => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/pin/verify`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        userId: pinData.userId,  
-        pin: pinData.pin         
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'PIN verification failed');
-    }
-
-    const data = await response.json();
-    return data.isValid;  
-  } catch (error) {
-    console.error('PIN verification error:', error);
-    throw error;
-  }
-};
-  const processWalletTransfer = async (transactionData: TransactionData): Promise<TransactionResponse> => {
+  // Single function to handle both PIN verification and transfer
+  const processTransfer = async (transactionData: TransactionData): Promise<TransactionResponse> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/wallet/walletToWalletTransfer`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+      const response = await axios.post(
+        `${API_BASE_URL}/api/transaction/transfer`,
+        {
+          receiverEmail: transactionData.receiverEmail,
+          amount: transactionData.amount,
+          pin: transactionData.pin
         },
-        body: JSON.stringify(transactionData),
-      });
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
 
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || 'Transaction failed');
-      }
-      return data;
+      return response.data;
     } catch (error) {
-      console.error('Transaction error:', error);
-      throw error;
+      console.error('Transfer error:', error);
+      
+      // Handle axios error response
+      if (axios.isAxiosError(error) && error.response) {
+        const errorMessage = error.response.data?.message || 'Transaction failed';
+        throw new Error(errorMessage);
+      }
+      
+      throw new Error('Transaction failed. Please try again.');
     }
   };
 
@@ -227,44 +232,47 @@ const AgentScanQR: React.FC = () => {
   const handlePinSubmit = async () => {
     if (!scanResult || !amount || !userEnteredPin) return;
 
-    setVerifyingPin(true);
+    setProcessingTransaction(true);
+    setShowPinDialog(false);
     
     try {
-      const pinVerificationData: PinVerificationData = {
-        userId: scanResult.qrData.userId,
-        pin: userEnteredPin
-      };
-
-      const isPinValid = await verifyUserPin(pinVerificationData);
-      
-      if (!isPinValid) {
-        setError('Invalid PIN. Please ask the customer to enter their correct PIN.');
-        setVerifyingPin(false);
-        setUserEnteredPin('');
+      if (!scanResult.qrData.email) {
+        setError('Invalid QR code: missing email address.');
+        setProcessingTransaction(false);
         return;
       }
 
-      setVerifyingPin(false);
-      setProcessingTransaction(true);
-      setShowPinDialog(false);
-      
       const transactionData: TransactionData = {
-        recipientId: scanResult.qrData.userId,
-        amount: parseFloat(amount),
-        description: description || 'QR Code Payment',
-        pin: scanResult.qrData.pin
+        receiverEmail: scanResult.qrData.email,
+        amount: Number(amount),
+        pin: userEnteredPin
       };
 
-      const result = await processWalletTransfer(transactionData);
-      setTransactionId(result.transactionId);
+      const result = await processTransfer(transactionData);
+      
+      // Handle successful response
+      setTransactionId(result.transactionId || 'N/A');
       setProcessingTransaction(false);
       setTransactionComplete(true);
       setUserEnteredPin('');
+      
     } catch (err) {
-      setVerifyingPin(false);
       setProcessingTransaction(false);
-      setError(`Transaction failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      const errorMessage = err instanceof Error ? err.message : 'Transaction failed';
+      
+      // Handle specific error cases
+      if (errorMessage.toLowerCase().includes('pin')) {
+        setError('Invalid PIN. Please ask the customer to enter their correct PIN.');
+      } else if (errorMessage.toLowerCase().includes('insufficient')) {
+        setError('Insufficient funds. Please check the customer\'s account balance.');
+      } else if (errorMessage.toLowerCase().includes('email')) {
+        setError('Invalid recipient email. Please verify the QR code.');
+      } else {
+        setError(`Transaction failed: ${errorMessage}`);
+      }
+      
       setUserEnteredPin('');
+      setShowPinDialog(true); // Allow user to retry PIN entry
     }
   };
 
@@ -328,6 +336,7 @@ const AgentScanQR: React.FC = () => {
                     {formatCurrency(parseFloat(amount), scanResult?.qrData.currency)}
                   </p>
                   <p className="text-sm text-gray-600">Paid to: {scanResult?.qrData.name}</p>
+                  <p className="text-sm text-gray-600">Email: {scanResult?.qrData.email}</p>
                   <p className="text-sm text-gray-600">Account: {scanResult?.qrData.accountNumber}</p>
                   <p className="text-xs text-gray-500 mt-2">Transaction ID: {transactionId}</p>
                 </div>
@@ -356,41 +365,42 @@ const AgentScanQR: React.FC = () => {
                 <div className="w-full max-w-[350px] h-[350px] bg-black rounded-lg relative overflow-hidden mx-auto">
        {scanning ? (
   <div className="relative w-full h-full">
-    <Scanner
-      onScan={(detectedCodes) => {
-        if (Array.isArray(detectedCodes) && detectedCodes.length > 0) {
-          const code = detectedCodes[0];
-          if (code.rawValue) {
-            handleScan(code.rawValue);
-          }
-        }
-      }}
-      constraints={{
-        facingMode,
-        width: { ideal: 1280 },
-        height: { ideal: 720 }
-      }}
-      onError={(error) => {
-        console.error('Scanner error:', error);
-        setCameraError('Failed to access camera. Please ensure permissions are granted.');
-        setScanning(false);
-      }}
-      components={{
-      }}
-      styles={{
-        container: {
-          width: '100%',
-          height: '100%',
-          position: 'relative'
-        },
-        video: {
-          width: '100%',
-          height: '100%',
-          objectFit: 'cover',
-          transform: facingMode === 'user' ? 'scaleX(-1)' : 'none'
-        }
-      }}
-    />
+  <Scanner
+    onScan={(data) => {
+      if (Array.isArray(data) && data.length > 0 && data[0]?.rawValue) {
+        handleScan(data[0].rawValue);
+      } else if (typeof data === 'string') {
+        handleScan(data);
+      }
+    }}
+    constraints={{
+      facingMode,
+      width: { ideal: 1280 },
+      height: { ideal: 720 }
+    }}
+    onError={(error) => {
+      console.error('Scanner error:', error);
+      setCameraError('Failed to access camera. Please ensure permissions are granted.');
+      setScanning(false);
+    }}
+    components={{
+      tracker: () => null,
+      torch: true,
+    }}
+    styles={{
+      container: {
+        width: '100%',
+        height: '100%',
+        position: 'relative'
+      } as React.CSSProperties,
+      video: {
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover',
+        transform: facingMode === 'user' ? 'scaleX(-1)' : 'none'
+      } as React.CSSProperties
+    }}
+  />
     <div className="absolute inset-0 border-4 border-blue-500 rounded-lg pointer-events-none"></div>
   </div>
 ) : (
@@ -483,7 +493,7 @@ const AgentScanQR: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <Wallet size={14} className="text-blue-600" />
                       <span className="text-blue-700">
-                        Balance: {formatCurrency(scanResult.qrData.balance, scanResult.qrData.currency)}
+                        Balance: {formatCurrency(scanResult.qrData.balance ?? 0, scanResult.qrData.currency)}
                       </span>
                     </div>
                   </div>
@@ -565,6 +575,9 @@ const AgentScanQR: React.FC = () => {
                       <span className="font-medium">To:</span> {scanResult.qrData.name}
                     </p>
                     <p className="text-gray-700">
+                      <span className="font-medium">Email:</span> {scanResult.qrData.email}
+                    </p>
+                    <p className="text-gray-700">
                       <span className="font-medium">Account:</span> {scanResult.qrData.accountNumber}
                     </p>
                     {description && (
@@ -587,7 +600,7 @@ const AgentScanQR: React.FC = () => {
                     className="w-full p-3 border border-gray-300 rounded-lg text-center text-xl tracking-wides text-black"
                     placeholder="••••"
                     maxLength={4}
-                    disabled={verifyingPin}
+                    disabled={processingTransaction}
                   />
                   <p className="text-xs text-gray-500 mt-1 text-center">
                     The customer must enter their 4-digit PIN
@@ -601,22 +614,22 @@ const AgentScanQR: React.FC = () => {
                       setShowPinDialog(false);
                       setUserEnteredPin('');
                     }}
-                    disabled={verifyingPin}
+                    disabled={processingTransaction}
                   >
                     Cancel
                   </button>
                   <button 
                     className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
                     onClick={handlePinSubmit}
-                    disabled={!userEnteredPin || userEnteredPin.length !== 4 || verifyingPin}
+                    disabled={!userEnteredPin || userEnteredPin.length !== 4 || processingTransaction}
                   >
-                    {verifyingPin ? (
+                    {processingTransaction ? (
                       <>
                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        Verifying...
+                        Processing...
                       </>
                     ) : (
-                      'Verify & Process Payment'
+                      'Verify PIN & Process Payment'
                     )}
                   </button>
                 </div>
