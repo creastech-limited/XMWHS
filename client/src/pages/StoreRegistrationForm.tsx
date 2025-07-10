@@ -136,6 +136,8 @@ const SelectField: React.FC<{
   </div>
 );
 
+
+
 // Move TextareaField component outside
 const TextareaField: React.FC<{
   label: string;
@@ -219,6 +221,8 @@ const StoreRegistrationForm: React.FC = () => {
     setActiveStep(activeStep - 1);
   };
 
+  
+
   const handleSubmit = async () => {
     if (formData.password !== formData.confirmPassword) {
       setSnackbar({
@@ -228,11 +232,28 @@ const StoreRegistrationForm: React.FC = () => {
       });
       return;
     }
-    
-    setIsSubmitting(true);
-        
-    const payload = {
-      firstName: formData.firstName,
+ // Check for weak password
+  // Example: at least 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char
+  const weakPassword =
+    formData.password.length < 8 ||
+    !/[A-Z]/.test(formData.password) ||
+    !/[a-z]/.test(formData.password) ||
+    !/[0-9]/.test(formData.password) ||
+    !/[!@#$%^&*()_+=-]/.test(formData.password);
+
+  if (weakPassword) {
+    setSnackbar({
+      open: true,
+      message: 'Password must be at least 8 characters and include uppercase, lowercase, a number, and a special character.',
+      severity: 'error'
+    });
+    return;
+  }
+
+  setIsSubmitting(true);
+
+  const payload = {
+    firstName: formData.firstName,
       lastName: formData.lastName,
       email: formData.email,
       password: formData.password,

@@ -230,14 +230,23 @@ const StudentRegistrationForm: React.FC = () => {
       return false;
     }
 
-    if (password.length < 8) {
-      setSnackbar({
-        open: true,
-        message: 'Password must be at least 8 characters long',
-        severity: 'error',
-      });
-      return false;
-    }
+  // Check for weak password
+  // Example: at least 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char
+  const weakPassword =
+    formData.password.length < 8 ||
+    !/[A-Z]/.test(formData.password) ||
+    !/[a-z]/.test(formData.password) ||
+    !/[0-9]/.test(formData.password) ||
+    !/[!@#$%^&*()_+=-]/.test(formData.password);
+
+  if (weakPassword) {
+    setSnackbar({
+      open: true,
+      message: 'Password must be at least 8 characters and include uppercase, lowercase, a number, and a special character.',
+      severity: 'error'
+    });
+    return false;
+  }
 
     if (password !== confirmPassword) {
       setSnackbar({
