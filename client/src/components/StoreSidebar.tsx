@@ -18,16 +18,15 @@ interface MenuItem {
   icon: React.ReactNode;
   route: string;
 }
-// Top menu items with updated routes
+
 const topMenuItems: MenuItem[] = [
   { text: 'Dashboard', icon: <LayoutDashboard size={20} />, route: '/store' },
   { text: 'Manage Agents', icon: <Users size={20} />, route: '/agents' },
   { text: 'Transaction History', icon: <History size={20} />, route: '/stransactions' },
   { text: 'Withdrawal', icon: <CreditCard size={20} />, route: '/Swithdrawal' },
- { text: 'Dispute', icon: <AlertTriangle size={20} />, route: '/Storedispute' }
+  { text: 'Dispute', icon: <AlertTriangle size={20} />, route: '/Storedispute' }
 ];
 
-// Bottom menu items with updated routes
 const bottomMenuItems: MenuItem[] = [
   { text: 'Settings', icon: <Settings size={20} />, route: '/store/settings' },
   { text: 'Logout', icon: <LogOut size={20} />, route: '/login' }
@@ -46,7 +45,6 @@ const StoreSidebar: React.FC = () => {
   const handleDrawerToggle = (): void => {
     setMobileOpen(!mobileOpen);
   };
-
 
   const handleMenuItemClick = (item: MenuItem): void => {
     setActiveItem(item.text);
@@ -125,29 +123,29 @@ const StoreSidebar: React.FC = () => {
 
   return (
     <>
-      {/* Mobile Menu Button */}
+      {/* Mobile & Tablet Menu Button */}
       <button
         onClick={handleDrawerToggle}
         className="
           fixed top-4 left-4 z-50
           bg-indigo-900 text-white p-2 rounded-lg
           hover:bg-indigo-900 transition-colors
-          md:hidden
+          lg:hidden
         "
       >
         {mobileOpen ? <X size={24} /> : <Menu size={24} />}
       </button>
 
-      {/* Desktop Sidebar */}
-      <div className="hidden md:block w-[280px] flex-shrink-0">
+      {/* Desktop Sidebar (only shows on large screens) */}
+      <div className="hidden lg:block w-[280px] flex-shrink-0">
         <div className="fixed top-0 left-0 w-[280px] h-full border-r-0">
           {sidebarContent}
         </div>
       </div>
 
-      {/* Mobile Sidebar Overlay */}
+      {/* Mobile & Tablet Sidebar Overlay */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-40 md:hidden">
+        <div className="fixed inset-0 z-40 lg:hidden">
           {/* Backdrop */}
           <div 
             className="fixed inset-0 bg-black bg-opacity-50"

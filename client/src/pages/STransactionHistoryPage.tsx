@@ -338,7 +338,7 @@ const STransactionHistoryPage = () => {
             <StoreSidebar />
 
             {/* Main content wrapper with proper layout */}
-            <main className="flex flex-1 flex-col md:ml-[280px] pt-16 sm:pt-20">
+           <main className="flex-grow p-4 lg:p-8 lg:ml-64 transition-all duration-300">
                 {/* Main content */}
                 <div className="flex flex-1 flex-col px-4 sm:px-6 mt-4 mb-4 max-w-6xl mx-auto w-full">
                     <div className="flex items-center mb-6">

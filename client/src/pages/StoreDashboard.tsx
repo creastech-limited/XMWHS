@@ -440,18 +440,18 @@ const StoreDashboard: React.FC = () => {
   }
 
   return (
-    <div className="text-gray-600 flex min-h-screen flex-col bg-gray-50">
-            {/* Header and Sidebar */}
-            <StoreHeader />
-            <StoreSidebar />
+     <div className="text-gray-600 flex min-h-screen flex-col bg-gray-50">
+      {/* Header and Sidebar */}
+      <StoreHeader />
+      <StoreSidebar />
         
 
         {/* Main Content */}
-        <main className="flex-grow p-4 md:p-8 md:ml-64 mt-16 md:mt-0">
+         <main className="flex-grow p-4 lg:p-8 lg:ml-64 transition-all duration-300">
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            {/* Wallet Balance */}
-            <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+          {/* Wallet Balance */}
+          <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-green-100 text-sm font-medium">Wallet Balance</p>
@@ -481,7 +481,7 @@ const StoreDashboard: React.FC = () => {
             </div>
 
             {/* Number of Agents */}
-            <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+           <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-blue-100 text-sm font-medium">Number of Agents</p>
