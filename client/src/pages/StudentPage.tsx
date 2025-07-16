@@ -47,7 +47,7 @@ interface Class {
 }
 
 interface SchoolProfile {
-  _id: string;
+  schoolId: string;
   schoolName: string;
   schoolType: string;
   ownership: string;
@@ -95,42 +95,55 @@ const StudentPage: React.FC = () => {
   const rowsPerPage = 10;
 
   // Fetch user profile to get schoolLink and schoolId
-  useEffect(() => {
-    if (!authToken) return;
+useEffect(() => {
+  if (!authToken) return;
 
-    fetch(`${API_BASE_URL}/api/users/getuserone`, {
-      headers: {
-        Authorization: `Bearer ${authToken}`,
-        'Content-Type': 'application/json',
-      },
+  fetch(`${API_BASE_URL}/api/users/getuserone`, {
+    headers: {
+      Authorization: `Bearer ${authToken}`,
+      'Content-Type': 'application/json',
+    },
+  })
+    .then((res) => {
+      if (!res.ok) throw new Error('Failed to fetch user profile');
+      return res.json();
     })
-      .then((res) => {
-        if (!res.ok) throw new Error('Failed to fetch user profile');
-        return res.json();
-      })
-      .then((data) => {
-        const profile = data.user;
-        const userProfile = profile.data;
-        const id = userProfile._id;
-        setSchoolId(id);
-        setSchoolProfile({
-          _id: id,
-          schoolName: userProfile.schoolName || 'School',
-          schoolType: userProfile.schoolType || 'secondary',
-          ownership: userProfile.ownership || 'private',
-          Link: profile.Link || '',
-        });
+    .then((data) => {
+      const userProfile = data.user?.data || data.user || data;
+      const id = userProfile.schoolId;  // Changed from _id to schoolId
+      const schoolName = userProfile.schoolName || 'School';
+      const schoolType = userProfile.schoolType || 'secondary';
+      const schoolAddress = userProfile.schoolAddress || '';
+      const ownership = userProfile.ownership || 'private';
 
-        // Construct the full registration link
-        const linkPath = profile.Link || '';
-        const fullLink = `${window.location.origin}/students/new${linkPath}`;
-        setRegistrationLink(fullLink);
-      })
-      .catch((err) => {
-        console.error(err);
-        setSnackbar({ open: true, message: err.message, severity: 'error' });
+      setSchoolId(id);
+      setSchoolProfile({
+        schoolId: id,
+        schoolName,
+        schoolType,
+        ownership,
+        Link: userProfile.Link || '',
       });
-  }, [authToken, API_BASE_URL]);
+
+      // Construct URL with all necessary parameters
+      const params = new URLSearchParams();
+      params.append('schoolId', id);  
+      params.append('schoolName', encodeURIComponent(schoolName));
+      params.append('schoolType', encodeURIComponent(schoolType));
+      if (schoolAddress) params.append('schoolAddress', encodeURIComponent(schoolAddress));
+      
+      const fullLink = `${window.location.origin}/students/new?${params.toString()}`;
+      setRegistrationLink(fullLink);
+    })
+    .catch((err) => {
+      console.error('Profile fetch error:', err);
+      setSnackbar({
+        open: true,
+        message: err.message || 'Failed to load school profile',
+        severity: 'error',
+      });
+    });
+}, [authToken, API_BASE_URL]);
 
   // Fetch classes for this school
   useEffect(() => {

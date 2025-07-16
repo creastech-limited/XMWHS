@@ -1,9 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   WalletIcon,
   Bell,
   LogOut,
+  X,
+  AlertTriangle,
+  Info,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 import { useAuth } from "../context/AuthContext";
 
@@ -13,16 +18,17 @@ interface User {
   email: string;
   walletBalance?: number;
   role: string;
-  // Add other user properties as needed
   [key: string]: unknown;
 }
 
 interface Notification {
   _id: string;
+  userId: string;
+  title: string;
   message: string;
+  type?: string;
   read: boolean;
   createdAt: string;
-  // Add other notification properties as needed
 }
 
 interface AgentData {
@@ -35,15 +41,15 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging
 const AHeader = () => {
   const [agentData, setAgentData] = useState<AgentData | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  // Removed unused token state
-  // Removed unused notifications state
-   const { logout } = useAuth() || {};
-   const navigate = useNavigate();
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
   const [isMobile, setIsMobile] = useState<boolean>(window.innerWidth < 640);
-  
+  const [isNotifOpen, setIsNotifOpen] = useState<boolean>(false);
+  const { logout } = useAuth() || {};
+  const navigate = useNavigate();
   const auth = useAuth();
+  const notifRef = useRef<HTMLDivElement>(null);
 
   // Fetch user details from API
   const fetchUserDetails = async (authToken: string): Promise<User> => {
@@ -61,29 +67,27 @@ const AHeader = () => {
       }
 
       const data = await response.json();
+      console.log('User API Response:', data); // Debug log
       
-      // Handle different response structures
-      let profile: User | undefined;
-      if (data.user?.data) {
-        profile = data.user.data;
-      } else if (data.data) {
-        profile = data.data;
-      } else if (data.user) {
-        profile = data.user as User;
-      } else {
-        profile = data as User;
-      }
+      // Fixed: Extract user data based on the actual response structure
+      const userData = data.user?.data || data.data || data.user || data;
+      const walletBalance = data.user?.wallet?.balance || 0; // Fixed: Get balance from the correct path
 
-      if (!profile) {
+      if (!userData) {
         throw new Error('Invalid user data received');
       }
 
-      return profile;
+      return {
+        ...userData,
+        walletBalance,
+        role: userData.role || '',
+      };
     } catch (error) {
       console.error('Error fetching user details:', error);
       throw error;
     }
   };
+
   const handleLogout = () => {
     if (logout) {
       logout();
@@ -109,33 +113,102 @@ const AHeader = () => {
       }
 
       const data = await response.json();
+      console.log('Notifications API Response:', data); // Debug log
       
-      // Handle different response structures for notifications
+      // Fixed: Handle the actual response structure - data is directly an array
       let notificationsList: Notification[] = [];
-      if (data.notifications) {
-        notificationsList = data.notifications;
-      } else if (data.data) {
-        notificationsList = data.data;
-      } else if (Array.isArray(data)) {
+      if (Array.isArray(data)) {
         notificationsList = data;
+      } else if (data.notifications && Array.isArray(data.notifications)) {
+        notificationsList = data.notifications;
+      } else if (data.data && Array.isArray(data.data)) {
+        notificationsList = data.data;
       }
 
       return notificationsList;
     } catch (error) {
       console.error('Error fetching notifications:', error);
-      return []; // Return empty array on error instead of throwing
+      return [];
+    }
+  };
+
+  // Mark notification as read
+  const markNotificationAsRead = async (notificationId: string) => {
+    try {
+      const authToken = auth?.token || localStorage.getItem('token');
+      if (!authToken) return;
+
+      const response = await fetch(`${API_BASE_URL}/api/notification/read/${notificationId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to mark notification as read: ${response.status}`);
+      }
+
+      // Update local state
+      setNotifications(prev => 
+        prev.map(notif => 
+          notif._id === notificationId 
+            ? { ...notif, read: true }
+            : notif
+        )
+      );
+
+      // Update unread count
+      setUnreadCount(prev => prev > 0 ? prev - 1 : 0);
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
     }
   };
 
   // Handle authentication errors
   const handleAuthError = (message: string) => {
     console.error(message);
-    // Clear stored data
     localStorage.removeItem('token');
     setUser(null);
-    // setToken(null); // Removed unused token state
     setAgentData(null);
-    // Optionally redirect to login or show error message
+  };
+
+  // Get notification icon based on type
+  const getNotificationIcon = (type?: string) => {
+    switch (type?.toLowerCase()) {
+      case 'warning':
+        return <AlertTriangle className="w-5 h-5 text-yellow-500" />;
+      case 'error':
+        return <AlertCircle className="w-5 h-5 text-red-500" />;
+      case 'success':
+        return <CheckCircle2 className="w-5 h-5 text-green-500" />;
+      default:
+        return <Info className="w-5 h-5 text-blue-500" />;
+    }
+  };
+
+  // Get notification border color based on type
+  const getNotificationTypeColor = (type?: string) => {
+    switch (type?.toLowerCase()) {
+      case 'info': return 'border-l-blue-500';
+      case 'warning': return 'border-l-yellow-500';
+      case 'error': return 'border-l-red-500';
+      case 'success': return 'border-l-green-500';
+      default: return 'border-l-gray-500';
+    }
+  };
+
+  // Format date
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   // Initialize authentication and fetch data
@@ -143,57 +216,37 @@ const AHeader = () => {
     const initializeAuth = async () => {
       try {
         setLoading(true);
-        console.log('Starting auth initialization...');
         
         let authToken: string | null = null;
         let userProfile: User | null = null;
 
-        // Check if user is already in auth context
         if (auth?.user?._id && auth?.token) {
-          console.log('Found user in auth context:', auth.user);
           userProfile = auth.user;
           authToken = auth.token;
           setUser(userProfile);
-          // setToken(authToken); // Removed unused token state
         } else {
-          // Try localStorage as fallback
           const storedToken = localStorage.getItem('token');
           if (!storedToken) {
-            console.log('No token in localStorage');
             throw new Error('No authentication token found');
           }
 
-          console.log('Found token in localStorage, fetching user from API...');
           authToken = storedToken;
-          
-          // Fetch user from API to ensure fresh data
           userProfile = await fetchUserDetails(authToken);
-          console.log('Successfully fetched user profile:', userProfile);
-
-          // Ensure 'role' is always present for AuthContext compatibility
-          const mergedUser: User = {
-            ...userProfile,
-            role: userProfile.role || '',
-          };
-
-          // Update state and auth context
-          setUser(mergedUser);
-          setToken(authToken);
-          auth?.login?.(mergedUser, authToken);
+          setUser(userProfile);
+          auth?.login?.(userProfile, authToken);
         }
 
-        // Set agent data from user profile
+        // Set agent data with proper wallet balance
         if (userProfile) {
           setAgentData({
             name: userProfile.name || "Agent User",
             walletBalance: userProfile.walletBalance || 0,
           });
 
-          // Fetch notifications
           if (authToken) {
             const userNotifications = await fetchNotifications(authToken);
+            setNotifications(userNotifications);
             
-            // Count unread notifications
             const unread = userNotifications.filter(notif => !notif.read).length;
             setUnreadCount(unread);
           }
@@ -218,6 +271,18 @@ const AHeader = () => {
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Close notifications when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setIsNotifOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const colors = {
@@ -289,27 +354,87 @@ const AHeader = () => {
             </h2>
             <p className="opacity-80 text-xs">Wallet Balance</p>
           </div>
-          <button 
-            className="text-white p-2 rounded-full hover:text-blue-600 hover:bg-blue-600 hover:bg-opacity-10 relative"
-            aria-label="notifications"
-            title={`${unreadCount} unread notifications`}
-          >
-            <Bell style={{ color: 'white' }} />
-            {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
-                {unreadCount > 99 ? '99+' : unreadCount}
-              </span>
+          
+          {/* Notifications dropdown */}
+          <div className="relative" ref={notifRef}>
+            <button 
+              className="text-white p-2 rounded-full hover:text-blue-600 hover:bg-blue-600 hover:bg-opacity-10 relative"
+              aria-label="notifications"
+              onClick={() => setIsNotifOpen(!isNotifOpen)}
+            >
+              <Bell style={{ color: 'white' }} />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </button>
+            
+            {isNotifOpen && (
+              <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-md shadow-lg z-50 max-h-[80vh] overflow-y-auto">
+                <div className="p-3 border-b border-gray-200 flex justify-between items-center">
+                  <h3 className="font-semibold text-gray-800">Notifications</h3>
+                  <button 
+                    onClick={() => setIsNotifOpen(false)}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                {notifications.length === 0 ? (
+                  <div className="p-4 text-center text-gray-500">
+                    No notifications available
+                  </div>
+                ) : (
+                  <ul>
+                    {notifications.map((notification) => (
+                      <li 
+                        key={notification._id}
+                        className={`border-b border-gray-100 last:border-0 ${!notification.read ? 'bg-blue-50' : ''}`}
+                      >
+                        <div 
+                          className={`p-3 hover:bg-gray-50 cursor-pointer border-l-4 ${getNotificationTypeColor(notification.type)}`}
+                          onClick={() => {
+                            if (!notification.read) {
+                              markNotificationAsRead(notification._id);
+                            }
+                          }}
+                        >
+                          <div className="flex items-start gap-2">
+                            <div className="mt-1">
+                              {getNotificationIcon(notification.type)}
+                            </div>
+                            <div className="flex-1">
+                              {/* Fixed: Display the title instead of message, and message as subtitle */}
+                              <p className="text-sm font-medium text-gray-800">{notification.title}</p>
+                              <p className="text-xs text-gray-600 mt-1">{notification.message}</p>
+                              <p className="text-xs text-gray-500 mt-1">
+                                {formatDate(notification.createdAt)}
+                              </p>
+                            </div>
+                            {!notification.read && (
+                              <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                            )}
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             )}
-          </button>
+          </div>
+          
           {/* Logout Button */}
-              <button
-                onClick={handleLogout}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 transition duration-200 rounded-lg flex items-center gap-2 font-medium text-white"
-                aria-label="Logout"
-              >
-                <LogOut className="w-5 h-5" />
-                <span className={isMobile ? "hidden" : "block"}>Logout</span>
-              </button>
+          <button
+            onClick={handleLogout}
+            className="px-4 py-2 bg-red-600 hover:bg-red-700 transition duration-200 rounded-lg flex items-center gap-2 font-medium text-white"
+            aria-label="Logout"
+          >
+            <LogOut className="w-5 h-5" />
+            <span className={isMobile ? "hidden" : "block"}>Logout</span>
+          </button>
         </div>
       </div>
     </div>
@@ -317,8 +442,3 @@ const AHeader = () => {
 };
 
 export default AHeader;
-
-// Sets the authentication token in localStorage
-function setToken(authToken: string) {
-  localStorage.setItem('token', authToken);
-}

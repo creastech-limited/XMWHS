@@ -106,57 +106,95 @@ const SchoolBillsPage: React.FC = () => {
   ];
 
   // Transform API data to local Bill interface
-  const transformApiFeeToBill = (apiFee: ApiFee): Bill => {
-    const dueDate = new Date(apiFee.paymentDate);
-    const isOverdue = dueDate < new Date() && apiFee.status !== 'Paid';
-    
-    return {
-      id: apiFee._id,
-      invoice: `${apiFee.feeType} - ${apiFee.className}`,
-      dueDate: apiFee.paymentDate,
-      amount: apiFee.amount,
-      amountPaid: apiFee.amountPaid,
-      status: apiFee.status,
-      overdue: isOverdue,
-      description: `${apiFee.term} ${apiFee.feeType.toLowerCase()} fees for ${apiFee.session} academic session`,
-      feeType: apiFee.feeType,
-      term: apiFee.term,
-      session: apiFee.session,
-      className: apiFee.className,
-      transactionId: apiFee.transactionId
-    };
+const transformApiFeeToBill = (apiFee: ApiFee): Bill => {
+  // Provide default values for missing fields
+  const feeType = apiFee.feeType || 'School Fee'; // Default if undefined
+  const className = apiFee.className || 'Unknown Class';
+  const term = apiFee.term || 'Unknown Term';
+  const session = apiFee.session || 'Unknown Session';
+  const paymentDate = apiFee.paymentDate || new Date().toISOString();
+  
+  const dueDate = new Date(paymentDate);
+  const isOverdue = dueDate < new Date() && apiFee.status !== 'Paid';
+  
+  return {
+    id: apiFee._id,
+    invoice: `${feeType} - ${className}`,
+    dueDate: paymentDate,
+    amount: apiFee.amount || 0,
+    amountPaid: apiFee.amountPaid || 0,
+    status: apiFee.status || 'Unpaid',
+    overdue: isOverdue,
+    description: `${term} ${feeType.toLowerCase()} fees for ${session} academic session`,
+    feeType: feeType,
+    term: term,
+    session: session,
+    className: className,
+    transactionId: apiFee.transactionId || 'N/A'
   };
+};
 
-  // Fetch student fees
-  const fetchStudentFees = async () => {
-    try {
-      const response = await axios.get(`${API_URL}/api/fee/getStudentFee`, {
-        headers: { 
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-       
-      });
+const fetchStudentFees = async () => {
+  setIsLoading(true);
+  setError('');
+  
+  try {
+    const response = await axios.get(`${API_URL}/api/fee/getStudentFee`, {
+      headers: { 
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+    });
 
-      if (response.data && response.data.data) {
-        const transformedBills = response.data.data.map((fee: ApiFee) => transformApiFeeToBill(fee));
-        setBills(transformedBills);
-      } else {
-        setBills([]);
+    console.log('API Response:', response.data); 
+
+    if (response.data && Array.isArray(response.data.data)) {
+      interface NormalizedFee extends ApiFee {
+        status: 'Paid' | 'Unpaid' | 'Partial';
       }
-    } catch (err) {
-      console.error('Failed to fetch student fees:', err);
-      setError("Failed to load school bills");
-      // If authentication fails, logout user
-      if (axios.isAxiosError(err) && err.response?.status === 401) {
+
+      const transformedBills: Bill[] = response.data.data
+        .filter((fee: ApiFee | null | undefined): fee is ApiFee => !!fee) 
+        .map((fee: ApiFee): Bill => {
+          // Normalize the status
+          let status: 'Paid' | 'Unpaid' | 'Partial' = 'Unpaid';
+          if (fee.status) {
+        const normalized = fee.status.charAt(0).toUpperCase() + fee.status.slice(1).toLowerCase();
+        if (['Paid', 'Unpaid', 'Partial'].includes(normalized)) {
+          status = normalized as 'Paid' | 'Unpaid' | 'Partial';
+        }
+          }
+          
+          const normalizedFee: NormalizedFee = {
+        ...fee,
+        status,
+          };
+
+          return transformApiFeeToBill(normalizedFee);
+        });
+      
+      setBills(transformedBills);
+    } else {
+      console.warn('Unexpected API response structure:', response.data);
+      setBills([]);
+      setError('Received unexpected data format from server');
+    }
+  } catch (err) {
+    console.error('Failed to fetch student fees:', err);
+    if (axios.isAxiosError(err)) {
+      if (err.response?.status === 401) {
         logout();
         navigate('/login');
+      } else {
+        setError(err.response?.data?.message || "Failed to load school bills");
       }
-    } finally {
-      setIsLoading(false);
+    } else {
+      setError("An unexpected error occurred");
     }
-  };
-
+  } finally {
+    setIsLoading(false);
+  }
+};
   // Fetch user profile
   useEffect(() => {
     const fetchUserProfile = async () => {

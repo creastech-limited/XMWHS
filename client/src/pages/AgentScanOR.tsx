@@ -196,9 +196,9 @@ const AgentScanQR: React.FC = () => {
   const processTransfer = async (transactionData: TransactionData): Promise<TransactionResponse> => {
     try {
       const response = await axios.post(
-        `${API_BASE_URL}/api/transaction/transfer`,
+        `${API_BASE_URL}/api/transaction/transfertoagent`,
         {
-          receiverEmail: transactionData.receiverEmail,
+          senderEmail: transactionData.receiverEmail,
           amount: transactionData.amount,
           pin: transactionData.pin
         },

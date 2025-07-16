@@ -6,31 +6,24 @@ import {
   User,
   Mail,
   Lock,
-  School,
   BookOpen,
   CheckCircle,
-  AlertCircle,
   XCircle,
-  GraduationCap,
   UserPlus,
 } from 'lucide-react';
 import bgImage from './bg.jpeg';
 
-// TypeScript interfaces
 interface ClassInfo {
   className: string;
   section: string;
-  studentCount: number;
 }
 
 interface SchoolInfo {
   _id: string;
   schoolName: string;
   schoolType: string;
-  ownership: string;
   schoolAddress: string;
   classes: ClassInfo[];
-  schoolId: string;
 }
 
 interface FormData {
@@ -40,11 +33,12 @@ interface FormData {
   classAdmittedTo: string;
   password: string;
   confirmPassword: string;
-  school: string;
+  phone: string;
+  schoolId: string;
   schoolName: string;
+  schoolType: string;
   schoolAddress: string;
   agreeToTerms: boolean;
-  phone: string;
 }
 
 interface SnackbarState {
@@ -57,9 +51,10 @@ const StudentRegistrationForm: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  // Get school information from URL parameters
-  const schoolId = searchParams.get('schoolId') || '';
+  // Get all parameters from URL
+  const schoolId = searchParams.get('schoolId') || ''; 
   const schoolName = searchParams.get('schoolName') || '';
+  const schoolType = searchParams.get('schoolType') || '';
   const schoolAddress = searchParams.get('schoolAddress') || '';
 
   const [formData, setFormData] = useState<FormData>({
@@ -70,18 +65,19 @@ const StudentRegistrationForm: React.FC = () => {
     password: '',
     confirmPassword: '',
     phone: '+234',
-    school: schoolId,
-    schoolName: schoolName,
-    schoolAddress: schoolAddress,
+    schoolId,
+    schoolName,
+    schoolType,
+    schoolAddress,
     agreeToTerms: false,
   });
 
   const [schoolInfo, setSchoolInfo] = useState<SchoolInfo | null>(null);
-  const [schoolLoading, setSchoolLoading] = useState<boolean>(true);
-  const [schoolNotFound, setSchoolNotFound] = useState<boolean>(false);
-  const [showPassword, setShowPassword] = useState<boolean>(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [schoolLoading, setSchoolLoading] = useState(true);
+  const [schoolNotFound, setSchoolNotFound] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [snackbar, setSnackbar] = useState<SnackbarState>({
     open: false,
     message: '',
@@ -90,18 +86,23 @@ const StudentRegistrationForm: React.FC = () => {
 
   const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://nodes-staging-xp.up.railway.app';
 
-  // Fetch school information including classes
+  // Validate URL parameters on component mount
   useEffect(() => {
     if (!schoolId) {
       setSnackbar({
         open: true,
-        message: 'Invalid school registration link - missing school ID',
+        message: 'Invalid registration link. Missing school identification.',
         severity: 'error',
       });
       setSchoolNotFound(true);
       setSchoolLoading(false);
       return;
     }
+  }, [schoolId]);
+
+  // Fetch school information
+  useEffect(() => {
+    if (!schoolId) return;
 
     const fetchSchoolInfo = async () => {
       try {
@@ -119,46 +120,34 @@ const StudentRegistrationForm: React.FC = () => {
         const result = await response.json();
 
         if (!response.ok) {
-          if (result.message === "School with provided ID not found") {
-            setSchoolNotFound(true);
-            setSnackbar({
-              open: true,
-              message: 'School not found with the provided ID',
-              severity: 'error',
-            });
-          } else {
-            throw new Error(result.message || 'Failed to fetch school information');
-          }
-          return;
+          throw new Error(result.message || 'Failed to fetch school information');
         }
 
         if (result.success && result.data) {
           const data = result.data;
-          
           setSchoolInfo({
             _id: data._id,
-            schoolId: data.schoolId || '',
-            schoolName: data.schoolName || 'Unknown School',
-            schoolType: data.schoolType || 'secondary',
-            ownership: data.ownership || 'private',
+            schoolName: data.schoolName || schoolName,
+            schoolType: data.schoolType || schoolType,
             schoolAddress: data.schoolAddress || schoolAddress,
             classes: data.classes || [],
           });
 
-          setFormData((prev) => ({
+          // Update form data with verified school info
+          setFormData(prev => ({
             ...prev,
             schoolName: data.schoolName || schoolName,
+            schoolType: data.schoolType || schoolType,
             schoolAddress: data.schoolAddress || schoolAddress,
-            school: schoolId,
           }));
         } else {
-          throw new Error('Invalid response format');
+          throw new Error('Invalid school data format');
         }
       } catch (error) {
         console.error('Error fetching school info:', error);
         setSnackbar({
           open: true,
-          message: 'Error loading school information. Please try again later.',
+          message: (error instanceof Error && error.message) ? error.message : 'Error loading school information',
           severity: 'error',
         });
         setSchoolNotFound(true);
@@ -168,60 +157,37 @@ const StudentRegistrationForm: React.FC = () => {
     };
 
     fetchSchoolInfo();
-  }, [schoolId, schoolName, schoolAddress, API_BASE_URL]);
+  }, [schoolId, schoolName, schoolType, schoolAddress, API_BASE_URL]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     const { name, value, type } = e.target;
-
-    if (type === 'checkbox') {
-      const target = e.target as HTMLInputElement;
-      setFormData((prev) => ({ ...prev, [name]: target.checked }));
-    } else {
-      setFormData((prev) => ({ ...prev, [name]: value }));
-    }
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
+    }));
   };
 
   const validateForm = (): boolean => {
-    if (schoolNotFound) {
+    // Check required fields
+    const requiredFields = [
+      'firstName', 'lastName', 'email', 
+      'classAdmittedTo', 'password', 'confirmPassword', 'phone'
+    ];
+    
+    const missingFields = requiredFields.filter(field => !formData[field as keyof FormData]);
+    if (missingFields.length > 0) {
       setSnackbar({
         open: true,
-        message: 'Cannot register - school not found',
+        message: `Missing required fields: ${missingFields.join(', ')}`,
         severity: 'error',
       });
       return false;
     }
 
-    const {
-      firstName,
-      lastName,
-      email,
-      classAdmittedTo,
-      password,
-      confirmPassword,
-      phone,
-      agreeToTerms,
-    } = formData;
-
-    if (
-      !firstName ||
-      !lastName ||
-      !email ||
-      !classAdmittedTo ||
-      !password ||
-      !confirmPassword ||
-      !phone
-    ) {
-      setSnackbar({
-        open: true,
-        message: 'All fields are required',
-        severity: 'error',
-      });
-      return false;
-    }
-
-    if (!email.includes('@')) {
+    // Validate email format
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       setSnackbar({
         open: true,
         message: 'Please enter a valid email address',
@@ -230,25 +196,19 @@ const StudentRegistrationForm: React.FC = () => {
       return false;
     }
 
-  // Check for weak password
-  // Example: at least 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char
-  const weakPassword =
-    formData.password.length < 8 ||
-    !/[A-Z]/.test(formData.password) ||
-    !/[a-z]/.test(formData.password) ||
-    !/[0-9]/.test(formData.password) ||
-    !/[!@#$%^&*()_+=-]/.test(formData.password);
+    // Validate password strength
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    if (!passwordRegex.test(formData.password)) {
+      setSnackbar({
+        open: true,
+        message: 'Password must be at least 8 characters with uppercase, lowercase, number, and special character',
+        severity: 'error',
+      });
+      return false;
+    }
 
-  if (weakPassword) {
-    setSnackbar({
-      open: true,
-      message: 'Password must be at least 8 characters and include uppercase, lowercase, a number, and a special character.',
-      severity: 'error'
-    });
-    return false;
-  }
-
-    if (password !== confirmPassword) {
+    // Check password match
+    if (formData.password !== formData.confirmPassword) {
       setSnackbar({
         open: true,
         message: 'Passwords do not match',
@@ -257,19 +217,11 @@ const StudentRegistrationForm: React.FC = () => {
       return false;
     }
 
-    if (!formData.school) {
+    // Check terms agreement
+    if (!formData.agreeToTerms) {
       setSnackbar({
         open: true,
-        message: 'Invalid school registration link',
-        severity: 'error',
-      });
-      return false;
-    }
-
-    if (!agreeToTerms) {
-      setSnackbar({
-        open: true,
-        message: 'Please agree to the Terms and Conditions',
+        message: 'You must agree to the terms and conditions',
         severity: 'error',
       });
       return false;
@@ -294,7 +246,10 @@ const StudentRegistrationForm: React.FC = () => {
       academicDetails: {
         classAdmittedTo: formData.classAdmittedTo,
       },
-       schoolId: schoolId,
+      schoolId: formData.schoolId,
+      schoolName: formData.schoolName,
+      schoolType: formData.schoolType,
+      schoolAddress: formData.schoolAddress,
     };
 
     try {
@@ -307,26 +262,20 @@ const StudentRegistrationForm: React.FC = () => {
       const result = await response.json();
 
       if (!response.ok) {
-        setSnackbar({
-          open: true,
-          message: result.message || 'Registration failed',
-          severity: 'error',
-        });
-      } else {
-        setSnackbar({
-          open: true,
-          message: result.message || 'Registration successful! Redirecting...',
-          severity: 'success',
-        });
-        setTimeout(() => {
-          navigate('/students');
-        }, 2000);
+        throw new Error(result.message || 'Registration failed');
       }
-    } catch (error) {
-      console.error('Error during registration:', error);
+
       setSnackbar({
         open: true,
-        message: 'An error occurred. Please try again.',
+        message: 'Registration successful! Redirecting...',
+        severity: 'success',
+      });
+      
+      setTimeout(() => navigate('/login'), 2000);
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: error instanceof Error ? error.message : 'Registration failed. Please try again.',
         severity: 'error',
       });
     } finally {
@@ -334,432 +283,231 @@ const StudentRegistrationForm: React.FC = () => {
     }
   };
 
-  const getSchoolTypeIcon = (schoolType: string) => {
-    switch (schoolType?.toLowerCase()) {
-      case 'primary':
-        return <BookOpen className="h-4 w-4 text-blue-600" />;
-      case 'secondary':
-        return <GraduationCap className="h-4 w-4 text-purple-600" />;
-      case 'tertiary':
-        return <School className="h-4 w-4 text-green-600" />;
-      default:
-        return <School className="h-4 w-4 text-gray-600" />;
-    }
-  };
-
-  const getSnackbarIcon = (severity: string) => {
-    switch (severity) {
-      case 'success':
-        return <CheckCircle className="h-5 w-5" />;
-      case 'error':
-        return <XCircle className="h-5 w-5" />;
-      case 'warning':
-        return <AlertCircle className="h-5 w-5" />;
-      default:
-        return <AlertCircle className="h-5 w-5" />;
-    }
-  };
-
-  const getSnackbarColor = (severity: string) => {
-    switch (severity) {
-      case 'success':
-        return 'bg-green-500';
-      case 'error':
-        return 'bg-red-500';
-      case 'warning':
-        return 'bg-yellow-500';
-      default:
-        return 'bg-blue-500';
-    }
-  };
-
-  const getSchoolTypeColor = (schoolType: string) => {
-    switch (schoolType?.toLowerCase()) {
-      case 'primary':
-        return 'text-blue-600';
-      case 'secondary':
-        return 'text-purple-600';
-      case 'tertiary':
-        return 'text-green-600';
-      default:
-        return 'text-gray-600';
-    }
-  };
-
   if (schoolNotFound) {
     return (
-      <div className="min-h-screen bg-cover bg-center bg-no-repeat flex items-center justify-center p-4 relative" style={{ backgroundImage: `url(${bgImage})` }}>
+      <div className="min-h-screen bg-cover bg-center flex items-center justify-center p-4 relative" style={{ backgroundImage: `url(${bgImage})` }}>
         <div className="absolute inset-0 bg-black opacity-50"></div>
-        <div className="relative z-10 w-full max-w-md">
-          <div className="bg-white/95 backdrop-blur-lg rounded-2xl shadow-2xl p-8 text-center">
-            <div className="flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mx-auto mb-4">
-              <XCircle className="h-8 w-8 text-red-600" />
-            </div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-4">School Not Found</h1>
-            <p className="text-gray-600 mb-6">
-              The school with ID <span className="font-semibold">{schoolId}</span> could not be found.
-              Please check the registration link and try again.
-            </p>
-            <button
-              onClick={() => window.location.href = '/'}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors duration-200"
-            >
-              Return to Home
-            </button>
-          </div>
+        <div className="relative z-10 w-full max-w-md bg-white/95 rounded-2xl shadow-2xl p-8 text-center">
+          <XCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Invalid Registration Link</h1>
+          <p className="text-gray-600 mb-6">
+            The registration link is invalid or expired. Please contact your school administrator for assistance.
+          </p>
+          <button
+            onClick={() => navigate('/')}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg"
+          >
+            Return to Home
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div
-      className="min-h-screen bg-cover bg-center bg-no-repeat flex items-center justify-center p-4 relative"
-      style={{ backgroundImage: `url(${bgImage})` }}
-    >
-      {/* Background overlay */}
+    <div className="min-h-screen bg-cover bg-center flex items-center justify-center p-4 relative" style={{ backgroundImage: `url(${bgImage})` }}>
       <div className="absolute inset-0 bg-black opacity-50"></div>
-
-      <div className="relative z-10 w-full max-w-lg">
-        <div className="bg-white/95 backdrop-blur-lg rounded-2xl shadow-2xl p-8">
-          {/* Header */}
-          <div className="text-center mb-8">
-            <div className="flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mx-auto mb-4">
-              <UserPlus className="h-8 w-8 text-blue-600" />
+      <div className="relative z-10 w-full max-w-lg bg-white/95 rounded-2xl shadow-2xl p-8">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <UserPlus className="h-12 w-12 text-blue-600 mx-auto mb-4" />
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Student Registration</h1>
+          
+          {schoolInfo ? (
+            <div className="space-y-1">
+              <h2 className="text-xl font-semibold text-blue-600">{schoolInfo.schoolName}</h2>
+              <p className="text-gray-600 capitalize">{schoolInfo.schoolType} School</p>
+              {schoolInfo.schoolAddress && (
+                <p className="text-sm text-gray-500">{schoolInfo.schoolAddress}</p>
+              )}
             </div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              Student Registration
-            </h1>
-            <div className="flex items-center justify-center gap-2 text-gray-600 mb-2">
-              <School className="h-4 w-4" />
-              <span className="text-sm">
-                School ID:{' '}
-                <span className="font-semibold text-blue-600">{schoolId}</span>
-              </span>
+          ) : (
+            <div className="flex justify-center items-center py-4">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             </div>
-            {schoolInfo && (
-              <div className="flex items-center justify-center gap-2 text-gray-700">
-                {getSchoolTypeIcon(schoolInfo.schoolType)}
-                <span
-                  className={`text-sm font-medium ${getSchoolTypeColor(schoolInfo.schoolType)}`}
-                >
-                  {schoolInfo.schoolName}
-                </span>
-                <span className="text-gray-400">•</span>
-                <span className="text-sm text-gray-600 capitalize">
-                  {schoolInfo.schoolType} School
-                </span>
-              </div>
-            )}
-            {schoolLoading && (
-              <div className="flex items-center justify-center gap-2 text-gray-500">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
-                <span className="text-sm">Loading school information...</span>
-              </div>
-            )}
-          </div>
+          )}
+        </div>
 
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Name Fields */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label
-                  htmlFor="firstName"
-                  className="block text-sm font-medium text-gray-700 mb-2"
-                >
-                  First Name
-                </label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                  <input
-                    type="text"
-                    id="firstName"
-                    name="firstName"
-                    value={formData.firstName}
-                    onChange={handleChange}
-                    placeholder="Enter first name"
-                    required
-                    className="text-gray-500 w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label
-                  htmlFor="lastName"
-                  className="block text-sm font-medium text-gray-700 mb-2"
-                >
-                  Last Name
-                </label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                  <input
-                    type="text"
-                    id="lastName"
-                    name="lastName"
-                    value={formData.lastName}
-                    onChange={handleChange}
-                    placeholder="Enter last name"
-                    required
-                    className="text-gray-500 w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Email */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Email */}
-              <div>
-                <label
-                  htmlFor="email"
-                  className="block text-sm font-medium text-gray-700 mb-2"
-                >
-                  Email Address
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                  <input
-                    type="email"
-                    id="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    placeholder="Enter your school email"
-                    required
-                    className="text-gray-500 w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                  />
-                </div>
-              </div>
-
-              {/* Phone Number */}
-              <div>
-                <label
-                  htmlFor="phone"
-                  className="block text-sm font-medium text-gray-700 mb-2"
-                >
-                  Phone Number
-                </label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                  <input
-                    type="tel"
-                    id="phone"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    placeholder="Enter your phone number"
-                    required
-                    className="text-gray-500 w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-black"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Class Selection */}
+        {/* Registration Form */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* First Name */}
             <div>
-              <label
-                htmlFor="classAdmittedTo"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
-                Class
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
               <div className="relative">
-                <BookOpen className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                <select
-                  id="classAdmittedTo"
-                  name="classAdmittedTo"
-                  value={formData.classAdmittedTo}
-                  onChange={handleChange}
-                  required
-                  disabled={schoolLoading || !schoolInfo}
-                  className="text-gray-500 w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
-                >
-                  <option value="">
-                    {schoolLoading ? 'Loading classes...' : 'Select your class'}
-                  </option>
-                  {schoolInfo?.classes.map((cls, index) => (
-                    <option
-                      key={`${cls.className}-${cls.section}-${index}`}
-                      value={cls.className}
-                    >
-                      {cls.className} 
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {schoolInfo &&
-                schoolInfo.classes.length === 0 &&
-                !schoolLoading && (
-                  <p className="text-sm text-red-500 mt-1">
-                    No classes available for this school
-                  </p>
-                )}
-            </div>
-
-            {/* School ID (Read-only) */}
-            <div>
-              <label
-                htmlFor="school"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
-                School ID
-              </label>
-              <div className="relative">
-                <GraduationCap className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
-                  id="school"
-                  name="school"
-                  value={formData.school}
-                  readOnly
-                  className="text-gray-600 w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-600 cursor-not-allowed"
+                  name="firstName"
+                  value={formData.firstName}
+                  onChange={handleChange}
+                  required
+                  className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-blue-500 focus:border-blue-500 text-black"
                 />
               </div>
-              <p className="text-xs text-gray-500 mt-1">
-                Automatically assigned based on your registration link
-              </p>
             </div>
 
-            {/* Password & Confirm Password */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Password */}
-              <div>
-                <label
-                  htmlFor="password"
-                  className="block text-sm font-medium text-gray-700 mb-2"
-                >
-                  Password
-                </label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    id="password"
-                    name="password"
-                    value={formData.password}
-                    onChange={handleChange}
-                    placeholder="Create a strong password"
-                    required
-                    className="text-gray-500 w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-5 w-5" />
-                    ) : (
-                      <Eye className="h-5 w-5" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {/* Confirm Password */}
-              <div>
-                <label
-                  htmlFor="confirmPassword"
-                  className="block text-sm font-medium text-gray-700 mb-2"
-                >
-                  Confirm Password
-                </label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                  <input
-                    type={showConfirmPassword ? 'text' : 'password'}
-                    id="confirmPassword"
-                    name="confirmPassword"
-                    value={formData.confirmPassword}
-                    onChange={handleChange}
-                    placeholder="Confirm your password"
-                    required
-                    className="text-gray-500 w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                  >
-                    {showConfirmPassword ? (
-                      <EyeOff className="h-5 w-5" />
-                    ) : (
-                      <Eye className="h-5 w-5" />
-                    )}
-                  </button>
-                </div>
+            {/* Last Name */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  name="lastName"
+                  value={formData.lastName}
+                  onChange={handleChange}
+                  required
+                  className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-blue-500 focus:border-blue-500 text-black"
+                />
               </div>
             </div>
+          </div>
 
-            {/* Terms and Conditions */}
-            <div className="flex items-start gap-3">
+          {/* Email */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               <input
-                type="checkbox"
-                id="agreeToTerms"
-                name="agreeToTerms"
-                checked={formData.agreeToTerms}
+                type="email"
+                name="email"
+                value={formData.email}
                 onChange={handleChange}
                 required
-                className="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-blue-500 focus:border-blue-500 text-black"
               />
-              <label htmlFor="agreeToTerms" className="text-sm text-gray-700">
-                I confirm that I have read and agree to the{' '}
-                <a
-                  href="#"
-                  className="text-blue-600 hover:text-blue-700 underline"
+            </div>
+          </div>
+
+          {/* Phone */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <input
+                type="tel"
+                name="phone"
+                value={formData.phone}
+                onChange={handleChange}
+                required
+                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-blue-500 focus:border-blue-500 text-black"
+              />
+            </div>
+          </div>
+
+          {/* Class Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
+            <div className="relative">
+              <BookOpen className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <select
+                name="classAdmittedTo"
+                value={formData.classAdmittedTo}
+                onChange={handleChange}
+                required
+                disabled={schoolLoading || !schoolInfo}
+                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 text-black"
+              >
+                <option value="">Select Class</option>
+                {schoolInfo?.classes.map((cls, index) => (
+                  <option key={index} value={cls.className}>
+                    {cls.className} {cls.section && `(${cls.section})`}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Password */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  required
+                  className="w-full pl-10 pr-10 py-2 border rounded-lg focus:ring-blue-500 focus:border-blue-500 text-black"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"
                 >
-                  Terms and Conditions
-                </a>
-              </label>
+                  {showPassword ? <EyeOff /> : <Eye />}
+                </button>
+              </div>
             </div>
 
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={
-                isSubmitting ||
-                schoolLoading ||
-                schoolNotFound ||
-                (!!schoolInfo && schoolInfo.classes.length === 0)
-              }
-              className="bg-blue-600 w-full hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2"
-              style={{ backgroundColor: '#403dff' }}
-            >
-              {isSubmitting ? (
-                <>
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                  Registering...
-                </>
-              ) : (
-                <>
-                  <UserPlus className="h-5 w-5" />
-                  Register Student
-                </>
-              )}
-            </button>
-          </form>
-        </div>
+            {/* Confirm Password */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  name="confirmPassword"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  required
+                  className="w-full pl-10 pr-10 py-2 border rounded-lg focus:ring-blue-500 focus:border-blue-500 text-black"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                >
+                  {showConfirmPassword ? <EyeOff /> : <Eye />}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Terms and Conditions */}
+          <div className="flex items-start">
+            <input
+              type="checkbox"
+              name="agreeToTerms"
+              checked={formData.agreeToTerms}
+              onChange={handleChange}
+              className="mt-1 mr-2"
+            />
+            <label className="text-sm text-gray-700">
+              I agree to the Terms and Conditions
+            </label>
+          </div>
+
+          {/* Submit Button */}
+          <button
+            type="submit"
+            disabled={isSubmitting || schoolLoading || schoolNotFound}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg disabled:opacity-50"
+          >
+            {isSubmitting ? (
+              <span className="flex items-center justify-center">
+                <span className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></span>
+                Registering...
+              </span>
+            ) : (
+              'Register'
+            )}
+          </button>
+        </form>
       </div>
 
       {/* Snackbar */}
       {snackbar.open && (
-        <div
-          className={`fixed bottom-4 right-4 z-50 py-3 px-6 rounded-lg shadow-lg ${getSnackbarColor(snackbar.severity)} text-white transition-all duration-300 ease-in-out max-w-md`}
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              {getSnackbarIcon(snackbar.severity)}
-              <span className="font-medium">{snackbar.message}</span>
-            </div>
-            <button
-              onClick={() => setSnackbar({ ...snackbar, open: false })}
-              className="ml-4 text-white hover:text-gray-200 transition-colors"
-              title="Close notification"
-            >
-              <XCircle className="h-5 w-5" />
-            </button>
+        <div className={`fixed bottom-4 right-4 z-50 p-4 rounded-lg shadow-lg text-white ${
+          snackbar.severity === 'success' ? 'bg-green-500' : 
+          snackbar.severity === 'error' ? 'bg-red-500' : 'bg-blue-500'
+        }`}>
+          <div className="flex items-center">
+            {snackbar.severity === 'success' ? <CheckCircle className="mr-2" /> : <XCircle className="mr-2" />}
+            <span>{snackbar.message}</span>
           </div>
         </div>
       )}
