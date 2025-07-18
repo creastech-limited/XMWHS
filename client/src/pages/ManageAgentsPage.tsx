@@ -51,6 +51,7 @@ interface FormErrors {
   password?: string;
 }
 
+
 const ManageAgentsPage: React.FC = () => {
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://nodes-staging-xp.up.railway.app';
   
@@ -86,18 +87,6 @@ const ManageAgentsPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingAgents, setIsLoadingAgents] = useState(true);
   
-  // Store registration link state
-  const [storeRegistrationLink, setStoreRegistrationLink] = useState<string>('');
-  
-  // Store details from registration link
-  interface StoreDetails {
-    store_id?: string;
-    storeName?: string;
-    storeType?: string;
-    schoolId?: string;
-  }
-  const [storeDetails, setStoreDetails] = useState<StoreDetails | null>(null);
-  
   // Authentication related states
   const authContext = useAuth();
   const token = authContext?.token;
@@ -107,101 +96,68 @@ const ManageAgentsPage: React.FC = () => {
   useEffect(() => {
     if (!authToken) return;
 
-    const fetchUserProfile = async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
-          headers: {
-            'Authorization': `Bearer ${authToken}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (!response.ok) throw new Error('Failed to fetch user profile');
-
-        const data = await response.json();
-        const profile = data.user;
-
-        // Get the registration link from the correct field
-        const registrationLink = profile.Link || '';
-
-        setStoreRegistrationLink(registrationLink);
-
-        // Parse store details from the registration link
-        const parsedDetails = parseStoreRegistrationLink(registrationLink);
-        setStoreDetails(parsedDetails);
-
-        // Fetch agents and count
-        await fetchAgents();
-      } catch (error) {
-        console.error('Error fetching user profile:', error);
-        toast.error('Failed to fetch store information');
-      } finally {
-        setIsLoadingAgents(false);
-      }
-    };
-
-    fetchUserProfile();
-  }, [authToken, API_BASE_URL]);
-  
-  // Function to fetch agents - Updated to match API response structure
- const fetchAgents = async () => {
+   const fetchUserProfile = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/users/getagentbyid`, {
+    const response = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
       headers: {
         'Authorization': `Bearer ${authToken}`,
         'Content-Type': 'application/json'
       }
     });
 
-    if (!response.ok) {
-      throw new Error('Failed to fetch agents');
-    }
+    if (!response.ok) throw new Error('Failed to fetch user profile');
 
-    const apiResponse: ApiResponse = await response.json();
-    console.log('API Response:', apiResponse); // Debug log
-    
-    // Extract agents from the correct path in response
-    const agentsData = apiResponse.data?.agent || [];
-    const storeData = apiResponse.data?.store || null;
-    
-    // If storeData exists, make sure schoolId is properly set
-    if (storeData) {
-      storeData.schoolId = storeData.schoolId || (storeData.store_id ? storeData.store_id.split('/')[0] : '');
-    }
-    
-    setAgents(Array.isArray(agentsData) ? agentsData : []);
-    setAgentCount(agentsData.length);
-    setStoreInfo(storeData);
-    
+   
+    await response.json(); // Just parse the response to ensure it's valid
+
+    // Fetch agents and store info
+    await fetchAgents();
   } catch (error) {
-    console.error('Error fetching agents:', error);
-    setAgents([]);
-    setAgentCount(0);
-    toast.error('Failed to fetch agents');
+    console.error('Error fetching user profile:', error);
+    toast.error('Failed to fetch store information');
+  } finally {
+    setIsLoadingAgents(false);
   }
 };
+
+    fetchUserProfile();
+  }, [authToken, API_BASE_URL]);
   
-  // Function to parse store registration link and extract parameters
- const parseStoreRegistrationLink = (link: string): StoreDetails | null => {
-  if (!link) return null;
-  try {
-    // Remove any leading '?' if present
-    const queryString = link.startsWith('?') ? link.substring(1) : link;
-    // Split into key-value pairs
-    const params = new URLSearchParams(queryString);
+  // Function to fetch agents
+  const fetchAgents = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/getagentbyid`, {
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
 
-    return {
-      store_id: params.get('store_id') || '',
-      storeName: params.get('storeName') || '',
-      storeType: params.get('storeType') || '',
-      schoolId: params.get('schoolId') || params.get('store_id')?.split('/')[0] || ''
-    };
-  } catch (error) {
-    console.error('Error parsing store registration link:', error);
-    toast.error('Invalid store registration link');
-    return null;
-  }
-};
+      if (!response.ok) {
+        throw new Error('Failed to fetch agents');
+      }
+
+      const apiResponse: ApiResponse = await response.json();
+      console.log('API Response:', apiResponse);
+      
+      const agentsData = apiResponse.data?.agent || [];
+      const storeData = apiResponse.data?.store || null;
+      
+      if (storeData) {
+        storeData.schoolId = storeData.schoolId || (storeData.store_id ? storeData.store_id.split('/')[0] : '');
+      }
+      
+      setAgents(Array.isArray(agentsData) ? agentsData : []);
+      setAgentCount(agentsData.length);
+      setStoreInfo(storeData);
+      
+    } catch (error) {
+      console.error('Error fetching agents:', error);
+      setAgents([]);
+      setAgentCount(0);
+      toast.error('Failed to fetch agents');
+    }
+  };
   
   const handleChange = (field: keyof FormErrors) => (event: React.ChangeEvent<HTMLInputElement>) => {
     setAgentData({ ...agentData, [field]: event.target.value });
@@ -235,39 +191,31 @@ const ManageAgentsPage: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
   
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  
-  if (!validateForm()) return;
-  
-  // Use store info from API response or fallback to parsed details
-  const storeId = storeInfo?.store_id || storeDetails?.store_id;
-  // Get schoolId from storeInfo first, then from parsed details, and make sure to split if it contains '/'
-  const schoolId = storeInfo?.schoolId || 
-                  (storeInfo?.store_id ? storeInfo.store_id.split('/')[0] : '') || 
-                  storeDetails?.schoolId || 
-                  (storeDetails?.store_id ? storeDetails.store_id.split('/')[0] : '');
-  
-  if (!storeId || !schoolId) {
-    toast.error('Store information not available');
-    return;
-  }
-  
-  setIsLoading(true);
-  
-  try {
-    // Prepare data for registration
-    const registrationData = {
-      firstName: agentData.firstName,
-      lastName: agentData.lastName,
-      email: agentData.email,
-      phone: agentData.phone,
-      password: agentData.password,
-      role: "agent",
-      store_id: storeId,
-      schoolId: schoolId, // Use the properly extracted schoolId
-    };
-      
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!validateForm()) return;
+    
+    if (!storeInfo?.store_id) {
+      toast.error('Store information not available');
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    try {
+      // Prepare data for registration
+      const registrationData = {
+        firstName: agentData.firstName,
+        lastName: agentData.lastName,
+        email: agentData.email,
+        phone: agentData.phone,
+        password: agentData.password,
+        role: "agent",
+        store_id: storeInfo.store_id,
+        schoolId: storeInfo.schoolId || storeInfo.store_id.split('/')[0] || '',
+      };
+        
       // Register the agent
       const registerResponse = await fetch(`${API_BASE_URL}/api/users/register`, {
         method: 'POST',
@@ -281,13 +229,11 @@ const handleSubmit = async (e: React.FormEvent) => {
       const responseData = await registerResponse.json();
       
       if (!registerResponse.ok) {
-        // Show specific error message from API
         const errorMessage = responseData.message || responseData.error || 'Failed to register agent';
         toast.error(errorMessage);
         throw new Error(errorMessage);
       }
       
-      // Show success message
       toast.success('🎉 Agent created successfully!', {
         position: "top-right",
         autoClose: 3000,
@@ -309,14 +255,13 @@ const handleSubmit = async (e: React.FormEvent) => {
       setErrors({});
       setShowForm(false);
       
-      // Wait a moment before refreshing to ensure the backend has processed the request
+      // Refresh agents list
       setTimeout(async () => {
         await fetchAgents();
       }, 1000);
       
     } catch (error) {
       console.error('Error creating agent:', error);
-      // Show error toast with more specific message
       const errorMessage = error instanceof Error ? error.message : 'Failed to create agent. Please try again.';
       toast.error(`❌ ${errorMessage}`, {
         position: "top-right",
@@ -347,7 +292,6 @@ const handleSubmit = async (e: React.FormEvent) => {
         throw new Error('Failed to delete agent');
       }
       
-      // Update local state
       setAgents(agents.filter(agent => agent.id !== id));
       setAgentCount(prev => Math.max(0, prev - 1));
       
@@ -380,12 +324,11 @@ const handleSubmit = async (e: React.FormEvent) => {
 
   // Get display name for store
   const getStoreName = (): string => {
-    return storeInfo?.name || storeDetails?.storeName || 'Store';
+    return storeInfo?.name || 'Store';
   };
 
- return (
+  return (
     <div className="text-gray-600 flex min-h-screen flex-col bg-gray-50">
-      {/* Toast Container */}
       <ToastContainer
         position="top-right"
         autoClose={3000}
@@ -399,16 +342,12 @@ const handleSubmit = async (e: React.FormEvent) => {
         theme="light"
       />
       
-      {/* Header and Sidebar */}
       <StoreHeader />
       <StoreSidebar />
   
-      {/* Responsive Spacer - adjusts based on screen size */}
       <div className="h-[80px] xs:h-[90px] sm:h-[100px] md:h-[110px] lg:h-[120px] xl:h-[140px]" />
       
-      {/* Main Content - responsive padding and max-width */}
-           <div className="px-4 xs:px-5 sm:px-6 md:px-8 py-6 sm:py-7 md:py-8 flex-grow max-w-6xl mx-auto w-full">
-        {/* Title Section - tablet optimized */}
+      <div className="px-4 xs:px-5 sm:px-6 md:px-8 py-6 sm:py-7 md:py-8 flex-grow max-w-6xl mx-auto w-full">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 sm:mb-7 md:mb-8 gap-3 sm:gap-4">
           <div className="w-full md:w-auto">
             <h1 className="text-xl xs:text-2xl sm:text-[26px] md:text-3xl font-bold text-gray-800">
@@ -424,14 +363,13 @@ const handleSubmit = async (e: React.FormEvent) => {
             )}
           </div>
           
-          {/* Button - full width on mobile, auto on larger screens */}
-           <div className="w-full sm:w-auto">
+          <div className="w-full sm:w-auto">
             <button 
               className={`flex items-center justify-center gap-2 px-4 py-2 rounded-md w-full sm:w-auto ${
                 showForm ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-600 hover:bg-blue-700'
               } text-white transition-colors text-sm sm:text-[15px]`}
               onClick={() => setShowForm(!showForm)}
-              disabled={!storeRegistrationLink}
+              aria-label={showForm ? "Cancel form" : "Add new agent"}
             >
               <AddIcon className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
               {showForm ? "Cancel" : "Add New Agent"}
@@ -439,7 +377,6 @@ const handleSubmit = async (e: React.FormEvent) => {
           </div>
         </div>
         
-        {/* Agent Creation Form - responsive padding and margins */}
         {showForm && (
           <div className="relative bg-white p-5 sm:p-6 md:p-7 mb-6 sm:mb-7 md:mb-8 rounded-xl shadow-lg overflow-hidden">
             <div className="absolute top-0 left-0 right-0 h-1 bg-blue-600" />
@@ -458,7 +395,6 @@ const handleSubmit = async (e: React.FormEvent) => {
                   <div className="border-b border-gray-200 mb-2 sm:mb-4" />
                 </div>
                 
-                {/* Form fields with responsive sizing */}
                 {['firstName', 'lastName', 'email', 'phone'].map((field) => (
                   <div key={field}>
                     <label 
@@ -543,7 +479,6 @@ const handleSubmit = async (e: React.FormEvent) => {
                 </div>
               </div>
               
-              {/* Form buttons - responsive sizing and spacing */}
               <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 mt-4 sm:mt-6">
                 <button
                   type="button"
@@ -586,7 +521,6 @@ const handleSubmit = async (e: React.FormEvent) => {
           </div>
         )}
         
-        {/* Search bar - tablet sizing */}
         <div className="relative mb-5 sm:mb-6 md:mb-7">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <SearchIcon className="h-[18px] w-[18px] text-gray-400" />
@@ -600,14 +534,12 @@ const handleSubmit = async (e: React.FormEvent) => {
           />
         </div>
         
-        {/* Loading state */}
         {isLoadingAgents && (
           <div className="flex justify-center my-7 sm:my-8">
             <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-blue-600"></div>
           </div>
         )}
         
-       {/* List of Agents - tablet-specific grid */}
         {!isLoadingAgents && agents.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
             {filteredAgents.map((agent) => (
@@ -684,7 +616,6 @@ const handleSubmit = async (e: React.FormEvent) => {
         ) : null}
       </div>
       
-      {/* Footer */}
       <Footer />
     </div>
   );
