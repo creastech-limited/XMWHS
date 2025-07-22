@@ -403,67 +403,68 @@ const handleSubmit = async (e: React.FormEvent) => {
       <StoreHeader />
       <StoreSidebar />
   
-      {/* Responsive Spacer - adjusts based on screen size */}
-      <div className="h-[80px] xs:h-[90px] sm:h-[100px] md:h-[110px] lg:h-[120px] xl:h-[140px]" />
-      
-      {/* Main Content - responsive padding and max-width */}
-           <div className="px-4 xs:px-5 sm:px-6 md:px-8 py-6 sm:py-7 md:py-8 flex-grow max-w-6xl mx-auto w-full">
-        {/* Title Section - tablet optimized */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 sm:mb-7 md:mb-8 gap-3 sm:gap-4">
-          <div className="w-full md:w-auto">
-            <h1 className="text-xl xs:text-2xl sm:text-[26px] md:text-3xl font-bold text-gray-800">
-              Manage Agents
-            </h1>
-            <p className="text-xs xs:text-sm sm:text-[13px] text-gray-500 mt-1">
-              {getStoreName()} • Total Agents: {agentCount}
-            </p>
-            {storeInfo && (
-              <p className="text-[11px] xs:text-xs text-gray-400 mt-1 truncate">
-                Store Type: {storeInfo.type} • Store ID: {storeInfo.store_id}
-              </p>
-            )}
-          </div>
-          
-          {/* Button - full width on mobile, auto on larger screens */}
-           <div className="w-full sm:w-auto">
-            <button 
-              className={`flex items-center justify-center gap-2 px-4 py-2 rounded-md w-full sm:w-auto ${
-                showForm ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-600 hover:bg-blue-700'
-              } text-white transition-colors text-sm sm:text-[15px]`}
-              onClick={() => setShowForm(!showForm)}
-              disabled={!storeRegistrationLink}
-            >
-              <AddIcon className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
-              {showForm ? "Cancel" : "Add New Agent"}
-            </button>
-          </div>
-        </div>
+      {/* Main Content Area - adjusted for sidebar */}
+      <div className="flex-1 pl-0 md:pl-[250px] transition-all duration-300">
+        {/* Responsive Spacer - accounts for sidebar */}
+        <div className="h-[80px] xs:h-[90px] sm:h-[100px] md:h-[110px] lg:h-[120px] xl:h-[140px]" />
         
-        {/* Agent Creation Form - responsive padding and margins */}
+        {/* Content Container - now properly offset */}
+        <div className="px-4 xs:px-5 sm:px-6 md:px-7 lg:px-8 py-5 sm:py-6 md:py-7 lg:py-8 max-w-6xl mx-auto w-full">
+          {/* Title Section */}
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-5 sm:mb-6 md:mb-7 gap-3 sm:gap-4">
+            <div className="w-full md:w-auto">
+              <h1 className="text-xl xs:text-2xl sm:text-[26px] md:text-[28px] lg:text-3xl font-bold text-gray-800">
+                Manage Agents
+              </h1>
+              <p className="text-xs xs:text-sm sm:text-[13px] md:text-[14px] text-gray-500 mt-1">
+                {getStoreName()} • Total Agents: {agentCount}
+              </p>
+              {storeInfo && (
+                <p className="text-[11px] xs:text-xs sm:text-[13px] text-gray-400 mt-1 truncate">
+                  Store Type: {storeInfo.type} • Store ID: {storeInfo.store_id}
+                </p>
+              )}
+            </div>
+            
+            <div className="w-full md:w-[200px]">
+              <button 
+                className={`flex items-center justify-center gap-2 px-4 py-2 rounded-md w-full ${
+                  showForm ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-600 hover:bg-blue-700'
+                } text-white transition-colors text-sm sm:text-[15px]`}
+                onClick={() => setShowForm(!showForm)}
+                disabled={!storeRegistrationLink}
+              >
+                <AddIcon className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
+                {showForm ? "Cancel" : "Add New Agent"}
+              </button>
+            </div>
+          </div>
+        
+        {/* Agent Creation Form - tablet padding adjustments */}
         {showForm && (
-          <div className="relative bg-white p-5 sm:p-6 md:p-7 mb-6 sm:mb-7 md:mb-8 rounded-xl shadow-lg overflow-hidden">
+          <div className="relative bg-white p-5 sm:p-6 md:p-6 lg:p-7 mb-5 sm:mb-6 md:mb-7 rounded-xl shadow-lg overflow-hidden">
             <div className="absolute top-0 left-0 right-0 h-1 bg-blue-600" />
             
-            <h2 className="text-lg sm:text-xl font-semibold mb-4 sm:mb-6 flex items-center gap-2">
+            <h2 className="text-lg sm:text-xl md:text-[20px] font-semibold mb-4 sm:mb-5 md:mb-6 flex items-center gap-2">
               <PersonAddIcon className="text-blue-600 w-5 h-5 sm:w-6 sm:h-6" />
               <span>Create New Agent Account</span>
             </h2>
             
-            <form onSubmit={handleSubmit} className="mt-2 sm:mt-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+            <form onSubmit={handleSubmit} className="mt-2 sm:mt-3 md:mt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5 md:gap-6">
                 <div className="col-span-2">
-                  <h3 className="text-xs sm:text-sm font-medium text-gray-500 mb-1 sm:mb-2">
+                  <h3 className="text-xs sm:text-sm md:text-[14px] font-medium text-gray-500 mb-1 sm:mb-2">
                     Agent Information
                   </h3>
-                  <div className="border-b border-gray-200 mb-2 sm:mb-4" />
+                  <div className="border-b border-gray-200 mb-2 sm:mb-3 md:mb-4" />
                 </div>
                 
-                {/* Form fields with responsive sizing */}
+                {/* Form fields with tablet sizing */}
                 {['firstName', 'lastName', 'email', 'phone'].map((field) => (
                   <div key={field}>
                     <label 
                       htmlFor={field} 
-                      className="block text-xs sm:text-sm font-medium text-gray-700 mb-1"
+                      className="block text-xs sm:text-sm md:text-[14px] font-medium text-gray-700 mb-1"
                     >
                       {field === 'firstName' && 'First Name *'}
                       {field === 'lastName' && 'Last Name *'}
@@ -484,7 +485,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                           type={(field as string) === 'email' ? 'email' : (field as string) === 'phone' ? 'tel' : 'text'}
                           className={`pl-10 sm:pl-12 w-full rounded-md border ${
                             errors[field as keyof FormErrors] ? 'border-red-500' : 'border-gray-300'
-                          } shadow-sm focus:ring-blue-500 focus:border-blue-500 text-xs sm:text-sm`}
+                          } shadow-sm focus:ring-blue-500 focus:border-blue-500 text-xs sm:text-sm md:text-[14px]`}
                           value={agentData[field as keyof typeof agentData]}
                           onChange={handleChange(field as keyof FormErrors)}
                           placeholder={
@@ -502,7 +503,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                         type={field === 'email' ? 'email' : field === 'phone' ? 'tel' : 'text'}
                         className={`w-full rounded-md border ${
                           errors[field as keyof FormErrors] ? 'border-red-500' : 'border-gray-300'
-                        } shadow-sm focus:ring-blue-500 focus:border-blue-500 text-xs sm:text-sm`}
+                        } shadow-sm focus:ring-blue-500 focus:border-blue-500 text-xs sm:text-sm md:text-[14px]`}
                         value={agentData[field as keyof typeof agentData]}
                         onChange={handleChange(field as keyof FormErrors)}
                         placeholder={
@@ -523,7 +524,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                 ))}
                 
                 <div className="col-span-2">
-                  <label htmlFor="password" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="password" className="block text-xs sm:text-sm md:text-[14px] font-medium text-gray-700 mb-1">
                     Password *
                   </label>
                   <input
@@ -531,7 +532,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                     type="password"
                     className={`w-full rounded-md border ${
                       errors.password ? 'border-red-500' : 'border-gray-300'
-                    } shadow-sm focus:ring-blue-500 focus:border-blue-500 text-xs sm:text-sm`}
+                    } shadow-sm focus:ring-blue-500 focus:border-blue-500 text-xs sm:text-sm md:text-[14px]`}
                     value={agentData.password}
                     onChange={handleChange('password')}
                     placeholder="At least 6 characters"
@@ -543,11 +544,11 @@ const handleSubmit = async (e: React.FormEvent) => {
                 </div>
               </div>
               
-              {/* Form buttons - responsive sizing and spacing */}
-              <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 mt-4 sm:mt-6">
+              {/* Form buttons - tablet sizing */}
+              <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 mt-4 sm:mt-5 md:mt-6">
                 <button
                   type="button"
-                  className="px-3 sm:px-4 py-1 sm:py-2 border border-gray-300 rounded-md text-xs sm:text-sm text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  className="px-3 sm:px-4 py-1 sm:py-2 border border-gray-300 rounded-md text-xs sm:text-sm md:text-[14px] text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
                   onClick={() => {
                     setShowForm(false);
                     setAgentData({
@@ -566,7 +567,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                 </button>
                 <button
                   type="submit"
-                  className="px-3 sm:px-4 py-1 sm:py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center text-xs sm:text-sm"
+                  className="px-3 sm:px-4 py-1 sm:py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center text-xs sm:text-sm md:text-[14px]"
                   disabled={isLoading}
                 >
                   {isLoading ? (
@@ -593,7 +594,7 @@ const handleSubmit = async (e: React.FormEvent) => {
           </div>
           <input
             type="text"
-            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-[15px]"
+            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-[15px] md:text-[15px]"
             placeholder="Search agents by name, email, or phone"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -602,14 +603,14 @@ const handleSubmit = async (e: React.FormEvent) => {
         
         {/* Loading state */}
         {isLoadingAgents && (
-          <div className="flex justify-center my-7 sm:my-8">
+          <div className="flex justify-center my-6 sm:my-7 md:my-8">
             <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-blue-600"></div>
           </div>
         )}
         
-       {/* List of Agents - tablet-specific grid */}
+        {/* List of Agents - tablet grid (2 columns) */}
         {!isLoadingAgents && agents.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 md:gap-6">
             {filteredAgents.map((agent) => (
               <div key={agent.id} className="bg-white rounded-xl shadow-md overflow-hidden transition-transform hover:-translate-y-1 hover:shadow-lg">
                 <div className="p-5 sm:p-6">
@@ -637,24 +638,24 @@ const handleSubmit = async (e: React.FormEvent) => {
                     </button>
                   </div>
                   
-                  <div className="border-t border-gray-200 my-2 sm:my-4" />
+                  <div className="border-t border-gray-200 my-2 sm:my-3 md:my-4" />
                   
                   <div className="space-y-2 sm:space-y-3">
-                    <div className="flex items-center text-xs sm:text-sm">
+                    <div className="flex items-center text-xs sm:text-sm md:text-[14px]">
                       <span className="font-medium w-16 sm:w-20">Email:</span>
                       <span className="text-gray-600 truncate">{agent.email || 'N/A'}</span>
                     </div>
-                    <div className="flex items-center text-xs sm:text-sm">
+                    <div className="flex items-center text-xs sm:text-sm md:text-[14px]">
                       <span className="font-medium w-16 sm:w-20">Phone:</span>
                       <span className="text-gray-600 truncate">{agent.phone || 'N/A'}</span>
                     </div>
                     {agent.schoolId && (
-                      <div className="flex items-center text-xs sm:text-sm">
+                      <div className="flex items-center text-xs sm:text-sm md:text-[14px]">
                         <span className="font-medium w-16 sm:w-20">School ID:</span>
                         <span className="text-gray-600 text-xs truncate">{agent.schoolId}</span>
                       </div>
                     )}
-                    <div className="flex items-center text-xs sm:text-sm">
+                    <div className="flex items-center text-xs sm:text-sm md:text-[14px]">
                       <span className="font-medium w-16 sm:w-20">Status:</span>
                       <span className="text-green-600 bg-green-50 px-2 py-0.5 rounded-full text-xs">
                         Active
@@ -666,11 +667,11 @@ const handleSubmit = async (e: React.FormEvent) => {
             ))}
           </div>
         ) : !isLoadingAgents ? (
-          <div className="bg-white p-6 sm:p-7 md:p-8 text-center rounded-xl shadow-sm max-w-2xl mx-auto">
+          <div className="bg-white p-6 sm:p-7 md:p-7 lg:p-8 text-center rounded-xl shadow-sm max-w-2xl mx-auto">
             <div className="mx-auto h-32 w-32 sm:h-36 sm:w-36 bg-gray-100 rounded-full flex items-center justify-center mb-5 sm:mb-6">
               <HelpIcon className="h-16 w-16 sm:h-20 sm:w-20 text-gray-400" />
             </div>
-            <h3 className="text-lg sm:text-xl font-medium text-gray-900 mb-2 sm:mb-3">
+            <h3 className="text-lg sm:text-xl md:text-[22px] font-medium text-gray-900 mb-2 sm:mb-3">
               No Agents Added Yet
             </h3>
             <button
@@ -686,6 +687,7 @@ const handleSubmit = async (e: React.FormEvent) => {
       
       {/* Footer */}
       <Footer />
+    </div>
     </div>
   );
 };
