@@ -405,7 +405,7 @@ const ManageAgentsPage: React.FC = () => {
                   showForm ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-600 hover:bg-blue-700'
                 } text-white transition-colors text-sm sm:text-[15px]`}
                 onClick={() => setShowForm(!showForm)}
-                disabled={!storeRegistrationLink}
+                // disabled={!storeRegistrationLink}
               >
                 <AddIcon className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
                 {showForm ? "Cancel" : "Add New Agent"}
@@ -657,6 +657,7 @@ const ManageAgentsPage: React.FC = () => {
       </div>
       
       <Footer />
+    </div>
     </div>
     </div>
   );
