@@ -71,34 +71,37 @@ export const StorePage: React.FC = () => {
     'https://nodes-staging-xp.up.railway.app';
 
   // 1) Fetch user profile to get schoolId and storeLink
-  useEffect(() => {
-    if (!authToken) return;
+// 1) Fetch user profile to get schoolId and storeLink
+useEffect(() => {
+  if (!authToken) return;
 
-    fetch(`${API_BASE_URL}/api/users/getuserone`, {
-      headers: {
-        Authorization: `Bearer ${authToken}`,
-        'Content-Type': 'application/json',
-      },
+  fetch(`${API_BASE_URL}/api/users/getuserone`, {
+    headers: {
+      Authorization: `Bearer ${authToken}`,
+      'Content-Type': 'application/json',
+    },
+  })
+    .then((res) => {
+      if (!res.ok) throw new Error('Failed to fetch user profile');
+      return res.json();
     })
-      .then((res) => {
-        if (!res.ok) throw new Error('Failed to fetch user profile');
-        return res.json();
-      })
-      .then((data) => {
-        const profile = data.user;
-        const id = profile.data._id;
-        setSchoolId(id);
+    .then((data) => {
+      const profile = data.user;
+      const schoolId = profile.data.schoolId;
+      const schoolName = profile.data.schoolName || profile.data.name || '';
+      
+      setSchoolId(schoolId);
 
-        // Construct the full store registration link
-        const linkPath = profile.Link || '';
-        const fullLink = `${window.location.origin}/stores/new${linkPath}`;
-        setStoreLink(fullLink);
-      })
-      .catch((err) => {
-        console.error(err);
-        setSnackbar({ open: true, message: err.message, severity: 'error' });
-      });
-  }, [authToken, API_BASE_URL]);
+      // Construct the full store registration link with schoolId and schoolName
+      const linkPath = profile.Link || '';
+      const fullLink = `${window.location.origin}/stores/new${linkPath}?schoolId=${schoolId}&schoolName=${encodeURIComponent(schoolName)}`;
+      setStoreLink(fullLink);
+    })
+    .catch((err) => {
+      console.error(err);
+      setSnackbar({ open: true, message: err.message, severity: 'error' });
+    });
+}, [authToken, API_BASE_URL]);
 
   // 2) Fetch stores for this schoolId using the getstorebyid endpoint
   useEffect(() => {

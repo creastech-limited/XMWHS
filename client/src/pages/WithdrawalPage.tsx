@@ -16,29 +16,44 @@ import Footer from '../components/Footer';
 // Define types
 interface User {
   name: string;
-  walletBalance: number;
+  wallet: {
+    balance: number;
+    currency: string;
+    walletId: string;
+  };
   withdrawalBank?: string;
   withdrawalAccountNumber?: string;
   withdrawalAccountName?: string;
 }
 
+interface Bank {
+  id: string;
+  name: string;
+  code: string;
+}
+interface ApiBankData {
+  id: number;
+  name: string;
+  code: string;
+  slug: string;
+  longcode: string;
+  gateway: string | null;
+  pay_with_bank: boolean;
+  supports_transfer: boolean;
+  available_for_direct_debit: boolean;
+  active: boolean;
+  country: string;
+  currency: string;
+  type: string;
+  is_deleted: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
 interface SnackbarState {
   open: boolean;
   message: string;
   severity: 'success' | 'error' | 'info' | 'warning';
 }
-
-const banks = [
-  'Access Bank',
-  'GTBank',
-  'First Bank',
-  'Zenith Bank',
-  'UBA',
-  'Fidelity Bank',
-  'Union Bank',
-  'Sterling Bank',
-  'Ecobank',
-];
 
 const steps = ['Select Bank', 'Account Details', 'Verify OTP'];
 
@@ -66,6 +81,10 @@ const WithdrawalPage: React.FC = () => {
   // State for user profile (fetched from backend)
   const [user, setUser] = useState<User | null>(null);
 
+  // State for banks (fetched from backend)
+  const [banks, setBanks] = useState<Bank[]>([]);
+  const [bankLoading, setBankLoading] = useState<boolean>(false);
+
   // Snackbar for notifications
   const [snackbar, setSnackbar] = useState<SnackbarState>({
     open: false,
@@ -76,30 +95,86 @@ const WithdrawalPage: React.FC = () => {
   // API Base URL from environment variables
   const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://nodes-staging-xp.up.railway.app';
 
+  // Fetch banks from API
+  useEffect(() => {
+  const fetchBanks = async () => {
+    setBankLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/transaction/banks`);
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Fetched banks:', result);
+        
+        // Extract banks from the API response structure
+        const banksData = result.data || [];
+        
+        // Map the API response to match your Bank interface
+        const mappedBanks = banksData.map((bank: ApiBankData) => ({
+          id: bank.id.toString(),
+          name: bank.name,
+          code: bank.code,
+        }));
+        
+        setBanks(mappedBanks);
+      } else {
+        console.error('Failed to fetch banks');
+        setBanks([]); // Set empty array instead of fallback banks
+      }
+    } catch (error) {
+      console.error('Error fetching banks:', error);
+      setBanks([]); // Set empty array instead of fallback banks
+    } finally {
+      setBankLoading(false);
+    }
+  };
+  
+  fetchBanks();
+}, [API_BASE_URL]);
+
   // Fetch the logged-in user's profile on mount
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) return;
+    
     const fetchUserProfile = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/users/me`, {
+        const response = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (response.ok) {
           const data = await response.json();
-          console.log('Fetched user profile:', data);
-          setUser(data);
-          // Pre-populate bank details if they exist
-          if (
-            data.withdrawalBank &&
-            data.withdrawalAccountNumber &&
-            data.withdrawalAccountName
-          ) {
-            setSelectedBank(data.withdrawalBank);
-            setAccountNumber(data.withdrawalAccountNumber);
-            setAccountName(data.withdrawalAccountName);
-            setIsBankSet(true);
+          
+          // Validate API response structure
+          if (!data || typeof data !== 'object') {
+            throw new Error('Invalid user profile response format');
           }
+
+          // Create safe user data with null coalescing and optional chaining
+          const userInfo = data.user?.data || data.data || data;
+const walletInfo = data.user?.wallet || data.wallet;
+
+const userData: User = {
+  name: userInfo.name ?? `${userInfo.firstName ?? ''} ${userInfo.lastName ?? ''}`.trim(),
+  wallet: {
+    balance: walletInfo?.balance || 0,
+    currency: walletInfo?.currency || 'NGN',
+    walletId: walletInfo?.walletId || '',
+  },
+  withdrawalBank: userInfo.withdrawalBank,
+  withdrawalAccountNumber: userInfo.withdrawalAccountNumber,
+  withdrawalAccountName: userInfo.withdrawalAccountName,
+};
+          
+          setUser(userData);
+          
+          // Pre-populate bank details if they exist
+         if (userInfo.withdrawalBank && userInfo.withdrawalAccountNumber && userInfo.withdrawalAccountName) {
+  setSelectedBank(userInfo.withdrawalBank);
+  setAccountNumber(userInfo.withdrawalAccountNumber);
+  setAccountName(userInfo.withdrawalAccountName);
+  setIsBankSet(true);
+}
         } else {
           console.error('Failed to fetch user profile');
         }
@@ -107,12 +182,12 @@ const WithdrawalPage: React.FC = () => {
         console.error('Error fetching user profile:', error);
       }
     };
+    
     fetchUserProfile();
   }, [API_BASE_URL]);
 
   // Derive available balance from the user profile, defaulting to 0 if not available
-  const availableBalance =
-    user && typeof user.walletBalance === 'number' ? user.walletBalance : 0;
+  const availableBalance = user?.wallet?.balance || 0;
 
   const handleOpenModal = () => {
     setOpenModal(true);
@@ -543,24 +618,31 @@ const WithdrawalPage: React.FC = () => {
                 >
                   Select Bank
                 </label>
-                <select
-                  id="withdrawal-bank-select"
-                  className="block text-gray-700 mb-2 w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  value={selectedBank}
-                  onChange={(e) => {
-                    setSelectedBank(e.target.value);
-                    setActiveStep(1);
-                  }}
-                >
-                  <option value="" className="block text-gray-700 mb-2">
-                    Select your bank
-                  </option>
-                  {banks.map((bank) => (
-                    <option key={bank} value={bank}>
-                      {bank}
+                {bankLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                    <span className="ml-2 text-gray-600">Loading banks...</span>
+                  </div>
+                ) : (
+                  <select
+                    id="withdrawal-bank-select"
+                    className="block text-gray-700 mb-2 w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={selectedBank}
+                    onChange={(e) => {
+                      setSelectedBank(e.target.value);
+                      setActiveStep(1);
+                    }}
+                  >
+                    <option value="" className="block text-gray-700 mb-2">
+                      Select your bank
                     </option>
-                  ))}
-                </select>
+                    {banks.map((bank) => (
+                      <option key={bank.id} value={bank.name}>
+                        {bank.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
             )}
 
