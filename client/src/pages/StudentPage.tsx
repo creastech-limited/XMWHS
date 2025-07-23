@@ -91,7 +91,7 @@ const StudentPage: React.FC = () => {
   }>({ top: 0, left: 0 });
 
   const API_BASE_URL =
-    import.meta.env.VITE_API_URL || 'https://nodes-staging-xp.up.railway.app';
+    import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging-xp.up.railway.app';
   const rowsPerPage = 10;
 
   // Fetch user profile to get schoolLink and schoolId

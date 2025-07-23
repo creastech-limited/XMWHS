@@ -287,12 +287,6 @@ const FundWalletPage: React.FC = () => {
         await fetchTransactions();
         setAmount('');
         setActiveStep(0);
-      } else {
-        setSnackbar({
-          open: true,
-          message: 'Payment verification failed',
-          severity: 'error'
-        });
       }
     } catch (error: unknown) {
       console.error('Error verifying transaction:', error);
