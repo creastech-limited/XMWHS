@@ -61,6 +61,7 @@ const WithdrawalPage: React.FC = () => {
   // States for bank setup modal
   const [openModal, setOpenModal] = useState<boolean>(false);
   const [selectedBank, setSelectedBank] = useState<string>('');
+  const [selectedBankCode, setSelectedBankCode] = useState<string>('');
   const [accountNumber, setAccountNumber] = useState<string>('');
   const [accountName, setAccountName] = useState<string>('');
   const [otp, setOtp] = useState<string>('');
@@ -203,6 +204,7 @@ const userData: User = {
 
   const resetModalForm = () => {
     setSelectedBank('');
+    setSelectedBankCode('');
     setAccountNumber('');
     setAccountName('');
     setOtp('');
@@ -211,38 +213,67 @@ const userData: User = {
     setVerificationStatus(null);
   };
 
-  // Verify account number by setting the accountName as the logged-in user's name.
-  const handleVerifyAccount = () => {
+  // Verify account number using the new API endpoint
+  const handleVerifyAccount = async () => {
     if (accountNumber.length !== 10) {
       setVerificationStatus('error');
       setAccountName('');
       return;
     }
-    if (!user || !user.name) {
-      alert('User profile not loaded. Please try again.');
+    
+    if (!selectedBankCode) {
+      alert('Bank code not found. Please reselect your bank.');
       return;
     }
+    
     setLoading(true);
-
-    setTimeout(() => {
-      setAccountName(user.name); // Use logged-in user's name as account name
-      setVerificationStatus('success');
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/transaction/resolveaccount`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          account_number: accountNumber,
+          bank_code: selectedBankCode,
+        }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        // Assuming the API returns account_name in the response
+        setAccountName(data.account_name || data.data?.account_name);
+        setVerificationStatus('success');
+      } else {
+        const errorData = await response.json();
+        alert(errorData.message || 'Failed to verify account. Please check account number and try again.');
+        setVerificationStatus('error');
+        setAccountName('');
+      }
+    } catch (error) {
+      console.error('Error verifying account:', error);
+      alert('An error occurred while verifying account.');
+      setVerificationStatus('error');
+      setAccountName('');
+    } finally {
       setLoading(false);
-    }, 1500);
+    }
   };
 
-  // Send OTP via backend API
+  // Send OTP via new backend API
   const handleSendOtp = async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/api/withdrawals/send-otp`, {
+      const response = await fetch(`${API_BASE_URL}/api/otp/generate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
       });
+      
       if (response.ok) {
         setOtpSent(true);
         alert('OTP sent to your registered email address.');
@@ -258,31 +289,31 @@ const userData: User = {
     }
   };
 
-  // Update bank details with OTP verification by calling the backend API
+  // Update bank details with OTP verification using new API
   const handleSetBank = async () => {
-    if (!selectedBank || !accountNumber || !otp) {
+    if (!selectedBank || !accountNumber || !otp || !accountName) {
       alert('Please fill in all fields and enter the OTP.');
       return;
     }
+    
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(
-        `${API_BASE_URL}/api/withdrawals/update-bank`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            withdrawalBank: selectedBank,
-            withdrawalAccountNumber: accountNumber,
-            withdrawalAccountName: accountName,
-            otp, // Send the OTP for verification
-          }),
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/api/otp/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          otp,
+          accountName,
+          accountNumber,
+          bankName: selectedBank,
+          bankCode: selectedBankCode,
+        }),
+      });
+      
       if (response.ok) {
         await response.json();
         setIsBankSet(true);
@@ -293,13 +324,23 @@ const userData: User = {
           message: 'Withdrawal bank details updated successfully!',
           severity: 'success',
         });
+        
+        // Update the user state to reflect the new bank details
+        if (user) {
+          setUser({
+            ...user,
+            withdrawalBank: selectedBank,
+            withdrawalAccountNumber: accountNumber,
+            withdrawalAccountName: accountName,
+          });
+        }
       } else {
         const errorData = await response.json();
-        alert(errorData.message || 'Failed to set bank details.');
+        alert(errorData.message || 'Failed to verify OTP and set bank details.');
       }
     } catch (error) {
-      console.error('Error setting bank details:', error);
-      alert('An error occurred while setting bank details.');
+      console.error('Error verifying OTP:', error);
+      alert('An error occurred while verifying OTP.');
     } finally {
       setLoading(false);
     }

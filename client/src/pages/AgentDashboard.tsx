@@ -48,77 +48,38 @@ const AgentDashboard = () => {
   const [error, setError] = useState<string>('');
 
   // Fetch user details from API
-  const fetchUserDetails = async (authToken: string): Promise<User> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
+ const fetchUserDetails = async (authToken: string): Promise<User> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log('User API Response:', data);
-
-      // Handle different response structures
-      let profile: User;
-      if (data.user?.data) {
-        profile = data.user.data;
-      } else if (data.data) {
-        profile = data.data;
-      } else if (data.user) {
-        profile = data.user as User;
-      } else {
-        profile = data as User;
-      }
-
-      return profile;
-    } catch (error) {
-      console.error('Error fetching user details:', error);
-      throw error;
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-  };
 
-  // Fetch wallet balance
-  const fetchWalletBalance = async (authToken: string): Promise<number> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/wallet/balance`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
+    const data = await response.json();
+    console.log('User API Response:', data);
 
-      if (!response.ok) {
-        // If wallet endpoint doesn't exist, try to get from user data
-        console.warn('Wallet endpoint not available, using user wallet balance');
-        return 0;
-      }
+    // Extract user data from different possible response structures
+    const userData = data.user?.data || data.data || data.user || data;
+    const walletData = data.user?.wallet || data.wallet || { balance: 0 };
 
-      const data = await response.json();
-      console.log('Wallet API Response:', data);
+    const profile: User = {
+      ...userData,
+      walletBalance: walletData.balance || 0
+    };
 
-      // Handle different response structures
-      if (data.balance !== undefined) {
-        return data.balance;
-      } else if (data.data?.balance !== undefined) {
-        return data.data.balance;
-      } else if (data.walletBalance !== undefined) {
-        return data.walletBalance;
-      }
-
-      return 0;
-    } catch (error) {
-      console.error('Error fetching wallet balance:', error);
-      return 0;
-    }
-  };
+    return profile;
+  } catch (error) {
+    console.error('Error fetching user details:', error);
+    throw error;
+  }
+};
 
   // Fetch user transactions
   const fetchUserTransactions = async (authToken: string): Promise<Transaction[]> => {
@@ -147,28 +108,41 @@ const AgentDashboard = () => {
       } else if (Array.isArray(data)) {
         transactions = data;
       }
+// In fetchUserTransactions function, update the type mapping:
+return transactions.map((txn: Transaction & {
+  _id?: string | number;
+  merchant?: string;
+  note?: string;
+  createdAt?: string;
+  transactionId?: string;
+  transactionType?: string;
+}, index: number) => {
+  // More accurate type detection
+  const amount = txn.amount || 0;
+  let type: 'credit' | 'debit' = 'credit'; // default
+  
+  // Check multiple possible indicators of debit
+  if (txn.type === 'debit' || 
+      txn.transactionType === 'debit' || 
+      (typeof txn.amount === 'number' && txn.amount < 0)) {
+    type = 'debit';
+  }
 
-      // Transform API response to match our interface
-      return transactions.map((txn: Transaction & {
-        _id?: string | number;
-        merchant?: string;
-        note?: string;
-        createdAt?: string;
-        transactionId?: string;
-      }, index: number) => ({
-        id: typeof txn._id === 'number'
-          ? txn._id
-          : typeof txn.id === 'number'
-            ? txn.id
-            : Number(typeof txn._id === 'string' ? txn._id : typeof txn.id === 'string' ? txn.id : index + 1) || index + 1,
-        type: txn.type || (txn.amount > 0 ? 'credit' : 'debit'),
-        amount: Math.abs(txn.amount || 0),
-        store: txn.store || txn.merchant || txn.description || 'Transaction',
-        description: txn.description || txn.note,
-        date: txn.date || txn.createdAt || new Date().toISOString().split('T')[0],
-        status: txn.status,
-        reference: txn.reference || txn.transactionId,
-      }));
+  return {
+    id: typeof txn._id === 'number'
+      ? txn._id
+      : typeof txn.id === 'number'
+        ? txn.id
+        : Number(typeof txn._id === 'string' ? txn._id : typeof txn.id === 'string' ? txn.id : index + 1) || index + 1,
+    type: type,
+    amount: Math.abs(amount),
+    store: txn.store || txn.merchant || txn.description || 'Transaction',
+    description: txn.description || txn.note,
+    date: txn.date || txn.createdAt || new Date().toISOString().split('T')[0],
+    status: txn.status,
+    reference: txn.reference || txn.transactionId,
+  };
+});
     } catch (error) {
       console.error('Error fetching transactions:', error);
       return [];
@@ -241,87 +215,83 @@ const AgentDashboard = () => {
   };
 
   // Initialize authentication and fetch data
-  useEffect(() => {
-    const initializeAuth = async () => {
-      try {
-        setLoading(true);
-        setError('');
-        console.log('Starting auth initialization...');
+useEffect(() => {
+  const initializeAuth = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      console.log('Starting auth initialization...');
 
-        let authToken = '';
-        let userProfile: User | null = null;
+      let authToken = '';
+      let userProfile: User | null = null;
 
-        // Check if already in context
-        if (auth?.user?._id && auth?.token) {
-          console.log('Found user in auth context:', auth.user);
-          authToken = auth.token;
-          userProfile = auth.user;
-          setUser(auth.user);
-        } else {
-          // Try localStorage
-          const storedToken = localStorage.getItem('token');
-          if (!storedToken) {
-            console.log('No token in localStorage');
-            throw new Error('No authentication token found');
-          }
-
-          console.log('Found token in localStorage');
-          authToken = storedToken;
-
-          // Fetch user from API to ensure fresh data
-          console.log('Fetching user from API...');
-          userProfile = await fetchUserDetails(storedToken);
-          console.log('Successfully fetched user profile:', userProfile);
-          
-          // Ensure 'role' is always a string for AuthContext compatibility
-          const mergedUser: User = {
-            ...userProfile,
-            role: userProfile.role || '',
-          };
-          setUser(mergedUser);
-          // Update auth context if available
-          auth?.login?.(mergedUser, storedToken);
+      // Check if already in context
+      if (auth?.user?._id && auth?.token) {
+        console.log('Found user in auth context:', auth.user);
+        authToken = auth.token;
+        userProfile = auth.user;
+        setUser(auth.user);
+        setWalletBalance(typeof auth.user.walletBalance === 'number' ? auth.user.walletBalance : 0);
+      } else {
+        // Try localStorage
+        const storedToken = localStorage.getItem('token');
+        if (!storedToken) {
+          console.log('No token in localStorage');
+          throw new Error('No authentication token found');
         }
 
-        // Fetch wallet balance
-        console.log('Fetching wallet balance...');
-        const balance = await fetchWalletBalance(authToken);
-        setWalletBalance(balance);
+        console.log('Found token in localStorage');
+        authToken = storedToken;
 
-        // Fetch transactions
-        console.log('Fetching user transactions...');
-        const transactions = await fetchUserTransactions(authToken);
-        setAllTransactions(transactions);
-        setRecentTransactions(transactions.slice(0, 5));
-
-        // Calculate monthly sales track and performance
-        const monthlySalesData = calculateMonthlySalesData(transactions);
-        const performance = calculatePerformance(transactions);
-
-        // Set agent data with calculated values
-        setAgentData({
-          monthlyTarget: 100000,
-          performance: performance,
-          monthlySalesTrack: monthlySalesData.percentage,
-          monthlySalesAmount: monthlySalesData.amount,
-          walletBalance: balance,
-        });
-
-        console.log('Auth initialization completed successfully');
-        console.log('Monthly Sales Track:', monthlySalesData.percentage + '%');
-        console.log('Monthly Sales Amount:', '₦' + monthlySalesData.amount.toLocaleString());
-        console.log('Performance:', performance + '%');
-
-      } catch (error) {
-        console.error('Auth initialization error:', error);
-        handleAuthError('Authentication error. Please login again.');
-      } finally {
-        setLoading(false);
+        // Fetch user from API to ensure fresh data
+        console.log('Fetching user from API...');
+        userProfile = await fetchUserDetails(storedToken);
+        console.log('Successfully fetched user profile:', userProfile);
+        
+        const mergedUser: User = {
+          ...userProfile,
+          role: userProfile.role || '',
+        };
+        
+        setUser(mergedUser);
+        setWalletBalance(mergedUser.walletBalance || 0);
+        auth?.login?.(mergedUser, storedToken);
       }
-    };
 
-    initializeAuth();
-  }, [auth]);
+      // Fetch transactions
+      console.log('Fetching user transactions...');
+      const transactions = await fetchUserTransactions(authToken);
+      setAllTransactions(transactions);
+      setRecentTransactions(transactions.slice(0, 5));
+
+      // Calculate monthly sales track and performance
+      const monthlySalesData = calculateMonthlySalesData(transactions);
+      const performance = calculatePerformance(transactions);
+
+      // Set agent data with calculated values
+      setAgentData({
+        monthlyTarget: 100000,
+        performance: performance,
+        monthlySalesTrack: monthlySalesData.percentage,
+        monthlySalesAmount: monthlySalesData.amount,
+        walletBalance: userProfile?.walletBalance || 0,
+      });
+
+      console.log('Auth initialization completed successfully');
+      console.log('Monthly Sales Track:', monthlySalesData.percentage + '%');
+      console.log('Monthly Sales Amount:', '₦' + monthlySalesData.amount.toLocaleString());
+      console.log('Performance:', performance + '%');
+
+    } catch (error) {
+      console.error('Auth initialization error:', error);
+      handleAuthError('Authentication error. Please login again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  initializeAuth();
+}, [auth]);
 
   const colors = {
     primary: '#3f51b5',
@@ -524,46 +494,56 @@ const AgentDashboard = () => {
               {/* Transactions list */}
               <div className="text-gray-900 space-y-4">
                 {recentTransactions.length > 0 ? (
-                  recentTransactions.map((transaction) => (
-                    <div
-                      key={transaction.id}
-                      className="flex justify-between items-center p-3 border-b border-gray-100"
-                    >
-                      <div>
-                        <p className="font-medium">{transaction.store}</p>
-                        <p className="text-sm text-gray-500">
-                          {new Date(transaction.date).toLocaleDateString()}
-                        </p>
-                        {transaction.reference && (
-                          <p className="text-xs text-gray-400">
-                            Ref: {transaction.reference}
-                          </p>
-                        )}
-                      </div>
-                      <div className="text-right">
-                        <div
-                          className={`font-bold ${
-                            transaction.type === 'credit'
-                              ? 'text-green-500'
-                              : 'text-red-500'
-                          }`}
-                        >
-                          {transaction.type === 'credit' ? '+' : '-'}₦
-                          {transaction.amount.toLocaleString()}
-                        </div>
-                        {transaction.status && (
-                          <p className="text-xs text-gray-500 capitalize">
-                            {transaction.status}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <p>No recent transactions found</p>
-                  </div>
-                )}
+  recentTransactions.map((transaction) => {
+    // Determine color and sign based on status and type
+    let colorClass = '';
+    let sign = '';
+    
+    if (transaction.status === 'failed' || transaction.status === 'rejected') {
+      colorClass = 'text-red-500'; // Red for failed transactions
+      sign = '*'; // No sign for failed transactions
+    } else if (transaction.type === 'debit') {
+      colorClass = 'text-yellow-500'; // Yellow for debit transactions
+      sign = '-'; // Minus sign for debits
+    } else {
+      colorClass = 'text-green-500'; // Green for successful credits
+      sign = '+'; // Plus sign for credits
+    }
+
+    return (
+      <div
+        key={transaction.id}
+        className="flex justify-between items-center p-3 border-b border-gray-100"
+      >
+        <div>
+          <p className="font-medium">{transaction.store}</p>
+          <p className="text-sm text-gray-500">
+            {new Date(transaction.date).toLocaleDateString()}
+          </p>
+          {transaction.reference && (
+            <p className="text-xs text-gray-400">
+              Ref: {transaction.reference}
+            </p>
+          )}
+        </div>
+        <div className="text-right">
+          <div className={`font-bold ${colorClass}`}>
+            {sign}₦{transaction.amount.toLocaleString()}
+          </div>
+          {transaction.status && (
+            <p className="text-xs text-gray-500 capitalize">
+              {transaction.status}
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  })
+) : (
+  <div className="text-center py-8 text-gray-500">
+    <p>No recent transactions found</p>
+  </div>
+)}
               </div>
             </div>
           </div>

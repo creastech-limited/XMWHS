@@ -16,6 +16,7 @@ type Transaction = {
   date: string;
   createdAt?: string;
   updatedAt?: string;
+  status?: string;
 };
 
 type User = {
@@ -114,15 +115,17 @@ const AgentTransactionHistory = () => {
       // Transform API data to match our Transaction type
       const transformedTransactions: Transaction[] = transactionList.map((txn, index: number) => {
         const t = txn as Record<string, unknown>;
-        return {
-          id: (t.id as number) || (t._id as number) || index + 1,
-          type: (t.type as 'credit' | 'transfer') || ((typeof t.amount === 'number' && t.amount > 0) ? 'credit' : 'transfer'),
-          amount: Math.abs((t.amount as number) || 0),
-          description: (t.description as string) || (t.note as string) || 'Transaction',
-          date: (t.date as string) || (t.createdAt as string) || new Date().toISOString().split('T')[0],
-          createdAt: t.createdAt as string | undefined,
-          updatedAt: t.updatedAt as string | undefined,
-        };
+       return {
+  id: (t.id as number) || (t._id as number) || index + 1,
+  type: (t.type as 'credit' | 'transfer') || ((typeof t.amount === 'number' && t.amount > 0) ? 'credit' : 'transfer'),
+  amount: Math.abs((t.amount as number) || 0),
+  description: (t.description as string) || (t.note as string) || 'Transaction',
+  date: (t.date as string) || (t.createdAt as string) || new Date().toISOString().split('T')[0],
+  status: t.status as string | undefined, // Add this line
+  createdAt: t.createdAt as string | undefined,
+  updatedAt: t.updatedAt as string | undefined,
+};
+
       });
 
       return transformedTransactions;
@@ -254,43 +257,70 @@ const AgentTransactionHistory = () => {
                 </Link>
               </div>
               
-              {transactions.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <p>No transactions found</p>
-                </div>
-              ) : (
-                <ul>
-                  {transactions.map((txn, index) => (
-                    <React.Fragment key={txn.id}>
-                      <li className="flex items-center justify-between py-3">
-                        <div className="flex items-center gap-3">
-                          {txn.type === 'credit' ? (
-                            <ArrowDown className="text-green-500 w-5 h-5" />
-                          ) : (
-                            <ArrowUp className="text-pink-500 w-5 h-5" />
-                          )}
-                          <div>
-                            <p className="font-medium">{txn.description}</p>
-                            <p className="text-sm text-gray-500">{txn.date}</p>
-                          </div>
-                        </div>
-                        <p
-                          className={`font-bold text-sm ${
-                            txn.type === 'credit' ? 'text-green-600' : 'text-pink-600'
-                          }`}
-                        >
-                          {txn.type === 'credit' ? '+' : '-'}₦{txn.amount.toLocaleString()}
-                        </p>
-                      </li>
-                      {index < transactions.length - 1 && (
-                        <li aria-hidden="true" tabIndex={-1} className="p-0 m-0">
-                          <hr className="ml-8 border-gray-200" />
-                        </li>
-                      )}
-                    </React.Fragment>
-                  ))}
-                </ul>
-              )}
+            {transactions.length === 0 ? (
+  <div className="text-center py-8 text-gray-500">
+    <p>No transactions found</p>
+  </div>
+) : (
+  <ul>
+    {transactions.map((txn, index) => {
+      // Determine color and icon based on transaction status and type
+      let iconColor = '';
+      let textColor = '';
+      let IconComponent = ArrowDown;
+      let sign = '+';
+      
+      // First check for failed status (highest priority)
+      if (txn.status === 'failed' || txn.status === 'rejected') {
+        iconColor = 'text-red-500';
+        textColor = 'text-red-600';
+        IconComponent = ArrowUp; 
+        sign = '*';      } 
+      // Then check for debit type
+      else if (txn.type === 'transfer') {
+        iconColor = 'text-yellow-500';
+        textColor = 'text-yellow-600';
+        IconComponent = ArrowUp;
+        sign = '-';
+      } 
+      // Default to credit
+      else {
+        iconColor = 'text-green-500';
+        textColor = 'text-green-600';
+        IconComponent = ArrowDown;
+        sign = '+';
+      }
+
+      return (
+        <React.Fragment key={txn.id}>
+          <li className="flex items-center justify-between py-3">
+            <div className="flex items-center gap-3">
+              <IconComponent className={`${iconColor} w-5 h-5`} />
+              <div>
+                <p className="font-medium">{txn.description}</p>
+                <p className="text-sm text-gray-500">{txn.date}</p>
+                {/* Show status if it exists */}
+                {txn.status && (
+                  <p className="text-xs text-gray-400 capitalize">
+                    {txn.status}
+                  </p>
+                )}
+              </div>
+            </div>
+            <p className={`font-bold text-sm ${textColor}`}>
+              {sign}₦{txn.amount.toLocaleString()}
+            </p>
+          </li>
+          {index < transactions.length - 1 && (
+            <li aria-hidden="true" tabIndex={-1} className="p-0 m-0">
+              <hr className="ml-8 border-gray-200" />
+            </li>
+          )}
+        </React.Fragment>
+      );
+    })}
+  </ul>
+)}
             </div>
           )}
 
