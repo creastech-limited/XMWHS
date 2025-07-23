@@ -49,7 +49,7 @@ export const Header: React.FC<HeaderProps> = ({ profilePath }) =>  {
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
 const [notificationModalOpen, setNotificationModalOpen] = useState(false);
 
-  const API_URL = import.meta.env.VITE_API_URL || 'https://nodes-staging-xp.up.railway.app';
+  const API_URL = import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging-xp.up.railway.app';
   const token = authToken || localStorage.getItem('token');
 
   // Fetch notifications from API

@@ -93,7 +93,7 @@ const SchoolBillsPage: React.FC = () => {
   const logout = auth?.logout ?? (() => {});
 
   // Get API URL
-  const API_URL = process.env.REACT_APP_API_URL || 'https://nodes-staging-xp.up.railway.app';
+  const API_URL = import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging.up.railway.app';
 
   // Navigation items
   const navItems: NavItem[] = [

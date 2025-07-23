@@ -21,7 +21,7 @@ import {
 import bgImage from './bg.jpeg';
 
 // API Base URL
-const API_BASE_URL = 'https://nodes-staging-xp.up.railway.app';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging.up.railway.app';
 
 // Define steps for the stepper
 const steps = ['Store Information', 'Contact Details', 'Security'];

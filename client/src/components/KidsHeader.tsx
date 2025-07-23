@@ -57,7 +57,7 @@ const KidsHeader = ({ profile, wallet }: KidsHeaderProps) => {
   const notificationRef = useRef<HTMLDivElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   
-  const API_URL = import.meta.env.VITE_API_URL || 'https://nodes-staging-xp.up.railway.app';
+  const API_URL = import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging-xp.up.railway.app';
   const token = authToken || localStorage.getItem('token');
 
   // Fetch notifications from API

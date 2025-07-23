@@ -94,7 +94,7 @@ const WithdrawalPage: React.FC = () => {
   });
 
   // API Base URL from environment variables
-  const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://nodes-staging-xp.up.railway.app';
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging.up.railway.app';
 
   // Fetch banks from API
   useEffect(() => {

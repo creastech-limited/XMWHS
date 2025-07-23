@@ -172,7 +172,7 @@ const KidsSettingsPage: React.FC = () => {
     confirm: false
   });
   
-  const API_URL = process.env.REACT_APP_API_URL || 'https://nodes-staging-xp.up.railway.app';
+  const API_URL = import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging.up.railway.app';
   
   const navItems: NavItem[] = [
     { label: "Dashboard", icon: <User className="w-5 h-5" />, route: "/kidswallet" },

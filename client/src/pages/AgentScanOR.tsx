@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 
-const API_BASE_URL = 'https://nodes-staging-xp.up.railway.app';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging.up.railway.app';
 
 interface QRCodeData {
   userld?: string; 
