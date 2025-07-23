@@ -5,7 +5,7 @@ import { QrCode, Send, History, SearchIcon } from 'lucide-react';
 import { useAuth } from "../context/AuthContext";
 import AHeader from '../components/AHeader';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging.up.railway.app';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 interface Transaction {
   id: number;

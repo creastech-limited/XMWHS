@@ -64,7 +64,7 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
   const notifRef = useRef<HTMLDivElement>(null);
 
   // Use environment variable with fallback
-  const API_URL = import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging-xp.up.railway.app';
+  const API_URL = import.meta.env.VITE_API_BASE_URL;
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {

@@ -97,7 +97,7 @@ const KidPaymentHistoryPage: React.FC = () => {
   const [copiedReference, setCopiedReference] = useState<string | null>(null);
   
   // API URL - matching the pattern from other components
-  const API_URL = import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging.up.railway.app';
+  const API_URL = import.meta.env.VITE_API_BASE_URL;
 
   // Navigation items
   const navItems = [

@@ -84,7 +84,7 @@ const StudentRegistrationForm: React.FC = () => {
     severity: 'success',
   });
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://nodes-staging-xp.up.railway.app';
+  const API_BASE_URL = import.meta.env.VITE_API_URL;
 
   // Validate URL parameters on component mount
   useEffect(() => {

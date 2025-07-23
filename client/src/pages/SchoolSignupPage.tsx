@@ -26,7 +26,7 @@ const SignUpPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [schoolType, setSchoolType] = useState<SchoolType>('primary');
 
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging-xp.up.railway.app';
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   const handleRoleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     setRole(event.target.value);

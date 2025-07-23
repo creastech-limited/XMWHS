@@ -67,8 +67,7 @@ export const StorePage: React.FC = () => {
 
   // Use API base URL from environment variable or default
   const API_BASE_URL =
-    import.meta.env.VITE_API_BASE_URL ||
-    'https://nodes-staging-xp.up.railway.app';
+    import.meta.env.VITE_API_BASE_URL;
 
   // 1) Fetch user profile to get schoolId and storeLink
 // 1) Fetch user profile to get schoolId and storeLink

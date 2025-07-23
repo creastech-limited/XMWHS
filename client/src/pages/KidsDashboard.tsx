@@ -110,7 +110,7 @@ const KidsDashboard = () => {
   });
 
   const API_URL =
-    import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging.up.railway.app';
+    import.meta.env.VITE_API_BASE_URL;
   const qrRef = useRef<HTMLDivElement>(null);
   const COLORS = [
     '#4caf50',
