@@ -63,11 +63,11 @@ const StudentRegistrationForm: React.FC = () => {
     console.log('===================');
   }, [searchParams]);
 
-  // Get all parameters from URL with better error handling
+  // Get all parameters from URL with better error handling and URL decoding
   const schoolId = searchParams.get('schoolId')?.trim() || ''; 
-  const schoolName = searchParams.get('schoolName')?.trim() || '';
-  const schoolType = searchParams.get('schoolType')?.trim() || '';
-  const schoolAddress = searchParams.get('schoolAddress')?.trim() || '';
+  const schoolName = decodeURIComponent(searchParams.get('schoolName')?.trim() || '');
+  const schoolType = decodeURIComponent(searchParams.get('schoolType')?.trim() || '');
+  const schoolAddress = decodeURIComponent(searchParams.get('schoolAddress')?.trim() || '');
 
   const [formData, setFormData] = useState<FormData>({
     firstName: '',
@@ -97,12 +97,15 @@ const StudentRegistrationForm: React.FC = () => {
     severity: 'success',
   });
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://nodes-staging-xp.up.railway.app';
+  // Fix API base URL - remove trailing slash if present and ensure it's defined
+  const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '') || 'https://nodes-staging-xp.up.railway.app';
 
   // Enhanced validation with better error messages
   useEffect(() => {
     console.log('Validating URL parameters...');
     console.log('School ID:', schoolId);
+    console.log('Decoded school name:', schoolName);
+    console.log('Decoded school address:', schoolAddress);
     
     if (!schoolId) {
       const urlParams = new URLSearchParams(window.location.search);
@@ -122,9 +125,9 @@ const StudentRegistrationForm: React.FC = () => {
     }
     
     console.log('School ID validation passed');
-  }, [schoolId]);
+  }, [schoolId, schoolName, schoolAddress]);
 
-  // Fetch school information with enhanced error handling
+  // Fetch school information with enhanced error handling and CORS support
   useEffect(() => {
     if (!schoolId) return;
 
@@ -140,11 +143,26 @@ const StudentRegistrationForm: React.FC = () => {
             method: 'GET',
             headers: {
               'Content-Type': 'application/json',
+              // Add more headers that might be needed for production
+              'Accept': 'application/json',
             },
+            // Add mode and credentials for CORS handling
+            mode: 'cors',
+            credentials: 'omit',
           }
         );
 
         console.log('Response status:', response.status);
+        console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+        
+        // Check if response is JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          const textResponse = await response.text();
+          console.error('Non-JSON response received:', textResponse);
+          throw new Error(`Server returned non-JSON response. Status: ${response.status}`);
+        }
+
         const result = await response.json();
         console.log('API Response:', result);
 
@@ -172,7 +190,7 @@ const StudentRegistrationForm: React.FC = () => {
             schoolAddress: data.schoolAddress || schoolAddress,
           }));
         } else {
-          throw new Error('Invalid school data format');
+          throw new Error('Invalid school data format or no data received');
         }
       } catch (error) {
         console.error('Error fetching school info:', error);
@@ -180,6 +198,11 @@ const StudentRegistrationForm: React.FC = () => {
         let errorMessage = 'Error loading school information';
         if (error instanceof Error) {
           errorMessage = error.message;
+        }
+        
+        // Check if it's a network error
+        if (error instanceof TypeError && error.message.includes('fetch')) {
+          errorMessage = 'Network error: Unable to connect to server. Please check your internet connection.';
         }
         
         setSnackbar({
@@ -294,9 +317,24 @@ const StudentRegistrationForm: React.FC = () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/users/register`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        mode: 'cors',
+        credentials: 'omit',
         body: JSON.stringify(payload),
       });
+
+      console.log('Registration response status:', response.status);
+      
+      // Check if response is JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const textResponse = await response.text();
+        console.error('Non-JSON registration response:', textResponse);
+        throw new Error(`Server returned non-JSON response. Status: ${response.status}`);
+      }
 
       const result = await response.json();
       console.log('Registration response:', result);
@@ -314,9 +352,20 @@ const StudentRegistrationForm: React.FC = () => {
       setTimeout(() => navigate('/login'), 2000);
     } catch (error) {
       console.error('Registration error:', error);
+      
+      let errorMessage = 'Registration failed. Please try again.';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      // Check if it's a network error
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        errorMessage = 'Network error: Unable to connect to server. Please check your internet connection.';
+      }
+      
       setSnackbar({
         open: true,
-        message: error instanceof Error ? error.message : 'Registration failed. Please try again.',
+        message: errorMessage,
         severity: 'error',
       });
     } finally {
@@ -349,12 +398,14 @@ const StudentRegistrationForm: React.FC = () => {
               <p><strong>Current URL:</strong> {window.location.href}</p>
               <p><strong>Search Params:</strong> {window.location.search || 'none'}</p>
               <p><strong>School ID:</strong> {schoolId || 'missing'}</p>
+              <p><strong>Decoded School Name:</strong> {schoolName || 'missing'}</p>
+              <p><strong>Decoded School Address:</strong> {schoolAddress || 'missing'}</p>
               <p><strong>API Base URL:</strong> {API_BASE_URL}</p>
               <div className="mt-2">
                 <strong>All URL Parameters:</strong>
                 <ul className="ml-4 mt-1">
                   {Array.from(searchParams.entries()).map(([key, value]) => (
-                    <li key={key}>• {key}: {value}</li>
+                    <li key={key}>• {key}: {value} (decoded: {decodeURIComponent(value)})</li>
                   ))}
                   {Array.from(searchParams.entries()).length === 0 && <li>• No parameters found</li>}
                 </ul>
