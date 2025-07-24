@@ -51,11 +51,23 @@ const StudentRegistrationForm: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  // Get all parameters from URL
-  const schoolId = searchParams.get('schoolId') || ''; 
-  const schoolName = searchParams.get('schoolName') || '';
-  const schoolType = searchParams.get('schoolType') || '';
-  const schoolAddress = searchParams.get('schoolAddress') || '';
+  // Debug: Log all URL parameters
+  useEffect(() => {
+    console.log('=== URL Debug Info ===');
+    console.log('Current URL:', window.location.href);
+    console.log('Search params string:', window.location.search);
+    console.log('All search params:');
+    searchParams.forEach((value, key) => {
+      console.log(`  ${key}: ${value}`);
+    });
+    console.log('===================');
+  }, [searchParams]);
+
+  // Get all parameters from URL with better error handling
+  const schoolId = searchParams.get('schoolId')?.trim() || ''; 
+  const schoolName = searchParams.get('schoolName')?.trim() || '';
+  const schoolType = searchParams.get('schoolType')?.trim() || '';
+  const schoolAddress = searchParams.get('schoolAddress')?.trim() || '';
 
   const [formData, setFormData] = useState<FormData>({
     firstName: '',
@@ -78,35 +90,50 @@ const StudentRegistrationForm: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [debugMode, setDebugMode] = useState(false);
   const [snackbar, setSnackbar] = useState<SnackbarState>({
     open: false,
     message: '',
     severity: 'success',
   });
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://nodes-staging-xp.up.railway.app';
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging.up.railway.app';
 
-  // Validate URL parameters on component mount
+  // Enhanced validation with better error messages
   useEffect(() => {
+    console.log('Validating URL parameters...');
+    console.log('School ID:', schoolId);
+    
     if (!schoolId) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const allParams = Object.fromEntries(urlParams.entries());
+      
+      console.error('Missing schoolId parameter');
+      console.log('Available parameters:', allParams);
+      
       setSnackbar({
         open: true,
-        message: 'Invalid registration link. Missing school identification.',
+        message: `Invalid registration link. Missing school identification. Available params: ${Object.keys(allParams).join(', ') || 'none'}`,
         severity: 'error',
       });
       setSchoolNotFound(true);
       setSchoolLoading(false);
       return;
     }
+    
+    console.log('School ID validation passed');
   }, [schoolId]);
 
-  // Fetch school information
+  // Fetch school information with enhanced error handling
   useEffect(() => {
     if (!schoolId) return;
 
     const fetchSchoolInfo = async () => {
       try {
         setSchoolLoading(true);
+        console.log(`Fetching school info for ID: ${schoolId}`);
+        console.log(`API URL: ${API_BASE_URL}/api/users/getschoolbyid/${schoolId}`);
+        
         const response = await fetch(
           `${API_BASE_URL}/api/users/getschoolbyid/${schoolId}`,
           {
@@ -117,14 +144,18 @@ const StudentRegistrationForm: React.FC = () => {
           }
         );
 
+        console.log('Response status:', response.status);
         const result = await response.json();
+        console.log('API Response:', result);
 
         if (!response.ok) {
-          throw new Error(result.message || 'Failed to fetch school information');
+          throw new Error(result.message || `HTTP ${response.status}: Failed to fetch school information`);
         }
 
         if (result.success && result.data) {
           const data = result.data;
+          console.log('School data received:', data);
+          
           setSchoolInfo({
             _id: data._id,
             schoolName: data.schoolName || schoolName,
@@ -145,9 +176,15 @@ const StudentRegistrationForm: React.FC = () => {
         }
       } catch (error) {
         console.error('Error fetching school info:', error);
+        
+        let errorMessage = 'Error loading school information';
+        if (error instanceof Error) {
+          errorMessage = error.message;
+        }
+        
         setSnackbar({
           open: true,
-          message: (error instanceof Error && error.message) ? error.message : 'Error loading school information',
+          message: `${errorMessage}. School ID: ${schoolId}`,
           severity: 'error',
         });
         setSchoolNotFound(true);
@@ -252,6 +289,8 @@ const StudentRegistrationForm: React.FC = () => {
       schoolAddress: formData.schoolAddress,
     };
 
+    console.log('Submitting registration payload:', payload);
+
     try {
       const response = await fetch(`${API_BASE_URL}/api/users/register`, {
         method: 'POST',
@@ -260,6 +299,7 @@ const StudentRegistrationForm: React.FC = () => {
       });
 
       const result = await response.json();
+      console.log('Registration response:', result);
 
       if (!response.ok) {
         throw new Error(result.message || 'Registration failed');
@@ -273,6 +313,7 @@ const StudentRegistrationForm: React.FC = () => {
       
       setTimeout(() => navigate('/login'), 2000);
     } catch (error) {
+      console.error('Registration error:', error);
       setSnackbar({
         open: true,
         message: error instanceof Error ? error.message : 'Registration failed. Please try again.',
@@ -293,6 +334,34 @@ const StudentRegistrationForm: React.FC = () => {
           <p className="text-gray-600 mb-6">
             The registration link is invalid or expired. Please contact your school administrator for assistance.
           </p>
+          
+          {/* Debug Information Toggle */}
+          <button
+            onClick={() => setDebugMode(!debugMode)}
+            className="mb-4 text-sm text-blue-600 hover:text-blue-800 underline"
+          >
+            {debugMode ? 'Hide' : 'Show'} Debug Info
+          </button>
+          
+          {debugMode && (
+            <div className="mb-6 p-4 bg-gray-100 rounded-lg text-left text-xs">
+              <h3 className="font-bold mb-2">Debug Information:</h3>
+              <p><strong>Current URL:</strong> {window.location.href}</p>
+              <p><strong>Search Params:</strong> {window.location.search || 'none'}</p>
+              <p><strong>School ID:</strong> {schoolId || 'missing'}</p>
+              <p><strong>API Base URL:</strong> {API_BASE_URL}</p>
+              <div className="mt-2">
+                <strong>All URL Parameters:</strong>
+                <ul className="ml-4 mt-1">
+                  {Array.from(searchParams.entries()).map(([key, value]) => (
+                    <li key={key}>• {key}: {value}</li>
+                  ))}
+                  {Array.from(searchParams.entries()).length === 0 && <li>• No parameters found</li>}
+                </ul>
+              </div>
+            </div>
+          )}
+          
           <button
             onClick={() => navigate('/')}
             className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg"
@@ -508,6 +577,12 @@ const StudentRegistrationForm: React.FC = () => {
           <div className="flex items-center">
             {snackbar.severity === 'success' ? <CheckCircle className="mr-2" /> : <XCircle className="mr-2" />}
             <span>{snackbar.message}</span>
+            <button 
+              onClick={() => setSnackbar(prev => ({ ...prev, open: false }))}
+              className="ml-2 text-white hover:text-gray-200"
+            >
+              ×
+            </button>
           </div>
         </div>
       )}
