@@ -36,7 +36,7 @@ interface AgentData {
   walletBalance: number;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging-xp.up.railway.app';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const AHeader = () => {
   const [agentData, setAgentData] = useState<AgentData | null>(null);

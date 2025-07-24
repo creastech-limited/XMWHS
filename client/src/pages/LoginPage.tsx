@@ -27,7 +27,7 @@ const LoginPage: React.FC = () => {
   const { login } = authContext;
   const navigate = useNavigate();
 
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging-xp.up.railway.app';
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   const validateForm = () => {
     let isValid = true;

@@ -20,7 +20,7 @@ import Footer from '../components/Footer';
 import { useAuth } from '../context/AuthContext';
 
 // API Base URL Configuration
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging.up.railway.app';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 type Transaction = {
     id: string;

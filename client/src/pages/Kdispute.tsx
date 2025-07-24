@@ -75,7 +75,7 @@ const Kdispute: React.FC = () => {
   const [activeTab, setActiveTab] = useState<number>(5); // Dispute tab active (assuming it's the 6th tab)
   
   // API URL - adjust this to match your environment
-  const API_URL = import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging.up.railway.app';
+  const API_URL = import.meta.env.VITE_API_BASE_UR;
 
   // Define navigation items
   const navItems = [

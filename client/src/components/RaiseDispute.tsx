@@ -74,7 +74,7 @@ interface Dispute {
   __v: number;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging.up.railway.app';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const RaiseDispute: React.FC = () => {
   const auth = useAuth();

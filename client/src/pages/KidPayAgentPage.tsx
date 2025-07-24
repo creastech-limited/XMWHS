@@ -83,7 +83,7 @@ const KidPayAgentPage: React.FC = () => {
   const qrRef = useRef<HTMLDivElement>(null);
   
   // API URL - adjust this to match your environment
-  const API_URL = import.meta.env.VITE_API_BASE_URL || 'https://nodes-staging.up.railway.app';
+  const API_URL = import.meta.env.VITE_API_BASE_URL;
 
   // Define navigation items
   const navItems = [
