@@ -25,7 +25,7 @@ interface User {
   phone?: string;
   role: string;
   walletBalance?: number;
-  [key: string]: unknown; // Add index signature for compatibility
+  [key: string]: unknown; 
 }
 
 interface AgentData {
@@ -82,72 +82,92 @@ const AgentDashboard = () => {
 };
 
   // Fetch user transactions
-  const fetchUserTransactions = async (authToken: string): Promise<Transaction[]> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/transaction/getusertransaction`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
+ const fetchUserTransactions = async (authToken: string): Promise<Transaction[]> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/transaction/getusertransaction`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log('Transactions API Response:', data);
-
-      // Handle different response structures
-      let transactions: Transaction[] = [];
-      if (data.transactions) {
-        transactions = data.transactions;
-      } else if (data.data) {
-        transactions = Array.isArray(data.data) ? data.data : [data.data];
-      } else if (Array.isArray(data)) {
-        transactions = data;
-      }
-// In fetchUserTransactions function, update the type mapping:
-return transactions.map((txn: Transaction & {
-  _id?: string | number;
-  merchant?: string;
-  note?: string;
-  createdAt?: string;
-  transactionId?: string;
-  transactionType?: string;
-}, index: number) => {
-  // More accurate type detection
-  const amount = txn.amount || 0;
-  let type: 'credit' | 'debit' = 'credit'; // default
-  
-  // Check multiple possible indicators of debit
-  if (txn.type === 'debit' || 
-      txn.transactionType === 'debit' || 
-      (typeof txn.amount === 'number' && txn.amount < 0)) {
-    type = 'debit';
-  }
-
-  return {
-    id: typeof txn._id === 'number'
-      ? txn._id
-      : typeof txn.id === 'number'
-        ? txn.id
-        : Number(typeof txn._id === 'string' ? txn._id : typeof txn.id === 'string' ? txn.id : index + 1) || index + 1,
-    type: type,
-    amount: Math.abs(amount),
-    store: txn.store || txn.merchant || txn.description || 'Transaction',
-    description: txn.description || txn.note,
-    date: txn.date || txn.createdAt || new Date().toISOString().split('T')[0],
-    status: txn.status,
-    reference: txn.reference || txn.transactionId,
-  };
-});
-    } catch (error) {
-      console.error('Error fetching transactions:', error);
-      return [];
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-  };
+
+    const data = await response.json();
+    console.log('Transactions API Response:', data);
+
+    // Handle different response structures
+    let transactions: Transaction[] = [];
+    if (data.transactions) {
+      transactions = data.transactions;
+    } else if (data.data) {
+      transactions = Array.isArray(data.data) ? data.data : [data.data];
+    } else if (Array.isArray(data)) {
+      transactions = data;
+    }
+
+    // In fetchUserTransactions function, update the type mapping:
+    return transactions.map((txn: Transaction & {
+      _id?: string | number;
+      merchant?: string;
+      note?: string;
+      createdAt?: string;
+      transactionId?: string;
+      transactionType?: string;
+      category?: string;
+      metadata?: {
+        receiverEmail?: string;
+        senderEmail?: string;
+      };
+    }, index: number) => {
+      // More accurate type detection
+      const amount = txn.amount || 0;
+      let type: 'credit' | 'debit' = 'credit';
+      
+      // Check multiple possible indicators of debit
+      if (txn.type === 'debit' || 
+          txn.transactionType === 'debit' || 
+          txn.category === 'debit' ||
+          (typeof txn.amount === 'number' && txn.amount < 0)) {
+        type = 'debit';
+      }
+
+      return {
+        id: typeof txn._id === 'number'
+          ? txn._id
+          : typeof txn.id === 'number'
+            ? txn.id
+            : Number(typeof txn._id === 'string' ? txn._id : typeof txn.id === 'string' ? txn.id : index + 1) || index + 1,
+        type: type,
+        amount: Math.abs(amount),
+        store: (() => {
+          // For debit transactions (wallet_transfer_sent)
+          if (type === 'debit' && txn.metadata?.receiverEmail) {
+            return `Transfer to ${txn.metadata.receiverEmail}`;
+          }
+          // For credit transactions (wallet_transfer_received) 
+          else if (type === 'credit' && txn.metadata?.senderEmail) {
+            return `Payment from ${txn.metadata.senderEmail}`;
+          }
+          // Fallback to existing logic
+          else {
+            return txn.store || txn.merchant || txn.description || 'Transaction';
+          }
+        })(),
+        description: txn.description || txn.note,
+        date: txn.date || txn.createdAt || new Date().toISOString().split('T')[0],
+        status: txn.status,
+        reference: txn.reference || txn.transactionId,
+      };
+    });
+  } catch (error) {
+    console.error('Error fetching transactions:', error);
+    return [];
+  }
+};
 
   // Calculate monthly sales track percentage and amount
   const calculateMonthlySalesData = (transactions: Transaction[]): { percentage: number; amount: number } => {

@@ -86,54 +86,81 @@ const AgentTransactionHistory = () => {
   }, []);
 
   // Fetch transactions from API
-  const fetchTransactions = useCallback(async (authToken: string): Promise<Transaction[]> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/transaction/getusertransaction`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
+ const fetchTransactions = useCallback(async (authToken: string): Promise<Transaction[]> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/transaction/getusertransaction`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      
-      // Handle different response structures for transactions
-      let transactionList: unknown[] = [];
-      if (data.transactions) {
-        transactionList = data.transactions;
-      } else if (data.data) {
-        transactionList = Array.isArray(data.data) ? data.data : [data.data];
-      } else if (Array.isArray(data)) {
-        transactionList = data;
-      }
-
-      // Transform API data to match our Transaction type
-      const transformedTransactions: Transaction[] = transactionList.map((txn, index: number) => {
-        const t = txn as Record<string, unknown>;
-       return {
-  id: (t.id as number) || (t._id as number) || index + 1,
-  type: (t.type as 'credit' | 'transfer') || ((typeof t.amount === 'number' && t.amount > 0) ? 'credit' : 'transfer'),
-  amount: Math.abs((t.amount as number) || 0),
-  description: (t.description as string) || (t.note as string) || 'Transaction',
-  date: (t.date as string) || (t.createdAt as string) || new Date().toISOString().split('T')[0],
-  status: t.status as string | undefined, // Add this line
-  createdAt: t.createdAt as string | undefined,
-  updatedAt: t.updatedAt as string | undefined,
-};
-
-      });
-
-      return transformedTransactions;
-    } catch (error) {
-      console.error('Error fetching transactions:', error);
-      throw error;
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-  }, []);
+
+    const data = await response.json();
+    
+    // Handle different response structures for transactions
+    let transactionList: unknown[] = [];
+    if (data.transactions) {
+      transactionList = data.transactions;
+    } else if (data.data) {
+      transactionList = Array.isArray(data.data) ? data.data : [data.data];
+    } else if (Array.isArray(data)) {
+      transactionList = data;
+    }
+
+    // Transform API data to match our Transaction type
+    const transformedTransactions: Transaction[] = transactionList.map((txn, index: number) => {
+      const t = txn as Record<string, unknown>;
+      
+      // Determine transaction type more accurately
+      let transactionType: 'credit' | 'transfer' = 'credit';
+      if (t.type === 'debit' || 
+          t.transactionType === 'debit' || 
+          t.category === 'debit' ||
+          (typeof t.amount === 'number' && t.amount < 0)) {
+        transactionType = 'transfer';
+      }
+
+      // Generate dynamic description based on metadata
+      const getTransactionDescription = (): string => {
+        const metadata = t.metadata as { receiverEmail?: string; senderEmail?: string } | undefined;
+        
+        // For debit/transfer transactions
+        if (transactionType === 'transfer' && metadata?.receiverEmail) {
+          return `Transfer to ${metadata.receiverEmail}`;
+        }
+        // For credit transactions
+        else if (transactionType === 'credit' && metadata?.senderEmail) {
+          return `Payment from ${metadata.senderEmail}`;
+        }
+        // Fallback to existing logic
+        else {
+          return (t.description as string) || (t.note as string) || 'Transaction';
+        }
+      };
+
+      return {
+        id: (t.id as number) || (t._id as number) || index + 1,
+        type: transactionType,
+        amount: Math.abs((t.amount as number) || 0),
+        description: getTransactionDescription(),
+        date: (t.date as string) || (t.createdAt as string) || new Date().toISOString().split('T')[0],
+        status: t.status as string | undefined,
+        createdAt: t.createdAt as string | undefined,
+        updatedAt: t.updatedAt as string | undefined,
+      };
+    });
+
+    return transformedTransactions;
+  } catch (error) {
+    console.error('Error fetching transactions:', error);
+    throw error;
+  }
+}, []);
 
   // Initialize authentication and fetch data
   useEffect(() => {

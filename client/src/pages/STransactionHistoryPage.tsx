@@ -12,7 +12,6 @@ import {
     User,
     Calendar,
     DollarSign,
-    Eye
 } from 'lucide-react';
 import StoreHeader from '../components/StoreHeader';
 import StoreSidebar from '../components/StoreSidebar';
@@ -39,6 +38,8 @@ type User = {
     name: string;
     email: string;
     role: string;
+    senderEmail?: string;
+    senderWalletId?: string;
     // Add other user properties as needed
 };
 
@@ -129,7 +130,10 @@ const STransactionHistoryPage = () => {
 
             // Transform API data to match our Transaction type
             const transformedTransactions: Transaction[] = transactionList.map((txn, index: number) => {
-                const t = txn as Record<string, unknown>;
+               const t = txn as Record<string, unknown> & {
+    metadata?: { senderEmail?: string; receiverEmail?: string };
+    senderWalletId?: { email?: string };
+};
                 // Determine status based on API response
                 let status: 'Completed' | 'Pending' | 'Failed' = 'Completed';
                 if (t.status) {
@@ -166,7 +170,15 @@ const STransactionHistoryPage = () => {
                     date: formattedDate,
                     amount: Math.abs(Number(t.amount) || 0),
                     status,
-                    agent: String(t.agent || t.agentName || t.from || t.to || `Agent ${String.fromCharCode(65 + (index % 26))}`),
+                agent: String(
+    t.metadata?.senderEmail || 
+    t.senderWalletId?.email || 
+    t.agent || 
+    t.agentName || 
+    t.from || 
+    t.to || 
+    `Agent ${String.fromCharCode(65 + (index % 26))}`
+),
                     agentId: t.agentId ? String(t.agentId) : t.agent_id ? String(t.agent_id) : undefined,
                     description: t.description ? String(t.description) : t.note ? String(t.note) : undefined,
                     createdAt: t.createdAt ? String(t.createdAt) : undefined,
@@ -467,9 +479,7 @@ const STransactionHistoryPage = () => {
                                                             <th scope="col" className="px-4 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                                 Status
                                                             </th>
-                                                            <th scope="col" className="px-4 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                                Action
-                                                            </th>
+                                                            
                                                         </tr>
                                                     </thead>
                                                     <tbody className="bg-white divide-y divide-gray-200">
@@ -493,15 +503,7 @@ const STransactionHistoryPage = () => {
                                                                 <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-center">
                                                                     {getStatusChip(txn.status)}
                                                                 </td>
-                                                                <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                                                                    <button
-                                                                        type="button"
-                                                                        className="text-blue-600 hover:text-blue-900"
-                                                                        title="View Details"
-                                                                    >
-                                                                        <Eye className="h-4 w-4" />
-                                                                    </button>
-                                                                </td>
+                                                                
                                                             </tr>
                                                         ))}
                                                     </tbody>

@@ -153,26 +153,68 @@ const [isLoadingPin, setIsLoadingPin] = useState(false);
     }
   }, []);
 
-  const fetchUserTransactions = useCallback(async (authToken: string) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/transaction/getusertransaction`, {
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
+ const fetchUserTransactions = useCallback(async (authToken: string) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/transaction/getusertransaction`, {
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch transactions');
-      }
-
-      const data = await response.json();
-      return data.data || [];
-    } catch (error) {
-      console.error('Error fetching transactions:', error);
-      return [];
+    if (!response.ok) {
+      throw new Error('Failed to fetch transactions');
     }
-  }, []);
+
+    const data = await response.json();
+    const transactions = data.data || [];
+
+    // Define a type for transaction metadata
+    type TransactionMetadata = {
+      receiverEmail?: string;
+      senderEmail?: string;
+      [key: string]: unknown;
+    };
+
+    // Transform transactions with dynamic descriptions
+    return transactions.map((txn: Transaction & { metadata?: TransactionMetadata; note?: string }) => {
+      // Determine transaction type
+      const isDebit = txn.transactionType === 'debit' || 
+                     txn.category === 'debit' ||
+                     (typeof txn.amount === 'number' && txn.amount < 0);
+
+      // Generate dynamic description
+      const getDescription = () => {
+        const metadata: TransactionMetadata = txn.metadata || {};
+        
+        // For debit transactions
+        if (isDebit && metadata.receiverEmail) {
+          return `Transfer to ${metadata.receiverEmail}`;
+        }
+        // For credit transactions
+        else if (!isDebit && metadata.senderEmail) {
+          return `Payment from ${metadata.senderEmail}`;
+        }
+        // Fallback
+        else {
+          return txn.description || txn.note || 'Transaction';
+        }
+      };
+
+      return {
+        ...txn,
+        description: getDescription(),
+        // Optionally also update other fields for consistency
+        type: isDebit ? 'debit' : 'credit',
+        amount: Math.abs(txn.amount || 0),
+      };
+    });
+
+  } catch (error) {
+    console.error('Error fetching transactions:', error);
+    return [];
+  }
+}, []);
 
   const generateParentStoreInfo = useCallback((storeId: string) => {
     // Store ID format: "GRE343652/68302b8272d28bf99cc6f62b"
@@ -499,13 +541,7 @@ const handlePinInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     }
   };
 
-  // Reset transfer form
-  const resetTransfer = () => {
-    setForm({ amount: '', description: '', storeEmail: '', pin: '' });
-    setFormErrors({ amount: '', storeEmail: '', pin: '' });
-    setTransferComplete(false);
-    setTransactionDetails(null);
-  };
+ 
 
   // Detect mobile
   const isMobile = window.innerWidth <= 640;
@@ -605,20 +641,7 @@ const handlePinInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                   <p><strong>Date:</strong> {new Date().toLocaleString()}</p>
                 </div>
               )}
-              <div className="flex justify-center gap-4">
-                <button 
-                  onClick={resetTransfer} 
-                  className="border px-4 py-2 rounded hover:bg-gray-50 transition-colors"
-                >
-                  New Transfer
-                </button>
-                <Link 
-                  to="/agent" 
-                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors"
-                >
-                  Dashboard
-                </Link>
-              </div>
+             
             </div>
           ) : (
             <form onSubmit={(e) => { e.preventDefault(); if (validateForm()) setShowConfirm(true); }}>

@@ -37,6 +37,42 @@ const TABS = [
   { label: 'Notifications', icon: <Bell className="w-4 h-4 sm:w-5 sm:h-5 mr-2" /> },
 ];
 
+// Generate initials-based avatar to avoid loading non-existent default-avatar.png
+const generateInitialsAvatar = (name: string): string => {
+  const initials = name
+    .split(' ')
+    .map(word => word.charAt(0))
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+  
+  const canvas = document.createElement('canvas');
+  canvas.width = 100;
+  canvas.height = 100;
+  const ctx = canvas.getContext('2d');
+  
+  if (ctx) {
+    // Background color based on name hash
+    const hash = name.split('').reduce((a, b) => {
+      a = ((a << 5) - a) + b.charCodeAt(0);
+      return a & a;
+    }, 0);
+    const hue = Math.abs(hash) % 360;
+    
+    ctx.fillStyle = `hsl(${hue}, 60%, 60%)`;
+    ctx.fillRect(0, 0, 100, 100);
+    
+    // Text
+    ctx.fillStyle = 'white';
+    ctx.font = 'bold 40px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(initials, 50, 50);
+  }
+  
+  return canvas.toDataURL();
+};
+
 const SettingsPanel = () => {
   const authContext = useAuth();
   const token = authContext?.token;
@@ -48,6 +84,7 @@ const SettingsPanel = () => {
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [showImageActions, setShowImageActions] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
 
   const [profile, setProfile] = useState({
     name: '',
@@ -78,6 +115,19 @@ const SettingsPanel = () => {
 
   
    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
+  // Function to get avatar with fallback to initials
+  const getAvatarUrl = (profilePictureUrl: string, userName: string): string => {
+    if (avatarError || !profilePictureUrl) {
+      return generateInitialsAvatar(userName || 'User');
+    }
+    return profilePictureUrl;
+  };
+
+  // Handle avatar error by switching to initials
+  const handleAvatarError = () => {
+    setAvatarError(true);
+  };
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -115,6 +165,8 @@ const SettingsPanel = () => {
           setSelectedImage(null);
           setImagePreview(null);
           setShowImageActions(false);
+          // Reset avatar error state when new user data loads
+          setAvatarError(false);
         }
       } catch (error) {
         console.error('Error fetching user data:', error);
@@ -321,6 +373,8 @@ const SettingsPanel = () => {
         setSelectedImage(null);
         setImagePreview(null);
         setShowImageActions(false);
+        // Reset avatar error state since we have a new image
+        setAvatarError(false);
         
         alert('Profile picture updated successfully!');
       } else {
@@ -407,13 +461,10 @@ const SettingsPanel = () => {
                         className="h-24 w-24 sm:h-32 sm:w-32 rounded-full object-cover shadow-lg border-4 border-indigo-100"
                         src={
                           imagePreview || 
-                          profile.profilePicture || 
-                          '/default-avatar.png'
+                          getAvatarUrl(profile.profilePicture, profile.name)
                         }
                         alt="Profile"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = '/default-avatar.png';
-                        }}
+                        onError={handleAvatarError}
                       />
                       <label className="absolute bottom-0 right-0 bg-indigo-600 text-white p-2 sm:p-3 rounded-full cursor-pointer shadow-md hover:bg-indigo-700 transition-colors">
                         <Camera className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -656,25 +707,6 @@ const SettingsPanel = () => {
                               // Only allow numeric input and limit to 4 digits
                               const value = e.target.value.replace(/\D/g, '').slice(0, 4);
                               setPinData({ ...pinData, pin: value });
-                            }}
-                            className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                            placeholder="Enter new 4-digit PIN"
-                            maxLength={4}
-                            disabled={isLoading}
-                            required
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
-                            Confirm New PIN *
-                          </label>
-                          <input
-                            type="password"
-                            value={pinData. newPin}
-                            onChange={(e) => {
-                              // Only allow numeric input and limit to 4 digits
-                              const value = e.target.value.replace(/\D/g, '').slice(0, 4);
-                              setPinData({ ...pinData,  newPin: value });
                             }}
                             className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                             placeholder="Confirm new 4-digit PIN"

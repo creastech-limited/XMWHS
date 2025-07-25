@@ -41,6 +41,44 @@ interface StoreHeaderProps {
   isSidebarOpen?: boolean;
 }
 
+// SOLUTION 1: Generate initials-based avatar
+const generateInitialsAvatar = (name: string): string => {
+  const initials = name
+    .split(' ')
+    .map(word => word.charAt(0))
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+  
+  // Create a simple data URL with initials
+  const canvas = document.createElement('canvas');
+  canvas.width = 100;
+  canvas.height = 100;
+  const ctx = canvas.getContext('2d');
+  
+  if (ctx) {
+    // Background color based on name hash
+    const hash = name.split('').reduce((a, b) => {
+      a = ((a << 5) - a) + b.charCodeAt(0);
+      return a & a;
+    }, 0);
+    const hue = Math.abs(hash) % 360;
+    
+    ctx.fillStyle = `hsl(${hue}, 60%, 60%)`;
+    ctx.fillRect(0, 0, 100, 100);
+    
+    // Text
+    ctx.fillStyle = 'white';
+    ctx.font = 'bold 40px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(initials, 50, 50);
+  }
+  
+  return canvas.toDataURL();
+};
+
+
 const StoreHeader: React.FC<StoreHeaderProps> = ({ 
   onMenuToggle, 
   isSidebarOpen = false
@@ -59,6 +97,7 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [notificationsLoading, setNotificationsLoading] = useState<boolean>(false);
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
+  const [avatarError, setAvatarError] = useState<boolean>(false);
 
   const menuRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -93,20 +132,39 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
     }
   }, [isAuthenticated, user, token, authLoading, navigate]);
 
+  // IMPROVED: Better avatar handling with multiple fallbacks
   const getUserAvatar = (): string => {
+    if (avatarError || !user) {
+      // SOLUTION 1: Return initials-based avatar
+      const name = getFullName();
+      return generateInitialsAvatar(name);
+      
+      // SOLUTION 2: Use Gravatar (uncomment to use instead)
+      // return getGravatarUrl(user?.email || 'default@example.com');
+      
+      // SOLUTION 3: Use a reliable external service (uncomment to use instead)
+      // return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`;
+    }
+
     if (user?.profilePicture) {
       if (user.profilePicture.startsWith('/uploads/')) {
         return `${API_URL}${user.profilePicture}`;
       }
       return user.profilePicture;
     }
-    return user?.avatar || '/default-avatar.png';
+
+    // If no profile picture, generate initials avatar instead of trying to load non-existent file
+    return generateInitialsAvatar(getFullName());
   };
 
   const getFullName = (): string => {
     if (user?.name) return user.name;
     if (user?.firstName && user?.lastName) return `${user.firstName} ${user.lastName}`;
     return user?.email || 'User';
+  };
+
+  const handleAvatarError = () => {
+    setAvatarError(true);
   };
 
   const fetchNotifications = async (): Promise<void> => {
@@ -234,8 +292,6 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
                 <Menu className="w-5 h-5 text-gray-600" />
               )}
             </button>
-
-            
           </div>
 
           {/* Center Section - Store Info */}
@@ -246,10 +302,7 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
                 src={getUserAvatar()}
                 alt={getFullName()}
                 className="w-10 h-10 lg:w-12 lg:h-12 rounded-full border-2 border-white shadow-md object-cover"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  target.src = '/default-avatar.png';
-                }}
+                onError={handleAvatarError}
               />
               <div className="absolute -bottom-1 -right-1 w-3 h-3 lg:w-4 lg:h-4 bg-green-500 rounded-full border-2 border-white"></div>
             </div>
@@ -369,10 +422,7 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
                         src={getUserAvatar()}
                         alt={getFullName()}
                         className="w-10 h-10 rounded-full object-cover"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.src = '/default-avatar.png';
-                        }}
+                        onError={handleAvatarError}
                       />
                       <div>
                         <p className="font-medium text-gray-900 truncate">{getFullName()}</p>
@@ -406,12 +456,8 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
                 </div>
               )}
             </div>
-
-        
           </div>
         </div>
-
-       
       </header>
 
       {/* Spacer to prevent content from going under fixed header */}
