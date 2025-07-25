@@ -116,7 +116,8 @@ const WithdrawalPage: React.FC = () => {
           name: bank.name,
           code: bank.code,
         }));
-        
+        console.log('Mapped banks:', mappedBanks);
+        console.log('Mapped banks length:', mappedBanks.code);
         setBanks(mappedBanks);
       } else {
         console.error('Failed to fetch banks');
@@ -162,18 +163,26 @@ const userData: User = {
     currency: walletInfo?.currency || 'NGN',
     walletId: walletInfo?.walletId || '',
   },
-  withdrawalBank: userInfo.withdrawalBank,
-  withdrawalAccountNumber: userInfo.withdrawalAccountNumber,
-  withdrawalAccountName: userInfo.withdrawalAccountName,
+  withdrawalBank: userInfo.bankDetails?.bankName || userInfo.withdrawalBank,
+  withdrawalAccountNumber: userInfo.bankDetails?.accountNumber || userInfo.withdrawalAccountNumber,
+  withdrawalAccountName: userInfo.bankDetails?.accountName || userInfo.withdrawalAccountName,
 };
           
           setUser(userData);
           
           // Pre-populate bank details if they exist
-         if (userInfo.withdrawalBank && userInfo.withdrawalAccountNumber && userInfo.withdrawalAccountName) {
-  setSelectedBank(userInfo.withdrawalBank);
-  setAccountNumber(userInfo.withdrawalAccountNumber);
-  setAccountName(userInfo.withdrawalAccountName);
+        const bankName = userInfo.bankDetails?.bankName || userInfo.withdrawalBank;
+const accountNumber = userInfo.bankDetails?.accountNumber || userInfo.withdrawalAccountNumber;
+const accountName = userInfo.bankDetails?.accountName || userInfo.withdrawalAccountName;
+const bankCode = userInfo.bankDetails?.bankCode;
+
+if (bankName && accountNumber && accountName) {
+  setSelectedBank(bankName);
+  setAccountNumber(accountNumber);
+  setAccountName(accountName);
+  if (bankCode) {
+    setSelectedBankCode(bankCode);
+  }
   setIsBankSet(true);
 }
         } else {
@@ -229,17 +238,13 @@ const userData: User = {
     setLoading(true);
     
     try {
-      const response = await fetch(`${API_BASE_URL}/api/transaction/resolveaccount`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          account_number: accountNumber,
-          bank_code: selectedBankCode,
-        }),
-      });
-      
+     const response = await fetch(`${API_BASE_URL}/api/transaction/resolveaccount?account_number=${accountNumber}&bank_code=${selectedBankCode}`, {
+  method: 'GET',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+      console.log (accountNumber, selectedBankCode);
       if (response.ok) {
         const data = await response.json();
         // Assuming the API returns account_name in the response
@@ -669,10 +674,14 @@ const userData: User = {
                     id="withdrawal-bank-select"
                     className="block text-gray-700 mb-2 w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={selectedBank}
-                    onChange={(e) => {
-                      setSelectedBank(e.target.value);
-                      setActiveStep(1);
-                    }}
+                   onChange={(e) => {
+  const selectedBankName = e.target.value;
+  const selectedBankObj = banks.find(bank => bank.name === selectedBankName);
+  
+  setSelectedBank(selectedBankName);
+  setSelectedBankCode(selectedBankObj?.code || '');
+  setActiveStep(1);
+}}
                   >
                     <option value="" className="block text-gray-700 mb-2">
                       Select your bank
