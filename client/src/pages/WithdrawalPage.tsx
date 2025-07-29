@@ -78,6 +78,9 @@ const WithdrawalPage: React.FC = () => {
   const [withdrawalNote, setWithdrawalNote] = useState<string>('');
   const [withdrawalError, setWithdrawalError] = useState<string>('');
   const [withdrawalSuccess, setWithdrawalSuccess] = useState<boolean>(false);
+  const [withdrawalPin, setWithdrawalPin] = useState<string>('');
+const [showPinModal, setShowPinModal] = useState<boolean>(false);
+const [userHasPin, setUserHasPin] = useState<boolean>(false);
 
   // State for user profile (fetched from backend)
   const [user, setUser] = useState<User | null>(null);
@@ -169,7 +172,8 @@ const userData: User = {
 };
           
           setUser(userData);
-          
+          setUserHasPin(!!userInfo.isPinSet);
+
           // Pre-populate bank details if they exist
         const bankName = userInfo.bankDetails?.bankName || userInfo.withdrawalBank;
 const accountNumber = userInfo.bankDetails?.accountNumber || userInfo.withdrawalAccountNumber;
@@ -196,7 +200,7 @@ if (bankName && accountNumber && accountName) {
     fetchUserProfile();
   }, [API_BASE_URL]);
 
-  // Derive available balance from the user profile, defaulting to 0 if not available
+
   const availableBalance = user?.wallet?.balance || 0;
 
   const handleOpenModal = () => {
@@ -352,62 +356,92 @@ if (bankName && accountNumber && accountName) {
   };
 
   // Submit a withdrawal request via backend API (integrated with Paystack)
-  const handleWithdrawalSubmit = async () => {
-    setWithdrawalError('');
-    setWithdrawalSuccess(false);
-    if (!withdrawalAmount) {
-      setWithdrawalError('Please enter an amount to withdraw.');
-      return;
-    }
-    const amount = parseFloat(withdrawalAmount);
-    if (isNaN(amount) || amount <= 0) {
-      setWithdrawalError('Please enter a valid amount.');
-      return;
-    }
-    if (amount > availableBalance) {
-      setWithdrawalError('Insufficient balance.');
-      return;
-    }
-    setLoading(true);
-    try {
-      const token = localStorage.getItem('token');
+ const handleWithdrawalSubmit = async () => {
+  setWithdrawalError('');
+  setWithdrawalSuccess(false);
+  
+  // Check if user has PIN set first
+  if (!userHasPin) {
+    alert('No PIN found. Please set your PIN in the settings page before making withdrawals.');
+    return;
+  }
+  
+  // Existing validation logic...
+  if (!withdrawalAmount) {
+    setWithdrawalError('Please enter an amount to withdraw.');
+    return;
+  }
+  const amount = parseFloat(withdrawalAmount);
+  if (isNaN(amount) || amount <= 0) {
+    setWithdrawalError('Please enter a valid amount.');
+    return;
+  }
+  if (amount > availableBalance) {
+    setWithdrawalError('Insufficient balance.');
+    return;
+  }
 
-      const response = await fetch(`${API_BASE_URL}/api/withdrawals/withdraw`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          amount,
-          note: withdrawalNote,
-        }),
+  // Open PIN modal for verification
+  setShowPinModal(true);
+};
+const handlePinConfirmation = async () => {
+  if (!withdrawalPin || withdrawalPin.length !== 4) {
+    alert('Please enter your 4-digit PIN.');
+    return;
+  }
+
+  setLoading(true);
+  try {
+    const token = localStorage.getItem('token');
+    const amount = parseFloat(withdrawalAmount);
+
+    const response = await fetch(`${API_BASE_URL}/api/transaction/withdraw`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        amount,
+        description: withdrawalNote,
+        pin: withdrawalPin,
+        account_name: accountName,
+        account_number: accountNumber,
+        bank_code : selectedBankCode,
+      }),
+    });
+
+    if (response.ok) {
+      await response.json();
+      setWithdrawalSuccess(true);
+      setWithdrawalAmount('');
+      setWithdrawalNote('');
+      setShowPinModal(false);
+      setWithdrawalPin('');
+      setSnackbar({
+        open: true,
+        message: 'Withdrawal request submitted successfully',
+        severity: 'success',
       });
-      if (response.ok) {
-        await response.json();
-        setWithdrawalSuccess(true);
-        setWithdrawalAmount('');
-        setWithdrawalNote('');
-        setSnackbar({
-          open: true,
-          message: 'Withdrawal request submitted successfully',
-          severity: 'success',
-        });
+    } else {
+      const errorData = await response.json();
+      if (errorData.message?.includes('Invalid PIN') || errorData.message?.includes('pin')) {
+        alert('Invalid PIN. Please try again.');
       } else {
-        const errorData = await response.json();
-        setWithdrawalError(
-          errorData.message || 'Failed to submit withdrawal request.'
-        );
+        setWithdrawalError(errorData.message || 'Failed to submit withdrawal request.');
       }
-    } catch (error) {
-      console.error('Withdrawal Error:', error);
-      setWithdrawalError(
-        'An error occurred while submitting withdrawal request.'
-      );
-    } finally {
-      setLoading(false);
+      setShowPinModal(false);
+      setWithdrawalPin('');
     }
-  };
+  } catch (error) {
+    console.error('Withdrawal Error:', error);
+    setWithdrawalError('An error occurred while submitting withdrawal request.');
+    setShowPinModal(false);
+    setWithdrawalPin('');
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="flex flex-col min-h-screen bg-white">
@@ -616,6 +650,50 @@ if (bankName && accountNumber && accountName) {
               </div>
             </div>
           </div>
+          {/* PIN Verification Modal */}
+{showPinModal && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="bg-white rounded-lg w-full max-w-sm p-6">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-bold text-gray-800">Verify PIN</h2>
+        <button
+          onClick={() => {
+            setShowPinModal(false);
+            setWithdrawalPin('');
+          }}
+          className="text-gray-500 hover:text-gray-700"
+        >
+          <X size={20} />
+        </button>
+      </div>
+      
+      <div className="mb-4">
+        <label className="block text-gray-700 mb-2">Enter your 4-digit PIN</label>
+        <input
+          type="password"
+          maxLength={4}
+          className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-center text-lg tracking-widest text-black"
+          value={withdrawalPin}
+          onChange={(e) => setWithdrawalPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+          placeholder="••••"
+        />
+      </div>
+      
+      <button
+        onClick={handlePinConfirmation}
+        disabled={loading || withdrawalPin.length !== 4}
+        className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md transition disabled:bg-blue-400"
+      >
+        {loading ? (
+          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+        ) : (
+          <Lock size={18} />
+        )}
+        Confirm Withdrawal
+      </button>
+    </div>
+  </div>
+)}
         </main>
       </div>
       <Footer />

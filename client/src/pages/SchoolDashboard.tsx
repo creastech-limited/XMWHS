@@ -46,9 +46,10 @@ interface Transaction {
   createdAt?: string;
   description: string;
   amount: number;
-  type: 'credit' | 'debit';
+  type: 'credit' | 'debit' | 'pending';
   category?: string;
   direction?: string;
+  status?: string;
 }
 
 interface Wallet {
@@ -75,6 +76,7 @@ interface Student {
   classLevel: string;
   createdAt: string;
 }
+
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL;
@@ -297,89 +299,95 @@ const fetchStudentsData = useCallback(async (authToken: string) => {
 
   // Fetch transactions data with proper credit/debit handling
   const fetchTransactionsData = useCallback(async (authToken: string) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/transaction/getusertransaction`, {
-        headers: { Authorization: `Bearer ${authToken}` },
-      });
-      
-      if (!response.ok) throw new Error('Failed to fetch transactions');
-      
-      const data = await response.json();
-      
-      console.log('Transactions API Response:', JSON.stringify(data, null, 2));
-      
-      if (data.data && Array.isArray(data.data)) {
-        // Process recent transactions with proper credit/debit logic
-        const recentTransactions = data.data
-          .slice(0, 4)
-          .map((tx: Transaction) => {
-            // Determine transaction type based on category and direction
-            let transactionType: 'credit' | 'debit' = 'credit';
-            
-            // Use the direction field if available, otherwise fall back to category
-            if (tx.direction) {
-              transactionType = tx.direction === 'credit' ? 'credit' : 'debit';
-            } else if (tx.category) {
-              transactionType = tx.category === 'credit' ? 'credit' : 'debit';
-            }
-            
-            return {
-              id: tx.id || tx._id,
-              date: tx.createdAt || tx.date,
-              description: tx.description || 'Transaction',
-              amount: tx.amount,
-              type: transactionType
-            };
-          });
-        
-        setTransactions(recentTransactions);
-        
-        // Process fee collection trend (last 6 months) - only credit transactions
-        const now = new Date();
-        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        
-        const last6Months = Array.from({length: 6}, (_, i) => {
-          const date = new Date(now);
-          date.setMonth(date.getMonth() - i);
-          return {
-            month: monthNames[date.getMonth()],
-            year: date.getFullYear(),
-            monthIndex: date.getMonth()
-          };
-        }).reverse();
-        
-        const feeData = last6Months.map(({month, year, monthIndex}) => {
-          const monthlyTotal = data.data
-            .filter((tx: Transaction) => {
-              const txDate = new Date(tx.createdAt || tx.date);
-              const txMonth = txDate.getMonth();
-              const txYear = txDate.getFullYear();
-              
-              // Check if it's a credit transaction (fee received)
-              const isCredit = tx.direction === 'credit' || tx.category === 'credit';
-              
-              return txMonth === monthIndex && txYear === year && isCredit;
-            })
-            .reduce((sum: number, tx: Transaction) => sum + (tx.amount || 0), 0);
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/transaction/getusertransaction`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    
+    if (!response.ok) throw new Error('Failed to fetch transactions');
+    
+    const data = await response.json();
+    
+    console.log('Transactions API Response:', JSON.stringify(data, null, 2));
+    
+    if (data.data && Array.isArray(data.data)) {
+      // Process recent transactions with proper credit/debit logic
+      const recentTransactions = data.data
+        .slice(0, 4)
+        .map((tx: Transaction) => {
+          // Determine transaction type based on direction field primarily
+          let transactionType: 'credit' | 'debit' | 'pending' = 'debit';
           
+          // First check status for pending transactions
+          if (tx.status === 'pending') {
+            transactionType = 'pending';
+          } 
+          // Then use direction field as primary indicator
+          else if (tx.category === 'credit') {
+            transactionType = 'credit';
+          } 
+          else if (tx.category === 'debit') {
+            transactionType = 'debit';
+          }
+        
           return {
-            month,
-            fees: monthlyTotal
+            id: tx._id,
+            date: tx.createdAt,
+          category: tx.category || 'Transaction',
+            amount: tx.amount,
+            type: transactionType,
+            status: tx.status // include status for reference
           };
         });
+      
+      setTransactions(recentTransactions);
+      
+      // Process fee collection trend (last 6 months) - only credit transactions
+      const now = new Date();
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      
+      const last6Months = Array.from({length: 6}, (_, i) => {
+        const date = new Date(now);
+        date.setMonth(date.getMonth() - i);
+        return {
+          month: monthNames[date.getMonth()],
+          year: date.getFullYear(),
+          monthIndex: date.getMonth()
+        };
+      }).reverse();
+      
+      const feeData = last6Months.map(({month, year, monthIndex}) => {
+        const monthlyTotal = data.data
+          .filter((tx: Transaction) => {
+            const txDate = new Date(tx.createdAt ?? '');
+            const txMonth = txDate.getMonth();
+            const txYear = txDate.getFullYear();
+            
+            // Check if it's a credit transaction (fee received)
+            const isCredit = tx.category === 'credit' || tx.category === 'credit';
+            
+            return txMonth === monthIndex && txYear === year && isCredit;
+          })
+          .reduce((sum: number, tx: Transaction) => sum + (tx.amount || 0), 0);
         
-        console.log('Processed fee data:', feeData);
-        setBarData(feeData);
-      }
-    } catch (error) {
-      console.error('Error fetching transactions:', error);
-      setSnackbar({
-        open: true,
-        message: 'Failed to load transaction data',
-        severity: 'error'
+        return {
+          month,
+          fees: monthlyTotal
+        };
       });
+      
+      console.log('Processed fee data:', feeData);
+      setBarData(feeData);
     }
-  }, []);
+  } catch (error) {
+    console.error('Error fetching transactions:', error);
+    setSnackbar({
+      open: true,
+      message: 'Failed to load transaction data',
+      severity: 'error'
+    });
+  }
+}, []);
 
   // Enhanced initialization with better balance handling
   useEffect(() => {
@@ -661,87 +669,109 @@ const fetchStudentsData = useCallback(async (authToken: string) => {
           </div>
 
           {/* Transactions & Calendar */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">
-                  Recent Transactions
-                </h3>
-                <button
-                  onClick={() => (window.location.href = '/transactions')}
-                  className="text-indigo-600 text-sm font-medium"
-                >
-                  View All
-                </button>
-              </div>
-              <div className="overflow-y-auto max-h-72">
-                {transactions.length > 0 ? (
-                  <div className="space-y-3">
-                    {transactions.map((transaction) => (
-                      <div
-                        key={transaction.id}
-                        className="flex justify-between items-center p-3 hover:bg-gray-50 rounded"
-                      >
-                        <div className="flex items-center">
-                          <div
-                            className={`p-2 rounded-full mr-3 ${transaction.type === 'credit' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}
-                          >
-                            <FaWallet className="text-sm" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-gray-800">
-                              {transaction.description}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {new Date(
-                                transaction.date
-                              ).toLocaleDateString()}
-                            </p>
-                          </div>
-                        </div>
-                        <p
-                          className={`font-medium ${transaction.type === 'credit' ? 'text-green-600' : 'text-red-600'}`}
-                        >
-                          {transaction.type === 'credit' ? '+' : '-'}₦
-                          {transaction.amount.toLocaleString()}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-600 text-center py-8">
-                    No transactions available.
-                  </p>
-                )}
-              </div>
-            </div>
-            <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">
-                  School Calendar
-                </h3>
-                <div className="p-2 rounded-full bg-indigo-100 text-indigo-600">
-                  <FaCalendarAlt className="text-sm" />
-                </div>
-              </div>
-              <div className="flex justify-center text-black">
-                <Calendar
-                  onChange={(value) => {
-                    if (value instanceof Date) {
-                      setCalendarDate(value);
-                    } else if (
-                      Array.isArray(value) &&
-                      value[0] instanceof Date
-                    ) {
-                      setCalendarDate(value[0]);
-                    }
-                  }}
-                  value={calendarDate}
-                  className="react-calendar rounded-lg w-full border-0 shadow-none"
-                />
-              </div>
-            </div>
+         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+  <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100">
+    <div className="flex justify-between items-center mb-4">
+      <h3 className="text-lg font-semibold text-gray-800">
+        Recent Transactions
+      </h3>
+      <button
+        onClick={() => (window.location.href = '/transactions')}
+        className="text-indigo-600 text-sm font-medium"
+      >
+        View All
+      </button>
+    </div>
+    <div className="overflow-y-auto max-h-72">
+      {transactions.length > 0 ? (
+       <div className="space-y-3">
+  {transactions.map((transaction) => (
+    <div
+      key={transaction.id}
+      className="flex justify-between items-center p-3 hover:bg-gray-50 rounded"
+    >
+      <div className="flex items-center">
+        <div
+          className={`p-2 rounded-full mr-3 ${
+            transaction.category === 'credit'
+              ? 'bg-green-100 text-green-600'
+              : transaction.status === 'pending'
+              ? 'bg-yellow-100 text-yellow-600'
+              : 'bg-red-100 text-red-600'
+          }`}
+        >
+          <FaWallet className="text-sm" />
+        </div>
+        <div>
+          <p className="text-sm font-medium text-gray-800">
+            {transaction.category}
+          </p>
+          <div className="flex items-center">
+            <p className="text-xs text-gray-500">
+              {new Date(transaction.date).toLocaleDateString()}
+            </p>
+            <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+              {transaction.type.replace(/_/g, ' ')}
+            </span>
           </div>
+        </div>
+      </div>
+      <div className="text-right">
+        <p
+          className={`font-medium ${
+            transaction.category === 'credit'
+              ? 'text-green-600'
+              : transaction.status === 'pending'
+              ? 'text-yellow-600'
+              : 'text-red-600'
+          }`}
+        >
+          {transaction.category === 'credit' ? '+' : '-'}₦
+          {(Number(transaction.amount) || 0).toLocaleString()}
+        </p>
+        <p className="text-xs text-gray-500 mt-1">
+          {transaction.status === 'success' ? 'Completed' : 
+           transaction.status === 'failed' ? 'Failed' : 
+           'Pending'}
+        </p>
+      </div>
+    </div>
+  ))}
+</div>
+      ) : (
+        <p className="text-sm text-gray-600 text-center py-8">
+          No transactions available.
+        </p>
+      )}
+    </div>
+  </div>
+  <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100">
+    <div className="flex justify-between items-center mb-4">
+      <h3 className="text-lg font-semibold text-gray-800">
+        School Calendar
+      </h3>
+      <div className="p-2 rounded-full bg-indigo-100 text-indigo-600">
+        <FaCalendarAlt className="text-sm" />
+      </div>
+    </div>
+    <div className="flex justify-center text-black">
+      <Calendar
+        onChange={(value) => {
+          if (value instanceof Date) {
+            setCalendarDate(value);
+          } else if (
+            Array.isArray(value) &&
+            value[0] instanceof Date
+          ) {
+            setCalendarDate(value[0]);
+          }
+        }}
+        value={calendarDate}
+        className="react-calendar rounded-lg w-full border-0 shadow-none"
+      />
+    </div>
+  </div>
+</div>
         </main>
       </div>
       <Footer />
