@@ -10,7 +10,7 @@ const StoreSettingsPage = () => {
       
       <div className="flex flex-col lg:flex-row flex-1">
         {/* Sidebar - hidden on mobile, shown on lg screens and up */}
-        <div className="lg:w-64">
+        <div className="z-100 lg:w-64">
           <StoreSidebar />
         </div>
         
@@ -26,7 +26,9 @@ const StoreSettingsPage = () => {
         </main>
       </div>
       
-      <Footer />
+      <div className="fixed bottom-0 left-0 w-full">
+        <Footer />
+      </div>
     </div>
   );
 };

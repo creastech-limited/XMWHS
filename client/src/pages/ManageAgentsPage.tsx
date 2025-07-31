@@ -343,11 +343,13 @@ const ManageAgentsPage: React.FC = () => {
       />
       
       <StoreHeader />
-      <StoreSidebar />
+      <div className="z-100">
+      <StoreSidebar />  
+      </div>
   
       <div className="h-[80px] xs:h-[90px] sm:h-[100px] md:h-[110px] lg:h-[120px] xl:h-[140px]" />
       
-      <div className="px-4 xs:px-5 sm:px-6 md:px-8 py-6 sm:py-7 md:py-8 flex-grow max-w-6xl mx-auto w-full">
+      <div className="mb-20 md:mb-10 px-4 xs:px-5 sm:px-6 md:px-8 py-6 sm:py-7 md:py-8 flex-grow max-w-6xl mx-auto w-full">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 sm:mb-7 md:mb-8 gap-3 sm:gap-4">
           <div className="w-full md:w-auto">
             <h1 className="text-xl xs:text-2xl sm:text-[26px] md:text-3xl font-bold text-gray-800">
@@ -656,9 +658,12 @@ const ManageAgentsPage: React.FC = () => {
         ) : null}
       </div>
       
-      <Footer />
+      
     </div>
     </div>
+     <div className="fixed bottom-0 left-0 w-full">
+        <Footer />
+      </div>
     </div>
   );
 };

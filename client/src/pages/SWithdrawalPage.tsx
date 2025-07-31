@@ -1,10 +1,8 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { 
   Banknote,
   Send,
   CreditCard,
-  ArrowLeft,
   Info,
   CheckCircle2,
   User,
@@ -94,7 +92,9 @@ const SWithdrawalPage = () => {
     <div className="text-gray-600 flex min-h-screen flex-col bg-gray-50">
       {/* Header and Sidebar */}
       <StoreHeader />
-      <StoreSidebar />
+      <div className="z-100">
+      <StoreSidebar />  
+      </div>
       
       {/* Main content wrapper with proper layout */}
       <main className="flex-grow p-4 lg:p-8 lg:ml-64 transition-all duration-300">
@@ -293,18 +293,14 @@ const SWithdrawalPage = () => {
           </div>
           
           <div className="mt-auto mb-6 text-center">
-            <Link
-              to="/store"
-              className="inline-flex items-center gap-1 rounded-lg border border-blue-600 px-4 py-2 text-sm font-medium text-blue-600 shadow-sm hover:bg-blue-50"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to Dashboard
-            </Link>
+           
           </div>
         </div>
         
         {/* Footer stays at the bottom */}
+        <div className="fixed bottom-0 left-0 w-full">
         <Footer />
+      </div>
       </main>
       
       {/* Snackbar notification */}
