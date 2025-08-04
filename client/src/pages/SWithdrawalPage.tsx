@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Banknote,
   Send,
@@ -162,7 +162,6 @@ const SWithdrawalPage = () => {
             withdrawalAccountName: userInfo.bankDetails?.accountName || userInfo.withdrawalAccountName,
           };
           
-          setUser(userData);
           setUser(userData);
           // Pre-populate bank details if they exist
           const bankName = userInfo.bankDetails?.bankName || userInfo.withdrawalBank;

@@ -31,7 +31,6 @@ interface User {
   storeName?: string;
   storeType?: string;
   schoolName?: string;
-  // Add other user properties as needed
   [key: string]: unknown;
 }
 
@@ -87,17 +86,15 @@ interface DashboardData {
 }
 
 const StoreDashboard: React.FC = () => {
-  // Single auth context declaration with TypeScript assertion
   const auth = useAuth() as {
     user: User | null;
     token: string | null;
     login: (user: User, token: string) => void;
     logout: () => void;
   };
-  const token = auth?.token; // Get token from auth context
+  const token = auth?.token;
   const [activeTab, setActiveTab] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
-  // Removed unused token state
   const [dashboardData, setDashboardData] = useState<DashboardData>({
     balance: 0,
     dailyRevenue: 0,
@@ -112,13 +109,19 @@ const StoreDashboard: React.FC = () => {
   });
   const [error, setError] = useState<string | null>(null);
 
+  // Helper function to set user in localStorage
+  const setUser = (profile: User | null) => {
+    if (profile) {
+      localStorage.setItem('user', JSON.stringify(profile));
+    } else {
+      localStorage.removeItem('user');
+    }
+  };
+
   // Error handler
   const handleAuthError = useCallback((message: string) => {
     setError(message);
     setUser(null);
-    // setUser(null); // removed unused state
-    // Optionally redirect to login
-    // window.location.href = '/login';
   }, []);
 
   // Fetch user details from API
@@ -140,11 +143,9 @@ const StoreDashboard: React.FC = () => {
         const data = await response.json();
         console.log('Raw API response:', data);
 
-        // Handle the specific response structure from your API
         let profile: User | undefined;
         let walletData: WalletData | undefined;
 
-        // Extract user data
         if (data.user?.data) {
           profile = data.user.data;
           walletData = data.user.wallet;
@@ -160,7 +161,6 @@ const StoreDashboard: React.FC = () => {
           throw new Error('Invalid user data received from API');
         }
 
-        // Transform the data to match our User interface
         const transformedUser: User = {
           ...profile,
           _id:
@@ -181,7 +181,6 @@ const StoreDashboard: React.FC = () => {
           storeName: profile.storeName || '',
           storeType: profile.storeType || '',
           schoolName: profile.schoolName || '',
-          // Extract balance from wallet data
           balance: walletData?.balance || 0,
         };
 
@@ -222,7 +221,6 @@ const StoreDashboard: React.FC = () => {
         const data = await response.json();
         console.log('Transaction API response:', data);
 
-        // Handle the API response structure - it should have a data array
         const transactionsArray = data.data || data.transactions || data || [];
 
         const transactions: Transaction[] = transactionsArray.map(
@@ -288,7 +286,6 @@ const StoreDashboard: React.FC = () => {
         const data = await response.json();
         console.log('Notifications API response:', data);
 
-        // Handle different response structures
         const notificationsList = Array.isArray(data)
           ? data
           : data.notifications || data.data || [];
@@ -346,7 +343,6 @@ const StoreDashboard: React.FC = () => {
         );
 
         if (response.ok) {
-          // Update the notification in dashboard data
           setDashboardData((prev) => ({
             ...prev,
             notifications: prev.notifications.map((notif) =>
@@ -396,7 +392,6 @@ const StoreDashboard: React.FC = () => {
         }
 
         const data = await response.json();
-        // Return the numeric value from the data field
         return data.data || 0;
       } catch (error) {
         console.error('Failed to fetch agent count:', error);
@@ -415,7 +410,6 @@ const StoreDashboard: React.FC = () => {
       try {
         if (transactions.length === 0) return [];
 
-        // Count transactions per sender email
         const senderCounts = transactions.reduce(
           (acc, tx) => {
             const senderEmail = tx.customer;
@@ -427,7 +421,6 @@ const StoreDashboard: React.FC = () => {
           {} as Record<string, number>
         );
 
-        // Calculate revenue per sender
         const senderRevenue = transactions.reduce(
           (acc, tx) => {
             const senderEmail = tx.customer;
@@ -443,11 +436,9 @@ const StoreDashboard: React.FC = () => {
           {} as Record<string, number>
         );
 
-        // Create agent performance array
         const agents: Agent[] = Object.entries(senderCounts)
           .map(([email, count]) => {
             const revenue = senderRevenue[email] || 0;
-            // Performance based on transaction frequency (max 100%)
             const maxTransactions = Math.max(...Object.values(senderCounts));
             const performance =
               maxTransactions > 0
@@ -455,14 +446,14 @@ const StoreDashboard: React.FC = () => {
                 : 0;
 
             return {
-              name: email.split('@')[0], // Use email prefix as name
+              name: email.split('@')[0],
               sales: count,
               performance,
               revenue,
             };
           })
           .sort((a, b) => b.sales - a.sales)
-          .slice(0, 5); // Top 5 agents
+          .slice(0, 5);
 
         console.log('Agent performance calculated:', agents);
         return agents;
@@ -489,10 +480,8 @@ const StoreDashboard: React.FC = () => {
         console.log('Fetched transactions:', transactions);
         console.log('Agent count:', agentCount);
 
-        // Calculate agent performance
         const topAgents = await fetchAgentPerformance(authToken, transactions);
 
-        // Fixed Daily Revenue Calculation
         const today = new Date();
         const todayISO = today.toISOString().split('T')[0];
 
@@ -539,19 +528,14 @@ const StoreDashboard: React.FC = () => {
         setLoading(true);
         console.log('Starting auth initialization...');
 
-        // Check if already in context
         if (auth?.user?._id && auth?.token) {
           console.log('Found user in auth context:', auth.user);
           setUser(auth.user);
-          // setUser(auth.user); // removed unused state
-
-          // Fetch dashboard data
           await fetchDashboardData(auth.token, auth.user);
           setLoading(false);
           return;
         }
 
-        // Try localStorage
         const storedToken = localStorage.getItem('token');
         if (!storedToken) {
           console.log('No token in localStorage');
@@ -559,21 +543,16 @@ const StoreDashboard: React.FC = () => {
         }
 
         console.log('Found token in localStorage');
-
-        // Fetch user from API to ensure fresh data
         console.log('Fetching user from API...');
         const profile = await fetchUserDetails(storedToken);
         console.log('Successfully fetched user profile:', profile);
 
         setUser(profile);
-        // setUser(profile); // removed unused state
 
-        // Update auth context
         if (auth?.login) {
           auth.login(profile, storedToken);
         }
 
-        // Fetch dashboard data
         await fetchDashboardData(storedToken, profile);
       } catch (error) {
         console.error('Auth initialization error:', error);
@@ -673,7 +652,6 @@ const StoreDashboard: React.FC = () => {
       </div>
 
       {/* Main Content */}
-
       <main className="flex-grow p-4 lg:p-8 lg:ml-64 transition-all duration-300">
         {/* Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
@@ -1128,11 +1106,3 @@ const StoreDashboard: React.FC = () => {
 };
 
 export default StoreDashboard;
-function setUser(profile: User | null) {
-  // Store user in localStorage for persistence
-  if (profile) {
-    localStorage.setItem('user', JSON.stringify(profile));
-  } else {
-    localStorage.removeItem('user');
-  }
-}
