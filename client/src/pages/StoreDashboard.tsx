@@ -402,68 +402,69 @@ const StoreDashboard: React.FC = () => {
   );
 
   // Fetch agent performance based on transaction frequency
-  const fetchAgentPerformance = useCallback(
-    async (
-      authToken: string,
-      transactions: Transaction[]
-    ): Promise<Agent[]> => {
-      try {
-        if (transactions.length === 0) return [];
+ const fetchAgentPerformance = useCallback(
+  async (transactions: Transaction[]): Promise<Agent[]> => {
+    try {
+      if (transactions.length === 0) return [];
 
-        const senderCounts = transactions.reduce(
-          (acc, tx) => {
-            const senderEmail = tx.customer;
-            if (senderEmail && senderEmail !== 'Unknown Sender') {
-              acc[senderEmail] = (acc[senderEmail] || 0) + 1;
-            }
-            return acc;
-          },
-          {} as Record<string, number>
-        );
+      // Count transactions per sender email
+      const senderCounts = transactions.reduce(
+        (acc, tx) => {
+          const senderEmail = tx.customer;
+          if (senderEmail && senderEmail !== 'Unknown Sender') {
+            acc[senderEmail] = (acc[senderEmail] || 0) + 1;
+          }
+          return acc;
+        },
+        {} as Record<string, number>
+      );
 
-        const senderRevenue = transactions.reduce(
-          (acc, tx) => {
-            const senderEmail = tx.customer;
-            if (
-              senderEmail &&
-              senderEmail !== 'Unknown Sender' &&
-              tx.status === 'Completed'
-            ) {
-              acc[senderEmail] = (acc[senderEmail] || 0) + tx.amount;
-            }
-            return acc;
-          },
-          {} as Record<string, number>
-        );
+      // Calculate revenue per sender
+      const senderRevenue = transactions.reduce(
+        (acc, tx) => {
+          const senderEmail = tx.customer;
+          if (
+            senderEmail &&
+            senderEmail !== 'Unknown Sender' &&
+            tx.status === 'Completed'
+          ) {
+            acc[senderEmail] = (acc[senderEmail] || 0) + tx.amount;
+          }
+          return acc;
+        },
+        {} as Record<string, number>
+      );
 
-        const agents: Agent[] = Object.entries(senderCounts)
-          .map(([email, count]) => {
-            const revenue = senderRevenue[email] || 0;
-            const maxTransactions = Math.max(...Object.values(senderCounts));
-            const performance =
-              maxTransactions > 0
-                ? Math.round((count / maxTransactions) * 100)
-                : 0;
+      // Create agent performance array
+      const agents: Agent[] = Object.entries(senderCounts)
+        .map(([email, count]) => {
+          const revenue = senderRevenue[email] || 0;
+          // Performance based on transaction frequency (max 100%)
+          const maxTransactions = Math.max(...Object.values(senderCounts));
+          const performance =
+            maxTransactions > 0
+              ? Math.round((count / maxTransactions) * 100)
+              : 0;
 
-            return {
-              name: email.split('@')[0],
-              sales: count,
-              performance,
-              revenue,
-            };
-          })
-          .sort((a, b) => b.sales - a.sales)
-          .slice(0, 5);
+          return {
+            name: email.split('@')[0], // Use email prefix as name
+            sales: count,
+            performance,
+            revenue,
+          };
+        })
+        .sort((a, b) => b.sales - a.sales) // Sort by highest sales
+        .slice(0, 5); // Get top 5 agents
 
-        console.log('Agent performance calculated:', agents);
-        return agents;
-      } catch (error) {
-        console.error('Failed to calculate agent performance:', error);
-        return [];
-      }
-    },
-    []
-  );
+      console.log('Agent performance calculated:', agents);
+      return agents;
+    } catch (error) {
+      console.error('Failed to calculate agent performance:', error);
+      return [];
+    }
+  },
+  []
+);
 
   // Fetch dashboard data
   const fetchDashboardData = useCallback(
@@ -480,7 +481,7 @@ const StoreDashboard: React.FC = () => {
         console.log('Fetched transactions:', transactions);
         console.log('Agent count:', agentCount);
 
-        const topAgents = await fetchAgentPerformance(authToken, transactions);
+        const topAgents = await fetchAgentPerformance(transactions);
 
         const today = new Date();
         const todayISO = today.toISOString().split('T')[0];
