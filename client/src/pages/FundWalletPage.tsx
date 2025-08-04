@@ -320,9 +320,15 @@ const FundWalletPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
-        <span className="ml-3 text-lg">Loading user data...</span>
+      <div className="flex justify-center items-center h-screen">
+        <div className="w-4/5 max-w-xl">
+          <p className="mb-4 text-center text-lg font-medium">
+            Loading ...
+          </p>
+          <div className="w-full h-1 bg-gray-200 rounded">
+            <div className="h-1 bg-indigo-900 animate-pulse rounded"></div>
+          </div>
+        </div>
       </div>
     );
   }

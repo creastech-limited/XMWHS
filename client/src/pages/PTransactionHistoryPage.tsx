@@ -309,11 +309,17 @@ const TransactionHistoryPage: React.FC = () => {
   const handleSnackbarClose = (): void => {
     setSnackbar({ ...snackbar, open: false });
   };
-
-  if (loading) {
+if (loading) {
     return (
       <div className="flex justify-center items-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        <div className="w-4/5 max-w-xl">
+          <p className="mb-4 text-center text-lg font-medium">
+            Loading ...
+          </p>
+          <div className="w-full h-1 bg-gray-200 rounded">
+            <div className="h-1 bg-indigo-900 animate-pulse rounded"></div>
+          </div>
+        </div>
       </div>
     );
   }

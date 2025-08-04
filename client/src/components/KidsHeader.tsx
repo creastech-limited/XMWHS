@@ -56,6 +56,7 @@ const KidsHeader = ({ profile, wallet }: KidsHeaderProps) => {
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const notificationRef = useRef<HTMLDivElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
+  const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
 
   const API_URL = import.meta.env.VITE_API_BASE_URL;
   const token = authToken || localStorage.getItem('token');
@@ -246,7 +247,6 @@ const KidsHeader = ({ profile, wallet }: KidsHeaderProps) => {
             lastName: payload.lastName,
             email: payload.email,
             role: payload.role,
-            avatar: payload.avatar,
             profilePicture: payload.profilePicture,
           };
 
@@ -357,29 +357,33 @@ const KidsHeader = ({ profile, wallet }: KidsHeaderProps) => {
     return user?.email ?? 'Guest';
   };
 
-  const getUserAvatar = () => {
-    if (user?.profilePicture) {
-      if (user.profilePicture.startsWith('/uploads/')) {
-        return `${API_URL}${user.profilePicture}`;
-      }
-      if (user.profilePicture.startsWith('http')) {
-        return user.profilePicture;
-      }
-      return `${API_URL}/${user.profilePicture}`;
-    }
-    
-    if (user?.avatar) {
-      if (user.avatar.startsWith('/uploads/')) {
-        return `${API_URL}${user.avatar}`;
-      }
-      if (user.avatar.startsWith('http')) {
-        return user.avatar;
-      }
-      return `${API_URL}/${user.avatar}`;
-    }
-    
+ const getUserAvatar = () => {
+  if (avatarLoadFailed) {
     return '/default-avatar.png';
-  };
+  }
+
+  if (user?.profilePicture) {
+    if (user.profilePicture.startsWith('/uploads/')) {
+      return `${API_URL}${user.profilePicture}`;
+    }
+    if (user.profilePicture.startsWith('http')) {
+      return user.profilePicture;
+    }
+    return `${API_URL}/${user.profilePicture}`;
+  }
+  
+  if (user?.avatar) {
+    if (user.avatar.startsWith('/uploads/')) {
+      return `${API_URL}${user.avatar}`;
+    }
+    if (user.avatar.startsWith('http')) {
+      return user.avatar;
+    }
+    return `${API_URL}/${user.avatar}`;
+  }
+  
+  return '/default-avatar.png';
+};
 
   const getNotificationTypeColor = (type: string) => {
     switch (type.toLowerCase()) {
@@ -435,14 +439,17 @@ const KidsHeader = ({ profile, wallet }: KidsHeaderProps) => {
                     {loading ? (
                       <div className="w-full h-full rounded-full bg-gray-200 animate-pulse" />
                     ) : (
-                      <img 
-                        src={avatar} 
-                        alt={username}
-                        className="w-full h-full object-cover rounded-full"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = '/default-avatar.png';
-                        }}
-                      />
+                     <img 
+  src={avatar} 
+  alt={username}
+  className="w-full h-full object-cover rounded-full"
+  onError={(e) => {
+    if (!avatarLoadFailed) {
+      setAvatarLoadFailed(true);
+      (e.target as HTMLImageElement).src = '/default-avatar.png';
+    }
+  }}
+/> 
                     )}
                   </div>
                   <div className="absolute -bottom-1 -right-1 bg-green-500 w-6 h-6 rounded-full border-2 border-white flex items-center justify-center">

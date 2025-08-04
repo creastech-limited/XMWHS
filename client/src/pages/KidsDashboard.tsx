@@ -52,9 +52,9 @@ interface Transaction {
   _id: string;
   amount: number;
   description: string;
-  category: string;
+  category: string; // 'credit' | 'debit' | 'pending'
   transactionType: string;
-  status: string;
+  status: string; // 'success' | 'failed' | 'pending'
   createdAt: string;
   metadata?: {
     senderEmail?: string;
@@ -210,97 +210,87 @@ const KidsDashboard = () => {
   };
 
   // Fetch transactions
-  const fetchTransactions = async () => {
-    try {
-      if (!token) return;
+ const fetchTransactions = async () => {
+  try {
+    if (!token) return;
 
-      setLoadingTransactions(true);
-      const response = await axios.get(
-        `${API_URL}/api/transaction/getusertransaction`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-
-      console.log('Raw transaction response:', response.data);
-
-      // Handle different response structures
-      let transactionData;
-      if (response.data.success && response.data.data) {
-        // If response has success and data fields
-        transactionData = response.data.data;
-      } else if (response.data.data) {
-        // If response has only data field
-        transactionData = response.data.data;
-      } else if (Array.isArray(response.data)) {
-        // If response is directly an array
-        transactionData = response.data;
-      } else {
-        // If the structure is different
-        console.log('Unexpected response structure:', response.data);
-        transactionData = [];
+    setLoadingTransactions(true);
+    const response = await axios.get(
+      `${API_URL}/api/transaction/getusertransaction`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
       }
+    );
 
-      // Safety check to ensure it's an array
-      const validTransactions = Array.isArray(transactionData)
-        ? transactionData.filter((tx: Transaction) => tx._id)
-        : [];
-
-      console.log('Valid transactions:', validTransactions.length);
-      // setTransactions(validTransactions);
-
-      // Get only the 5 most recent transactions
-      const recent = [...validTransactions]
-        .sort(
-          (a, b) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        )
-        .slice(0, 5);
-
-      setRecentTransactions(recent);
-      console.log('Recent transactions:', recent.length);
-
-      // Process analytics data
-      processAnalyticsData(validTransactions);
-    } catch (err) {
-      console.error('Error fetching transactions:', err);
-      showNotification('Error fetching transactions', 'error');
-    } finally {
-      setLoadingTransactions(false);
+    let transactionData;
+    if (response.data.success && response.data.data) {
+      transactionData = response.data.data;
+    } else if (response.data.data) {
+      transactionData = response.data.data;
+    } else if (Array.isArray(response.data)) {
+      transactionData = response.data;
+    } else {
+      transactionData = [];
     }
-  };
+
+    // Add proper type determination
+    const typedTransactions = transactionData.map((tx: Transaction) => {
+      // If status is pending, mark as pending regardless of amount
+      if (tx.status === 'pending') {
+        return { ...tx, category: 'pending' };
+      }
+      // If category is explicitly set, use that
+      if (tx.category === 'credit' || tx.category === 'debit') {
+        return tx;
+      }
+      // Otherwise determine by amount
+      return {
+        ...tx,
+        category: tx.amount > 0 ? 'credit' : 'debit'
+      };
+    });
+
+    const validTransactions = Array.isArray(typedTransactions)
+      ? typedTransactions.filter((tx: Transaction) => tx._id)
+      : [];
+
+    // Get only the 5 most recent transactions
+    const recent = [...validTransactions]
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      )
+      .slice(0, 5);
+
+    setRecentTransactions(recent);
+    processAnalyticsData(validTransactions);
+  } catch (err) {
+    console.error('Error fetching transactions:', err);
+    showNotification('Error fetching transactions', 'error');
+  } finally {
+    setLoadingTransactions(false);
+  }
+};
 
   // Process analytics data
-  const processAnalyticsData = (transactionData: Transaction[]) => {
-    console.log(
-      'Processing analytics for',
-      transactionData.length,
-      'transactions'
-    );
-    if (transactionData && transactionData.length > 0) {
-      // Basic credit/debit analysis
-      let credits = 0,
-        debits = 0;
-      transactionData.forEach((tx) => {
-        if (tx.category === 'credit') {
-          credits += tx.amount;
-        } else if (tx.category === 'debit') {
-          debits += tx.amount;
-        } else {
-          // Fallback if category is not explicitly set
-          if (tx.amount > 0) {
-            credits += tx.amount;
-          } else {
-            debits += Math.abs(tx.amount);
-          }
-        }
-      });
+const processAnalyticsData = (transactionData: Transaction[]) => {
+  if (transactionData && transactionData.length > 0) {
+    let credits = 0, debits = 0, pending = 0;
+    transactionData.forEach((tx) => {
+      if (tx.status === 'pending') {
+        pending += Math.abs(tx.amount);
+      } else if (tx.category === 'credit') {
+        credits += tx.amount;
+      } else {
+        debits += Math.abs(tx.amount);
+      }
+    });
 
-      console.log('Credits:', credits, 'Debits:', debits);
-      setAnalytics([
-        { name: 'Credits', value: credits, color: '#4caf50' },
-        { name: 'Debits', value: debits, color: '#f44336' },
-      ]);
+    setAnalytics([
+      { name: 'Credits', value: credits, color: '#4caf50' },
+      { name: 'Debits', value: debits, color: '#f44336' },
+      { name: 'Pending', value: pending, color: '#ff9800' },
+    ]);
 
       // Category analysis
       const categories: Record<string, number> = {};
@@ -665,57 +655,73 @@ const KidsDashboard = () => {
           </div>
         ) : (
           <div className="space-y-4">
-            {recentTransactions.length > 0 ? (
-              recentTransactions.map((tx) => (
-                <div
-                  key={tx._id}
-                  className="flex items-center justify-between p-3 hover:bg-gray-100 rounded-lg transition border border-gray-200"
-                >
-                  {' '}
-                  {/* Changed hover:bg-gray-50 to hover:bg-gray-100 */}
-                  <div className="flex items-center">
-                    <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                        tx.category === 'credit' || tx.amount > 0
-                          ? 'bg-green-100 text-green-600'
-                          : 'bg-red-100 text-red-600'
-                      }`}
-                    >
-                      {tx.category === 'credit' || tx.amount > 0 ? (
-                        <ArrowDown className="w-5 h-5" />
-                      ) : (
-                        <ArrowUp className="w-5 h-5" />
-                      )}
-                    </div>
-                    <div className="ml-3">
-                      <p className="font-medium text-gray-800">
-                        {getTransactionDisplayName(tx)}
-                      </p>{' '}
-                      {/* Added text-gray-800 */}
-                      <p className="text-sm text-gray-600">
-                        {' '}
-                        {/* Changed text-gray-500 to text-gray-600 */}
-                        {tx.description} •{' '}
-                        {new Date(tx.createdAt).toLocaleDateString()}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p
-                      className={`font-bold ${tx.category === 'credit' || tx.amount > 0 ? 'text-green-600' : 'text-red-600'}`}
-                    >
-                      {tx.category === 'credit' || tx.amount > 0 ? '+' : '-'}₦
-                      {Math.abs(tx.amount).toLocaleString()}
-                    </p>
-                    {tx.balanceAfter !== undefined && (
-                      <p className="text-xs text-gray-500">
-                        Balance: ₦{tx.balanceAfter.toLocaleString()}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              ))
+           {recentTransactions.length > 0 ? (
+  recentTransactions.map((tx) => {
+    // Determine transaction type and color
+    const isPending = tx.status === 'pending';
+    const isCredit = tx.category === 'credit' || (tx.amount > 0 && !isPending);
+
+    return (
+      <div
+        key={tx._id}
+        className="flex items-center justify-between p-3 hover:bg-gray-100 rounded-lg transition border border-gray-200"
+      >
+        <div className="flex items-center">
+          <div
+            className={`w-10 h-10 rounded-full flex items-center justify-center ${
+              isPending
+                ? 'bg-yellow-100 text-yellow-600'
+                : isCredit
+                ? 'bg-green-100 text-green-600'
+                : 'bg-red-100 text-red-600'
+            }`}
+          >
+            {isPending ? (
+              <AlertCircle className="w-5 h-5" />
+            ) : isCredit ? (
+              <ArrowDown className="w-5 h-5" />
             ) : (
+              <ArrowUp className="w-5 h-5" />
+            )}
+          </div>
+          <div className="ml-3">
+            <p className="font-medium text-gray-800">
+              {getTransactionDisplayName(tx)}
+            </p>
+            <p className="text-sm text-gray-600">
+              {tx.description} •{' '}
+              {new Date(tx.createdAt).toLocaleDateString()}
+            </p>
+            {isPending && (
+              <span className="text-xs text-yellow-600 mt-1">
+                Pending
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="text-right">
+          <p
+            className={`font-bold ${
+              isPending
+                ? 'text-yellow-600'
+                : isCredit
+                ? 'text-green-600'
+                : 'text-red-600'
+            }`}
+          >
+            {isPending ? '⏳' : isCredit ? '+' : '-'}₦
+            {Math.abs(tx.amount).toLocaleString()}
+          </p>
+          {tx.balanceAfter !== undefined && (
+            <p className="text-xs text-gray-500">
+              Balance: ₦{tx.balanceAfter.toLocaleString()}
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  })
+) : (
               <div className="text-center py-10 bg-gray-50 rounded-lg">
                 <History className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                 <p className="text-gray-500">No transactions found.</p>

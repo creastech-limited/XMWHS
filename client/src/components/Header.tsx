@@ -208,7 +208,6 @@ const [notificationModalOpen, setNotificationModalOpen] = useState(false);
             lastName: payload.lastName,
             email: payload.email,
             role: payload.role,
-            avatar: payload.avatar,
             profilePicture: payload.profilePicture,
           };
 
@@ -276,15 +275,17 @@ const [notificationModalOpen, setNotificationModalOpen] = useState(false);
   const getDisplayRole = () => user?.role ? `${user.role.charAt(0).toUpperCase()}${user.role.slice(1)}` : 'User';
 
   const getUserAvatar = () => {
-    if (user?.profilePicture) {
-      // If profilePicture starts with '/uploads/', prepend the API URL
-      if (user.profilePicture.startsWith('/uploads/')) {
-        return `${API_URL}${user.profilePicture}`;
-      }
-      return user.profilePicture;
+  if (user?.profilePicture) {
+    if (user.profilePicture.startsWith('/uploads/')) {
+      return `${API_URL}${user.profilePicture}`;
     }
-    return user?.avatar || '/default-avatar.png';
-  };
+    return user.profilePicture;
+  }
+  if (user?.avatar) {
+    return user.avatar;
+  }
+  return null; // Return null when no avatar exists
+};
 
   // Get unread notifications count
   const unreadCount = notifications.filter(n => !n.read).length;
@@ -324,101 +325,101 @@ const [notificationModalOpen, setNotificationModalOpen] = useState(false);
         {/* Right-aligned action buttons */}
         <div className="flex items-center space-x-1 sm:space-x-3">
           {/* Notifications */}
-          <div className="relative" ref={notifRef}>
-            <button
-              onClick={() => {
-                setNotifOpen(!notifOpen);
-                setMenuOpen(false);
-                if (!notifOpen) {
-                  fetchNotifications(); // Refresh notifications when opening
-                }
-              }}
-              className="p-2 rounded-full text-gray-500 hover:text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-200 relative"
-              aria-label="Notifications"
-            >
-              <BellIcon className="h-5 w-5" />
-              {unreadCount > 0 && (
-                <span className="absolute top-1 right-1 inline-flex items-center justify-center w-4 h-4 text-xs font-bold text-white bg-red-500 rounded-full">
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
-              )}
-            </button>
+        <div className="relative" ref={notifRef}>
+  <button
+    onClick={() => {
+      setNotifOpen(!notifOpen);
+      setMenuOpen(false);
+      if (!notifOpen) {
+        fetchNotifications();
+      }
+    }}
+    className="p-2 rounded-full text-gray-500 hover:text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-200 relative"
+    aria-label="Notifications"
+  >
+    <BellIcon className="h-5 w-5" />
+    {unreadCount > 0 && (
+      <span className="absolute top-1 right-1 inline-flex items-center justify-center w-4 h-4 text-xs font-bold text-white bg-red-500 rounded-full">
+        {unreadCount > 9 ? '9+' : unreadCount}
+      </span>
+    )}
+  </button>
 
-            {notifOpen && (
-              <div className="origin-top-right absolute right-0 mt-2 w-80 rounded-lg shadow-lg bg-white ring-1 ring-black ring-opacity-5 divide-y divide-gray-100 z-50 overflow-hidden">
-                <div className="px-4 py-3 bg-gray-50 flex justify-between items-center">
-                  <p className="text-sm font-medium text-gray-900">Notifications</p>
-                  {unreadCount > 0 && (
-                    <span className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                      {unreadCount} new
-                    </span>
-                  )}
-                </div>
-                
-                <div className="py-1 max-h-96 overflow-y-auto">
-                  {notificationsLoading ? (
-                    <div className="px-4 py-6 text-center">
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto"></div>
-                      <p className="text-sm text-gray-500 mt-2">Loading notifications...</p>
-                    </div>
-                  ) : notifications.length > 0 ? (
-                    notifications.map((notification) => (
-                      <div 
-                        key={notification._id} 
-                        className={`px-4 py-3 hover:bg-gray-50 border-l-4 ${getNotificationTypeColor(notification.type)} ${
-                          !notification.read ? 'bg-blue-50' : 'border-transparent hover:border-blue-500'
-                        } transition-all duration-200 cursor-pointer`}
-                        onClick={() => handleNotificationClick(notification)}
-                      >
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <div className="text-sm font-medium text-gray-900 mb-1">
-                              {notification.title}
-                            </div>
-                            <div className="text-sm text-gray-700">{notification.message}</div>
-                            <div className="text-xs text-gray-400 mt-1">
-                              {formatDate(notification.createdAt)}
-                            </div>
-                          </div>
-                          {!notification.read && (
-                            <div className="ml-2 mt-1">
-                              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="px-4 py-6 text-sm text-gray-500 text-center">
-                      <div className="flex justify-center mb-3">
-                        <BellIcon className="h-8 w-8 text-gray-300" />
-                      </div>
-                      <p>No notifications yet</p>
-                      <p className="text-xs mt-1">We'll notify you when something happens</p>
-                    </div>
-                  )}
-                </div>
-                
-              {notifications.length > 0 && (
-  <div className="px-4 py-2 bg-gray-50 flex justify-between">
-    <button 
-      onClick={markAllAsRead}
-      className="text-xs text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50"
-      disabled={unreadCount === 0}
-    >
-      Mark all as read
-    </button>
-    <button 
-      onClick={() => setNotifOpen(false)}
-      className="text-xs text-gray-600 hover:text-gray-800 font-medium"
-    >
-      Close
-    </button>
-  </div>
-)}
-              </div>
-            )}
+  {notifOpen && (
+    <div className="origin-top-right absolute right-0 mt-2 w-screen max-w-xs sm:w-80 rounded-lg shadow-lg bg-white ring-1 ring-black ring-opacity-5 divide-y divide-gray-100 z-50 overflow-hidden">
+      <div className="px-4 py-3 bg-gray-50 flex justify-between items-center">
+        <p className="text-sm font-medium text-gray-900">Notifications</p>
+        {unreadCount > 0 && (
+          <span className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+            {unreadCount} new
+          </span>
+        )}
+      </div>
+      
+      <div className="py-1 max-h-96 overflow-y-auto">
+        {notificationsLoading ? (
+          <div className="px-4 py-6 text-center">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto"></div>
+            <p className="text-sm text-gray-500 mt-2">Loading notifications...</p>
           </div>
+        ) : notifications.length > 0 ? (
+          notifications.map((notification) => (
+            <div 
+              key={notification._id} 
+              className={`px-4 py-3 hover:bg-gray-50 border-l-4 ${getNotificationTypeColor(notification.type)} ${
+                !notification.read ? 'bg-blue-50' : 'border-transparent hover:border-blue-500'
+              } transition-all duration-200 cursor-pointer`}
+              onClick={() => handleNotificationClick(notification)}
+            >
+              <div className="flex justify-between items-start">
+                <div className="flex-1">
+                  <div className="text-sm font-medium text-gray-900 mb-1">
+                    {notification.title}
+                  </div>
+                  <div className="text-sm text-gray-700">{notification.message}</div>
+                  <div className="text-xs text-gray-400 mt-1">
+                    {formatDate(notification.createdAt)}
+                  </div>
+                </div>
+                {!notification.read && (
+                  <div className="ml-2 mt-1">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="px-4 py-6 text-sm text-gray-500 text-center">
+            <div className="flex justify-center mb-3">
+              <BellIcon className="h-8 w-8 text-gray-300" />
+            </div>
+            <p>No notifications yet</p>
+            <p className="text-xs mt-1">We'll notify you when something happens</p>
+          </div>
+        )}
+      </div>
+      
+      {notifications.length > 0 && (
+        <div className="px-4 py-2 bg-gray-50 flex justify-between">
+          <button 
+            onClick={markAllAsRead}
+            className="text-xs text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50"
+            disabled={unreadCount === 0}
+          >
+            Mark all as read
+          </button>
+          <button 
+            onClick={() => setNotifOpen(false)}
+            className="text-xs text-gray-600 hover:text-gray-800 font-medium"
+          >
+            Close
+          </button>
+        </div>
+      )}
+    </div>
+  )}
+</div>
 
           {/* User profile dropdown */}
           <div className="relative ml-2" ref={menuRef}>
@@ -432,18 +433,20 @@ const [notificationModalOpen, setNotificationModalOpen] = useState(false);
             >
               <div className="flex items-center space-x-3 px-2 py-1 rounded-full hover:bg-gray-100">
                 {loading ? (
-                  <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse" />
-                ) : (
-                  <img
-                    src={getUserAvatar()}
-                    alt="User profile"
-                    className="h-8 w-8 rounded-full object-cover border-2 border-white shadow-sm"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.src = '/default-avatar.png';
-                    }}
-                  />
-                )}
+  <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse" />
+) : getUserAvatar() ? (
+  <img
+    src={getUserAvatar()!}
+    alt="User profile"
+    className="h-8 w-8 rounded-full object-cover border-2 border-white shadow-sm"
+  />
+) : (
+  <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center border-2 border-white shadow-sm">
+   <span className="text-sm font-medium text-gray-600">
+    {getDisplayName().charAt(0).toUpperCase()}
+  </span>
+  </div>
+)}
                 <div className="hidden md:flex md:flex-col md:items-start">
                   {loading ? (
                     <>
@@ -471,15 +474,19 @@ const [notificationModalOpen, setNotificationModalOpen] = useState(false);
               <div className="origin-top-right absolute right-0 mt-2 w-56 rounded-lg shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50 overflow-hidden">
                 <div className="p-4 border-b border-gray-100">
                   <div className="flex items-center space-x-3">
-                    <img
-                      src={getUserAvatar()}
-                      alt="User profile"
-                      className="h-10 w-10 rounded-full object-cover"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.src = '/default-avatar.png';
-                      }}
-                    />
+                   {getUserAvatar() ? (
+  <img
+    src={getUserAvatar() ?? undefined}
+    alt="User profile"
+    className="h-8 w-8 rounded-full object-cover border-2 border-white shadow-sm"
+  />
+) : (
+  <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center border-2 border-white shadow-sm">
+    <span className="text-xs font-medium text-gray-600">
+      {getDisplayName().charAt(0).toUpperCase()}
+    </span>
+  </div>
+)}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900 truncate">
                         {getDisplayName()}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Banknote,
@@ -10,15 +10,38 @@ import {
   User,
   Receipt,
   ChevronRight,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import StoreHeader from '../components/StoreHeader';
 import StoreSidebar from '../components/StoreSidebar';
 import Footer from '../components/Footer';
 
-type BankOption = {
-  value: string;
-  label: string;
+// API Base URL - adjust according to your environment
+ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+// Type definitions
+type Bank = {
+  id: string;
+  name: string;
+  code: string;
+};
+
+type ApiBankData = {
+  id: number;
+  name: string;
+  code: string;
+};
+
+type User = {
+  name: string;
+  wallet: {
+    balance: number;
+    currency: string;
+    walletId: string;
+  };
+  withdrawalBank?: string;
+  withdrawalAccountNumber?: string;
+  withdrawalAccountName?: string;
 };
 
 type FormData = {
@@ -35,14 +58,14 @@ type SnackbarState = {
 };
 
 const SWithdrawalPage = () => {
-  // Sample bank options
-  const bankOptions: BankOption[] = [
-    { value: 'first-bank', label: 'First Bank' },
-    { value: 'gtb', label: 'Guaranty Trust Bank' },
-    { value: 'zenith', label: 'Zenith Bank' },
-    { value: 'access', label: 'Access Bank' },
-    { value: 'uba', label: 'United Bank for Africa' }
-  ];
+  // State for banks
+  const [banks, setBanks] = useState<Bank[]>([]);
+  const [bankLoading, setBankLoading] = useState(false);
+  const [selectedBank, setSelectedBank] = useState('');
+  const [selectedBankCode, setSelectedBankCode] = useState('');
+  
+  // User state
+  const [user, setUser] = useState<User | null>(null);
 
   // Form state for withdrawal details
   const [formData, setFormData] = useState<FormData>({
@@ -52,8 +75,13 @@ const SWithdrawalPage = () => {
     accountName: ''
   });
 
-  // Available balance (sample data)
-  const availableBalance = 45000;
+  // Account verification state
+  const [verificationStatus, setVerificationStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [accountName, setAccountName] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+
+  // Available balance from user wallet
+  const availableBalance = user?.wallet?.balance || 0;
 
   // Snackbar state for feedback messages
   const [snackbar, setSnackbar] = useState<SnackbarState>({ 
@@ -64,30 +92,285 @@ const SWithdrawalPage = () => {
   
   // Loading state
   const [loading, setLoading] = useState(false);
-  
+
+  // Fetch banks from API
+  useEffect(() => {
+    const fetchBanks = async () => {
+      setBankLoading(true);
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/transaction/banks`);
+        
+        if (response.ok) {
+          const result = await response.json();
+          console.log('Fetched banks:', result);
+          
+          // Extract banks from the API response structure
+          const banksData = result.data || [];
+          
+          // Map the API response to match your Bank interface
+          const mappedBanks = banksData.map((bank: ApiBankData) => ({
+            id: bank.id.toString(),
+            name: bank.name,
+            code: bank.code,
+          }));
+          console.log('Mapped banks:', mappedBanks);
+          setBanks(mappedBanks);
+        } else {
+          console.error('Failed to fetch banks');
+          setBanks([]);
+        }
+      } catch (error) {
+        console.error('Error fetching banks:', error);
+        setBanks([]);
+      } finally {
+        setBankLoading(false);
+      }
+    };
+    
+    fetchBanks();
+  }, []);
+
+  // Fetch the logged-in user's profile on mount
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    
+    const fetchUserProfile = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          
+          // Validate API response structure
+          if (!data || typeof data !== 'object') {
+            throw new Error('Invalid user profile response format');
+          }
+
+          // Create safe user data with null coalescing and optional chaining
+          const userInfo = data.user?.data || data.data || data;
+          const walletInfo = data.user?.wallet || data.wallet;
+
+          const userData: User = {
+            name: userInfo.name ?? `${userInfo.firstName ?? ''} ${userInfo.lastName ?? ''}`.trim(),
+            wallet: {
+              balance: walletInfo?.balance || 0,
+              currency: walletInfo?.currency || 'NGN',
+              walletId: walletInfo?.walletId || '',
+            },
+            withdrawalBank: userInfo.bankDetails?.bankName || userInfo.withdrawalBank,
+            withdrawalAccountNumber: userInfo.bankDetails?.accountNumber || userInfo.withdrawalAccountNumber,
+            withdrawalAccountName: userInfo.bankDetails?.accountName || userInfo.withdrawalAccountName,
+          };
+          
+          setUser(userData);
+          setUser(userData);
+          // Pre-populate bank details if they exist
+          const bankName = userInfo.bankDetails?.bankName || userInfo.withdrawalBank;
+          const bankAccountNumber = userInfo.bankDetails?.accountNumber || userInfo.withdrawalAccountNumber;
+          const bankAccountName = userInfo.bankDetails?.accountName || userInfo.withdrawalAccountName;
+          const bankCode = userInfo.bankDetails?.bankCode;
+
+          if (bankName && bankAccountNumber && bankAccountName) {
+            setSelectedBank(bankName);
+            setAccountNumber(bankAccountNumber);
+            setAccountName(bankAccountName);
+            setFormData(prev => ({
+              ...prev,
+              bankName: bankName,
+              accountNumber: bankAccountNumber,
+              accountName: bankAccountName
+            }));
+            if (bankCode) {
+              setSelectedBankCode(bankCode);
+            }
+            setVerificationStatus('success');
+          }
+        } else {
+          console.error('Failed to fetch user profile');
+        }
+      } catch (error) {
+        console.error('Error fetching user profile:', error);
+      }
+    };
+    
+    fetchUserProfile();
+  }, []);
+
+  // Handle bank selection
+  const handleBankChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedBankName = e.target.value;
+    const selectedBankData = banks.find(bank => bank.name === selectedBankName);
+    
+    setSelectedBank(selectedBankName);
+    setSelectedBankCode(selectedBankData?.code || '');
+    setFormData(prev => ({ ...prev, bankName: selectedBankName }));
+    
+    // Reset account verification when bank changes
+    setVerificationStatus('idle');
+    setAccountName('');
+  };
+
+  // Handle account number change and verification
+  const handleAccountNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setAccountNumber(value);
+    setFormData(prev => ({ ...prev, accountNumber: value }));
+    
+    // Auto-verify when account number is 10 digits
+    if (value.length === 10 && selectedBankCode) {
+      handleVerifyAccount(value, selectedBankCode);
+    } else {
+      setVerificationStatus('idle');
+      setAccountName('');
+    }
+  };
+
+  // Verify account number with bank
+  const handleVerifyAccount = async (accNumber: string, bankCode: string) => {
+    if (accNumber.length !== 10) {
+      setVerificationStatus('error');
+      setAccountName('');
+      return;
+    }
+    
+    if (!bankCode) {
+      alert('Bank code not found. Please reselect your bank.');
+      return;
+    }
+    
+    setVerificationStatus('loading');
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/transaction/resolveaccount?account_number=${accNumber}&bank_code=${bankCode}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      console.log(accNumber, bankCode);
+      if (response.ok) {
+        const data = await response.json();
+        const resolvedAccountName = data.account_name || data.data?.account_name;
+        setAccountName(resolvedAccountName);
+        setFormData(prev => ({ ...prev, accountName: resolvedAccountName }));
+        setVerificationStatus('success');
+      } else {
+        const errorData = await response.json();
+        alert(errorData.message || 'Failed to verify account. Please check account number and try again.');
+        setVerificationStatus('error');
+        setAccountName('');
+      }
+    } catch (error) {
+      console.error('Error verifying account:', error);
+      alert('An error occurred while verifying account.');
+      setVerificationStatus('error');
+      setAccountName('');
+    }
+  };
+
   const handleChange = (field: keyof FormData) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [field]: e.target.value });
   };
   
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validation
+    if (!formData.amount || !selectedBank || !accountNumber || !accountName) {
+      setSnackbar({
+        open: true,
+        message: 'Please fill in all required fields',
+        severity: 'error'
+      });
+      return;
+    }
+
+    const amount = parseFloat(formData.amount);
+    if (isNaN(amount) || amount <= 0) {
+      setSnackbar({
+        open: true,
+        message: 'Please enter a valid amount',
+        severity: 'error'
+      });
+      return;
+    }
+
+    if (amount > availableBalance) {
+      setSnackbar({
+        open: true,
+        message: 'Insufficient balance',
+        severity: 'error'
+      });
+      return;
+    }
+
+    if (verificationStatus !== 'success') {
+      setSnackbar({
+        open: true,
+        message: 'Please verify your account number first',
+        severity: 'error'
+      });
+      return;
+    }
+
     setLoading(true);
     
-    // Simulate processing the withdrawal request via Paystack API.
-    setTimeout(() => {
-      setSnackbar({ 
-        open: true, 
-        message: 'Withdrawal request submitted successfully!', 
-        severity: 'success' 
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/transaction/withdraw`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          amount,
+          description: 'Withdrawal request',
+          account_name: accountName,
+          account_number: accountNumber,
+          bank_code: selectedBankCode,
+        }),
       });
-      setFormData({
-        amount: '',
-        bankName: '',
-        accountNumber: '',
-        accountName: ''
+
+      if (response.ok) {
+        await response.json();
+        setSnackbar({ 
+          open: true, 
+          message: 'Withdrawal request submitted successfully!', 
+          severity: 'success' 
+        });
+        setFormData({
+          amount: '',
+          bankName: '',
+          accountNumber: '',
+          accountName: ''
+        });
+        setAccountNumber('');
+        setAccountName('');
+        setSelectedBank('');
+        setSelectedBankCode('');
+        setVerificationStatus('idle');
+      } else {
+        const errorData = await response.json();
+        setSnackbar({
+          open: true,
+          message: errorData.message || 'Failed to submit withdrawal request',
+          severity: 'error'
+        });
+      }
+    } catch (error) {
+      console.error('Withdrawal Error:', error);
+      setSnackbar({
+        open: true,
+        message: 'An error occurred while submitting withdrawal request',
+        severity: 'error'
       });
+    } finally {
       setLoading(false);
-    }, 1500);
+    }
   };
 
   return (
@@ -159,7 +442,7 @@ const SWithdrawalPage = () => {
                         <button
                           type="button"
                           className="text-gray-400 hover:text-gray-500"
-                          title="Maximum amount you can withdraw is ₦45,000"
+                          title={`Maximum amount you can withdraw is ₦${availableBalance.toLocaleString()}`}
                         >
                           <Info className="h-5 w-5" />
                         </button>
@@ -181,17 +464,25 @@ const SWithdrawalPage = () => {
                       <select
                         id="bankName"
                         className="block w-full pl-10 pr-12 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white"
-                        value={formData.bankName}
-                        onChange={(e) => setFormData({...formData, bankName: e.target.value})}
+                        value={selectedBank}
+                        onChange={handleBankChange}
                         required
+                        disabled={bankLoading}
                       >
-                        <option value="">Select Bank</option>
-                        {bankOptions.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
+                        <option value="">
+                          {bankLoading ? 'Loading banks...' : 'Select Bank'}
+                        </option>
+                        {banks.map((bank) => (
+                          <option key={bank.id} value={bank.name}>
+                            {bank.name}
                           </option>
                         ))}
                       </select>
+                      {bankLoading && (
+                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                          <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                        </div>
+                      )}
                     </div>
                   </div>
                   
@@ -206,13 +497,30 @@ const SWithdrawalPage = () => {
                       <input
                         type="text"
                         id="accountNumber"
-                        className="block w-full pl-10 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                        className="block w-full pl-10 pr-12 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                         placeholder="1234567890"
-                        value={formData.accountNumber}
-                        onChange={handleChange('accountNumber')}
+                        value={accountNumber}
+                        onChange={handleAccountNumberChange}
+                        maxLength={10}
                         required
                       />
+                      <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                        {verificationStatus === 'loading' && (
+                          <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+                        )}
+                        {verificationStatus === 'success' && (
+                          <CheckCircle2 className="h-5 w-5 text-green-500" />
+                        )}
+                        {verificationStatus === 'error' && (
+                          <AlertCircle className="h-5 w-5 text-red-500" />
+                        )}
+                      </div>
                     </div>
+                    {accountNumber.length > 0 && accountNumber.length !== 10 && (
+                      <p className="mt-1 text-sm text-amber-600">
+                        Account number must be exactly 10 digits
+                      </p>
+                    )}
                   </div>
                   
                   <div className="mb-8">
@@ -226,22 +534,36 @@ const SWithdrawalPage = () => {
                       <input
                         type="text"
                         id="accountName"
-                        className="block w-full pl-10 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="John Doe"
-                        value={formData.accountName}
-                        onChange={handleChange('accountName')}
+                        className="block w-full pl-10 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-gray-50"
+                        placeholder="Account name will appear here after verification"
+                        value={accountName}
+                        readOnly
                         required
                       />
                     </div>
+                    {verificationStatus === 'success' && accountName && (
+                      <p className="mt-1 text-sm text-green-600">
+                        ✓ Account verified successfully
+                      </p>
+                    )}
                   </div>
                   
                   <button
                     type="submit"
-                    disabled={loading}
-                    className="w-full bg-gradient-to-r from-blue-600 to-blue-400 hover:from-blue-700 hover:to-blue-500 text-white py-3 px-4 rounded-lg shadow-md hover:shadow-lg transition duration-200 flex items-center justify-center"
+                    disabled={loading || verificationStatus !== 'success'}
+                    className="w-full bg-gradient-to-r from-blue-600 to-blue-400 hover:from-blue-700 hover:to-blue-500 disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed text-white py-3 px-4 rounded-lg shadow-md hover:shadow-lg transition duration-200 flex items-center justify-center"
                   >
-                    <Send className="mr-2 h-5 w-5" />
-                    {loading ? 'Processing...' : 'Withdraw Now'}
+                    {loading ? (
+                      <>
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="mr-2 h-5 w-5" />
+                        Withdraw Now
+                      </>
+                    )}
                   </button>
                 </form>
               </div>
@@ -277,7 +599,7 @@ const SWithdrawalPage = () => {
                 <ul className="space-y-3 text-sm text-gray-700">
                   <li className="flex items-start">
                     <span className="mr-2">•</span>
-                    <span>Ensure the account details match the bank account information.</span>
+                    <span>Account details are automatically verified when you enter a 10-digit account number.</span>
                   </li>
                   <li className="flex items-start">
                     <span className="mr-2">•</span>
@@ -309,7 +631,7 @@ const SWithdrawalPage = () => {
       
       {/* Snackbar notification */}
       {snackbar.open && (
-        <div className={`fixed bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-3 rounded-lg shadow-lg ${
+        <div className={`fixed bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-3 rounded-lg shadow-lg z-50 ${
           snackbar.severity === 'success' ? 'bg-green-600' :
           snackbar.severity === 'error' ? 'bg-red-600' :
           snackbar.severity === 'warning' ? 'bg-amber-600' : 'bg-blue-600'
@@ -320,7 +642,7 @@ const SWithdrawalPage = () => {
             <span>{snackbar.message}</span>
             <button 
               onClick={() => setSnackbar({...snackbar, open: false})}
-              className="ml-4"
+              className="ml-4 text-lg leading-none"
             >
               &times;
             </button>
