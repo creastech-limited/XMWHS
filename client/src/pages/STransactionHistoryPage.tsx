@@ -347,7 +347,9 @@ const STransactionHistoryPage = () => {
         <div className="text-gray-600 flex min-h-screen flex-col bg-gray-50">
             {/* Header and Sidebar */}
             <StoreHeader />
-            <StoreSidebar />
+            <div className="z-100">
+      <StoreSidebar />  
+      </div>
 
             {/* Main content wrapper with proper layout */}
            <main className="flex-grow p-4 lg:p-8 lg:ml-64 transition-all duration-300">
@@ -528,7 +530,9 @@ const STransactionHistoryPage = () => {
                 </div>
 
                 {/* Footer stays at the bottom */}
-                <Footer />
+                <div className="fixed bottom-0 left-0 w-full">
+        <Footer />
+      </div>
             </main>
         </div>
     );

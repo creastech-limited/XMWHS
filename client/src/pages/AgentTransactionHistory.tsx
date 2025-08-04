@@ -363,7 +363,9 @@ const AgentTransactionHistory = () => {
         </div>
       </main>
 
+      
       <Footer />
+   
     </div>
   );
 };
