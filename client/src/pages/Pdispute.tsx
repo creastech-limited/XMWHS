@@ -17,7 +17,9 @@ const Pdispute: React.FC = () => {
           <div className="flex flex-col min-h-full">
             {/* Main Content */}
             <main className="flex-1">
-              <RaiseDispute />
+              <div className="flex-grow md:ml-64">
+                <RaiseDispute />
+              </div>
             </main>
             
             {/* Footer */}

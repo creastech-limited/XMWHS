@@ -348,10 +348,10 @@ const ManageAgentsPage: React.FC = () => {
       </div>
   
       <div className="h-[80px] xs:h-[90px] sm:h-[100px] md:h-[110px] lg:h-[120px] xl:h-[140px]" />
-      
       <div className="mb-20 md:mb-10 px-4 xs:px-5 sm:px-6 md:px-8 py-6 sm:py-7 md:py-8 flex-grow max-w-6xl mx-auto w-full">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 sm:mb-7 md:mb-8 gap-3 sm:gap-4">
           <div className="w-full md:w-auto">
+      <div className="flex-grow md:ml-64">
             <h1 className="text-xl xs:text-2xl sm:text-[26px] md:text-3xl font-bold text-gray-800">
               Manage Agents
             </h1>
@@ -363,6 +363,7 @@ const ManageAgentsPage: React.FC = () => {
                 Store Type: {storeInfo.type} • Store ID: {storeInfo.store_id}
               </p>
             )}
+          </div>
           </div>
           
           <div className="w-full sm:w-auto">

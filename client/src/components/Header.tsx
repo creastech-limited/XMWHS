@@ -3,6 +3,9 @@ import {
   BellIcon,
   Cog6ToothIcon,
   ArrowLeftOnRectangleIcon as LogoutIcon,
+  TagIcon,
+  CalendarIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -345,80 +348,82 @@ const [notificationModalOpen, setNotificationModalOpen] = useState(false);
     )}
   </button>
 
-  {notifOpen && (
-    <div className="origin-top-right absolute right-0 mt-2 w-screen max-w-xs sm:w-80 rounded-lg shadow-lg bg-white ring-1 ring-black ring-opacity-5 divide-y divide-gray-100 z-50 overflow-hidden">
-      <div className="px-4 py-3 bg-gray-50 flex justify-between items-center">
-        <p className="text-sm font-medium text-gray-900">Notifications</p>
-        {unreadCount > 0 && (
-          <span className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-            {unreadCount} new
-          </span>
-        )}
-      </div>
-      
-      <div className="py-1 max-h-96 overflow-y-auto">
-        {notificationsLoading ? (
-          <div className="px-4 py-6 text-center">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto"></div>
-            <p className="text-sm text-gray-500 mt-2">Loading notifications...</p>
-          </div>
-        ) : notifications.length > 0 ? (
-          notifications.map((notification) => (
-            <div 
-              key={notification._id} 
-              className={`px-4 py-3 hover:bg-gray-50 border-l-4 ${getNotificationTypeColor(notification.type)} ${
-                !notification.read ? 'bg-blue-50' : 'border-transparent hover:border-blue-500'
-              } transition-all duration-200 cursor-pointer`}
-              onClick={() => handleNotificationClick(notification)}
-            >
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <div className="text-sm font-medium text-gray-900 mb-1">
-                    {notification.title}
-                  </div>
-                  <div className="text-sm text-gray-700">{notification.message}</div>
-                  <div className="text-xs text-gray-400 mt-1">
-                    {formatDate(notification.createdAt)}
-                  </div>
-                </div>
-                {!notification.read && (
-                  <div className="ml-2 mt-1">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                  </div>
-                )}
-              </div>
-            </div>
-          ))
-        ) : (
-          <div className="px-4 py-6 text-sm text-gray-500 text-center">
-            <div className="flex justify-center mb-3">
-              <BellIcon className="h-8 w-8 text-gray-300" />
-            </div>
-            <p>No notifications yet</p>
-            <p className="text-xs mt-1">We'll notify you when something happens</p>
-          </div>
-        )}
-      </div>
-      
-      {notifications.length > 0 && (
-        <div className="px-4 py-2 bg-gray-50 flex justify-between">
-          <button 
-            onClick={markAllAsRead}
-            className="text-xs text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50"
-            disabled={unreadCount === 0}
-          >
-            Mark all as read
-          </button>
-          <button 
-            onClick={() => setNotifOpen(false)}
-            className="text-xs text-gray-600 hover:text-gray-800 font-medium"
-          >
-            Close
-          </button>
+ {notifOpen && (
+    <div className="fixed inset-0 flex items-center justify-center sm:block sm:inset-auto sm:absolute sm:right-0 sm:top-full sm:mt-2 z-50">
+      <div className="w-full max-w-xs sm:w-80 mx-auto rounded-lg shadow-lg bg-white ring-1 ring-black ring-opacity-5 divide-y divide-gray-100 overflow-hidden">
+        <div className="px-4 py-3 bg-gray-50 flex justify-between items-center">
+          <p className="text-sm font-medium text-gray-900">Notifications</p>
+          {unreadCount > 0 && (
+            <span className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+              {unreadCount} new
+            </span>
+          )}
         </div>
-      )}
+        
+        <div className="py-1 max-h-96 overflow-y-auto">
+          {notificationsLoading ? (
+            <div className="px-4 py-6 text-center">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto"></div>
+              <p className="text-sm text-gray-500 mt-2">Loading notifications...</p>
+            </div>
+          ) : notifications.length > 0 ? (
+            notifications.map((notification) => (
+              <div 
+                key={notification._id} 
+                className={`px-4 py-3 hover:bg-gray-50 border-l-4 ${getNotificationTypeColor(notification.type)} ${
+                  !notification.read ? 'bg-blue-50' : 'border-transparent hover:border-blue-500'
+                } transition-all duration-200 cursor-pointer`}
+                onClick={() => handleNotificationClick(notification)}
+              >
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-gray-900 mb-1">
+                      {notification.title}
+                    </div>
+                    <div className="text-sm text-gray-700">{notification.message}</div>
+                    <div className="text-xs text-gray-400 mt-1">
+                      {formatDate(notification.createdAt)}
+                    </div>
+                  </div>
+                  {!notification.read && (
+                    <div className="ml-2 mt-1">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="px-4 py-6 text-sm text-gray-500 text-center">
+              <div className="flex justify-center mb-3">
+                <BellIcon className="h-8 w-8 text-gray-300" />
+              </div>
+              <p>No notifications yet</p>
+              <p className="text-xs mt-1">We'll notify you when something happens</p>
+            </div>
+          )}
+        </div>
+        
+        {notifications.length > 0 && (
+          <div className="px-4 py-2 bg-gray-50 flex justify-between">
+            <button 
+              onClick={markAllAsRead}
+              className="text-xs text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50"
+              disabled={unreadCount === 0}
+            >
+              Mark all as read
+            </button>
+            <button 
+              onClick={() => setNotifOpen(false)}
+              className="text-xs text-gray-600 hover:text-gray-800 font-medium"
+            >
+              Close
+            </button>
+          </div>
+        )}
+      </div>
     </div>
-  )}
+)}
 </div>
 
           {/* User profile dropdown */}
@@ -524,37 +529,69 @@ const [notificationModalOpen, setNotificationModalOpen] = useState(false);
           </div>
         </div>
       </div>
-      {notificationModalOpen && selectedNotification && (
+  {notificationModalOpen && selectedNotification && (
   <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-    <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-      <div className="p-6">
-        <div className="flex justify-between items-start mb-4">
-          <h3 className="text-lg font-medium text-gray-900">
-            {selectedNotification.title}
-          </h3>
+    {/* Backdrop click to close */}
+    <div 
+      className="absolute inset-0"
+      onClick={() => setNotificationModalOpen(false)}
+    />
+    
+    {/* Modal container with animation */}
+    <div className="relative bg-white rounded-lg shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto transform transition-all duration-300 ease-out animate-fadeInUp">
+      {/* Modal header */}
+      <div className="sticky top-0 bg-white z-10 p-6 border-b border-gray-200">
+        <div className="flex justify-between items-start">
+          <div>
+            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getNotificationTypeColor(selectedNotification.type)} mb-2`}>
+              {selectedNotification.type.charAt(0).toUpperCase() + selectedNotification.type.slice(1)}
+            </span>
+            <h3 className="text-xl font-semibold text-gray-900">
+              {selectedNotification.title}
+            </h3>
+          </div>
           <button
             onClick={() => setNotificationModalOpen(false)}
-            className="text-gray-400 hover:text-gray-500"
+            className="text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-full p-1"
           >
-            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <XMarkIcon className="h-6 w-6" />
           </button>
         </div>
-        
-        <div className={`border-l-4 ${getNotificationTypeColor(selectedNotification.type)} pl-4 mb-4`}>
-          <p className="text-sm text-gray-700 whitespace-pre-line">
+      </div>
+      
+      {/* Modal content */}
+      <div className="p-6">
+        <div className="mb-6">
+          <p className="text-gray-700 whitespace-pre-line">
             {selectedNotification.message}
           </p>
         </div>
         
-        <div className="flex justify-between items-center text-sm text-gray-500">
-          <span>{formatDate(selectedNotification.createdAt)}</span>
-          <span className="capitalize">{selectedNotification.type}</span>
+        <div className="flex items-center text-sm text-gray-500 space-x-4">
+          <div className="flex items-center">
+            <CalendarIcon className="h-4 w-4 mr-1.5" />
+            <span>{formatDate(selectedNotification.createdAt)}</span>
+          </div>
+          {selectedNotification.type && (
+            <div className="flex items-center">
+              <TagIcon className="h-4 w-4 mr-1.5" />
+              <span>{selectedNotification.type}</span>
+            </div>
+          )}
         </div>
       </div>
       
-      <div className="bg-gray-50 px-4 py-3 flex justify-end">
+      {/* Modal footer */}
+      <div className="sticky bottom-0 bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-between items-center">
+        <button
+          onClick={() => {
+            markAllAsRead();
+            setNotificationModalOpen(false);
+          }}
+          className="px-4 py-2 bg-white text-gray-700 text-sm font-medium rounded-md border border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+        >
+          Mark as Read
+        </button>
         <button
           onClick={() => setNotificationModalOpen(false)}
           className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"

@@ -360,6 +360,7 @@ const FundWalletPage: React.FC = () => {
          </div>  
         {/* Main Content Area */}
         <main className="flex-1 overflow-y-auto p-6">
+          <div className="flex-grow md:ml-64">
           <div className="max-w-4xl mx-auto">
             {/* Display user balance */}
             <div className="bg-gray-100 p-4 rounded-lg mb-6">
@@ -558,6 +559,7 @@ const FundWalletPage: React.FC = () => {
                 </div>
               </div>
             )}
+          </div>
           </div>
         </main>
       </div>
