@@ -672,118 +672,136 @@ const SettingsPanel = () => {
                 </div>
 
                 <form className="space-y-6 sm:space-y-8" onSubmit={handlePinUpdate}>
-                  {user?.isPinSet ? (
-                    // UPDATE PIN FORM (when user has existing PIN)
-                    <>
-                      <div>
-                        <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
-                          Current PIN *
-                        </label>
-                        <input
-                          type="password"
-                          value={pinData.currentPin}
-                          onChange={(e) => {
-                            // Only allow numeric input and limit to 4 digits
-                            const value = e.target.value.replace(/\D/g, '').slice(0, 4);
-                            setPinData({ ...pinData, currentPin: value });
-                          }}
-                          className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                          placeholder="Enter your current 4-digit PIN"
-                          maxLength={4}
-                          disabled={isLoading}
-                          required
-                        />
-                      </div>
-                      
-                      <div className="grid grid-cols-1 gap-y-6 gap-x-6 sm:grid-cols-2">
-                        <div>
-                          <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
-                            New PIN *
-                          </label>
-                          <input
-                            type="password"
-                            value={pinData.pin}
-                            onChange={(e) => {
-                              // Only allow numeric input and limit to 4 digits
-                              const value = e.target.value.replace(/\D/g, '').slice(0, 4);
-                              setPinData({ ...pinData, pin: value });
-                            }}
-                            className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                            placeholder="Confirm new 4-digit PIN"
-                            maxLength={4}
-                            disabled={isLoading}
-                            required
-                          />
-                        </div>
-                      </div>
-                      
-                      <div className="flex justify-end">
-                        <button
-                          type="submit"
-                          disabled={isLoading || pinData.currentPin.length !== 4 || pinData.pin.length !== 4 || pinData. newPin.length !== 4}
-                          className="px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {isLoading ? 'Updating PIN...' : 'Update PIN'}
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    // SET NEW PIN FORM (when user doesn't have PIN)
-                    <>
-                      <div className="grid grid-cols-1 gap-y-6 gap-x-6 sm:grid-cols-2">
-                        <div>
-                          <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
-                            Create PIN *
-                          </label>
-                          <input
-                            type="password"
-                            value={pinData.pin}
-                            onChange={(e) => {
-                              // Only allow numeric input and limit to 4 digits
-                              const value = e.target.value.replace(/\D/g, '').slice(0, 4);
-                              setPinData({ ...pinData, pin: value });
-                            }}
-                            className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                            placeholder="Create 4-digit PIN"
-                            maxLength={4}
-                            disabled={isLoading}
-                            required
-                          />
-                          <p className="text-xs sm:text-sm text-gray-500 mt-1">Choose a secure 4-digit PIN</p>
-                        </div>
-                        <div>
-                          <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
-                            Confirm PIN *
-                          </label>
-                          <input
-                            type="password"
-                            value={pinData. newPin}
-                            onChange={(e) => {
-                              // Only allow numeric input and limit to 4 digits
-                              const value = e.target.value.replace(/\D/g, '').slice(0, 4);
-                              setPinData({ ...pinData,  newPin: value });
-                            }}
-                            className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                            placeholder="Confirm 4-digit PIN"
-                            maxLength={4}
-                            disabled={isLoading}
-                            required
-                          />
-                          <p className="text-xs sm:text-sm text-gray-500 mt-1">Re-enter your PIN to confirm</p>
-                        </div>
-                      </div>
-                      
-                      <div className="flex justify-end">
-                        <button
-                          type="submit"
-                          disabled={isLoading || pinData.pin.length !== 4 || pinData. newPin.length !== 4}
-                          className="px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {isLoading ? 'Setting PIN...' : 'Set PIN'}
-                        </button>
-                      </div>
-                    </>
-                  )}
+           {user?.isPinSet ? (
+  // UPDATE PIN FORM (when user has existing PIN)
+  <>
+    <div>
+      <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
+        Current PIN *
+      </label>
+      <input
+        type="password"
+        value={pinData.currentPin}
+        onChange={(e) => {
+          // Only allow numeric input and limit to 4 digits
+          const value = e.target.value.replace(/\D/g, '').slice(0, 4);
+          setPinData({ ...pinData, currentPin: value });
+        }}
+        className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+        placeholder="Enter your current 4-digit PIN"
+        maxLength={4}
+        disabled={isLoading}
+        required
+      />
+    </div>
+    
+    <div>
+      <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
+        New PIN *
+      </label>
+      <input
+        type="password"
+        value={pinData.pin}
+        onChange={(e) => {
+          // Only allow numeric input and limit to 4 digits
+          const value = e.target.value.replace(/\D/g, '').slice(0, 4);
+          setPinData({ ...pinData, pin: value });
+        }}
+        className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+        placeholder="Enter new 4-digit PIN"
+        maxLength={4}
+        disabled={isLoading}
+        required
+      />
+    </div>
+    
+    <div>
+      <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
+        Confirm New PIN *
+      </label>
+      <input
+        type="password"
+        value={pinData.newPin}
+        onChange={(e) => {
+          // Only allow numeric input and limit to 4 digits
+          const value = e.target.value.replace(/\D/g, '').slice(0, 4);
+          setPinData({ ...pinData, newPin: value });
+        }}
+        className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+        placeholder="Confirm new 4-digit PIN"
+        maxLength={4}
+        disabled={isLoading}
+        required
+      />
+    </div>
+    
+    <div className="flex justify-end">
+      <button
+        type="submit"
+        disabled={isLoading || pinData.currentPin.length !== 4 || pinData.pin.length !== 4 || pinData.newPin.length !== 4}
+        className="px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {isLoading ? 'Updating PIN...' : 'Update PIN'}
+      </button>
+    </div>
+  </>
+) : (
+  // SET NEW PIN FORM (when user doesn't have PIN) - keep this as is
+  <>
+    <div className="grid grid-cols-1 gap-y-6 gap-x-6 sm:grid-cols-2">
+      <div>
+        <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
+          Create PIN *
+        </label>
+        <input
+          type="password"
+          value={pinData.pin}
+          onChange={(e) => {
+            // Only allow numeric input and limit to 4 digits
+            const value = e.target.value.replace(/\D/g, '').slice(0, 4);
+            setPinData({ ...pinData, pin: value });
+          }}
+          className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          placeholder="Create 4-digit PIN"
+          maxLength={4}
+          disabled={isLoading}
+          required
+        />
+        <p className="text-xs sm:text-sm text-gray-500 mt-1">Choose a secure 4-digit PIN</p>
+      </div>
+      <div>
+        <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
+          Confirm PIN *
+        </label>
+        <input
+          type="password"
+          value={pinData.newPin}
+          onChange={(e) => {
+            // Only allow numeric input and limit to 4 digits
+            const value = e.target.value.replace(/\D/g, '').slice(0, 4);
+            setPinData({ ...pinData, newPin: value });
+          }}
+          className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          placeholder="Confirm 4-digit PIN"
+          maxLength={4}
+          disabled={isLoading}
+          required
+        />
+        <p className="text-xs sm:text-sm text-gray-500 mt-1">Re-enter your PIN to confirm</p>
+      </div>
+    </div>
+    
+    <div className="flex justify-end">
+      <button
+        type="submit"
+        disabled={isLoading || pinData.pin.length !== 4 || pinData.newPin.length !== 4}
+        className="px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {isLoading ? 'Setting PIN...' : 'Set PIN'}
+      </button>
+    </div>
+  </>
+)}
                 </form>
               </div>
             </div>
