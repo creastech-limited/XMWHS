@@ -19,6 +19,77 @@ import {
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 import { FaWallet, FaUsers, FaStore, FaCalendarAlt } from 'react-icons/fa';
+const calendarStyles = `
+  .react-calendar {
+    background: white;
+    border: none !important;
+    font-family: inherit;
+  }
+  
+  .react-calendar__navigation {
+    background: #6366f1;
+    margin-bottom: 1em;
+    border-radius: 0.5rem 0.5rem 0 0;
+  }
+  
+  .react-calendar__navigation button {
+    color: white;
+    font-weight: 600;
+    font-size: 1rem;
+    background: none;
+    border: none;
+    padding: 0.75rem;
+  }
+  
+  .react-calendar__navigation button:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 0.25rem;
+  }
+  
+  .react-calendar__month-view__weekdays {
+    background: #f8fafc;
+    padding: 0.5rem 0;
+  }
+  
+  .react-calendar__month-view__weekdays__weekday {
+    color: #6366f1;
+    font-weight: 600;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  
+  .react-calendar__tile {
+    background: white;
+    border: 1px solid #e2e8f0;
+    color: #374151;
+    font-weight: 500;
+    padding: 0.75rem 0.5rem;
+    transition: all 0.2s ease;
+  }
+  
+  .react-calendar__tile:hover {
+    background: #ede9fe;
+    color: #6366f1;
+    transform: scale(1.05);
+  }
+  
+  .react-calendar__tile--active {
+    background: #6366f1 !important;
+    color: white !important;
+    border-color: #6366f1;
+  }
+  
+  .react-calendar__tile--now {
+    background: #fef3c7;
+    color: #d97706;
+    border-color: #f59e0b;
+  }
+  
+  .react-calendar__tile--now:hover {
+    background: #fde68a;
+  }
+`;
 
 interface Stats {
   balance: number;
@@ -470,6 +541,15 @@ const fetchStudentsData = useCallback(async (authToken: string) => {
   useEffect(() => {
     if (authError) setTimeout(() => (window.location.href = '/login'), 3000);
   }, [authError]);
+  useEffect(() => {
+  const styleElement = document.createElement('style');
+  styleElement.textContent = calendarStyles;
+  document.head.appendChild(styleElement);
+  
+  return () => {
+    document.head.removeChild(styleElement);
+  };
+}, []);
 
   if (loading)
     return (
@@ -601,18 +681,22 @@ const fetchStudentsData = useCallback(async (authToken: string) => {
                           <Cell key={idx} fill={entry.color} />
                         ))}
                       </Pie>
-                      <RechartTooltip
-                        content={({ payload, label }) => (
-                          <div className="bg-white p-2 shadow rounded text-sm">
-                            <p>{label}</p>
-                            {payload?.map((entry, index) => (
-                              <p key={index} style={{ color: entry.color }}>
-                                {entry.name}: {entry.value}
-                              </p>
-                            ))}
-                          </div>
-                        )}
-                      />
+                     <RechartTooltip
+  content={({ active, payload }) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      return (
+        <div className="bg-white p-3 shadow-lg rounded-lg border text-sm">
+          <p className="font-semibold text-gray-800">{data.name}</p>
+          <p className="text-indigo-600">
+            Students: <span className="font-bold">{data.value}</span>
+          </p>
+        </div>
+      );
+    }
+    return null;
+  }}
+/>
                       <Legend verticalAlign="bottom" layout="horizontal" />
                     </PieChart>
                   </ResponsiveContainer>
@@ -754,22 +838,22 @@ const fetchStudentsData = useCallback(async (authToken: string) => {
         <FaCalendarAlt className="text-sm" />
       </div>
     </div>
-    <div className="flex justify-center text-black">
-      <Calendar
-        onChange={(value) => {
-          if (value instanceof Date) {
-            setCalendarDate(value);
-          } else if (
-            Array.isArray(value) &&
-            value[0] instanceof Date
-          ) {
-            setCalendarDate(value[0]);
-          }
-        }}
-        value={calendarDate}
-        className="react-calendar rounded-lg w-full border-0 shadow-none"
-      />
-    </div>
+    <div className="flex justify-center">
+  <Calendar
+    onChange={(value) => {
+      if (value instanceof Date) {
+        setCalendarDate(value);
+      } else if (
+        Array.isArray(value) &&
+        value[0] instanceof Date
+      ) {
+        setCalendarDate(value[0]);
+      }
+    }}
+    value={calendarDate}
+    className="react-calendar rounded-lg w-full shadow-sm"
+  />
+</div>
   </div>
 </div>
         </main>

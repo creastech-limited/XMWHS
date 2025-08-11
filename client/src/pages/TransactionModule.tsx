@@ -149,7 +149,8 @@ const TransactionModule: React.FC = () => {
     }
     return 'System Transaction';
   };
-
+    
+  
   // Export transactions to CSV
   const exportTransactions = () => {
     if (transactions.length === 0) {
@@ -200,6 +201,17 @@ const TransactionModule: React.FC = () => {
         return 'bg-red-100 text-red-800';
       default:
         return 'bg-gray-100 text-gray-800';
+    }
+  };
+   const getTransactionTypeColor = (transaction: Transaction) => {
+    const isDebit = transaction.direction === 'debit' || 
+                    transaction.transactionType.toLowerCase().includes('debit') ||
+                    transaction.amount < 0;
+    
+    if (isDebit) {
+      return 'text-red-600'; // Red for debits
+    } else {
+      return 'text-green-600'; // Green for credits
     }
   };
 
@@ -329,9 +341,11 @@ const TransactionModule: React.FC = () => {
                                     <span className="capitalize">{transaction.transactionType.replace(/_/g, ' ')}</span>
                                     <div className="text-xs text-gray-500">{transaction.category}</div>
                                   </td>
-                                  <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
-                                    {formatCurrency(transaction.amount)}
-                                  </td>
+                                  <td className="px-3 py-4 whitespace-nowrap text-sm font-medium">
+  <span className={getTransactionTypeColor(transaction)}>
+    {formatCurrency(transaction.amount)}
+  </span>
+</td>
                                   <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
                                     <span
                                       className={`inline-flex px-2 py-1 rounded-full text-xs font-semibold capitalize ${getStatusColor(transaction.status)}`}

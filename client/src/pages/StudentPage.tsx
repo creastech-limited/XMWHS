@@ -146,43 +146,74 @@ useEffect(() => {
 }, [authToken, API_BASE_URL]);
 
   // Fetch classes for this school
-  useEffect(() => {
-    if (!authToken || !schoolId) return;
+ useEffect(() => {
+  if (!authToken) return;
 
-    setClassesLoading(true);
-    fetch(`${API_BASE_URL}/api/users/getclasse`, {
-      headers: {
-        Authorization: `Bearer ${authToken}`,
-        'Content-Type': 'application/json',
-      },
+  setClassesLoading(true);
+  fetch(`${API_BASE_URL}/api/users/getclasse`, {
+    headers: {
+      Authorization: `Bearer ${authToken}`,
+      'Content-Type': 'application/json',
+    },
+  })
+    .then((res) => {
+      if (!res.ok) throw new Error('Failed to fetch classes');
+      return res.json();
     })
-      .then((res) => {
-        if (!res.ok) throw new Error('Failed to fetch classes');
-        return res.json();
-      })
-      .then((data) => {
-        if (data.status && Array.isArray(data.data)) {
-          // Filter classes that belong to this school
-          const schoolClasses = data.data.filter(
-            (cls: Class) => cls.schoolId === schoolId
-          );
+    .then((data) => {
+      if (data.status && Array.isArray(data.data)) {
+        // Get user profile to find the correct schoolId for class filtering
+        return fetch(`${API_BASE_URL}/api/users/getuserone`, {
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+            'Content-Type': 'application/json',
+          },
+        })
+        .then((res) => res.json())
+        .then((userProfileData) => {
+          const userProfile = userProfileData.user?.data || userProfileData.user || userProfileData;
+          
+          // Try to find matching classes using the user's _id (ObjectId format)
+          const userObjectId = userProfile._id;
+          
+          let schoolClasses = [];
+          
+          if (userObjectId) {
+            // Filter classes by the ObjectId format schoolId
+            schoolClasses = data.data.filter(
+              (cls: Class) => cls.schoolId === userObjectId
+            );
+          }
+          
+          // If no classes found with ObjectId, try with string schoolId as fallback
+          if (schoolClasses.length === 0 && schoolId) {
+            schoolClasses = data.data.filter(
+              (cls: Class) => cls.schoolId === schoolId
+            );
+          }
+          
+          console.log('Filtered classes:', schoolClasses.length, 'out of', data.data.length);
+          console.log('User ObjectId:', userObjectId, 'Student schoolId:', schoolId);
+          
           setClasses(schoolClasses);
-        } else {
-          console.error('Unexpected classes data format:', data);
-          setClasses([]);
-        }
-        setClassesLoading(false);
-      })
-      .catch((err) => {
-        console.error(err);
-        setSnackbar({
-          open: true,
-          message: 'Failed to load classes: ' + err.message,
-          severity: 'error',
+          setClassesLoading(false);
         });
+      } else {
+        console.error('Unexpected classes data format:', data);
+        setClasses([]);
         setClassesLoading(false);
+      }
+    })
+    .catch((err) => {
+      console.error('Classes fetch error:', err);
+      setSnackbar({
+        open: true,
+        message: 'Failed to load classes: ' + err.message,
+        severity: 'error',
       });
-  }, [authToken, schoolId, API_BASE_URL]);
+      setClassesLoading(false);
+    });
+}, [authToken, schoolId, API_BASE_URL]);
 
   // Fetch students for this schoolId
   useEffect(() => {
@@ -475,43 +506,43 @@ useEffect(() => {
               </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm p-4 md:p-6 border border-gray-100 hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm md:text-base text-gray-600 font-medium mb-1">
-                    Total Classes
-                  </p>
-                  <p className="text-2xl md:text-3xl font-bold text-purple-600">
-                    {classes.length}
-                  </p>
-                </div>
-                <div className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 bg-purple-100 rounded-lg">
-                  <BookOpenIcon className="h-5 w-5 md:h-6 md:w-6 text-purple-600" />
-                </div>
-              </div>
-            </div>
+           <div className="bg-white rounded-xl shadow-sm p-4 md:p-6 border border-gray-100 hover:shadow-md transition-shadow">
+  <div className="flex items-center justify-between">
+    <div>
+      <p className="text-sm md:text-base text-gray-600 font-medium mb-1">
+        Total Classes
+      </p>
+      <p className="text-2xl md:text-3xl font-bold text-purple-600">
+        {classes.length}
+      </p>
+    </div>
+    <div className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 bg-purple-100 rounded-lg">
+      <BookOpenIcon className="h-5 w-5 md:h-6 md:w-6 text-purple-600" />
+    </div>
+  </div>
+</div>
 
-            <div className="bg-white rounded-xl shadow-sm p-4 md:p-6 border border-gray-100 hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm md:text-base text-gray-600 font-medium mb-1">
-                    Pending Students
-                  </p>
-                  <p className="text-2xl md:text-3xl font-bold text-yellow-600">
-                    {
-                      students.filter(
-                        (s) => s.status.toLowerCase() === 'pending'
-                      ).length
-                    }
-                  </p>
-                </div>
-                <div className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 bg-yellow-100 rounded-lg">
-                  <ClockIcon className="h-5 w-5 md:h-6 md:w-6 text-yellow-600" />
-                </div>
-              </div>
-            </div>
+           <div className="bg-white rounded-xl shadow-sm p-4 md:p-6 border border-gray-100 hover:shadow-md transition-shadow">
+  <div className="flex items-center justify-between">
+    <div>
+      <p className="text-sm md:text-base text-gray-600 font-medium mb-1">
+        Inactive Students
+      </p>
+      <p className="text-2xl md:text-3xl font-bold text-red-600">
+        {
+          students.filter(
+            (s) => s.status.toLowerCase() === 'inactive'
+          ).length
+        }
+      </p>
+    </div>
+    <div className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 bg-red-100 rounded-lg">
+      <XCircleIcon className="h-5 w-5 md:h-6 md:w-6 text-red-600" />
+    </div>
+  </div>
+</div>
           </div>
-
+           
           {/* School Classes Overview */}
           {!classesLoading && classes.length > 0 && (
             <div className="bg-white rounded-xl shadow-sm mb-6 md:mb-8 p-4 md:p-6 border border-gray-100">
