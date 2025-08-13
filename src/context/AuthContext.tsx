@@ -87,13 +87,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const storedUser = localStorage.getItem('user');
       const storedToken = localStorage.getItem('token');
       
+      // ✅ Don't navigate yet — just finish loading
       if (!storedToken || !storedUser) {
         setIsLoading(false);
-        // FIXED: Updated public pages to match your actual routes
-        const publicPages = ['/login', '/signup', '/schoolsignup', '/forgot-password', '/students/new', '/stores/new'];
-        if (!publicPages.includes(location.pathname)) {
-          navigate('/login');
-        }
         return;
       }
 
@@ -106,22 +102,38 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setToken(storedToken);
         } catch (err) {
           console.error('Error parsing stored user:', err);
-          logout();
+          // Clear storage but don't navigate during loading
+          localStorage.removeItem('user');
+          localStorage.removeItem('token');
+          setUser(null);
+          setToken(null);
         }
       } else {
-        // Token is invalid, clear everything and redirect
+        // Token is invalid, clear everything but don't navigate yet
         localStorage.removeItem('user');
         localStorage.removeItem('token');
         setUser(null);
         setToken(null);
-        navigate('/login');
       }
       
       setIsLoading(false);
     };
 
     checkAuthStatus();
-  }, [navigate, location.pathname, logout]);
+  }, []); // Remove dependencies to prevent re-running
+
+  // Separate effect to handle navigation after loading is complete
+  useEffect(() => {
+    // Only run navigation logic after loading is complete
+    if (isLoading) return;
+
+    const publicPages = ['/login', '/signup', '/schoolsignup', '/forgot-password', '/students/new', '/stores/new'];
+    
+    // If user is not authenticated and not on a public page, redirect to login
+    if (!user && !token && !publicPages.includes(location.pathname)) {
+      navigate('/login');
+    }
+  }, [isLoading, user, token, location.pathname, navigate]);
 
   // Set up axios interceptor for automatic 401 handling
   useEffect(() => {
