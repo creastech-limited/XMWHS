@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: '/',
   plugins: [
     tailwindcss(),
     react()
@@ -16,7 +17,7 @@ export default defineConfig({
   server: {
     host: '0.0.0.0', 
     port: 5174,
-    allowedHosts: ['nodes-production-2b39.up.railway.app']
+    allowedHosts: true,
   },
   
   preview: {
