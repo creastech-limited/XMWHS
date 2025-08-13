@@ -41,6 +41,7 @@ import Pdispute from './pages/Pdispute'; // Assuming you have a dispute page for
 import Kdispute from './pages/Kdispute'; 
 import DisputePage from './pages/Sdiputes';
 import Storedispute from './pages/Storedispute';
+import Terms from './pages/TermsAndConditions';
 
 function App() {
   return (
@@ -52,6 +53,7 @@ function App() {
 
           {/* Login page */}
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/terms" element={<Terms />} />
 
           {/* School dashboard */}
           <Route path="/schools" element={<SchoolsPage />} />

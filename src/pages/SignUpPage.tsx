@@ -373,7 +373,7 @@ const SignUpPage: React.FC = () => {
               />
               <span className="text-gray-700 text-sm group-hover:text-indigo-700 transition-colors duration-200">
                 I confirm that I have read and agree to the{' '}
-                <a href="#" className="text-indigo-700 underline hover:text-indigo-900">Terms and Conditions</a>.
+                <a href="/terms" target='_blank' className="text-indigo-700 underline hover:text-indigo-900">Terms and Conditions</a>.
               </span>
             </label>
             {formErrors.termsAccepted && (

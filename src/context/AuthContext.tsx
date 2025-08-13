@@ -127,7 +127,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Only run navigation logic after loading is complete
     if (isLoading) return;
 
-    const publicPages = ['/login', '/signup', '/schoolsignup', '/forgot-password', '/students/new', '/stores/new'];
+    const publicPages = ['/login', '/signup', '/schoolsignup', '/forgot-password', '/students/new', '/stores/new', '/terms'];
     
     // If user is not authenticated and not on a public page, redirect to login
     if (!user && !token && !publicPages.includes(location.pathname)) {
