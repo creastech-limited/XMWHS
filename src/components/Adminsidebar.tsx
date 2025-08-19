@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 interface MenuItem {
   id: string;
@@ -41,7 +42,13 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, activeMenu, setActiveMenu }
       [menuId]: !prev[menuId]
     }));
   };
-
+  const navigate = useNavigate();
+  
+const handleLogout = () => {
+    // Handle logout logic here
+    localStorage.removeItem('token');
+    navigate('/login');
+  };
   const menuItems: MenuItem[] = [
     {
       id: 'overview',
@@ -175,7 +182,8 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, activeMenu, setActiveMenu }
               <p className="text-gray-400 text-xs">admin@company.com</p>
             </div>
           </div>
-          <button className="w-full flex items-center space-x-3 px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white rounded-lg transition-all duration-200">
+          <button onClick={handleLogout}
+           className="w-full flex items-center space-x-3 px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white rounded-lg transition-all duration-200">
             <LogOut size={20} />
             <span>Logout</span>
           </button>

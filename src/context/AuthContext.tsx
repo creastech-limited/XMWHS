@@ -32,7 +32,7 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string;
 
 // Define role-based routes
 const ROLE_ROUTES: Record<string, string> = {
@@ -41,14 +41,58 @@ const ROLE_ROUTES: Record<string, string> = {
   student: '/kidswallet',
   store: '/store',
   agent: '/agent',
-  admin: '/admin', // Added admin role for completeness
+  admin: '/admin',
+};
+
+const ROLE_SPECIFIC_ROUTES: Record<string, string[]> = {
+  school: [
+    '/schools',
+    '/students',
+    '/stores',
+    '/schoolfees',
+    '/transactions',
+    '/withdrawal',
+    '/Sdisputes',
+    '/settings',
+  ],
+  parent: [
+    '/parent',
+    '/fundwallet',
+    '/payschoolbills',
+    '/ptransactionhistory',
+    '/Pdispute',
+    '/Psettings',
+  ],
+  student: [
+    '/kidswallet',
+    '/kidpayagent',
+    '/kidpaymenthistory',
+    '/schoolbills',
+    '/ksettings',
+    '/kdispute',
+  ],
+  store: [
+    '/store',
+    '/agents',
+    '/stransactions',
+    '/Swithdrawal',
+    '/Storedispute',
+    '/store/settings',
+  ],
+  agent: [
+    '/agent',
+    '/agent/scanqr',
+    '/agent/transfertostore',
+    '/agent/transactions',
+  ],
+  admin: ['/admin'],
 };
 
 // Public pages that don't require authentication
 const PUBLIC_PAGES = [
-  '/login', 
-  '/signup', 
-  '/schoolsignup', 
+  '/login',
+  '/signup',
+  '/schoolsignup',
   '/forgot-password',
   '/terms',
 ];
@@ -65,9 +109,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const response = await axios.get(`${API_BASE_URL}/api/users/getuserone`, {
         headers: {
           Authorization: `Bearer ${tokenToValidate}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        timeout: 10000
+        timeout: 10000,
       });
       return response.status === 200;
     } catch (error) {
@@ -84,31 +128,37 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     navigate('/login');
   }, [navigate]);
 
-  const login = useCallback((userData: User, jwt: string) => {
-    localStorage.setItem('user', JSON.stringify(userData));
-    localStorage.setItem('token', jwt);
-    setUser(userData);
-    setToken(jwt);
-    // Redirect to role-specific route after login
-    const roleRoute = ROLE_ROUTES[userData.role] || '/';
-    navigate(roleRoute);
-  }, [navigate]);
+  const login = useCallback(
+    (userData: User, jwt: string) => {
+      localStorage.setItem('user', JSON.stringify(userData));
+      localStorage.setItem('token', jwt);
+      setUser(userData);
+      setToken(jwt);
+      // Redirect to role-specific route after login
+      const roleRoute = ROLE_ROUTES[userData.role] || '/';
+      navigate(roleRoute);
+    },
+    [navigate]
+  );
 
   // Check auth status and handle routing
   useEffect(() => {
     const checkAuthStatus = async () => {
       setIsLoading(true);
-      
+
       const storedUser = localStorage.getItem('user');
       const storedToken = localStorage.getItem('token');
-      
+
       if (!storedToken || !storedUser) {
         setIsLoading(false);
+        if (!PUBLIC_PAGES.includes(location.pathname)) {
+          navigate('/login');
+        }
         return;
       }
 
       const isValidToken = await validateToken(storedToken);
-      
+
       if (isValidToken) {
         try {
           const parsedUser = JSON.parse(storedUser);
@@ -117,8 +167,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
           // Check if current route is allowed for this user role
           const currentPath = location.pathname;
-          const roleRoute = ROLE_ROUTES[parsedUser.role];
-          
+
           // If user is on public page, no need to redirect
           if (PUBLIC_PAGES.includes(currentPath)) {
             setIsLoading(false);
@@ -126,8 +175,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           }
 
           // If user is not on their role-specific route, redirect them
-          if (!currentPath.startsWith(roleRoute)) {
-            navigate(roleRoute);
+          const allowedRoutes = ROLE_SPECIFIC_ROUTES[parsedUser.role] || [];
+          if (!allowedRoutes.some(route => currentPath.startsWith(route))) {
+            navigate(ROLE_ROUTES[parsedUser.role] || '/');
           }
         } catch (err) {
           console.error('Error parsing stored user:', err);
@@ -136,7 +186,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       } else {
         logout();
       }
-      
+
       setIsLoading(false);
     };
 
@@ -148,20 +198,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (isLoading || !user) return;
 
     const currentPath = location.pathname;
-    const roleRoute = ROLE_ROUTES[user.role];
-    
+    const allowedRoutes = ROLE_SPECIFIC_ROUTES[user.role] || [];
+
     // Allow access to public pages
     if (PUBLIC_PAGES.includes(currentPath)) return;
-    
+
     // Redirect if user tries to access non-authorized route
-    if (!currentPath.startsWith(roleRoute)) {
-      navigate(roleRoute);
+    if (!allowedRoutes.some(route => currentPath.startsWith(route))) {
+      navigate(ROLE_ROUTES[user.role] || '/');
     }
   }, [isLoading, user, location.pathname, navigate]);
 
   // Axios interceptor for 401 handling
   useEffect(() => {
-    const axiosInterceptor = axios.interceptors.response.use(
+    const interceptor = axios.interceptors.response.use(
       (response) => response,
       (error) => {
         if (error.response?.status === 401) {
@@ -172,7 +222,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     );
 
     return () => {
-      axios.interceptors.response.eject(axiosInterceptor);
+      axios.interceptors.response.eject(interceptor);
     };
   }, [logout]);
 
@@ -185,7 +235,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (!isValid) {
         logout();
       }
-    }, 10 * 60 * 1000);
+    }, 10 * 60 * 1000); // 10 minutes
 
     return () => clearInterval(intervalId);
   }, [token, logout]);
