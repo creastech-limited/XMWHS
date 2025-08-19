@@ -95,8 +95,7 @@ const Overview = () => {
     console.error(message);
     localStorage.removeItem('token');
     setAdminProfile(null);
-    // Optionally redirect to login page
-    // window.location.href = '/login';
+   
   };
 
   useEffect(() => {
@@ -124,8 +123,7 @@ const Overview = () => {
         const profile = await fetchUserDetails(currentToken);
         setAdminProfile(profile);
 
-        // Fetch all other data with the token
-// Update the users response handling in your useEffect:
+   
 const [walletRes, chargesRes, usersRes] = await Promise.all([
   fetch(`${API_BASE_URL}/api/wallets/getChargesWallets`, {
     headers: { 'Authorization': `Bearer ${currentToken}` }
