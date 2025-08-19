@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext'; // Update this path to match your file structure
+import { AuthProvider } from './context/AuthContext'; 
 import LoginPage from './pages/LoginPage';
 import SchoolsPage from './pages/SchoolDashboard';
 import SignUpPage from './pages/SignUpPage';
@@ -37,11 +37,12 @@ import StoreSettingsPage from './pages/StoreSettingsPage.js';
 import EditStudentDetails from './pages/EditStudentDetails';
 import EditStoreDetails from './pages/EditStoreDetails';
 import ViewStudentTransactions from './pages/ViewStudentTransactions';
-import Pdispute from './pages/Pdispute'; // Assuming you have a dispute page for parents
+import Pdispute from './pages/Pdispute'; 
 import Kdispute from './pages/Kdispute'; 
 import DisputePage from './pages/Sdiputes';
 import Storedispute from './pages/Storedispute';
 import Terms from './pages/TermsAndConditions';
+import Overview from './pages/Admin/overview.js';
 
 function App() {
   return (
@@ -101,6 +102,9 @@ function App() {
           <Route path="/kdispute" element={<Kdispute />} />
           <Route path="/Sdisputes" element={<DisputePage />} />
           <Route path="/Storedispute" element={<Storedispute />} />
+
+          //admin routes
+          <Route path="/admin" element={<Overview />} />
 
         
         </Routes>

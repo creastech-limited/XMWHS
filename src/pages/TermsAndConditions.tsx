@@ -4,10 +4,16 @@ import Footer from '../components/Footer';
 import  Logo  from './5.png';
 
 const TermsAndConditions = () => {
-  const [expandedSections, setExpandedSections] = useState({});
 
-  const toggleSection = (sectionId) => {
-    setExpandedSections(prev => ({
+  interface ExpandedSections {
+    [key: string]: boolean;
+  }
+
+
+  const [expandedSections, setExpandedSections] = useState<ExpandedSections>({});
+
+  const toggleSection = (sectionId: string) => {
+    setExpandedSections((prev: ExpandedSections) => ({
       ...prev,
       [sectionId]: !prev[sectionId]
     }));
