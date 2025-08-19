@@ -41,7 +41,7 @@ const ROLE_ROUTES: Record<string, string> = {
   student: '/kidswallet',
   store: '/store',
   agent: '/agent',
-  admin: '/admin', // Added admin role for completeness
+  admin: '/admin', 
 };
 
 // Public pages that don't require authentication
