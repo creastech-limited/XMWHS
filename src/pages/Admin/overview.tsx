@@ -8,13 +8,13 @@ import {
   ArrowDownRight,
   Calendar
 } from 'lucide-react';
-import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import AdminSidebar from '../../components/Adminsidebar';
 import AdminHeader from '../../components/AdminHeader';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-interface WalletData {
+interface WalletData { 
   balance: number;
   currency: string;
   walletName: string;
@@ -52,10 +52,10 @@ const Overview = () => {
   const [loading, setLoading] = useState(true);
   const [walletData, setWalletData] = useState<WalletData[]>([]);
   const [chargesData, setChargesData] = useState<ChargeData[]>([]);
-  // Removed unused usersData state
   const [adminProfile, setAdminProfile] = useState<User | null>(null);
   const [totalUsers, setTotalUsers] = useState(0);
-  // Removed unused token state
+  const [usersByRole, setUsersByRole] = useState<Array<{role: string; count: number; color: string}>>([]);
+ 
 
   const fetchUserDetails = useCallback(async (authToken: string): Promise<User> => {
     try {
@@ -113,7 +113,6 @@ useEffect(() => {
         const storedToken = localStorage.getItem('token');
         if (!storedToken) {
           console.log('No token found');
-          // Don't throw error here, just set loading to false
           setLoading(false);
           return;
         }
@@ -121,7 +120,6 @@ useEffect(() => {
         currentToken = storedToken;
       }
 
-      // Validate token exists before making requests
       if (!currentToken) {
         setLoading(false);
         return;
@@ -142,7 +140,6 @@ useEffect(() => {
         }),
       ]);
 
-      // Check if responses are ok
       if (!walletRes.ok || !chargesRes.ok || !usersRes.ok) {
         throw new Error('One or more API requests failed');
       }
@@ -171,14 +168,38 @@ useEffect(() => {
         setTotalUsers(0);
       }
 
+      // Process users by role for pie chart - MOVED INSIDE useEffect
+      if (usersJson && usersJson.data && Array.isArray(usersJson.data)) {
+        const roleColors = {
+          student: '#3B82F6',
+          parent: '#10B981',  
+          school: '#F59E0B',
+          admin: '#EF4444',
+          store: '#8B5CF6',
+          agent: '#06B6D4'
+        };
+
+        const roleCounts = usersJson.data.reduce((acc: Record<string, number>, userData: { user?: { role?: string } }) => {
+  const role = userData.user?.role || 'unknown';
+  acc[role] = (acc[role] || 0) + 1;
+  return acc;
+}, {} as Record<string, number>);
+
+        const roleData = Object.entries(roleCounts).map(([role, count]) => ({
+          role: role.charAt(0).toUpperCase() + role.slice(1),
+          count: count as number,
+          color: roleColors[role as keyof typeof roleColors] || '#6B7280'
+        }));
+
+        setUsersByRole(roleData);
+      }
+
       setWalletData(Array.isArray(walletJson) ? walletJson : []);
       setChargesData(Array.isArray(chargesJson) ? chargesJson : []);
 
     } catch (error) {
       console.error('Auth initialization error:', error);
-      // Only redirect on authentication errors, not on general API errors
-      if (error instanceof Error && error.message.includes('Authentication') || 
-          error instanceof Error && error.message.includes('token')) {
+      if (error instanceof Error && (error.message.includes('Authentication') || error.message.includes('token'))) {
         localStorage.removeItem('token');
         window.location.href = '/login';
       }
@@ -189,6 +210,7 @@ useEffect(() => {
 
   initializeAuth();
 }, [user?.token, fetchUserDetails]);
+
 
   // Calculate stats from real data
   const totalRevenue = walletData.reduce((sum, wallet) => sum + wallet.balance, 0);
@@ -425,6 +447,54 @@ useEffect(() => {
                   )}
                 </div>
               </div>
+              {/* User Distribution Pie Chart */}
+<div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+  <div className="flex items-center justify-between mb-6">
+    <div>
+      <h3 className="text-lg font-semibold text-gray-900">User Distribution</h3>
+      <p className="text-gray-600 text-sm">Users by role percentage</p>
+    </div>
+  </div>
+  <div className="h-64">
+    {usersByRole.length > 0 ? (
+      <ResponsiveContainer width="100%" height="100%">
+        <PieChart>
+          <Pie
+            data={usersByRole}
+            cx="50%"
+            cy="50%"
+            innerRadius={40}
+            outerRadius={80}
+            dataKey="count"
+            label={({role, percent}) => `${role} ${(percent * 100).toFixed(1)}%`}
+          >
+            {usersByRole.map((entry, index) => (
+              <Cell key={`cell-${index}`} fill={entry.color} />
+            ))}
+          </Pie>
+          <Tooltip 
+            formatter={(value: number) => [value, 'Users']}
+            contentStyle={{ 
+              backgroundColor: '#fff', 
+              border: '1px solid #e5e7eb', 
+              borderRadius: '8px',
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+            }} 
+          />
+          <Legend 
+            verticalAlign="bottom" 
+            height={36}
+            formatter={(value) => <span style={{fontSize: '12px'}}>{value}</span>}
+          />
+        </PieChart>
+      </ResponsiveContainer>
+    ) : (
+      <div className="h-full flex items-center justify-center text-gray-500">
+        No user distribution data available
+      </div>
+    )}
+  </div>
+</div>
             </div>
 
             {/* Recent Transactions */}
