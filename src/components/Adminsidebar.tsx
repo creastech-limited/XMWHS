@@ -2,19 +2,19 @@ import {
   LayoutDashboard, 
   Wallet, 
   CreditCard, 
-  TrendingUp, 
-  TrendingDown, 
   Vault, 
   Users, 
-  Shield, 
-  UserCheck, 
+  Shield,  
   LogOut,
   ChevronDown,
   ChevronRight,
   Home,
   X,
+  Settings,
+  AlertCircle,
+  UserCog
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 interface MenuItem {
@@ -33,8 +33,23 @@ interface AdminSidebarProps {
   setActiveMenu: (menu: string) => void;
 }
 
+interface UserProfile {
+  _id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role?: string;
+  phone?: string;
+  accountNumber?: string;
+  name?: string;
+}
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
 const AdminSidebar = ({ sidebarOpen, setSidebarOpen, activeMenu, setActiveMenu }: AdminSidebarProps) => {
   const [openSubMenus, setOpenSubMenus] = useState<Record<string, boolean>>({});
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const navigate = useNavigate();
 
   const toggleSubMenu = (menuId: string) => {
     setOpenSubMenus(prev => ({
@@ -42,13 +57,82 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, activeMenu, setActiveMenu }
       [menuId]: !prev[menuId]
     }));
   };
-  const navigate = useNavigate();
   
-const handleLogout = () => {
-    // Handle logout logic here
+  const handleLogout = () => {
     localStorage.removeItem('token');
     navigate('/login');
   };
+
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        
+        if (!token) {
+          return;
+        }
+
+        const response = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        // Extract user data from the API response
+        if (data.user && data.user.data) {
+          const userData = data.user.data;
+          const profile: UserProfile = {
+            _id: userData._id || '',
+            email: userData.email || '',
+            firstName: userData.firstName || '',
+            lastName: userData.lastName || '',
+            role: userData.role || '',
+            phone: userData.phone || '',
+            accountNumber: userData.accountNumber || '',
+            name: userData.name || `${userData.firstName || ''} ${userData.lastName || ''}`.trim()
+          };
+          setUserProfile(profile);
+        }
+      } catch (error) {
+        console.error('Error fetching user profile:', error);
+      }
+    };
+
+    fetchUserProfile();
+  }, []);
+
+  const getInitials = (firstName?: string, lastName?: string, email?: string) => {
+    if (firstName && lastName) {
+      return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+    } else if (firstName) {
+      return firstName.substring(0, 2).toUpperCase();
+    } else if (email) {
+      return email.substring(0, 2).toUpperCase();
+    }
+    return 'AD';
+  };
+
+  const getDisplayName = () => {
+    if (userProfile?.firstName && userProfile?.lastName) {
+      return `${userProfile.firstName} ${userProfile.lastName}`;
+    } else if (userProfile?.name) {
+      return userProfile.name;
+    } else if (userProfile?.firstName) {
+      return userProfile.firstName;
+    } else if (userProfile?.email) {
+      return userProfile.email.split('@')[0];
+    }
+    return 'Admin';
+  };
+
   const menuItems: MenuItem[] = [
     {
       id: 'overview',
@@ -63,21 +147,32 @@ const handleLogout = () => {
       hasSubMenu: true,
       subItems: [
         { id: 'charge-wallet', label: 'Charge Wallet', icon: CreditCard, path: '/admin/wallet/charge' },
-        { id: 'top-up-wallet', label: 'Top Up Wallet', icon: TrendingUp, path: '/admin/wallet/topup' },
-        { id: 'withdraw-wallet', label: 'Withdraw Wallet', icon: TrendingDown, path: '/admin/wallet/withdraw' },
+        { id: 'user-wallet', label: 'User Wallet', icon: Users, path: '/admin/wallet/user' },
         { id: 'system-wallet', label: 'System Wallet', icon: Vault, path: '/admin/wallet/system' }
       ]
     },
     {
-      id: 'users',
-      label: 'Users',
+      id: 'management',
+      label: 'Management',
       icon: Users,
       hasSubMenu: true,
       subItems: [
-        { id: 'all-users', label: 'All Users', icon: Users, path: '/admin/users/all' },
-        { id: 'active-users', label: 'Active Users', icon: UserCheck, path: '/admin/users/active' },
-        { id: 'user-verification', label: 'User Verification', icon: Shield, path: '/admin/users/verification' }
+        { id: 'all-users', label: 'All Users', icon: Users, path: '/admin/management/all-users' },
+        { id: 'staffs', label: 'Staffs', icon: UserCog, path: '/admin/management/staffs' },
+        { id: 'role-permission', label: 'Role & Permission', icon: Shield, path: '/admin/management/roles' }
       ]
+    },
+    {
+      id: 'disputes',
+      label: 'Disputes',
+      icon: AlertCircle,
+      path: '/admin/disputes'
+    },
+    {
+      id: 'settings',
+      label: 'Settings',
+      icon: Settings,
+      path: '/admin/settings'
     }
   ];
 
@@ -93,8 +188,9 @@ const handleLogout = () => {
           onClick={() => {
             if (hasSubMenu) {
               toggleSubMenu(item.id);
-            } else {
+            } else if (item.path) {
               setActiveMenu(item.id);
+              navigate(item.path);
               setSidebarOpen(false);
             }
           }}
@@ -141,10 +237,10 @@ const handleLogout = () => {
 
       {/* Sidebar */}
       <div className={`
-  fixed lg:relative lg:translate-x-0 transform transition-transform duration-300 ease-in-out
-  ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-  w-64 h-full bg-gray-800 shadow-2xl z-50 flex flex-col
-`}>
+        fixed lg:relative lg:translate-x-0 transform transition-transform duration-300 ease-in-out
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+        w-64 h-full bg-gray-800 shadow-2xl z-50 flex flex-col
+      `}>
         {/* Sidebar Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-700">
           <div className="flex items-center space-x-3">
@@ -152,7 +248,7 @@ const handleLogout = () => {
               <Home className="text-white" size={20} />
             </div>
             <div>
-             <h2 className="text-lg font-bold text-white">Admin Panel</h2>
+              <h2 className="text-lg font-bold text-white">Admin Panel</h2>
               <p className="text-xs text-gray-400">Dashboard Control</p>
             </div>
           </div>
@@ -175,11 +271,17 @@ const handleLogout = () => {
         <div className="p-4 border-t border-gray-700">
           <div className="flex items-center space-x-3 p-3 bg-gray-700 rounded-lg mb-4">
             <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
-              <span className="text-white font-medium text-sm">AD</span>
+              <span className="text-white font-medium text-sm">
+                {getInitials(userProfile?.firstName, userProfile?.lastName, userProfile?.email)}
+              </span>
             </div>
-            <div className="flex-1">
-              <p className="text-white font-medium text-sm">Admin User</p>
-              <p className="text-gray-400 text-xs">admin@company.com</p>
+            <div className="flex-1 min-w-0">
+              <p className="text-white font-medium text-sm truncate">
+                {getDisplayName()}
+              </p>
+              <p className="text-gray-400 text-xs truncate">
+                {userProfile?.email || 'Loading...'}
+              </p>
             </div>
           </div>
           <button onClick={handleLogout}

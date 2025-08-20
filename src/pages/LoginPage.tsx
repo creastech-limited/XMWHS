@@ -117,6 +117,9 @@ const LoginPage: React.FC = () => {
           case 'agent':
             navigate('/agent');
             break;
+            case 'admin':
+            navigate('/admin');
+            break;
           default:
             navigate('/');
         }

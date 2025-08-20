@@ -25,10 +25,14 @@ interface WalletData {
 
 
 interface ChargeData {
+  _id: string;
   amount: number;
   name: string;
   chargeType: string;
+  description: string;
+  status: string;
   createdAt: string;
+  updatedAt: string;
 }
 
 interface User {
@@ -91,94 +95,104 @@ const Overview = () => {
     }
   }, []);
 
-  const handleAuthError = (message: string) => {
-    console.error(message);
-    localStorage.removeItem('token');
-    setAdminProfile(null);
-   
+
+useEffect(() => {
+  const initializeAuth = async () => {
+    try {
+      setLoading(true);
+      console.log('Starting auth initialization...');
+      
+      let currentToken: string | null = null;
+      
+      // Check auth context first
+      if (user?.token && typeof user.token === 'string') {
+        console.log('Found token in auth context');
+        currentToken = user.token;
+      } else {
+        // Fallback to localStorage
+        const storedToken = localStorage.getItem('token');
+        if (!storedToken) {
+          console.log('No token found');
+          // Don't throw error here, just set loading to false
+          setLoading(false);
+          return;
+        }
+        console.log('Found token in localStorage');
+        currentToken = storedToken;
+      }
+
+      // Validate token exists before making requests
+      if (!currentToken) {
+        setLoading(false);
+        return;
+      }
+
+      const profile = await fetchUserDetails(currentToken);
+      setAdminProfile(profile);
+
+      const [walletRes, chargesRes, usersRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/wallet/getChargesWallets`, {
+          headers: { 'Authorization': `Bearer ${currentToken}` }
+        }),
+        fetch(`${API_BASE_URL}/api/charge/getAllCharges`, {
+          headers: { 'Authorization': `Bearer ${currentToken}` }
+        }),
+        fetch(`${API_BASE_URL}/api/users/getallUsers`, {
+          headers: { 'Authorization': `Bearer ${currentToken}` }
+        }),
+      ]);
+
+      // Check if responses are ok
+      if (!walletRes.ok || !chargesRes.ok || !usersRes.ok) {
+        throw new Error('One or more API requests failed');
+      }
+
+      const [walletJson, chargesJson, usersJson] = await Promise.all([
+        walletRes.json(),
+        chargesRes.json(),
+        usersRes.json()
+      ]);
+
+      // Handle the users response to get total count
+      if (usersJson && usersJson.message) {
+        const numberMatch = usersJson.message.split(' ')[0];
+        const userCount = parseInt(numberMatch, 10);
+        
+        if (!isNaN(userCount)) {
+          setTotalUsers(userCount);
+        } else if (usersJson.data && Array.isArray(usersJson.data)) {
+          setTotalUsers(usersJson.data.length);
+        } else {
+          setTotalUsers(0);
+        }
+      } else if (usersJson && usersJson.data && Array.isArray(usersJson.data)) {
+        setTotalUsers(usersJson.data.length);
+      } else {
+        setTotalUsers(0);
+      }
+
+      setWalletData(Array.isArray(walletJson) ? walletJson : []);
+      setChargesData(Array.isArray(chargesJson) ? chargesJson : []);
+
+    } catch (error) {
+      console.error('Auth initialization error:', error);
+      // Only redirect on authentication errors, not on general API errors
+      if (error instanceof Error && error.message.includes('Authentication') || 
+          error instanceof Error && error.message.includes('token')) {
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => {
-    const initializeAuth = async () => {
-      try {
-        setLoading(true);
-        console.log('Starting auth initialization...');
-        
-        let currentToken: string | null = null;
-        
-        // Check auth context first
-        if (user?.token && typeof user.token === 'string') {
-          console.log('Found token in auth context');
-          currentToken = user.token;
-        } else {
-          // Fallback to localStorage
-          const storedToken = localStorage.getItem('token');
-          if (!storedToken) {
-            console.log('No token found');
-            throw new Error('No authentication token found');
-          }
-          console.log('Found token in localStorage');
-          currentToken = storedToken;
-        }
-        const profile = await fetchUserDetails(currentToken);
-        setAdminProfile(profile);
-
-   
-const [walletRes, chargesRes, usersRes] = await Promise.all([
-  fetch(`${API_BASE_URL}/api/wallets/getChargesWallets`, {
-    headers: { 'Authorization': `Bearer ${currentToken}` }
-  }),
-  fetch(`${API_BASE_URL}/api/charge/getAllCharges`, {
-    headers: { 'Authorization': `Bearer ${currentToken}` }
-  }),
-  fetch(`${API_BASE_URL}/api/users/getallUsers`, {
-    headers: { 'Authorization': `Bearer ${currentToken}` }
-  }),
-]);
-
-const [walletJson, chargesJson, usersJson] = await Promise.all([
-  walletRes.json(),
-  chargesRes.json(),
-  usersRes.json()
-]);
-
-// Handle the users response to get total count
-if (usersJson && usersJson.message) {
-  // Extract number from message like "109 user(s) found"
-  const match = usersJson.message.match(/(\d+)\s+user\(s\)\s+found/i);
-  if (match && match[1]) {
-    setTotalUsers(parseInt(match[1], 10));
-  } else if (usersJson.data && Array.isArray(usersJson.data)) {
-    // Fallback to counting the array if message parsing fails
-    setTotalUsers(usersJson.data.length);
-  } else {
-    setTotalUsers(0);
-  }
-} else if (usersJson && usersJson.data && Array.isArray(usersJson.data)) {
-  // Fallback if message doesn't exist but data array does
-  setTotalUsers(usersJson.data.length);
-} else {
-  setTotalUsers(0);
-}
-
-
-        setWalletData(Array.isArray(walletJson) ? walletJson : []);
-        setChargesData(Array.isArray(chargesJson) ? chargesJson : []);
-
-      } catch (error) {
-        console.error('Auth initialization error:', error);
-        handleAuthError('Authentication error. Please login again.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    initializeAuth();
-  }, [user?.token, fetchUserDetails]);
+  initializeAuth();
+}, [user?.token, fetchUserDetails]);
 
   // Calculate stats from real data
   const totalRevenue = walletData.reduce((sum, wallet) => sum + wallet.balance, 0);
-  const totalCharges = chargesData.reduce((sum, charge) => sum + charge.amount, 0);
+
   const recentTransactions = walletData
     .sort((a, b) => new Date(b.lastTransaction).getTime() - new Date(a.lastTransaction).getTime())
     .slice(0, 5);
@@ -281,23 +295,52 @@ if (usersJson && usersJson.message) {
                 <p className="text-gray-500 text-xs">Combined wallet balances</p>
               </div>
 
-              {/* Total Charges Card */}
-              <div className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow duration-300 p-6 border border-gray-100">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="bg-purple-500 rounded-lg p-3">
-                    <CreditCard className="h-6 w-6 text-white" />
-                  </div>
-                  <div className="flex items-center text-sm font-medium text-green-600">
-                    <ArrowUpRight className="h-4 w-4 mr-1" />
-                    {totalCharges > 0 ? '+23.1%' : '0%'}
-                  </div>
-                </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-1">
-                  {totalCharges.toLocaleString('en-NG', { style: 'currency', currency: 'NGN' })}
-                </h3>
-                <p className="text-gray-600 text-sm font-medium mb-2">Total Charges</p>
-                <p className="text-gray-500 text-xs">All system charges</p>
-              </div>
+           {/* Charges Card */}
+<div className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow duration-300 p-6 border border-gray-100">
+  <div className="flex items-center justify-between mb-4">
+    <div className="bg-purple-500 rounded-lg p-3">
+      <CreditCard className="h-6 w-6 text-white" />
+    </div>
+    <div className="flex items-center text-sm font-medium text-green-600">
+      <ArrowUpRight className="h-4 w-4 mr-1" />
+      Active
+    </div>
+  </div>
+  
+  <h3 className="text-lg font-semibold text-gray-900 mb-4">Charges</h3>
+  
+  {/* Topup Charge */}
+  <div className="flex items-center justify-between mb-3">
+    <div className="flex items-center">
+      <div className="w-3 h-3 bg-purple-400 rounded-full mr-2"></div>
+      <span className="text-sm text-gray-600">Topup Charge:</span>
+    </div>
+    <span className="text-sm font-medium text-gray-900">
+      {chargesData.find(charge => charge.name.includes('Topup'))?.amount.toLocaleString('en-NG', { 
+        style: 'currency', 
+        currency: 'NGN' 
+      }) || '₦0'}
+    </span>
+  </div>
+  
+  {/* Withdrawal Charge */}
+  <div className="flex items-center justify-between">
+    <div className="flex items-center">
+      <div className="w-3 h-3 bg-blue-400 rounded-full mr-2"></div>
+      <span className="text-sm text-gray-600">Withdrawal Charge:</span>
+    </div>
+    <span className="text-sm font-medium text-gray-900">
+      {chargesData.find(charge => charge.name.includes('Withdrawal'))?.amount.toLocaleString('en-NG', { 
+        style: 'currency', 
+        currency: 'NGN' 
+      }) || '₦0'}
+    </span>
+  </div>
+  
+  <div className="mt-4 pt-3 border-t border-gray-100">
+    <p className="text-xs text-gray-500">System fee charges</p>
+  </div>
+</div>
             </div>
 
             {/* Charts Section */}

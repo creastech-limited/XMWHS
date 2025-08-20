@@ -42,7 +42,8 @@ import Kdispute from './pages/Kdispute';
 import DisputePage from './pages/Sdiputes';
 import Storedispute from './pages/Storedispute';
 import Terms from './pages/TermsAndConditions';
-import Overview from './pages/Admin/overview.js';
+import Overview from './pages/Admin/overview';
+import AllUsers from './pages/Admin/AllUsers';
 
 function App() {
   return (
@@ -105,6 +106,7 @@ function App() {
 
           //admin routes
           <Route path="/admin" element={<Overview />} />
+          <Route path="/admin/management/all-users" element={<AllUsers />} />
 
         
         </Routes>
