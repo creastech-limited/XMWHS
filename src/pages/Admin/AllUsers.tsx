@@ -80,7 +80,7 @@ const AllUsers = () => {
     }
   }, []);
 
-  useEffect(() => {
+useEffect(() => {
   const initializeData = async () => {
     try {
       setLoading(true);
@@ -88,9 +88,16 @@ const AllUsers = () => {
       // Get token from authUser or localStorage
       const token = authUser?.token || localStorage.getItem('token');
       
-      // Check if token is valid (not null, undefined, or empty string)
-      if (!token || typeof token !== 'string') {
-        console.log('No valid token found');
+      // Check if token exists and is a string
+      if (!token) {
+        console.log('No token found');
+        setLoading(false);
+        return;
+      }
+
+      // Ensure token is a string
+      if (typeof token !== 'string') {
+        console.log('Invalid token type');
         setLoading(false);
         return;
       }
@@ -104,8 +111,11 @@ const AllUsers = () => {
     }
   };
 
-  initializeData();
-}, [authUser?.token, fetchAllUsers]);
+  // Only initialize if we have a valid auth context or token
+  if (authUser !== undefined) {
+    initializeData();
+  }
+}, [authUser?.token, fetchAllUsers, authUser]);
 
   // Filter users based on search term and filters
   useEffect(() => {
@@ -302,7 +312,7 @@ const AllUsers = () => {
                 
                 <div className="flex space-x-3">
                   <select
-                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
                   >
@@ -314,13 +324,12 @@ const AllUsers = () => {
                   </select>
                   
                   <select
-                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
                     value={roleFilter}
                     onChange={(e) => setRoleFilter(e.target.value)}
                   >
                     <option value="all">All Roles</option>
                     <option value="student">Student</option>
-                    <option value="teacher">Teacher</option>
                     <option value="admin">Admin</option>
                     <option value="staff">Staff</option>
                     <option value="parent">Parent</option>
