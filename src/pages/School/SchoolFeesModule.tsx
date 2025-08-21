@@ -267,7 +267,7 @@ const SchoolFeesModule: React.FC = () => {
         return;
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/fees/${billId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/fee/update/${billId}`, {
         method: 'PUT',
         headers: {
           Authorization: `Bearer ${token}`,

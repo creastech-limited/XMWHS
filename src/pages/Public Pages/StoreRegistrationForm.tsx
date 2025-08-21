@@ -18,7 +18,7 @@ import {
   Eye,
 } from 'lucide-react';
 
-import bgImage from './bg.jpeg';
+import bgImage from '../bg.jpeg';
 
 // API Base URL
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;

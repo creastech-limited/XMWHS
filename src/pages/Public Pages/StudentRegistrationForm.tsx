@@ -11,7 +11,7 @@ import {
   XCircle,
   UserPlus,
 } from 'lucide-react';
-import bgImage from './bg.jpeg';
+import bgImage from '../bg.jpeg';
 
 interface ClassInfo {
   className: string;

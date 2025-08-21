@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { Eye, EyeOff, User, Mail, Lock, AlertCircle, CheckCircle, School } from 'lucide-react';
-import bgImage from './bg.jpeg';
-import logo from './5.png'; // Added logo import to match login page
+import bgImage from '../bg.jpeg';
+import logo from '../5.png'; // Added logo import to match login page
 
 const SignUpPage: React.FC = () => {
   const [formValues, setFormValues] = useState({

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight, Calendar, Shield, CreditCard, Users, AlertCircle, FileText } from 'lucide-react';
 import Footer from '../../components/Footer';
-import  Logo  from './5.png';
+import  Logo  from '../5.png';
 
 const TermsAndConditions = () => {
 

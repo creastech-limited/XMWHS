@@ -13,7 +13,7 @@ import {
   AcademicCapIcon,
   UserGroupIcon
 } from '@heroicons/react/24/outline';
-import bgImage from './bg.jpeg';
+import bgImage from '../bg.jpeg';
 import { AlertCircle, CheckCircle } from 'react-feather';
 
 type SchoolType = 'primary' | 'secondary' | 'polytechnic' | 'university';

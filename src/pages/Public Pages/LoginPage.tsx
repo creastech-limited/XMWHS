@@ -3,8 +3,8 @@ import type { FormEvent } from 'react';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { AlertCircle, Eye, EyeOff, Mail, Lock } from 'lucide-react';
-import logo from './5.png';
-import bgImage from './bg.jpeg';
+import logo from '../5.png';
+import bgImage from '../bg.jpeg';
 
 const LoginPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
