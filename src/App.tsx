@@ -11,7 +11,7 @@ import FundWalletPage from './pages/Parent/FundWalletPage.js';
 import PaystackCallback from './pages/Public Pages/PaystackCallback.js';
 import PTransactionHistoryPage from './pages/Parent/PTransactionHistoryPage.js';
 import PsettingsPage from './pages/Parent/PsettingsPage.js';
-import TransferToKidsPage from './pages/Parent/TransferToKidsPage.js';
+import TransferToKidsPage from './pages/Parent/TransferToKidsPage';
 import PaySchoolBillsPage from './pages/Parent/PaySchoolBillsPage.js';
 import PayToAgentPage from './pages/Parent/PayToAgentPage.js';
 import SchoolFeesModule from './pages/School/SchoolFeesModule.js';
