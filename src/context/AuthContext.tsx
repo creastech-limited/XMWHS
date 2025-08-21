@@ -62,6 +62,8 @@ const ROLE_SPECIFIC_ROUTES: Record<string, string[]> = {
     '/ptransactionhistory',
     '/Pdispute',
     '/Psettings',
+    '/paytoagent',
+    '/transfertokids',
   ],
   student: [
     '/kidswallet',
