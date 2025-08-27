@@ -24,6 +24,14 @@ interface UserData {
   email: string;
   lastTransactions: Transaction[];
 }
+interface Charge {
+  _id: string;
+  name: string;
+  chargeType: string;
+  amount: number;
+  description: string;
+  status: string;
+}
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -54,6 +62,7 @@ const FundWalletPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [userId, setUserId] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [transactionFee, setTransactionFee] = useState<number>(0);
 
   // Fetch wallet balance
   const fetchWalletBalance = async () => {
@@ -130,6 +139,7 @@ const FundWalletPage: React.FC = () => {
           
           setEmail(profile.data.email || "");
           await fetchWalletBalance();
+          await fetchTransactionCharges();
         }
       } catch (error: unknown) {
       if (axios.isAxiosError(error) && error.response?.status === 401) {
@@ -151,6 +161,34 @@ const FundWalletPage: React.FC = () => {
     
    fetchUserProfile();
 }, [authToken, navigate]);
+
+const fetchTransactionCharges = async () => {
+  if (!authToken) return;
+  
+  try {
+    const response = await axios.get(`${API_BASE_URL}/api/charge/getallcharges`, {
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (response.data && Array.isArray(response.data)) {
+      // Find the topup charge
+      const topupCharge = response.data.find((charge: Charge) => 
+        charge.name.toLowerCase().includes('topup') && charge.status === 'Active'
+      );
+      
+      if (topupCharge) {
+        setTransactionFee(topupCharge.amount);
+      }
+    }
+  } catch (error: unknown) {
+    console.error('Error fetching transaction charges:', error);
+    // Set default fee if API fails
+    setTransactionFee(0);
+  }
+};
 
   // Fetch transactions
   const fetchTransactions = async () => {
@@ -224,7 +262,7 @@ const FundWalletPage: React.FC = () => {
       const response = await axios.post(`${API_BASE_URL}/api/transaction/initiateTransaction`, 
         {
           email,
-          amount: Number(amount),
+          amount: Number(amount) ,
           callback_url: callbackUrl
         },
         {
@@ -476,14 +514,16 @@ const FundWalletPage: React.FC = () => {
             <span className="font-semibold">₦{Number(amount).toLocaleString()}</span>
           </div>
           <div className="flex justify-between">
-            <span>Transaction Fee:</span>
-            <span className="font-semibold">₦0.00</span>
-          </div>
+  <span>Transaction Fee:</span>
+  <span className="font-semibold">₦{transactionFee.toLocaleString()}</span>
+</div>
           <div className="border-t border-gray-200 my-2"></div>
-          <div className="flex justify-between">
-            <span className="font-semibold">Total:</span>
-            <span className="font-semibold text-indigo-700">₦{Number(amount).toLocaleString()}</span>
-          </div>
+        <div className="flex justify-between">
+  <span className="font-semibold">Total:</span>
+  <span className="font-semibold text-indigo-700">
+    ₦{(Number(amount) + transactionFee).toLocaleString()}
+  </span>
+</div>
         </div>
       </div>
     )}
