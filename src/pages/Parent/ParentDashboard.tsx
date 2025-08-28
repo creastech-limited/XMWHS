@@ -475,7 +475,7 @@ const ParentDashboard: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+              <div className="hidden md:grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
                 <div className="lg:col-span-2 bg-white rounded-xl shadow-md p-5">
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="text-lg font-medium text-gray-800">

@@ -12,12 +12,13 @@ import { useNavigate } from 'react-router-dom';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 interface Kid {
-  id: number;
+  id: string; 
+  student_id: string; 
   name: string;
   email: string;
   isBeneficiary: boolean;
   avatar: string;
-  _id: string;
+  _id?: string;  
 }
 
 interface Transfer {
@@ -53,6 +54,7 @@ const TransferToKidsPage: React.FC = () => {
 
   // Kids data
   const [allKids, setAllKids] = useState<Kid[]>([]);
+  const [beneficiaries, setBeneficiaries] = useState<Kid[]>([]);
 
   // Form state
   const [selectedKid, setSelectedKid] = useState<Kid | null>(null);
@@ -60,8 +62,6 @@ const TransferToKidsPage: React.FC = () => {
   const [note, setNote] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [tabValue, setTabValue] = useState<number>(0);
-  const [beneficiaryDialogOpen, setBeneficiaryDialogOpen] = useState<boolean>(false);
-  const [selectedBeneficiary, setSelectedBeneficiary] = useState<Kid | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [showSnackbar, setShowSnackbar] = useState<boolean>(false);
   const [snackbarMessage, setSnackbarMessage] = useState<string>('');
@@ -83,20 +83,24 @@ const TransferToKidsPage: React.FC = () => {
       
       // Transform the API response to match our Kid interface
       type ApiKid = {
-        _id: string;
-        name?: string;
+        student_id: string;  
         firstName?: string;
         lastName?: string;
+        fullName?: string;
+        name?: string;
         email: string;
+        phone?: string;
+        class?: string;
+        role?: string;
       };
 
       const kidsData = response.data.data.map((kid: ApiKid) => ({
-        id: kid._id,
-        _id: kid._id,
-        name: kid.name || `${kid.firstName ?? ''} ${kid.lastName ?? ''}`.trim(),
+        id: kid.student_id,        // Use student_id as the main id
+        student_id: kid.student_id, // Keep the original field
+        name: kid.fullName || kid.name || `${kid.firstName ?? ''} ${kid.lastName ?? ''}`.trim(),
         email: kid.email,
-        isBeneficiary: false, // You might want to fetch this from API if available
-        avatar: (kid.name ?? kid.firstName ?? 'K').charAt(0)
+        isBeneficiary: false, // Initially set to false, will update after fetching beneficiaries
+        avatar: (kid.fullName ?? kid.firstName ?? 'K').charAt(0).toUpperCase()
       }));
       
       setAllKids(kidsData);
@@ -174,6 +178,47 @@ const TransferToKidsPage: React.FC = () => {
     }
   };
 
+  // Fetch beneficiaries and update allKids
+  const fetchBeneficiaries = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/users/getBeneficiaries`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      console.log('Beneficiaries response:', response.data); 
+
+      // The API returns beneficiaries array directly
+      const beneficiaries = response.data.beneficiaries || [];
+      console.log('Beneficiaries array:', beneficiaries); 
+      
+      // Extract emails from beneficiaries for matching
+      interface Beneficiary {
+        email: string;
+        [key: string]: unknown;
+      }
+      
+      const beneficiaryEmails: string[] = (beneficiaries as Beneficiary[]).map((b: Beneficiary) => b.email);
+      console.log('Beneficiary emails:', beneficiaryEmails);
+
+      // Update allKids to mark beneficiaries by email
+      setAllKids(prevKids => {
+        return prevKids.map(kid => ({
+          ...kid,
+          isBeneficiary: beneficiaryEmails.includes(kid.email)
+        }));
+      });
+
+      // Set beneficiaries list
+      setBeneficiaries(prevKids => {
+        return prevKids.filter(kid => beneficiaryEmails.includes(kid.email));
+      });
+    } catch (error) {
+      console.error('Error fetching beneficiaries:', error);
+    }
+  };
+
   // Effect to filter kids based on search and tab
   useEffect(() => {
     const lowerCaseQuery = searchQuery.toLowerCase();
@@ -193,7 +238,9 @@ const TransferToKidsPage: React.FC = () => {
   // Initial data fetch
   useEffect(() => {
     if (token) {
-      fetchKids();
+      fetchKids().then(() => {
+        fetchBeneficiaries();
+      });
       fetchRecentTransactions();
       fetchUserBalance();
     }
@@ -203,38 +250,53 @@ const TransferToKidsPage: React.FC = () => {
     setTabValue(newValue);
   };
 
-  const handleAddBeneficiary = (kid: Kid) => {
-    setSelectedBeneficiary(kid);
-    setBeneficiaryDialogOpen(true);
-  };
-
-  const confirmAddBeneficiary = () => {
-    if (selectedBeneficiary) {
-      setAllKids(allKids.map(kid => 
-        kid.id === selectedBeneficiary.id 
-          ? { ...kid, isBeneficiary: true } 
-          : kid
-      ));
-      
-      setSnackbarMessage(`${selectedBeneficiary.name} added to beneficiaries!`);
-      setSnackbarSeverity('success');
-      setShowSnackbar(true);
-      
-      setTimeout(() => {
-        setShowSnackbar(false);
-      }, 3000);
-    }
-    setBeneficiaryDialogOpen(false);
-  };
-
-  const handleToggleBeneficiary = (kidId: number, e: React.MouseEvent) => {
-    e.stopPropagation();
+  // Toggle beneficiary status
+  const handleToggleBeneficiary = async (kidId: string) => {
+    const kid = allKids.find(k => k.student_id === kidId);
+    if (!kid) return;
     
-    setAllKids(allKids.map(kid => 
-      kid.id === kidId 
-        ? { ...kid, isBeneficiary: !kid.isBeneficiary } 
-        : kid
-    ));
+    try {
+      if (kid.isBeneficiary) {
+        // Remove beneficiary
+        await axios.delete(
+          `${API_BASE_URL}/api/users/removebeneficiary/${kid.student_id}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          }
+        );
+        
+        setSnackbarMessage(`${kid.name} removed from beneficiaries!`);
+        setSnackbarSeverity('success');
+      } else {
+        // Add as beneficiary
+        await axios.post(
+          `${API_BASE_URL}/api/users/addbeneficiary/${kid.student_id}`,
+          {},
+          {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          }
+        );
+        
+        setSnackbarMessage(`${kid.name} added to beneficiaries!`);
+        setSnackbarSeverity('success');
+      }
+      
+      // Refresh beneficiaries list
+      await fetchBeneficiaries();
+      
+      setShowSnackbar(true);
+      setTimeout(() => setShowSnackbar(false), 3000);
+    } catch (error) {
+      console.error('Error toggling beneficiary:', error);
+      setSnackbarMessage('Failed to update beneficiary');
+      setSnackbarSeverity('error');
+      setShowSnackbar(true);
+      setTimeout(() => setShowSnackbar(false), 3000);
+    }
   };
 
   const handleConfirmTransfer = async () => {
@@ -249,14 +311,13 @@ const TransferToKidsPage: React.FC = () => {
     setLoading(true);
     
     try {
-      
       const response = await axios.post(
-  `${API_BASE_URL}/api/transaction/transfer`,
-  {
-    receiverEmail: selectedKid.email,
-    amount: Number(amount),
-    pin: pin
-  },
+        `${API_BASE_URL}/api/transaction/transfer`,
+        {
+          receiverEmail: selectedKid.email,
+          amount: Number(amount),
+          pin: pin
+        },
         {
           headers: {
             Authorization: `Bearer ${token}`
@@ -279,7 +340,7 @@ const TransferToKidsPage: React.FC = () => {
           note: note || "Transfer",
           status: 'completed',
           createdAt: new Date().toISOString(),
-          recipient: selectedKid._id
+          recipient: selectedKid._id ?? ''
         };
         
         setUserData({
@@ -301,23 +362,33 @@ const TransferToKidsPage: React.FC = () => {
         throw new Error(response.data.message || 'Transfer failed');
       }
     } catch (error) {
-  console.error('Transfer error:', error);
-  if (axios.isAxiosError(error) && error.response?.data) {
-    const errorData = error.response.data;
-    setSnackbarMessage(errorData.message || 'Transfer failed. Please try again.');
-    
-    // Log the full error for debugging
-    console.error('Full error details:', {
-      status: errorData.status,
-      message: errorData.message,
-      error: errorData.error
-    });
-  } else {
-    setSnackbarMessage('Transfer failed. Please try again.');
-  }
-  setSnackbarSeverity('error');
-  setShowSnackbar(true);
-} finally {
+      console.error('Transfer error:', error);
+      let errorMessage = 'Transfer failed. Please try again.';
+      
+      if (axios.isAxiosError(error) && error.response?.data) {
+        const errorData = error.response.data;
+        
+        // Use the specific error message from the API
+        if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (errorData.error) {
+          errorMessage = errorData.error;
+        }
+        
+        // Handle specific error cases
+        if (errorData.message?.toLowerCase().includes('pin')) {
+          errorMessage = 'Invalid PIN. Please check your PIN and try again.';
+        } else if (errorData.message?.toLowerCase().includes('balance') || errorData.message?.toLowerCase().includes('insufficient')) {
+          errorMessage = 'Insufficient balance. Please fund your wallet first.';
+        } else if (errorData.message?.toLowerCase().includes('user') || errorData.message?.toLowerCase().includes('recipient')) {
+          errorMessage = 'Recipient not found. Please verify the recipient details.';
+        }
+      }
+      
+      setSnackbarMessage(errorMessage);
+      setSnackbarSeverity('error');
+      setShowSnackbar(true);
+    } finally {
       setLoading(false);
       setPinDialogOpen(false);
       
@@ -347,16 +418,40 @@ const TransferToKidsPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-         <div className="min-h-screen bg-gray-50 flex flex-col">
-           <Header profilePath="/psettings"/>
-           
-           <div className="z-[100] flex flex-grow gap-6">
-             <Psidebar />
-         </div>  
+      <div className="min-h-screen bg-gray-50 flex flex-col">
+        <Header profilePath="/psettings"/>
+        
+        <div className="z-[100] flex flex-grow gap-6">
+          <Psidebar />
+        </div>  
         
         {/* Main Content */}
         <div className="flex-1 p-6 lg:ml-64">
           <div className="max-w-7xl mx-auto">
+            {/* Beneficiary Suggestions */}
+            {beneficiaries.length > 0 && (
+              <div className="mb-6 bg-indigo-50 rounded-xl p-4">
+                <h3 className="text-lg font-bold text-indigo-900 mb-2">Suggested Beneficiaries</h3>
+                <p className="text-gray-600 mb-3">Quickly transfer to your frequently used beneficiaries</p>
+                <div className="flex flex-wrap gap-3">
+                  {beneficiaries.slice(0, 4).map(beneficiary => (
+                    <div 
+                      key={beneficiary.id}
+                      className="flex items-center bg-white rounded-lg p-3 shadow-sm cursor-pointer hover:shadow-md transition"
+                      onClick={() => setSelectedKid(beneficiary)}
+                    >
+                      <div className="w-10 h-10 flex items-center justify-center rounded-full bg-indigo-600 text-white font-medium">
+                        {beneficiary.avatar}
+                      </div>
+                      <div className="ml-2">
+                        <p className="font-medium text-sm text-black">{beneficiary.name}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               {/* Transfer Form Section */}
               <div className="lg:col-span-7">
@@ -423,7 +518,10 @@ const TransferToKidsPage: React.FC = () => {
                             </div>
                           </div>
                           <button 
-                            onClick={(e) => handleToggleBeneficiary(kid.id, e)}
+                            onClick={(e) => {
+                              e.stopPropagation(); 
+                              handleToggleBeneficiary(kid.student_id); 
+                            }}
                             className="text-gray-500 hover:text-yellow-500"
                           >
                             {kid.isBeneficiary ? (
@@ -452,15 +550,22 @@ const TransferToKidsPage: React.FC = () => {
                           <p className="font-medium text-black">{selectedKid.name}</p>
                           <p className="text-sm text-gray-500">{selectedKid.email}</p>
                         </div>
-                        {!selectedKid.isBeneficiary && (
-                          <button 
-                            className="flex items-center text-sm px-3 py-1 border border-indigo-500 text-indigo-600 rounded-md hover:bg-indigo-50"
-                            onClick={() => handleAddBeneficiary(selectedKid)}
-                          >
-                            <FaStar className="mr-1" />
-                            Add as Beneficiary
-                          </button>
-                        )}
+                        <button 
+                          className="flex items-center text-sm px-3 py-1 border border-indigo-500 text-indigo-600 rounded-md hover:bg-indigo-50"
+                          onClick={() => handleToggleBeneficiary(selectedKid.student_id)}
+                        >
+                          {selectedKid.isBeneficiary ? (
+                            <>
+                              <FaStar className="mr-1 text-yellow-500" />
+                              Remove Beneficiary
+                            </>
+                          ) : (
+                            <>
+                              <FaStar className="mr-1" />
+                              Add as Beneficiary
+                            </>
+                          )}
+                        </button>
                       </div>
                     </div>
                   )}
@@ -633,7 +738,13 @@ const TransferToKidsPage: React.FC = () => {
                   <div className="grid grid-cols-2 gap-3">
                     <button 
                       className="bg-white/10 hover:bg-white/20 rounded-lg p-3 text-left transition backdrop-blur-sm"
-                      onClick={navigateToFundWallet}
+                      onClick={() => {
+                        fetchUserBalance();
+                        setSnackbarMessage(`Current balance: ₦${userData.balance.toLocaleString()}`);
+                        setSnackbarSeverity('success');
+                        setShowSnackbar(true);
+                        setTimeout(() => setShowSnackbar(false), 3000);
+                      }}
                     >
                       <div className="flex items-center">
                         <div className="p-2 bg-white/20 rounded-lg">
@@ -741,39 +852,6 @@ const TransferToKidsPage: React.FC = () => {
                       Authorize Transfer
                     </>
                   )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* Add Beneficiary Dialog */}
-      {beneficiaryDialogOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full overflow-hidden">
-            <div className="p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Add Beneficiary</h3>
-              <p className="text-gray-600 mb-2">
-                Add {selectedBeneficiary?.name} to your beneficiaries for quick access?
-              </p>
-              <p className="text-sm text-gray-500 mb-4">
-                Beneficiaries appear in your quick selection list for faster transfers.
-              </p>
-              
-              <div className="flex justify-end space-x-3">
-                <button 
-                  className="px-4 py-2 rounded-lg text-gray-700 hover:bg-gray-100"
-                  onClick={() => setBeneficiaryDialogOpen(false)}
-                >
-                  Cancel
-                </button>
-                <button 
-                  className="flex items-center px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
-                  onClick={confirmAddBeneficiary}
-                >
-                  <FaStar className="mr-2" />
-                  Add Beneficiary
                 </button>
               </div>
             </div>
