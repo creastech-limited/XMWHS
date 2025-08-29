@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Header } from '../../components/Header';
 import { Sidebar } from '../../components/Sidebar';
@@ -54,6 +54,16 @@ interface SchoolProfile {
   Link: string;
 }
 
+
+interface Parent {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  name: string;
+  email: string;
+  phone: string;
+}
+
 interface SnackbarState {
   open: boolean;
   message: string;
@@ -66,9 +76,7 @@ const StudentPage: React.FC = () => {
   const authToken = token || localStorage.getItem('token');
 
   const [schoolId, setSchoolId] = useState<string>('');
-  const [schoolProfile, setSchoolProfile] = useState<SchoolProfile | null>(
-    null
-  );
+  const [schoolProfile, setSchoolProfile] = useState<SchoolProfile | null>(null);
   const [registrationLink, setRegistrationLink] = useState<string>('');
   const [students, setStudents] = useState<Student[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
@@ -85,32 +93,81 @@ const StudentPage: React.FC = () => {
   });
   const [menuStudent, setMenuStudent] = useState<Student | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
-  const [menuPosition, setMenuPosition] = useState<{
-    top: number;
-    left: number;
-  }>({ top: 0, left: 0 });
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const [isGuardianModalOpen, setIsGuardianModalOpen] = useState<boolean>(false);
+  const [guardianEmail, setGuardianEmail] = useState<string>('');
+  const [availableParents, setAvailableParents] = useState<Parent[]>([]);
+  const [guardianLoading, setGuardianLoading] = useState<boolean>(false);
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
 
-  const API_BASE_URL =
-    import.meta.env.VITE_API_BASE_URL;
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   const rowsPerPage = 10;
 
-  // Fetch user profile to get schoolLink and schoolId
-useEffect(() => {
-  if (!authToken) return;
+  // Helper functions
+  const getStatusBadgeColor = useCallback((status: string): string => {
+    switch (status?.toLowerCase()) {
+      case 'active':
+        return 'bg-green-100 text-green-800';
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'inactive':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  }, []);
 
-  fetch(`${API_BASE_URL}/api/users/getuserone`, {
-    headers: {
-      Authorization: `Bearer ${authToken}`,
-      'Content-Type': 'application/json',
-    },
-  })
-    .then((res) => {
-      if (!res.ok) throw new Error('Failed to fetch user profile');
-      return res.json();
-    })
-    .then((data) => {
+  const getStatusIcon = useCallback((status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'active':
+        return <CheckCircleIcon className="h-4 w-4" />;
+      case 'pending':
+        return <ClockIcon className="h-4 w-4" />;
+      case 'inactive':
+        return <XCircleIcon className="h-4 w-4" />;
+      default:
+        return <ClockIcon className="h-4 w-4" />;
+    }
+  }, []);
+
+  const getSchoolTypeIcon = useCallback((schoolType: string) => {
+    switch (schoolType?.toLowerCase()) {
+      case 'primary':
+        return <BookOpenIcon className="h-5 w-5 text-blue-600" />;
+      case 'secondary':
+        return <GraduationCapIcon className="h-5 w-5 text-purple-600" />;
+      case 'tertiary':
+        return <SchoolIcon className="h-5 w-5 text-green-600" />;
+      default:
+        return <SchoolIcon className="h-5 w-5 text-gray-600" />;
+    }
+  }, []);
+
+  const formatDate = useCallback((dateString: string): string => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  }, []);
+
+  // API call functions
+  const fetchUserProfile = useCallback(async () => {
+    if (!authToken) return;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch user profile');
+      
+      const data = await response.json();
       const userProfile = data.user?.data || data.user || data;
-      const id = userProfile.schoolId;  // Changed from _id to schoolId
+      const id = userProfile.schoolId;  
       const schoolName = userProfile.schoolName || 'School';
       const schoolType = userProfile.schoolType || 'secondary';
       const schoolAddress = userProfile.schoolAddress || '';
@@ -134,140 +191,309 @@ useEffect(() => {
       
       const fullLink = `${window.location.origin}/students/new?${params.toString()}`;
       setRegistrationLink(fullLink);
-    })
-    .catch((err) => {
+    } catch (err) {
       console.error('Profile fetch error:', err);
       setSnackbar({
         open: true,
-        message: err.message || 'Failed to load school profile',
+        message: err instanceof Error ? err.message : 'Failed to load school profile',
         severity: 'error',
       });
-    });
-}, [authToken, API_BASE_URL]);
+    }
+  }, [authToken, API_BASE_URL]);
 
-  // Fetch classes for this school
- useEffect(() => {
-  if (!authToken) return;
+  const fetchClasses = useCallback(async () => {
+    if (!authToken) return;
 
-  setClassesLoading(true);
-  fetch(`${API_BASE_URL}/api/users/getclasse`, {
-    headers: {
-      Authorization: `Bearer ${authToken}`,
-      'Content-Type': 'application/json',
-    },
-  })
-    .then((res) => {
-      if (!res.ok) throw new Error('Failed to fetch classes');
-      return res.json();
-    })
-    .then((data) => {
-      if (data.status && Array.isArray(data.data)) {
-        // Get user profile to find the correct schoolId for class filtering
-        return fetch(`${API_BASE_URL}/api/users/getuserone`, {
-          headers: {
-            Authorization: `Bearer ${authToken}`,
-            'Content-Type': 'application/json',
-          },
-        })
-        .then((res) => res.json())
-        .then((userProfileData) => {
-          const userProfile = userProfileData.user?.data || userProfileData.user || userProfileData;
-          
-          // Try to find matching classes using the user's _id (ObjectId format)
-          const userObjectId = userProfile._id;
-          
-          let schoolClasses = [];
-          
-          if (userObjectId) {
-            // Filter classes by the ObjectId format schoolId
-            schoolClasses = data.data.filter(
-              (cls: Class) => cls.schoolId === userObjectId
-            );
-          }
-          
-          // If no classes found with ObjectId, try with string schoolId as fallback
-          if (schoolClasses.length === 0 && schoolId) {
-            schoolClasses = data.data.filter(
-              (cls: Class) => cls.schoolId === schoolId
-            );
-          }
-          
-          console.log('Filtered classes:', schoolClasses.length, 'out of', data.data.length);
-          console.log('User ObjectId:', userObjectId, 'Student schoolId:', schoolId);
-          
-          setClasses(schoolClasses);
-          setClassesLoading(false);
-        });
-      } else {
-        console.error('Unexpected classes data format:', data);
-        setClasses([]);
-        setClassesLoading(false);
-      }
-    })
-    .catch((err) => {
-      console.error('Classes fetch error:', err);
-      setSnackbar({
-        open: true,
-        message: 'Failed to load classes: ' + err.message,
-        severity: 'error',
-      });
-      setClassesLoading(false);
-    });
-}, [authToken, schoolId, API_BASE_URL]);
-
-  // Fetch students for this schoolId
-  useEffect(() => {
-    if (!authToken || !schoolId) return;
-
-    setLoading(true);
-    fetch(
-      `${API_BASE_URL}/api/users/getstudentbyid?id=${encodeURIComponent(
-        schoolId
-      )}`,
-      {
+    setClassesLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/getclasse`, {
         headers: {
           Authorization: `Bearer ${authToken}`,
           'Content-Type': 'application/json',
         },
-      }
-    )
-      .then((res) => {
-        if (!res.ok) throw new Error('Failed to fetch students');
-        return res.json();
-      })
-      .then((data) => {
-        let studentArray: Student[] = [];
-        if (data && Array.isArray(data.data)) {
-          studentArray = data.data.map((student: Student) => ({
-            _id: student._id, // For backward compatibility
-            firstName: student.firstName,
-            lastName: student.lastName,
-            name: student.name || `${student.firstName} ${student.lastName}`,
-            email: student.email,
-            academicDetails: student.academicDetails || { classAdmittedTo: '' },
-            classAdmittedTo:
-              student.academicDetails?.classAdmittedTo || 'Not Assigned',
-            status: student.status,
-            createdAt: student.createdAt,
-          }));
-        } else {
-          console.error('Unexpected students data format:', data);
-        }
-
-        setStudents(studentArray);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error(err);
-        setSnackbar({
-          open: true,
-          message: 'Failed to load student data: ' + err.message,
-          severity: 'error',
-        });
-        setLoading(false);
       });
+
+      if (!response.ok) throw new Error('Failed to fetch classes');
+      
+      const data = await response.json();
+      
+      if (data.status && Array.isArray(data.data)) {
+        // Get user profile to find the correct schoolId for class filtering
+        const userResponse = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (!userResponse.ok) throw new Error('Failed to fetch user profile');
+        
+        const userProfileData = await userResponse.json();
+        const userProfile = userProfileData.user?.data || userProfileData.user || userProfileData;
+        
+        // Try to find matching classes using the user's _id (ObjectId format)
+        const userObjectId = userProfile._id;
+        
+        let schoolClasses = [];
+        
+        if (userObjectId) {
+          // Filter classes by the ObjectId format schoolId
+          schoolClasses = data.data.filter(
+            (cls: Class) => cls.schoolId === userObjectId
+          );
+        }
+        
+        // If no classes found with ObjectId, try with string schoolId as fallback
+        if (schoolClasses.length === 0 && schoolId) {
+          schoolClasses = data.data.filter(
+            (cls: Class) => cls.schoolId === schoolId
+          );
+        }
+        
+        console.log('Filtered classes:', schoolClasses.length, 'out of', data.data.length);
+        console.log('User ObjectId:', userObjectId, 'Student schoolId:', schoolId);
+        
+        setClasses(schoolClasses);
+      } else {
+        console.error('Unexpected classes data format:', data);
+        setClasses([]);
+      }
+    } catch (err) {
+      console.error('Classes fetch error:', err);
+      setSnackbar({
+        open: true,
+        message: 'Failed to load classes: ' + (err instanceof Error ? err.message : 'Unknown error'),
+        severity: 'error',
+      });
+    } finally {
+      setClassesLoading(false);
+    }
   }, [authToken, schoolId, API_BASE_URL]);
 
+  const fetchStudents = useCallback(async () => {
+    if (!authToken || !schoolId) return;
+
+    setLoading(true);
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/users/getstudentbyid?id=${encodeURIComponent(schoolId)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) throw new Error('Failed to fetch students');
+      
+      const data = await response.json();
+      let studentArray: Student[] = [];
+      
+      if (data && Array.isArray(data.data)) {
+        studentArray = data.data.map((student: Student) => ({
+          _id: student._id, // For backward compatibility
+          firstName: student.firstName,
+          lastName: student.lastName,
+          name: student.name || `${student.firstName} ${student.lastName}`,
+          email: student.email,
+          academicDetails: student.academicDetails || { classAdmittedTo: '' },
+          classAdmittedTo: student.academicDetails?.classAdmittedTo || 'Not Assigned',
+          status: student.status,
+          createdAt: student.createdAt,
+        }));
+      } else {
+        console.error('Unexpected students data format:', data);
+      }
+
+      setStudents(studentArray);
+    } catch (err) {
+      console.error(err);
+      setSnackbar({
+        open: true,
+        message: 'Failed to load student data: ' + (err instanceof Error ? err.message : 'Unknown error'),
+        severity: 'error',
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [authToken, schoolId, API_BASE_URL]);
+
+  // Initial data fetching
+  useEffect(() => {
+    fetchUserProfile();
+  }, [fetchUserProfile]);
+
+  useEffect(() => {
+    if (schoolId) {
+      fetchClasses();
+      fetchStudents();
+    }
+  }, [schoolId, fetchClasses, fetchStudents]);
+
+  // Event handlers
+  const handleCopyLink = useCallback(() => {
+    if (!registrationLink) return;
+    
+    navigator.clipboard
+      .writeText(registrationLink)
+      .then(() =>
+        setSnackbar({
+          open: true,
+          message: 'Registration link copied to clipboard!',
+          severity: 'success',
+        })
+      )
+      .catch(() =>
+        setSnackbar({
+          open: true,
+          message: 'Failed to copy link',
+          severity: 'error',
+        })
+      );
+  }, [registrationLink]);
+
+  const handleMenuOpen = useCallback((e: React.MouseEvent, student: Student) => {
+    e.preventDefault();
+    setMenuStudent(student);
+    setMenuPosition({ top: e.clientY, left: e.clientX });
+    setIsMenuOpen(true);
+  }, []);
+
+  const handleMenuClose = useCallback(() => {
+    setIsMenuOpen(false);
+    setMenuStudent(null);
+  }, []);
+
+  const handleActivateDeactivate = useCallback(async (student: Student) => {
+    if (!authToken) {
+      setSnackbar({
+        open: true,
+        message: 'Authentication token missing',
+        severity: 'error',
+      });
+      return;
+    }
+
+    const endpoint = 
+      student.status.toLowerCase() === 'active'
+        ? `${API_BASE_URL}/api/users/deactive/${student._id}`
+        : `${API_BASE_URL}/api/users/active/${student._id}`;
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update student status');
+      }
+
+      const data = await response.json();
+      
+      // Update the student status in the local state
+      setStudents(prevStudents =>
+        prevStudents.map(s =>
+          s._id === student._id
+            ? { ...s, status: data.status || (student.status.toLowerCase() === 'active' ? 'inactive' : 'active') }
+            : s
+        )
+      );
+
+      setSnackbar({
+        open: true,
+        message: `Student ${student.status.toLowerCase() === 'active' ? 'deactivated' : 'activated'} successfully`,
+        severity: 'success',
+      });
+    } catch (error) {
+      console.error('Error updating student status:', error);
+      setSnackbar({
+        open: true,
+        message: error instanceof Error ? error.message : 'Failed to update student status',
+        severity: 'error',
+      });
+    } finally {
+      handleMenuClose();
+    }
+  }, [authToken, API_BASE_URL, handleMenuClose]);
+
+  const fetchParents = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/getparent`, {
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch parents');
+      
+      const data = await response.json();
+      setAvailableParents(data.data || []);
+    } catch (error) {
+      console.error('Error fetching parents:', error);
+      setSnackbar({
+        open: true,
+        message: 'Failed to load available parents',
+        severity: 'error',
+      });
+    }
+  }, [authToken, API_BASE_URL]);
+
+  const handleUpdateGuardian = useCallback(async () => {
+    if (!guardianEmail || !selectedStudent) return;
+
+    setGuardianLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/updateguardian`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          guardianEmail: guardianEmail,
+          kidEmail: selectedStudent.email,
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to update guardian');
+      
+      await response.json();
+
+      setSnackbar({
+        open: true,
+        message: 'Guardian updated successfully!',
+        severity: 'success',
+      });
+
+      setIsGuardianModalOpen(false);
+      setGuardianEmail('');
+      setSelectedStudent(null);
+    } catch (error) {
+      console.error('Error updating guardian:', error);
+      setSnackbar({
+        open: true,
+        message: error instanceof Error ? error.message : 'Failed to update guardian',
+        severity: 'error',
+      });
+    } finally {
+      setGuardianLoading(false);
+    }
+  }, [guardianEmail, selectedStudent, authToken, API_BASE_URL]);
+
+  const handleGuardianClick = useCallback((student: Student) => {
+    setSelectedStudent(student);
+    setIsGuardianModalOpen(true);
+    fetchParents();
+    handleMenuClose();
+  }, [fetchParents, handleMenuClose]);
+
+  // Data processing
   const filteredStudents = students.filter((s) => {
     const matchesSearch =
       s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -288,85 +514,6 @@ useEffect(() => {
   );
   const pageCount = Math.ceil(filteredStudents.length / rowsPerPage);
 
-  const getStatusBadgeColor = (status: string): string => {
-    switch (status?.toLowerCase()) {
-      case 'active':
-        return 'bg-green-100 text-green-800';
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'inactive':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'active':
-        return <CheckCircleIcon className="h-4 w-4" />;
-      case 'pending':
-        return <ClockIcon className="h-4 w-4" />;
-      case 'inactive':
-        return <XCircleIcon className="h-4 w-4" />;
-      default:
-        return <ClockIcon className="h-4 w-4" />;
-    }
-  };
-
-  const getSchoolTypeIcon = (schoolType: string) => {
-    switch (schoolType?.toLowerCase()) {
-      case 'primary':
-        return <BookOpenIcon className="h-5 w-5 text-blue-600" />;
-      case 'secondary':
-        return <GraduationCapIcon className="h-5 w-5 text-purple-600" />;
-      case 'tertiary':
-        return <SchoolIcon className="h-5 w-5 text-green-600" />;
-      default:
-        return <SchoolIcon className="h-5 w-5 text-gray-600" />;
-    }
-  };
-
-  const handleCopyLink = () => {
-    if (!registrationLink) return;
-    navigator.clipboard
-      .writeText(registrationLink)
-      .then(() =>
-        setSnackbar({
-          open: true,
-          message: 'Registration link copied to clipboard!',
-          severity: 'success',
-        })
-      )
-      .catch(() =>
-        setSnackbar({
-          open: true,
-          message: 'Failed to copy link',
-          severity: 'error',
-        })
-      );
-  };
-
-  const handleMenuOpen = (e: React.MouseEvent, student: Student) => {
-    e.preventDefault();
-    setMenuStudent(student);
-    setMenuPosition({ top: e.clientY, left: e.clientX });
-    setIsMenuOpen(true);
-  };
-
-  const handleMenuClose = () => {
-    setIsMenuOpen(false);
-    setMenuStudent(null);
-  };
-
-  const formatDate = (dateString: string): string => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
-
   // Get unique classes from both classes API and student records
   const availableClasses = [
     ...new Set(
@@ -379,61 +526,7 @@ useEffect(() => {
       )
     ),
   ].sort();
-    const handleActivateDeactivate = async (student: Student) => {
-  if (!authToken) {
-    setSnackbar({
-      open: true,
-      message: 'Authentication token missing',
-      severity: 'error',
-    });
-    return;
-  }
 
-  const endpoint = 
-    student.status.toLowerCase() === 'active'
-      ? `${API_BASE_URL}/api/users/deactive/${student._id}`
-      : `${API_BASE_URL}/api/users/active/${student._id}`;
-
-  try {
-    const response = await fetch(endpoint, {
-      method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${authToken}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to update student status');
-    }
-
-    const data = await response.json();
-    
-    // Update the student status in the local state
-    setStudents(prevStudents =>
-      prevStudents.map(s =>
-        s._id === student._id
-          ? { ...s, status: data.status || (student.status.toLowerCase() === 'active' ? 'inactive' : 'active') }
-          : s
-      )
-    );
-
-    setSnackbar({
-      open: true,
-      message: `Student ${student.status.toLowerCase() === 'active' ? 'deactivated' : 'activated'} successfully`,
-      severity: 'success',
-    });
-  } catch (error) {
-    console.error('Error updating student status:', error);
-    setSnackbar({
-      open: true,
-      message: error instanceof Error ? error.message : 'Failed to update student status',
-      severity: 'error',
-    });
-  } finally {
-    handleMenuClose();
-  }
-};
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
       <Header profilePath="/settings"/>
@@ -455,8 +548,7 @@ useEffect(() => {
                 } else {
                   setSnackbar({
                     open: true,
-                    message:
-                      'School information is missing. Cannot generate registration link.',
+                    message: 'School information is missing. Cannot generate registration link.',
                     severity: 'error',
                   });
                 }
@@ -506,41 +598,41 @@ useEffect(() => {
               </div>
             </div>
 
-           <div className="bg-white rounded-xl shadow-sm p-4 md:p-6 border border-gray-100 hover:shadow-md transition-shadow">
-  <div className="flex items-center justify-between">
-    <div>
-      <p className="text-sm md:text-base text-gray-600 font-medium mb-1">
-        Total Classes
-      </p>
-      <p className="text-2xl md:text-3xl font-bold text-purple-600">
-        {classes.length}
-      </p>
-    </div>
-    <div className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 bg-purple-100 rounded-lg">
-      <BookOpenIcon className="h-5 w-5 md:h-6 md:w-6 text-purple-600" />
-    </div>
-  </div>
-</div>
+            <div className="bg-white rounded-xl shadow-sm p-4 md:p-6 border border-gray-100 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm md:text-base text-gray-600 font-medium mb-1">
+                    Total Classes
+                  </p>
+                  <p className="text-2xl md:text-3xl font-bold text-purple-600">
+                    {classes.length}
+                  </p>
+                </div>
+                <div className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 bg-purple-100 rounded-lg">
+                  <BookOpenIcon className="h-5 w-5 md:h-6 md:w-6 text-purple-600" />
+                </div>
+              </div>
+            </div>
 
-           <div className="bg-white rounded-xl shadow-sm p-4 md:p-6 border border-gray-100 hover:shadow-md transition-shadow">
-  <div className="flex items-center justify-between">
-    <div>
-      <p className="text-sm md:text-base text-gray-600 font-medium mb-1">
-        Inactive Students
-      </p>
-      <p className="text-2xl md:text-3xl font-bold text-red-600">
-        {
-          students.filter(
-            (s) => s.status.toLowerCase() === 'inactive'
-          ).length
-        }
-      </p>
-    </div>
-    <div className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 bg-red-100 rounded-lg">
-      <XCircleIcon className="h-5 w-5 md:h-6 md:w-6 text-red-600" />
-    </div>
-  </div>
-</div>
+            <div className="bg-white rounded-xl shadow-sm p-4 md:p-6 border border-gray-100 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm md:text-base text-gray-600 font-medium mb-1">
+                    Inactive Students
+                  </p>
+                  <p className="text-2xl md:text-3xl font-bold text-red-600">
+                    {
+                      students.filter(
+                        (s) => s.status.toLowerCase() === 'inactive'
+                      ).length
+                    }
+                  </p>
+                </div>
+                <div className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 bg-red-100 rounded-lg">
+                  <XCircleIcon className="h-5 w-5 md:h-6 md:w-6 text-red-600" />
+                </div>
+              </div>
+            </div>
           </div>
            
           {/* School Classes Overview */}
@@ -854,71 +946,151 @@ useEffect(() => {
       </div>
       <Footer />
 
-   {/* Context Menu */}
-{isMenuOpen && menuStudent && (
-  <>
-    <div 
-      className="fixed inset-0 z-10" 
-      onClick={handleMenuClose}
-    ></div>
-    <div
-      className="fixed z-20 bg-white rounded-lg shadow-lg py-2 w-56 border border-gray-200"
-      style={{
-        top: `${Math.min(menuPosition.top, window.innerHeight - 200)}px`,
-        left: `${Math.min(menuPosition.left - 100, window.innerWidth - 224)}px`,
-      }}
-    >
-      <button
-        className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
-        onClick={() => {
-          handleMenuClose();
-          window.location.href = `/students/edit/${menuStudent._id}`;
-        }}
-      >
-        <UserIcon className="h-4 w-4" />
-        View Details
-      </button>
-      <button
-        className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
-        onClick={() => {
-          handleMenuClose();
-          window.location.href = `/students/transactions/${menuStudent._id}`;
-        }}
-      >
-        <CalendarIcon className="h-4 w-4" />
-        Transaction Info
-      </button>
-      <button
-        className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
-        onClick={handleMenuClose}
-      >
-        <MailIcon className="h-4 w-4" />
-        Reset Password
-      </button>
-      <div className="border-t border-gray-100 my-1"></div>
-    <button
-  className={`flex items-center gap-3 px-4 py-2 text-sm hover:bg-gray-50 w-full text-left ${
-    menuStudent.status.toLowerCase() === 'active'
-      ? 'text-red-600'
-      : 'text-green-600'
-  }`}
-  onClick={() => handleActivateDeactivate(menuStudent)}
->
-  {menuStudent.status.toLowerCase() === 'active' ? (
-    <>
-      <XCircleIcon className="h-4 w-4" />
-      Deactivate Student
-    </>
-  ) : (
-    <>
-      <CheckCircleIcon className="h-4 w-4" />
-      Activate Student
-    </>
-  )}
-</button>
-    </div>
-  </>
-)}
+      {/* Context Menu */}
+      {isMenuOpen && menuStudent && (
+        <>
+          <div 
+            className="fixed inset-0 z-10" 
+            onClick={handleMenuClose}
+          ></div>
+          <div
+            className="fixed z-20 bg-white rounded-lg shadow-lg py-2 w-56 border border-gray-200"
+            style={{
+              top: `${Math.min(menuPosition.top, window.innerHeight - 200)}px`,
+              left: `${Math.min(menuPosition.left - 100, window.innerWidth - 224)}px`,
+            }}
+          >
+            <button
+              className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
+              onClick={() => {
+                handleMenuClose();
+                window.location.href = `/students/edit/${menuStudent._id}`;
+              }}
+            >
+              <UserIcon className="h-4 w-4" />
+              View Details
+            </button>
+            <button
+              className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
+              onClick={() => {
+                handleMenuClose();
+                window.location.href = `/students/transactions/${menuStudent._id}`;
+              }}
+            >
+              <CalendarIcon className="h-4 w-4" />
+              Transaction Info
+            </button>
+            <button
+              className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
+              onClick={handleMenuClose}
+            >
+              <MailIcon className="h-4 w-4" />
+              Reset Password
+            </button>
+            <button
+              className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
+              onClick={() => handleGuardianClick(menuStudent)}
+            >
+              <UsersIcon className="h-4 w-4" />
+              Assign Guardian
+            </button>
+            <div className="border-t border-gray-100 my-1"></div>
+            <button
+              className={`flex items-center gap-3 px-4 py-2 text-sm hover:bg-gray-50 w-full text-left ${
+                menuStudent.status.toLowerCase() === 'active'
+                  ? 'text-red-600'
+                  : 'text-green-600'
+              }`}
+              onClick={() => handleActivateDeactivate(menuStudent)}
+            >
+              {menuStudent.status.toLowerCase() === 'active' ? (
+                <>
+                  <XCircleIcon className="h-4 w-4" />
+                  Deactivate Student
+                </>
+              ) : (
+                <>
+                  <CheckCircleIcon className="h-4 w-4" />
+                  Activate Student
+                </>
+              )}
+            </button>
+          </div>
+        </>
+      )}
+      
+      {/* Guardian Assignment Modal */}
+      {isGuardianModalOpen && selectedStudent && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={() => setIsGuardianModalOpen(false)}></div>
+            
+            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div className="sm:flex sm:items-start">
+                  <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 sm:mx-0 sm:h-10 sm:w-10">
+                    <UsersIcon className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                    <h3 className="text-lg leading-6 font-medium text-gray-900">
+                      Assign Guardian
+                    </h3>
+                    <div className="mt-2">
+                      <p className="text-sm text-gray-500 mb-4">
+                        Assign a guardian to student: <strong>{selectedStudent.name}</strong>
+                      </p>
+                      
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Select Guardian
+                          </label>
+                          <select
+                            value={guardianEmail}
+                            onChange={(e) => setGuardianEmail(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          >
+                            <option value="">Select a guardian...</option>
+                            {availableParents.map((parent) => (
+                              <option key={parent._id} value={parent.email}>
+                                {parent.name} ({parent.email})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                <button
+                  type="button"
+                  onClick={handleUpdateGuardian}
+                  disabled={!guardianEmail || guardianLoading}
+                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {guardianLoading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Assigning...
+                    </>
+                  ) : (
+                    'Assign Guardian'
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsGuardianModalOpen(false)}
+                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Snackbar */}
       {snackbar.open && (
