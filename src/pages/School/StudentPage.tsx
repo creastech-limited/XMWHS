@@ -422,27 +422,43 @@ const StudentPage: React.FC = () => {
   }, [authToken, API_BASE_URL, handleMenuClose]);
 
   const fetchParents = useCallback(async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/users/getparent`, {
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
+  try {
+    console.log('Fetching parents...'); // Debug log
+    const response = await fetch(`${API_BASE_URL}/api/users/getparents`, {
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
 
-      if (!response.ok) throw new Error('Failed to fetch parents');
-      
-      const data = await response.json();
-      setAvailableParents(data.data || []);
-    } catch (error) {
-      console.error('Error fetching parents:', error);
-      setSnackbar({
-        open: true,
-        message: 'Failed to load available parents',
-        severity: 'error',
-      });
+    if (!response.ok) throw new Error('Failed to fetch parents');
+    
+    const data = await response.json();
+    console.log('Parents API response:', data); // Debug log
+    
+    // Handle different response structures
+    let parentsArray = [];
+    if (Array.isArray(data)) {
+      parentsArray = data;
+    } else if (data.parent && Array.isArray(data.parent)) {
+      parentsArray = data.parent;
+    } else if (data.data && Array.isArray(data.data)) {
+      parentsArray = data.data;
+    } else if (data.parents && Array.isArray(data.parents)) {
+      parentsArray = data.parents;
     }
-  }, [authToken, API_BASE_URL]);
+    
+    console.log('Processed parents array:', parentsArray); // Debug log
+    setAvailableParents(parentsArray);
+  } catch (error) {
+    console.error('Error fetching parents:', error);
+    setSnackbar({
+      open: true,
+      message: 'Failed to load available parents',
+      severity: 'error',
+    });
+  }
+}, [authToken, API_BASE_URL]);
 
   const handleUpdateGuardian = useCallback(async () => {
     if (!guardianEmail || !selectedStudent) return;
@@ -487,11 +503,13 @@ const StudentPage: React.FC = () => {
   }, [guardianEmail, selectedStudent, authToken, API_BASE_URL]);
 
   const handleGuardianClick = useCallback((student: Student) => {
-    setSelectedStudent(student);
-    setIsGuardianModalOpen(true);
-    fetchParents();
-    handleMenuClose();
-  }, [fetchParents, handleMenuClose]);
+  console.log('Guardian click triggered for student:', student); // Debug log
+  setSelectedStudent(student);
+  setIsGuardianModalOpen(true);
+  console.log('Modal should be opening, isGuardianModalOpen:', true); // Debug log
+  fetchParents();
+  handleMenuClose();
+}, [fetchParents, handleMenuClose]);
 
   // Data processing
   const filteredStudents = students.filter((s) => {
