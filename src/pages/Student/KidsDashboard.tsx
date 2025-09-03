@@ -380,22 +380,24 @@ const processAnalyticsData = (transactionData: Transaction[]) => {
   };
 
   // Get transaction display name
-  const getTransactionDisplayName = (tx: Transaction): string => {
-    if (
-      tx.senderWalletId &&
-      tx.senderWalletId.firstName &&
-      tx.senderWalletId.lastName
-    ) {
-      return `${tx.senderWalletId.firstName} ${tx.senderWalletId.lastName}`;
-    } else if (tx.senderWalletId && tx.senderWalletId.email) {
-      return tx.senderWalletId.email.split('@')[0];
-    } else if (tx.metadata && tx.metadata.senderEmail) {
-      return tx.metadata.senderEmail.split('@')[0];
-    } else if (tx.transactionType) {
-      return formatTransactionType(tx.transactionType);
-    }
-    return tx.description || 'Transaction';
-  };
+const getTransactionDisplayName = (tx: Transaction): string => {
+  // First check if there's a meaningful description
+  if (tx.description && tx.description !== 'No description provided') {
+    return tx.description;
+  }
+  
+  // Then check for sender/receiver names
+  if (tx.senderWalletId && tx.senderWalletId.firstName && tx.senderWalletId.lastName) {
+    return `${tx.senderWalletId.firstName} ${tx.senderWalletId.lastName}`;
+  } else if (tx.senderWalletId && tx.senderWalletId.email) {
+    return tx.senderWalletId.email.split('@')[0];
+  } else if (tx.metadata && tx.metadata.senderEmail) {
+    return tx.metadata.senderEmail.split('@')[0];
+  } else if (tx.transactionType) {
+    return formatTransactionType(tx.transactionType);
+  }
+  return 'Transaction';
+};
 
   // Show notification
   const showNotification = (message: string, type: string) => {
@@ -655,81 +657,93 @@ const processAnalyticsData = (transactionData: Transaction[]) => {
           </div>
         ) : (
           <div className="space-y-4">
-           {recentTransactions.length > 0 ? (
-  recentTransactions.map((tx) => {
-    // Determine transaction type and color
-    const isPending = tx.status === 'pending';
-    const isCredit = tx.category === 'credit' || (tx.amount > 0 && !isPending);
+ {recentTransactions.length > 0 ? (
+   recentTransactions.map((tx) => {
+     // Use the category from API response directly
+     const isPending = tx.status === 'pending';
+     const isCredit = tx.category === 'credit';
+     const isFailed = tx.status === 'failed';
 
-    return (
-      <div
-        key={tx._id}
-        className="flex items-center justify-between p-3 hover:bg-gray-100 rounded-lg transition border border-gray-200"
-      >
-        <div className="flex items-center">
-          <div
-            className={`w-10 h-10 rounded-full flex items-center justify-center ${
-              isPending
-                ? 'bg-yellow-100 text-yellow-600'
-                : isCredit
-                ? 'bg-green-100 text-green-600'
-                : 'bg-red-100 text-red-600'
-            }`}
-          >
-            {isPending ? (
-              <AlertCircle className="w-5 h-5" />
-            ) : isCredit ? (
-              <ArrowDown className="w-5 h-5" />
-            ) : (
-              <ArrowUp className="w-5 h-5" />
-            )}
-          </div>
-          <div className="ml-3">
-            <p className="font-medium text-gray-800">
-              {getTransactionDisplayName(tx)}
-            </p>
-            <p className="text-sm text-gray-600">
-              {tx.description} •{' '}
-              {new Date(tx.createdAt).toLocaleDateString()}
-            </p>
-            {isPending && (
-              <span className="text-xs text-yellow-600 mt-1">
-                Pending
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="text-right">
-          <p
-            className={`font-bold ${
-              isPending
-                ? 'text-yellow-600'
-                : isCredit
-                ? 'text-green-600'
-                : 'text-red-600'
-            }`}
-          >
-            {isPending ? '⏳' : isCredit ? '+' : '-'}₦
-            {Math.abs(tx.amount).toLocaleString()}
-          </p>
-          {tx.balanceAfter !== undefined && (
-            <p className="text-xs text-gray-500">
-              Balance: ₦{tx.balanceAfter.toLocaleString()}
-            </p>
-          )}
-        </div>
-      </div>
-    );
-  })
-) : (
-              <div className="text-center py-10 bg-gray-50 rounded-lg">
-                <History className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500">No transactions found.</p>
-                <p className="text-gray-400 text-sm mt-1">
-                  Your transaction history will appear here.
-                </p>
-              </div>
-            )}
+     return (
+       <div
+         key={tx._id}
+         className="flex items-center justify-between p-3 hover:bg-gray-100 rounded-lg transition border border-gray-200"
+       >
+         <div className="flex items-center">
+           <div
+             className={`w-10 h-10 rounded-full flex items-center justify-center ${
+               isFailed
+                 ? 'bg-red-100 text-red-600'
+                 : isPending
+                 ? 'bg-yellow-100 text-yellow-600'
+                 : isCredit
+                 ? 'bg-green-100 text-green-600'
+                 : 'bg-red-100 text-red-600'
+             }`}
+           >
+             {isFailed ? (
+               <AlertCircle className="w-5 h-5" />
+             ) : isPending ? (
+               <AlertCircle className="w-5 h-5" />
+             ) : isCredit ? (
+               <ArrowDown className="w-5 h-5" />
+             ) : (
+               <ArrowUp className="w-5 h-5" />
+             )}
+           </div>
+           <div className="ml-3">
+             <p className="font-medium text-gray-800">
+               {getTransactionDisplayName(tx)}
+             </p>
+             <p className="text-sm text-gray-600">
+               {formatTransactionType(tx.transactionType)} • {new Date(tx.createdAt).toLocaleDateString()}
+             </p>
+             <div className="flex items-center gap-2 mt-1">
+               <span className={`text-xs px-2 py-1 rounded-full ${
+                 isFailed
+                   ? 'bg-red-100 text-red-600'
+                   : isPending
+                   ? 'bg-yellow-100 text-yellow-600'
+                   : isCredit
+                   ? 'bg-green-100 text-green-600'
+                   : 'bg-red-100 text-red-600'
+               }`}>
+                 {isFailed ? 'Failed' : isPending ? 'Pending' : isCredit ? 'Credit' : 'Debit'}
+               </span>
+             </div>
+           </div>
+         </div>
+         <div className="text-right">
+           <p className={`font-bold ${
+             isFailed
+               ? 'text-red-600'
+               : isPending
+               ? 'text-yellow-600'
+               : isCredit
+               ? 'text-green-600'
+               : 'text-red-600'
+           }`}>
+             {isFailed ? '✗' : isPending ? '⏳' : isCredit ? '+' : '-'}₦
+             {Math.abs(tx.amount).toLocaleString()}
+           </p>
+           {tx.balanceAfter !== undefined && (
+             <p className="text-xs text-gray-500">
+               Balance: ₦{tx.balanceAfter.toLocaleString()}
+             </p>
+           )}
+         </div>
+       </div>
+     );
+   })
+ ) : (
+   <div className="text-center py-10 bg-gray-50 rounded-lg">
+     <History className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+     <p className="text-gray-500">No transactions found.</p>
+     <p className="text-gray-400 text-sm mt-1">
+       Your transaction history will appear here.
+     </p>
+   </div>
+ )}
           </div>
         )}
 
