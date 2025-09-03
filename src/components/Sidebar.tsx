@@ -119,7 +119,7 @@ export const Sidebar: React.FC = () => {
               </div>
               <div>
                 <div className="font-bold text-xl tracking-tight bg-gradient-to-r from-blue-200 to-white bg-clip-text text-transparent">
-                  Admin Panel
+                  School Panel
                 </div>
                 <div className="text-xs text-blue-300 opacity-80">Management System</div>
               </div>
@@ -206,7 +206,7 @@ export const Sidebar: React.FC = () => {
           {/* Admin version */}
           {!collapsed && (
             <div className="px-4 py-3 text-center">
-              <div className="text-xs text-blue-400 font-medium">Admin Panel</div>
+              <div className="text-xs text-blue-400 font-medium">School Panel</div>
               <div className="text-xs text-blue-500 opacity-80">Version 1.0.0</div>
             </div>
           )}
