@@ -5,7 +5,6 @@ import {
   CheckCircleIcon,
   ExclamationCircleIcon,
   UserIcon,
-  MagnifyingGlassIcon
 } from '@heroicons/react/24/outline';
 import { Header } from '../../components/Header';
 import Psidebar from '../../components/Psidebar';
@@ -98,7 +97,7 @@ const PaySchoolBillsPage: React.FC = () => {
   const [selectedStudent, setSelectedStudent] = useState<string>('');
   const [students, setStudents] = useState<Student[]>([]);
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
-  const [searchTerm, setSearchTerm] = useState<string>('');
+  
   const [bills, setBills] = useState<BillsData>({});
   const [loading, setLoading] = useState<boolean>(true);
   const [loadingFees, setLoadingFees] = useState<boolean>(false);
@@ -121,19 +120,7 @@ const PaySchoolBillsPage: React.FC = () => {
   const auth = useAuth();
 
   // Filter students based on search term
-  useEffect(() => {
-    if (searchTerm.trim() === '') {
-      setFilteredStudents(students);
-    } else {
-      const term = searchTerm.toLowerCase();
-      const filtered = students.filter(student => 
-        student.fullName.toLowerCase().includes(term) || 
-        student.email.toLowerCase().includes(term)
-      );
-      setFilteredStudents(filtered);
-    }
-  }, [searchTerm, students]);
-
+ 
   // Show snackbar message
   const showSnackbar = useCallback((message: string, severity: SnackbarState['severity'] = 'info') => {
     setSnackbar({ open: true, message, severity });
@@ -213,7 +200,7 @@ const PaySchoolBillsPage: React.FC = () => {
     try {
       console.log('Fetching students...');
       
-      const response = await fetch(`${API_BASE_URL}/api/users/getallsudent`, {
+      const response = await fetch(`${API_BASE_URL}/api/users/getmychildren`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${authToken}`,
@@ -584,28 +571,10 @@ const PaySchoolBillsPage: React.FC = () => {
               {user?.firstName ? `${user.firstName}'s` : 'Your'} school fees payment portal
             </p>
 
-            <div className="mb-8">
-              <label htmlFor="search-student" className="block text-sm font-medium text-gray-700 mb-2">
-                Search Student ({students.length} students found)
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                  <MagnifyingGlassIcon className="h-5 w-5 text-gray-500" />
-                </div>
-                <input
-                  type="text"
-                  id="search-student"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search by student name or email..."
-                  className="pl-10 block w-full rounded-lg border-gray-300 border py-3 px-4 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                />
-              </div>
-            </div>
 
             <div className="mb-8">
               <label htmlFor="select-student" className="block text-sm font-medium text-gray-700 mb-2">
-                Select Student ({filteredStudents.length} students matching)
+                Select Child ({filteredStudents.length} students matching)
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">

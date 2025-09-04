@@ -33,7 +33,13 @@ interface Student {
   };
   status: string;
   createdAt: string;
-  classAdmittedTo?: string; // For backward compatibility
+  classAdmittedTo?: string; 
+   guardian?: {
+    fullName: string;
+    relationship: string;
+    email: string;
+    
+  };
 }
 
 interface Class {
@@ -301,7 +307,8 @@ const StudentPage: React.FC = () => {
           classAdmittedTo: student.academicDetails?.classAdmittedTo || 'Not Assigned',
           status: student.status,
           createdAt: student.createdAt,
-        }));
+    guardian: student.guardian,
+  }));
       } else {
         console.error('Unexpected students data format:', data);
       }
@@ -422,43 +429,45 @@ const StudentPage: React.FC = () => {
   }, [authToken, API_BASE_URL, handleMenuClose]);
 
   const fetchParents = useCallback(async () => {
-  try {
-    console.log('Fetching parents...'); // Debug log
-    const response = await fetch(`${API_BASE_URL}/api/users/getparents`, {
-      headers: {
-        Authorization: `Bearer ${authToken}`,
-        'Content-Type': 'application/json',
-      },
-    });
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/getparents`, {
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-    if (!response.ok) throw new Error('Failed to fetch parents');
-    
-    const data = await response.json();
-    console.log('Parents API response:', data); // Debug log
-    
-    // Handle different response structures
-    let parentsArray = [];
-    if (Array.isArray(data)) {
-      parentsArray = data;
-    } else if (data.parent && Array.isArray(data.parent)) {
-      parentsArray = data.parent;
-    } else if (data.data && Array.isArray(data.data)) {
-      parentsArray = data.data;
-    } else if (data.parents && Array.isArray(data.parents)) {
-      parentsArray = data.parents;
+      if (!response.ok) throw new Error('Failed to fetch parents');
+      
+      const data = await response.json();
+      console.log('Parents API full response:', data);
+      
+      // Extract parents based on the response structure you provided
+      let parentsArray = [];
+      
+      if (data.parent && Array.isArray(data.parent)) {
+        // If response has a parent array
+        parentsArray = data.parent;
+      } else if (data.data && Array.isArray(data.data)) {
+        // If response has a data array
+        parentsArray = data.data;
+      } else if (Array.isArray(data)) {
+        // If response is directly an array
+        parentsArray = data;
+      }
+      
+      console.log('Processed parents:', parentsArray);
+      setAvailableParents(parentsArray);
+    } catch (error) {
+      console.error('Error fetching parents:', error);
+      setSnackbar({
+        open: true,
+        message: 'Failed to load available parents',
+        severity: 'error',
+      });
     }
-    
-    console.log('Processed parents array:', parentsArray); // Debug log
-    setAvailableParents(parentsArray);
-  } catch (error) {
-    console.error('Error fetching parents:', error);
-    setSnackbar({
-      open: true,
-      message: 'Failed to load available parents',
-      severity: 'error',
-    });
-  }
-}, [authToken, API_BASE_URL]);
+  }, [authToken, API_BASE_URL]);
+
 
   const handleUpdateGuardian = useCallback(async () => {
     if (!guardianEmail || !selectedStudent) return;
@@ -477,9 +486,13 @@ const StudentPage: React.FC = () => {
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to update guardian');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update guardian');
+      }
       
-      await response.json();
+      const result = await response.json();
+      console.log('Guardian update result:', result);
 
       setSnackbar({
         open: true,
@@ -502,14 +515,23 @@ const StudentPage: React.FC = () => {
     }
   }, [guardianEmail, selectedStudent, authToken, API_BASE_URL]);
 
-  const handleGuardianClick = useCallback((student: Student) => {
-  console.log('Guardian click triggered for student:', student); // Debug log
-  setSelectedStudent(student);
-  setIsGuardianModalOpen(true);
-  console.log('Modal should be opening, isGuardianModalOpen:', true); // Debug log
-  fetchParents();
-  handleMenuClose();
-}, [fetchParents, handleMenuClose]);
+  const handleGuardianClick = useCallback(async (student: Student) => {
+    console.log('Guardian click for student:', student);
+    setSelectedStudent(student);
+    setGuardianEmail('');
+    
+    // Fetch parents first, then open modal
+    try {
+      await fetchParents();
+      setIsGuardianModalOpen(true);
+      console.log('Modal should be open now');
+    } catch (error) {
+      console.error('Error preparing guardian modal:', error);
+    }
+    
+    handleMenuClose();
+  }, [fetchParents, handleMenuClose]);
+
 
   // Data processing
   const filteredStudents = students.filter((s) => {
@@ -809,6 +831,9 @@ const StudentPage: React.FC = () => {
                         Student Details
                       </th>
                       <th className="px-4 py-3 md:px-6 md:py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+  Guardian
+</th>
+                      <th className="px-4 py-3 md:px-6 md:py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                         Class
                       </th>
                       <th className="px-4 py-3 md:px-6 md:py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
@@ -851,6 +876,18 @@ const StudentPage: React.FC = () => {
                             </div>
                           </div>
                         </td>
+                         <td className="px-4 py-3 md:px-6 md:py-4 whitespace-nowrap">
+  {student.guardian ? (
+    <div className="text-sm text-gray-900">
+      <div className="font-medium">{student.guardian.fullName}</div>
+      <div className="text-xs text-gray-500">
+        {student.guardian.relationship} • {student.guardian.email}
+      </div>
+    </div>
+  ) : (
+    <span className="text-xs text-gray-500 italic">No guardian assigned</span>
+  )}
+</td>
                         <td className="px-4 py-3 md:px-6 md:py-4 whitespace-nowrap">
                           <div className="flex items-center gap-2">
                             <BookOpenIcon className="h-4 w-4 text-gray-400" />
@@ -1039,77 +1076,97 @@ const StudentPage: React.FC = () => {
       
       {/* Guardian Assignment Modal */}
       {isGuardianModalOpen && selectedStudent && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={() => setIsGuardianModalOpen(false)}></div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+          <div 
+            className="bg-white rounded-lg w-full max-w-md mx-auto p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center mb-4">
+              <div className="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">
+                <UsersIcon className="h-6 w-6 text-blue-600" />
+              </div>
+              <div className="ml-4">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Assign Guardian
+                </h3>
+                <p className="text-sm text-gray-500">
+                  For student: <strong>{selectedStudent.name}</strong>
+                </p>
+              </div>
+            </div>
             
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <div className="sm:flex sm:items-start">
-                  <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 sm:mx-0 sm:h-10 sm:w-10">
-                    <UsersIcon className="h-6 w-6 text-blue-600" />
-                  </div>
-                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                    <h3 className="text-lg leading-6 font-medium text-gray-900">
-                      Assign Guardian
-                    </h3>
-                    <div className="mt-2">
-                      <p className="text-sm text-gray-500 mb-4">
-                        Assign a guardian to student: <strong>{selectedStudent.name}</strong>
-                      </p>
-                      
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Select Guardian
-                          </label>
-                          <select
-                            value={guardianEmail}
-                            onChange={(e) => setGuardianEmail(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          >
-                            <option value="">Select a guardian...</option>
-                            {availableParents.map((parent) => (
-                              <option key={parent._id} value={parent.email}>
-                                {parent.name} ({parent.email})
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Guardian
+              </label>
+              
+              {availableParents.length === 0 ? (
+                <div className="text-center py-4 text-gray-500">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                  Loading parents...
                 </div>
-              </div>
-              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                <button
-                  type="button"
-                  onClick={handleUpdateGuardian}
-                  disabled={!guardianEmail || guardianLoading}
-                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              ) : (
+                <select
+                  value={guardianEmail}
+                  onChange={(e) => setGuardianEmail(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
                 >
-                  {guardianLoading ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Assigning...
-                    </>
-                  ) : (
-                    'Assign Guardian'
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsGuardianModalOpen(false)}
-                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-                >
-                  Cancel
-                </button>
-              </div>
+                  <option value="">Select a guardian...</option>
+                  {availableParents.map((parent) => (
+                    <option key={parent._id} value={parent.email}>
+                      {parent.name} ({parent.email})
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            
+            <div className="flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={() => setIsGuardianModalOpen(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleUpdateGuardian}
+                disabled={!guardianEmail || guardianLoading}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {guardianLoading ? (
+                  <>
+                    <span className="inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1"></span>
+                    Assigning...
+                  </>
+                ) : (
+                  'Assign Guardian'
+                )}
+              </button>
             </div>
           </div>
         </div>
       )}
-
+{availableParents.length === 0 ? (
+  <div className="flex justify-center items-center py-4">
+    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+    <span className="ml-2 text-sm text-gray-500">Loading parents...</span>
+  </div>
+) : (
+  <select
+    value={guardianEmail}
+    onChange={(e) => setGuardianEmail(e.target.value)}
+    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+  >
+    <option value="">Select a guardian...</option>
+    {availableParents.map((parent) => (
+      <option key={parent._id} value={parent.email}>
+        {parent.name} ({parent.email})
+      </option>
+    ))}
+  </select>
+)}
       {/* Snackbar */}
       {snackbar.open && (
         <div
