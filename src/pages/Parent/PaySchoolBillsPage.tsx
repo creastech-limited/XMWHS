@@ -195,7 +195,7 @@ const PaySchoolBillsPage: React.FC = () => {
     }
   }, [auth, showSnackbar]);
 
-  // Fetch all students
+  // Fetch all children/students of the parent
   const fetchStudents = useCallback(async (authToken: string): Promise<Student[]> => {
     try {
       console.log('Fetching students...');

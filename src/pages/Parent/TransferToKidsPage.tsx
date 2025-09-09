@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { FaWallet, FaStar, FaRegStar, FaHistory, FaPaperPlane, FaUserPlus, FaMoneyBillWave } from 'react-icons/fa';
 import { HiSearch } from 'react-icons/hi';
 import { IoPersonSharp } from 'react-icons/io5';
@@ -38,6 +38,20 @@ interface UserData {
   balance: number;
   recentTransfers: Transfer[];
 }
+interface Student {
+  _id: string;
+  student_id: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  email: string;
+  className: string;
+  class?: string;
+  schoolId?: string;
+  parentId?: string;
+  role?: string;
+  phone?: string;
+}
 
 const TransferToKidsPage: React.FC = () => {
   const auth = useAuth();
@@ -55,6 +69,11 @@ const TransferToKidsPage: React.FC = () => {
   // Kids data
   const [allKids, setAllKids] = useState<Kid[]>([]);
   const [beneficiaries, setBeneficiaries] = useState<Kid[]>([]);
+
+// My children data
+const [myChildren, setMyChildren] = useState<Kid[]>([]);
+
+
 
   // Form state
   const [selectedKid, setSelectedKid] = useState<Kid | null>(null);
@@ -219,32 +238,117 @@ const TransferToKidsPage: React.FC = () => {
     }
   };
 
-  // Effect to filter kids based on search and tab
-  useEffect(() => {
-    const lowerCaseQuery = searchQuery.toLowerCase();
-    let filtered = allKids.filter(kid => 
-      kid.name.toLowerCase().includes(lowerCaseQuery) || 
-      kid.email.toLowerCase().includes(lowerCaseQuery)
-    );
+  const fetchStudents = useCallback(async (authToken: string): Promise<Student[]> => {
+  try {
+    console.log('Fetching students...');
     
-    // If on beneficiaries tab, only show beneficiaries
-    if (tabValue === 1) {
-      filtered = filtered.filter(kid => kid.isBeneficiary);
+    const response = await fetch(`${API_BASE_URL}/api/users/getmychildren`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log('Raw students API response:', data);
+    
+    let studentsData: Student[] = [];
+    
+    // Handle the actual response structure based on your API
+    if (data?.success && Array.isArray(data.data)) {
+      studentsData = data.data;
+    } else if (Array.isArray(data.data)) {
+      studentsData = data.data;
+    } else if (Array.isArray(data)) {
+      studentsData = data;
+    } else {
+      console.log('Unexpected students response structure:', data);
+      throw new Error('Invalid response structure');
     }
     
-    setFilteredKids(filtered);
-  }, [searchQuery, allKids, tabValue]);
+    // Process each student to ensure consistent structure and convert to Kid format
+    const processedChildren: Kid[] = studentsData.map(student => ({
+      id: student.student_id || student._id || `student-${Date.now()}-${Math.random()}`,
+      student_id: student.student_id,
+      name: student.fullName || `${student.firstName || 'Unknown'} ${student.lastName || ''}`.trim(),
+      email: student.email || '',
+      isBeneficiary: false, // Will be updated after fetching beneficiaries
+      avatar: (student.fullName || student.firstName || 'C').charAt(0).toUpperCase(),
+      _id: student._id
+    }));
+    
+    console.log('Processed children:', processedChildren);
+    
+    if (processedChildren.length === 0) {
+      setSnackbarMessage('No children found');
+      setSnackbarSeverity('error');
+      setShowSnackbar(true);
+    } else {
+      setSnackbarMessage(`Loaded ${processedChildren.length} children`);
+      setSnackbarSeverity('success');
+      setShowSnackbar(true);
+    }
+    
+    setMyChildren(processedChildren);
+    return studentsData;
+  } catch (error) {
+    console.error('Error fetching students:', error);
+    setSnackbarMessage('Failed to fetch children. Please try again.');
+    setSnackbarSeverity('error');
+    setShowSnackbar(true);
+    return [];
+  }
+}, []);
+
+  // Effect to filter kids based on search and tab
+useEffect(() => {
+  const lowerCaseQuery = searchQuery.toLowerCase();
+  let filtered: Kid[] = [];
+  
+  switch (tabValue) {
+    case 0: // All Kids
+      filtered = allKids.filter(kid => 
+        kid.name.toLowerCase().includes(lowerCaseQuery) || 
+        kid.email.toLowerCase().includes(lowerCaseQuery)
+      );
+      break;
+    case 1: // Beneficiaries
+      filtered = allKids.filter(kid => 
+        kid.isBeneficiary && (
+          kid.name.toLowerCase().includes(lowerCaseQuery) || 
+          kid.email.toLowerCase().includes(lowerCaseQuery)
+        )
+      );
+      break;
+    case 2: // My Children
+      filtered = myChildren.filter(kid => 
+        kid.name.toLowerCase().includes(lowerCaseQuery) || 
+        kid.email.toLowerCase().includes(lowerCaseQuery)
+      );
+      break;
+    default:
+      filtered = allKids;
+  }
+  
+  setFilteredKids(filtered);
+}, [searchQuery, allKids, myChildren, tabValue]);
 
   // Initial data fetch
   useEffect(() => {
-    if (token) {
-      fetchKids().then(() => {
-        fetchBeneficiaries();
-      });
-      fetchRecentTransactions();
-      fetchUserBalance();
-    }
-  }, [token]);
+  if (token) {
+    fetchKids().then(() => {
+      fetchBeneficiaries();
+    });
+    fetchStudents(token); 
+    fetchRecentTransactions();
+    fetchUserBalance();
+  }
+}, [token, fetchStudents]);
 
   const handleTabChange = (newValue: number) => {
     setTabValue(newValue);
@@ -462,27 +566,35 @@ const TransferToKidsPage: React.FC = () => {
                   </p>
                   
                   {/* Tabs */}
-                  <div className="flex border-b mb-6">
-                    <button 
-                      className={`flex items-center px-4 py-2 mr-2 ${tabValue === 0 
-                        ? 'text-indigo-700 border-b-2 border-indigo-700 font-medium' 
-                        : 'text-gray-500 hover:text-indigo-500'}`}
-                      onClick={() => handleTabChange(0)}
-                    >
-                      <IoPersonSharp className="mr-2" />
-                      All Kids
-                    </button>
-                    <button 
-                      className={`flex items-center px-4 py-2 ${tabValue === 1 
-                        ? 'text-indigo-700 border-b-2 border-indigo-700 font-medium' 
-                        : 'text-gray-500 hover:text-indigo-500'}`}
-                      onClick={() => handleTabChange(1)}
-                    >
-                      <FaStar className="mr-2" />
-                      Beneficiaries
-                    </button>
-                  </div>
-                  
+                 <div className="flex border-b mb-6">
+  <button 
+    className={`flex items-center px-4 py-2 mr-2 ${tabValue === 0 
+      ? 'text-indigo-700 border-b-2 border-indigo-700 font-medium' 
+      : 'text-gray-500 hover:text-indigo-500'}`}
+    onClick={() => handleTabChange(0)}
+  >
+    <IoPersonSharp className="mr-2" />
+    All Kids
+  </button>
+  <button 
+    className={`flex items-center px-4 py-2 mr-2 ${tabValue === 1 
+      ? 'text-indigo-700 border-b-2 border-indigo-700 font-medium' 
+      : 'text-gray-500 hover:text-indigo-500'}`}
+    onClick={() => handleTabChange(1)}
+  >
+    <FaStar className="mr-2" />
+    Beneficiaries
+  </button>
+  <button 
+    className={`flex items-center px-4 py-2 ${tabValue === 2 
+      ? 'text-indigo-700 border-b-2 border-indigo-700 font-medium' 
+      : 'text-gray-500 hover:text-indigo-500'}`}
+    onClick={() => handleTabChange(2)}
+  >
+    <IoPersonSharp className="mr-2" />
+    My Children
+  </button>
+</div>
                   {/* Search Box */}
                   <div className="relative mb-6">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
