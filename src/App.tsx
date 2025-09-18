@@ -44,6 +44,7 @@ import Storedispute from './pages/Store/Storedispute.js';
 import Terms from './pages/Public Pages/TermsAndConditions.js';
 import Overview from './pages/Admin/overview';
 import AllUsers from './pages/Admin/AllUsers';
+import SchoolTransferPage from './pages/School/schooltransfer.js';
 
 function App() {
   return (
@@ -70,6 +71,7 @@ function App() {
           <Route path="/stores" element={<StorePage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/schoolfees" element={<SchoolFeesModule />} />
+          <Route path="/schooltransfer" element={<SchoolTransferPage />} />
           <Route path='/transactions' element={<TransactionModule />} />
           <Route path="/withdrawal" element={<WithdrawalPage />} />
           <Route path="/students/edit/:_id" element={<EditStudentDetails />} />

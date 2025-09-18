@@ -48,6 +48,7 @@ export const Sidebar: React.FC = () => {
     { name: 'Students', path: '/students', icon: <PeopleIcon className="h-5 w-5" />, badge: 3 },
     { name: 'Stores', path: '/stores', icon: <StorefrontIcon className="h-5 w-5" /> },
     { name: 'School Fees', path: '/schoolfees', icon: <PaymentIcon className="h-5 w-5" /> },
+    { name: 'Transfer', path: '/schooltransfer', icon: <PaymentIcon className="h-5 w-5" /> },
     { name: 'Transactions', path: '/transactions', icon: <ReceiptLongIcon className="h-5 w-5" />, badge: 12 },
     { name: 'Withdrawal', path: '/withdrawal', icon: <AccountBalanceWalletIcon className="h-5 w-5" /> },
     { name: 'Disputes', path: '/Sdisputes', icon: <WarningIcon className="h-5 w-5" />, badge: 2 },

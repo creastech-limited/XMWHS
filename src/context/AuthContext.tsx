@@ -54,6 +54,7 @@ const ROLE_SPECIFIC_ROUTES: Record<string, string[]> = {
     '/withdrawal',
     '/Sdisputes',
     '/settings',
+    '/schooltransfer',
   ],
   parent: [
     '/parent',

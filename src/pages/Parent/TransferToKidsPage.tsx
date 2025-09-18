@@ -52,6 +52,11 @@ interface Student {
   role?: string;
   phone?: string;
 }
+interface Charge {
+  name: string;
+  amount: number;
+  status: string;
+}
 
 const TransferToKidsPage: React.FC = () => {
   const auth = useAuth();
@@ -72,7 +77,7 @@ const TransferToKidsPage: React.FC = () => {
 
 // My children data
 const [myChildren, setMyChildren] = useState<Kid[]>([]);
-
+const [transactionFee, setTransactionFee] = useState<number>(0);
 
 
   // Form state
@@ -305,6 +310,34 @@ const [myChildren, setMyChildren] = useState<Kid[]>([]);
   }
 }, []);
 
+const fetchTransactionCharges = async () => {
+  if (!token) return;
+  
+  try {
+    const response = await axios.get(`${API_BASE_URL}/api/charge/getallcharges`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (response.data && Array.isArray(response.data)) {
+      // Find the transfer charge (adjust the search term as needed)
+      const transferCharge = response.data.find((charge: Charge) => 
+        charge.name.toLowerCase().includes('transfer') && charge.status === 'Active'
+      );
+      
+      if (transferCharge) {
+        setTransactionFee(transferCharge.amount);
+      }
+    }
+  } catch (error: unknown) {
+    console.error('Error fetching transaction charges:', error);
+    // Set default fee if API fails
+    setTransactionFee(0);
+  }
+};
+
   // Effect to filter kids based on search and tab
 useEffect(() => {
   const lowerCaseQuery = searchQuery.toLowerCase();
@@ -347,6 +380,7 @@ useEffect(() => {
     fetchStudents(token); 
     fetchRecentTransactions();
     fetchUserBalance();
+     fetchTransactionCharges();
   }
 }, [token, fetchStudents]);
 
@@ -449,7 +483,7 @@ useEffect(() => {
         
         setUserData({
           ...userData,
-          balance: userData.balance - Number(amount),
+           balance: userData.balance - (Number(amount) + transactionFee), 
           recentTransfers: [newTransfer, ...userData.recentTransfers]
         });
         
@@ -502,9 +536,10 @@ useEffect(() => {
     }
   };
 
-  const validateForm = () => {
-    return selectedKid && Number(amount) > 0 && Number(amount) <= userData.balance;
-  };
+ const validateForm = () => {
+  const totalAmount = Number(amount) + transactionFee;
+  return selectedKid && Number(amount) > 0 && totalAmount <= userData.balance;
+};
 
   const getCommonTransferAmounts = () => {
     return [500, 1000, 2000, 5000];
@@ -711,7 +746,7 @@ useEffect(() => {
                         <input
                           type="number"
                           className={`pl-8 block w-full rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-black ${
-                            Number(amount) > userData.balance 
+                            (Number(amount) + transactionFee) > userData.balance 
                               ? 'border-red-300 text-red-900 placeholder-red-300 focus:outline-none focus:ring-red-500 focus:border-red-500' 
                               : 'border-gray-300'
                           }`}
@@ -720,12 +755,28 @@ useEffect(() => {
                           onChange={(e) => setAmount(e.target.value)}
                         />
                       </div>
-                      {Number(amount) > userData.balance && (
+                      {(Number(amount) + transactionFee) > userData.balance && (
                         <p className="mt-1 text-sm text-red-600">
-                          Amount exceeds your available balance
+                          Total amount (including ₦{transactionFee.toLocaleString()} fee) exceeds your available balance
                         </p>
                       )}
                     </div>
+                    
+                    {/* Transaction Fee Display */}
+                    {transactionFee > 0 && (
+                      <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-gray-600">Transaction Fee:</span>
+                          <span className="font-medium text-gray-800">₦{transactionFee.toLocaleString()}</span>
+                        </div>
+                        {Number(amount) > 0 && (
+                          <div className="flex justify-between items-center text-sm mt-2 pt-2 border-t border-yellow-200">
+                            <span className="font-medium text-gray-700">Total Amount:</span>
+                            <span className="font-bold text-gray-900">₦{(Number(amount) + transactionFee).toLocaleString()}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     
                     <div className="mb-6">
                       <label htmlFor="note" className="block text-sm font-medium text-gray-700 mb-1">
@@ -903,12 +954,22 @@ useEffect(() => {
                       <p className="text-sm text-gray-500">{selectedKid.email}</p>
                     </div>
                   </div>
-                  <div className="mt-3 text-center">
-                    <p className="text-2xl font-bold text-indigo-700">
-                      ₦{Number(amount).toLocaleString()}
-                    </p>
-                    {note && <p className="text-sm text-gray-500 mt-1">Note: {note}</p>}
-                  </div>
+                 <div className="mt-3 text-center">
+  <div>
+    <p className="text-xl font-bold text-indigo-700">
+      ₦{Number(amount).toLocaleString()}
+    </p>
+    {transactionFee > 0 && (
+      <p className="text-sm text-gray-500">
+        + ₦{transactionFee.toLocaleString()} transaction fee
+      </p>
+    )}
+    <p className="text-lg font-bold text-indigo-900 border-t pt-2 mt-2">
+      Total: ₦{(Number(amount) + transactionFee).toLocaleString()}
+    </p>
+  </div>
+  {note && <p className="text-sm text-gray-500 mt-1">Note: {note}</p>}
+</div>
                 </div>
               )}
               
