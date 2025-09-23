@@ -14,7 +14,8 @@ import {
   GraduationCap,
   Settings,
   Info,
-  MessageSquare
+  MessageSquare,
+  X
 } from 'lucide-react';
 import KidsHeader from '../../components/KidsHeader';
 import Footer from '../../components/Footer';
@@ -30,6 +31,8 @@ interface Profile {
   phoneNumber?: string;
   profilePic?: string;
   qrCodeId?: string;
+  studentCanPayBill?: boolean;
+  role?: string;
 }
 
 interface Wallet {
@@ -72,6 +75,7 @@ interface Bill {
   session: string;
   className: string;
   transactionId: string;
+  feeId: string;
 }
 
 interface NavItem {
@@ -86,6 +90,16 @@ const SchoolBillsPage: React.FC = () => {
   const [bills, setBills] = useState<Bill[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
+  const [showPaymentModal, setShowPaymentModal] = useState<boolean>(false);
+  const [currentBill, setCurrentBill] = useState<Bill | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState<string>('');
+  const [paymentPin, setPaymentPin] = useState<string>('');
+  const [paymentStatus, setPaymentStatus] = useState<{
+    loading: boolean;
+    message: string;
+    success: boolean;
+  } | null>(null);
+  
   const activeTab = 3; // School Bills tab
   const navigate = useNavigate();
   const auth = useAuth();
@@ -105,96 +119,101 @@ const SchoolBillsPage: React.FC = () => {
      { label: "Dispute", icon: <MessageSquare className="w-5 h-5" />, route: "/kdispute" },
   ];
 
+  // Check if user is a student who can pay bills
+  const isStudentCanPay = profile?.role === 'student' && profile?.studentCanPayBill;
+
   // Transform API data to local Bill interface
-const transformApiFeeToBill = (apiFee: ApiFee): Bill => {
-  // Provide default values for missing fields
-  const feeType = apiFee.feeType || 'School Fee'; // Default if undefined
-  const className = apiFee.className || 'Unknown Class';
-  const term = apiFee.term || 'Unknown Term';
-  const session = apiFee.session || 'Unknown Session';
-  const paymentDate = apiFee.paymentDate || new Date().toISOString();
-  
-  const dueDate = new Date(paymentDate);
-  const isOverdue = dueDate < new Date() && apiFee.status !== 'Paid';
-  
-  return {
-    id: apiFee._id,
-    invoice: `${feeType} - ${className}`,
-    dueDate: paymentDate,
-    amount: apiFee.amount || 0,
-    amountPaid: apiFee.amountPaid || 0,
-    status: apiFee.status || 'Unpaid',
-    overdue: isOverdue,
-    description: `${term} ${feeType.toLowerCase()} fees for ${session} academic session`,
-    feeType: feeType,
-    term: term,
-    session: session,
-    className: className,
-    transactionId: apiFee.transactionId || 'N/A'
+  const transformApiFeeToBill = (apiFee: ApiFee): Bill => {
+    // Provide default values for missing fields
+    const feeType = apiFee.feeType || 'School Fee'; // Default if undefined
+    const className = apiFee.className || 'Unknown Class';
+    const term = apiFee.term || 'Unknown Term';
+    const session = apiFee.session || 'Unknown Session';
+    const paymentDate = apiFee.paymentDate || new Date().toISOString();
+    
+    const dueDate = new Date(paymentDate);
+    const isOverdue = dueDate < new Date() && apiFee.status !== 'Paid';
+    
+    return {
+      id: apiFee._id,
+      invoice: `${feeType} - ${className}`,
+      dueDate: paymentDate,
+      amount: apiFee.amount || 0,
+      amountPaid: apiFee.amountPaid || 0,
+      status: apiFee.status || 'Unpaid',
+      overdue: isOverdue,
+      description: `${term} ${feeType.toLowerCase()} fees for ${session} academic session`,
+      feeType: feeType,
+      term: term,
+      session: session,
+      className: className,
+      transactionId: apiFee.transactionId || 'N/A',
+      feeId: apiFee.feeId
+    };
   };
-};
 
-const fetchStudentFees = async () => {
-  setIsLoading(true);
-  setError('');
-  
-  try {
-    const response = await axios.get(`${API_URL}/api/fee/getStudentFee`, {
-      headers: { 
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-    });
+  const fetchStudentFees = async () => {
+    setIsLoading(true);
+    setError('');
+    
+    try {
+      const response = await axios.get(`${API_URL}/api/fee/getStudentFee`, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+      });
 
-    console.log('API Response:', response.data); 
+      console.log('API Response:', response.data); 
 
-    if (response.data && Array.isArray(response.data.data)) {
-      interface NormalizedFee extends ApiFee {
-        status: 'Paid' | 'Unpaid' | 'Partial';
-      }
-
-      const transformedBills: Bill[] = response.data.data
-        .filter((fee: ApiFee | null | undefined): fee is ApiFee => !!fee) 
-        .map((fee: ApiFee): Bill => {
-          // Normalize the status
-          let status: 'Paid' | 'Unpaid' | 'Partial' = 'Unpaid';
-          if (fee.status) {
-        const normalized = fee.status.charAt(0).toUpperCase() + fee.status.slice(1).toLowerCase();
-        if (['Paid', 'Unpaid', 'Partial'].includes(normalized)) {
-          status = normalized as 'Paid' | 'Unpaid' | 'Partial';
+      if (response.data && Array.isArray(response.data.data)) {
+        interface NormalizedFee extends ApiFee {
+          status: 'Paid' | 'Unpaid' | 'Partial';
         }
-          }
-          
-          const normalizedFee: NormalizedFee = {
-        ...fee,
-        status,
-          };
 
-          return transformApiFeeToBill(normalizedFee);
-        });
-      
-      setBills(transformedBills);
-    } else {
-      console.warn('Unexpected API response structure:', response.data);
-      setBills([]);
-      setError('Received unexpected data format from server');
-    }
-  } catch (err) {
-    console.error('Failed to fetch student fees:', err);
-    if (axios.isAxiosError(err)) {
-      if (err.response?.status === 401) {
-        logout();
-        navigate('/login');
+        const transformedBills: Bill[] = response.data.data
+          .filter((fee: ApiFee | null | undefined): fee is ApiFee => !!fee) 
+          .map((fee: ApiFee): Bill => {
+            // Normalize the status
+            let status: 'Paid' | 'Unpaid' | 'Partial' = 'Unpaid';
+            if (fee.status) {
+          const normalized = fee.status.charAt(0).toUpperCase() + fee.status.slice(1).toLowerCase();
+          if (['Paid', 'Unpaid', 'Partial'].includes(normalized)) {
+            status = normalized as 'Paid' | 'Unpaid' | 'Partial';
+          }
+            }
+            
+            const normalizedFee: NormalizedFee = {
+          ...fee,
+          status,
+            };
+
+            return transformApiFeeToBill(normalizedFee);
+          });
+        
+        setBills(transformedBills);
       } else {
-        setError(err.response?.data?.message || "Failed to load school bills");
+        console.warn('Unexpected API response structure:', response.data);
+        setBills([]);
+        setError('Received unexpected data format from server');
       }
-    } else {
-      setError("An unexpected error occurred");
+    } catch (err) {
+      console.error('Failed to fetch student fees:', err);
+      if (axios.isAxiosError(err)) {
+        if (err.response?.status === 401) {
+          logout();
+          navigate('/login');
+        } else {
+          setError(err.response?.data?.message || "Failed to load school bills");
+        }
+      } else {
+        setError("An unexpected error occurred");
+      }
+    } finally {
+      setIsLoading(false);
     }
-  } finally {
-    setIsLoading(false);
-  }
-};
+  };
+
   // Fetch user profile
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -280,6 +299,75 @@ const fetchStudentFees = async () => {
         navigate('/login');
       }
     }
+  };
+
+  // Payment handler
+  const handlePay = async (bill: Bill) => {
+    if (!profile?.email) {
+      setError("Student email not found");
+      return;
+    }
+
+    try {
+      setPaymentStatus({
+        loading: true,
+        message: 'Processing payment...',
+        success: false
+      });
+
+      const amount = parseFloat(paymentAmount);
+      if (isNaN(amount) || amount <= 0 || amount > (bill.amount - bill.amountPaid)) {
+        throw new Error('Invalid payment amount');
+      }
+
+      const response = await axios.post(`${API_URL}/api/fee/pay`, {
+        studentEmail: profile.email,
+        amount,
+        feeId: bill.feeId,
+        pin: paymentPin
+      }, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      setPaymentStatus({
+        loading: false,
+        message: response.data.message || 'Payment successful',
+        success: true
+      });
+
+      // Refresh the bills after successful payment
+      setTimeout(() => {
+        fetchStudentFees();
+        setShowPaymentModal(false);
+        setPaymentPin('');
+        setPaymentAmount('');
+        setCurrentBill(null);
+        setPaymentStatus(null);
+      }, 2000);
+
+    } catch (err) {
+      console.error('Payment error:', err);
+      setPaymentStatus({
+        loading: false,
+        message: axios.isAxiosError(err) 
+          ? err.response?.data?.message || 'Payment failed' 
+          : 'Payment failed. Please try again.',
+        success: false
+      });
+    }
+  };
+
+  // Open payment modal
+  const openPaymentModal = (bill: Bill) => {
+    setCurrentBill(bill);
+    // Set default amount to remaining balance
+    const remainingBalance = bill.amount - bill.amountPaid;
+    setPaymentAmount(remainingBalance.toString());
+    setShowPaymentModal(true);
+    setPaymentStatus(null);
   };
 
   // Calculate summary statistics
@@ -496,13 +584,23 @@ const fetchStudentFees = async () => {
                       </div>
                     </div>
 
-                    {/* Status */}
+                    {/* Status and Actions */}
                     <div className="lg:col-span-2">
-                      <div className="flex justify-end">
+                      <div className="flex flex-col items-end gap-2">
                         <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(bill)}`}>
                           {getStatusIcon(bill)}
                           {getStatusText(bill)}
                         </span>
+                        
+                        {/* Pay Now Button (only show for students who can pay and for unpaid/partial bills) */}
+                        {isStudentCanPay && (bill.status === "Unpaid" || bill.status === "Partial") && (
+                          <button
+                            onClick={() => openPaymentModal(bill)}
+                            className="bg-blue-600 hover:bg-blue-700 text-white py-1 px-3 rounded text-sm font-medium transition-colors"
+                          >
+                            Pay Now
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -524,6 +622,135 @@ const fetchStudentFees = async () => {
         </div>
 
         <Footer />
+
+        {/* Payment Modal */}
+        {showPaymentModal && currentBill && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-black">Pay School Bill</h3>
+                <button 
+                  onClick={() => {
+                    setShowPaymentModal(false);
+                    setPaymentStatus(null);
+                  }}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              {paymentStatus ? (
+                <div className={`p-4 rounded-md mb-4 ${
+                  paymentStatus.success ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    {paymentStatus.loading ? (
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                    ) : paymentStatus.success ? (
+                      <CheckCircle className="w-5 h-5" />
+                    ) : (
+                      <AlertTriangle className="w-5 h-5" />
+                    )}
+                    <p>{paymentStatus.message}</p>
+                  </div>
+                  {paymentStatus.success && (
+                    <button
+                      onClick={() => {
+                        setShowPaymentModal(false);
+                        setPaymentStatus(null);
+                      }}
+                      className="mt-4 w-full bg-blue-600 text-white py-2 rounded-md"
+                    >
+                      Close
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <div className="mb-4">
+                    <p className="text-black mb-2">Bill Details:</p>
+                    <div className="bg-gray-50 p-3 rounded-md">
+                      <p className="font-bold text-black">{currentBill.invoice}</p>
+                      <p className="text-sm text-black mt-1">Total Amount: ₦{currentBill.amount.toLocaleString()}</p>
+                      <p className="text-sm text-black mt-1">Already Paid: ₦{currentBill.amountPaid.toLocaleString()}</p>
+                      <p className="text-sm text-black font-medium mt-1">
+                        Remaining Balance: ₦{(currentBill.amount - currentBill.amountPaid).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mb-4">
+                    <label htmlFor="payment-amount" className="block text-sm font-medium text-black mb-1">
+                      Enter Amount to Pay (₦)
+                    </label>
+                    <input
+                      type="number"
+                      id="payment-amount"
+                      value={paymentAmount}
+                      onChange={(e) => setPaymentAmount(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
+                      placeholder="Enter amount"
+                      min="1"
+                      max={currentBill.amount - currentBill.amountPaid}
+                    />
+                    <p className="text-xs text-black mt-1">
+                      Maximum: ₦{(currentBill.amount - currentBill.amountPaid).toLocaleString()}
+                    </p>
+                  </div>
+                  
+                  <div className="mb-4">
+                    <label htmlFor="payment-pin" className="block text-sm font-medium text-black mb-1">
+                      Enter Payment PIN
+                    </label>
+                    <input
+                      type="password"
+                      id="payment-pin"
+                      value={paymentPin}
+                      onChange={(e) => setPaymentPin(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
+                      placeholder="Enter your 4-digit PIN"
+                      maxLength={4}
+                    />
+                  </div>
+                  
+                  <div className="flex justify-end gap-3">
+                    <button
+                      onClick={() => {
+                        setShowPaymentModal(false);
+                        setPaymentPin('');
+                        setPaymentAmount('');
+                        setCurrentBill(null);
+                      }}
+                      className="px-4 py-2 text-black hover:bg-gray-100 rounded-md border border-gray-300"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => handlePay(currentBill)}
+                      disabled={
+                        paymentPin.length !== 4 || 
+                        !paymentAmount || 
+                        parseFloat(paymentAmount) <= 0 || 
+                        parseFloat(paymentAmount) > (currentBill.amount - currentBill.amountPaid)
+                      }
+                      className={`px-4 py-2 rounded-md text-white ${
+                        paymentPin.length === 4 && 
+                        paymentAmount && 
+                        parseFloat(paymentAmount) > 0 && 
+                        parseFloat(paymentAmount) <= (currentBill.amount - currentBill.amountPaid)
+                          ? 'bg-blue-600 hover:bg-blue-700' 
+                          : 'bg-blue-300 cursor-not-allowed'
+                      }`}
+                    >
+                      Pay ₦{paymentAmount ? parseFloat(paymentAmount).toLocaleString() : '0'}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

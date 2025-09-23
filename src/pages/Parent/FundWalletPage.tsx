@@ -307,7 +307,7 @@ const fetchTransactionCharges = async () => {
     if (!authToken) return;
     
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/transactions/verifyTransaction/${reference}`, {
+      const response = await axios.get(`${API_BASE_URL}/api/transaction/verifyTransaction/${reference}`, {
         headers: {
           Authorization: `Bearer ${authToken}`,
           'Content-Type': 'application/json'

@@ -65,11 +65,14 @@ const AgentTransferToStore = () => {
     amount: '', 
     description: '', 
     storeEmail: '', 
-    pin: '' 
+    recipientEmail: '',
+    pin: '',
+    transferType: 'parentStore' // Default to parent store
   });
   const [formErrors, setFormErrors] = useState({ 
     amount: '', 
     storeEmail: '', 
+    recipientEmail: '',
     pin: '' 
   });
   const [needsStoreEmail, setNeedsStoreEmail] = useState(false);
@@ -81,13 +84,14 @@ const AgentTransferToStore = () => {
   const [snackbar, setSnackbar] = useState('');
   const [authError, setAuthError] = useState('');
 
-const [showPinModal, setShowPinModal] = useState(false);
-const [pinData, setPinData] = useState({
-  currentPin: '',
-  pin: '',
-  newPin: ''
-});
-const [isLoadingPin, setIsLoadingPin] = useState(false);
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinData, setPinData] = useState({
+    currentPin: '',
+    pin: '',
+    newPin: ''
+  });
+  const [isLoadingPin, setIsLoadingPin] = useState(false);
+
   // Authentication and data fetching
   const fetchUserDetails = useCallback(async (authToken: string) => {
     try {
@@ -153,68 +157,68 @@ const [isLoadingPin, setIsLoadingPin] = useState(false);
     }
   }, []);
 
- const fetchUserTransactions = useCallback(async (authToken: string) => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/transaction/getusertransaction`, {
-      headers: {
-        'Authorization': `Bearer ${authToken}`,
-        'Content-Type': 'application/json',
-      },
-    });
+  const fetchUserTransactions = useCallback(async (authToken: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/transaction/getusertransaction`, {
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-    if (!response.ok) {
-      throw new Error('Failed to fetch transactions');
+      if (!response.ok) {
+        throw new Error('Failed to fetch transactions');
+      }
+
+      const data = await response.json();
+      const transactions = data.data || [];
+
+      // Define a type for transaction metadata
+      type TransactionMetadata = {
+        receiverEmail?: string;
+        senderEmail?: string;
+        [key: string]: unknown;
+      };
+
+      // Transform transactions with dynamic descriptions
+      return transactions.map((txn: Transaction & { metadata?: TransactionMetadata; note?: string }) => {
+        // Determine transaction type
+        const isDebit = txn.transactionType === 'debit' || 
+                       txn.category === 'debit' ||
+                       (typeof txn.amount === 'number' && txn.amount < 0);
+
+        // Generate dynamic description
+        const getDescription = () => {
+          const metadata: TransactionMetadata = txn.metadata || {};
+          
+          // For debit transactions
+          if (isDebit && metadata.receiverEmail) {
+            return `Transfer to ${metadata.receiverEmail}`;
+          }
+          // For credit transactions
+          else if (!isDebit && metadata.senderEmail) {
+            return `Payment from ${metadata.senderEmail}`;
+          }
+          // Fallback
+          else {
+            return txn.description || txn.note || 'Transaction';
+          }
+        };
+
+        return {
+          ...txn,
+          description: getDescription(),
+          // Optionally also update other fields for consistency
+          type: isDebit ? 'debit' : 'credit',
+          amount: Math.abs(txn.amount || 0),
+        };
+      });
+
+    } catch (error) {
+      console.error('Error fetching transactions:', error);
+      return [];
     }
-
-    const data = await response.json();
-    const transactions = data.data || [];
-
-    // Define a type for transaction metadata
-    type TransactionMetadata = {
-      receiverEmail?: string;
-      senderEmail?: string;
-      [key: string]: unknown;
-    };
-
-    // Transform transactions with dynamic descriptions
-    return transactions.map((txn: Transaction & { metadata?: TransactionMetadata; note?: string }) => {
-      // Determine transaction type
-      const isDebit = txn.transactionType === 'debit' || 
-                     txn.category === 'debit' ||
-                     (typeof txn.amount === 'number' && txn.amount < 0);
-
-      // Generate dynamic description
-      const getDescription = () => {
-        const metadata: TransactionMetadata = txn.metadata || {};
-        
-        // For debit transactions
-        if (isDebit && metadata.receiverEmail) {
-          return `Transfer to ${metadata.receiverEmail}`;
-        }
-        // For credit transactions
-        else if (!isDebit && metadata.senderEmail) {
-          return `Payment from ${metadata.senderEmail}`;
-        }
-        // Fallback
-        else {
-          return txn.description || txn.note || 'Transaction';
-        }
-      };
-
-      return {
-        ...txn,
-        description: getDescription(),
-        // Optionally also update other fields for consistency
-        type: isDebit ? 'debit' : 'credit',
-        amount: Math.abs(txn.amount || 0),
-      };
-    });
-
-  } catch (error) {
-    console.error('Error fetching transactions:', error);
-    return [];
-  }
-}, []);
+  }, []);
 
   const generateParentStoreInfo = useCallback((storeId: string) => {
     // Store ID format: "GRE343652/68302b8272d28bf99cc6f62b"
@@ -315,103 +319,105 @@ const [isLoadingPin, setIsLoadingPin] = useState(false);
 
     initializeAuth();
   }, [fetchUserDetails, fetchUserTransactions, generateParentStoreInfo, fetchParentStoreDetails]);
+
   // PIN Update Handler
-const handlePinUpdate = async (e: React.FormEvent) => {
-  e.preventDefault();
-  
-  // Validation
-  if (pinData.pin !== pinData.newPin) {
-    alert('PINs do not match. Please ensure both PIN fields are identical.');
-    return;
-  }
-  
-  if (pinData.pin.length !== 4) {
-    alert('PIN must be exactly 4 digits long.');
-    return;
-  }
-  
-  // Check if PIN contains only numbers
-  if (!/^\d{4}$/.test(pinData.pin)) {
-    alert('PIN must contain only numbers (0-9).');
-    return;
-  }
-  
-  setIsLoadingPin(true);
-  
-  try {
-    if (user?.isPinSet) {
-      // Update existing PIN
-      if (!pinData.currentPin || pinData.currentPin.length !== 4) {
-        alert('Please enter your current 4-digit PIN.');
-        setIsLoadingPin(false);
-        return;
-      }
-      
-      if (!/^\d{4}$/.test(pinData.currentPin)) {
-        alert('Current PIN must be 4 digits.');
-        setIsLoadingPin(false);
-        return;
-      }
-      
-      await axios.post(`${API_BASE_URL}/api/pin/update`, {
-        currentPin: pinData.currentPin,
-        newPin: pinData.newPin
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      alert('PIN updated successfully! Your new PIN is now active.');
-    } else {
-      // Set new PIN
-      await axios.post(`${API_BASE_URL}/api/pin/set`, {
-        pin: pinData.pin
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      alert('PIN set successfully! Your account is now more secure.');
-      setUser(prev => prev ? { ...prev, isPinSet: true } : null);
+  const handlePinUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Validation
+    if (pinData.pin !== pinData.newPin) {
+      alert('PINs do not match. Please ensure both PIN fields are identical.');
+      return;
     }
     
-    // Clear form data and close modal
-    setPinData({ currentPin: '', pin: '', newPin: '' });
-    setShowPinModal(false);
+    if (pinData.pin.length !== 4) {
+      alert('PIN must be exactly 4 digits long.');
+      return;
+    }
     
-  } catch (error: unknown) {
-    console.error('PIN operation failed:', error);
+    // Check if PIN contains only numbers
+    if (!/^\d{4}$/.test(pinData.pin)) {
+      alert('PIN must contain only numbers (0-9).');
+      return;
+    }
     
-    // More specific error messages
-    if (
-      typeof error === 'object' &&
-      error !== null &&
-      'response' in error &&
-      typeof (error as { response?: { status?: number } }).response === 'object'
-    ) {
-      const response = (error as { response?: { status?: number } }).response;
-      if (response?.status === 401) {
-        alert('Current PIN is incorrect. Please try again.');
-      } else if (response?.status === 400) {
-        alert('Invalid PIN format. Please ensure your PIN is 4 digits.');
+    setIsLoadingPin(true);
+    
+    try {
+      if (user?.isPinSet) {
+        // Update existing PIN
+        if (!pinData.currentPin || pinData.currentPin.length !== 4) {
+          alert('Please enter your current 4-digit PIN.');
+          setIsLoadingPin(false);
+          return;
+        }
+        
+        if (!/^\d{4}$/.test(pinData.currentPin)) {
+          alert('Current PIN must be 4 digits.');
+          setIsLoadingPin(false);
+          return;
+        }
+        
+        await axios.post(`${API_BASE_URL}/api/pin/update`, {
+          currentPin: pinData.currentPin,
+          newPin: pinData.newPin
+        }, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        alert('PIN updated successfully! Your new PIN is now active.');
+      } else {
+        // Set new PIN
+        await axios.post(`${API_BASE_URL}/api/pin/set`, {
+          pin: pinData.pin
+        }, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        alert('PIN set successfully! Your account is now more secure.');
+        setUser(prev => prev ? { ...prev, isPinSet: true } : null);
+      }
+      
+      // Clear form data and close modal
+      setPinData({ currentPin: '', pin: '', newPin: '' });
+      setShowPinModal(false);
+      
+    } catch (error: unknown) {
+      console.error('PIN operation failed:', error);
+      
+      // More specific error messages
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'response' in error &&
+        typeof (error as { response?: { status?: number } }).response === 'object'
+      ) {
+        const response = (error as { response?: { status?: number } }).response;
+        if (response?.status === 401) {
+          alert('Current PIN is incorrect. Please try again.');
+        } else if (response?.status === 400) {
+          alert('Invalid PIN format. Please ensure your PIN is 4 digits.');
+        } else {
+          alert(`Failed to ${user?.isPinSet ? 'update' : 'set'} PIN. Please try again.`);
+        }
       } else {
         alert(`Failed to ${user?.isPinSet ? 'update' : 'set'} PIN. Please try again.`);
       }
-    } else {
-      alert(`Failed to ${user?.isPinSet ? 'update' : 'set'} PIN. Please try again.`);
+    } finally {
+      setIsLoadingPin(false);
     }
-  } finally {
-    setIsLoadingPin(false);
-  }
-};
-const handlePinInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const { name, value } = e.target;
-  // Only allow digits and limit to 4 characters
-  const numericValue = value.replace(/\D/g, '').slice(0, 4);
-  setPinData(prev => ({ ...prev, [name]: numericValue }));
-};
+  };
+
+  const handlePinInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    // Only allow digits and limit to 4 characters
+    const numericValue = value.replace(/\D/g, '').slice(0, 4);
+    setPinData(prev => ({ ...prev, [name]: numericValue }));
+  };
 
   // Form validation
   const validateForm = useCallback(() => {
-    const errors = { amount: '', storeEmail: '', pin: '' };
+    const errors = { amount: '', storeEmail: '', recipientEmail: '', pin: '' };
     const amount = parseFloat(form.amount);
     
     if (!form.amount) {
@@ -422,10 +428,21 @@ const handlePinInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       errors.amount = 'Insufficient balance';
     }
 
-    if (needsStoreEmail && !form.storeEmail) {
-      errors.storeEmail = 'Store email is required';
-    } else if (needsStoreEmail && form.storeEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.storeEmail)) {
-      errors.storeEmail = 'Enter a valid email address';
+    // Validate based on transfer type
+    if (form.transferType === 'parentStore' && needsStoreEmail) {
+      if (!form.storeEmail) {
+        errors.storeEmail = 'Store email is required';
+      } else if (form.storeEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.storeEmail)) {
+        errors.storeEmail = 'Enter a valid email address';
+      }
+    }
+
+    if (form.transferType === 'otherUser') {
+      if (!form.recipientEmail) {
+        errors.recipientEmail = 'Recipient email is required';
+      } else if (form.recipientEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.recipientEmail)) {
+        errors.recipientEmail = 'Enter a valid email address';
+      }
     }
 
     if (!form.pin) {
@@ -435,8 +452,8 @@ const handlePinInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     }
 
     setFormErrors(errors);
-    return !errors.amount && !errors.storeEmail && !errors.pin;
-  }, [form.amount, form.storeEmail, form.pin, user, needsStoreEmail]);
+    return !errors.amount && !errors.storeEmail && !errors.recipientEmail && !errors.pin;
+  }, [form, user, needsStoreEmail]);
 
   // Handle form changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -457,7 +474,7 @@ const handlePinInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 
   // Process transfer using the new API structure
   const handleSubmitTransfer = async () => {
-    if (!validateForm() || !user || !parentStoreData || !token) {
+    if (!validateForm() || !user || !token) {
       setShowConfirm(false);
       return;
     }
@@ -466,7 +483,17 @@ const handlePinInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setShowConfirm(false);
 
     try {
-      const receiverEmail = needsStoreEmail ? form.storeEmail : parentStoreData.email;
+      let receiverEmail = '';
+      
+      if (form.transferType === 'parentStore') {
+        receiverEmail = needsStoreEmail ? form.storeEmail : (parentStoreData?.email || '');
+      } else {
+        receiverEmail = form.recipientEmail;
+      }
+
+      if (!receiverEmail) {
+        throw new Error('Recipient email is required');
+      }
       
       const response = await axios.post(
         `${API_BASE_URL}/api/transaction/transfer`,
@@ -509,7 +536,7 @@ const handlePinInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
           category: 'debit',
           balanceBefore: user.wallet.balance,
           balanceAfter: user.wallet.balance - Number(form.amount),
-          description: form.description || 'Transfer to parent store',
+          description: form.description || `Transfer to ${form.transferType === 'parentStore' ? 'parent store' : 'user'}`,
           direction: 'outbound'
         });
       }
@@ -540,8 +567,6 @@ const handlePinInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       setProcessing(false);
     }
   };
-
- 
 
   // Detect mobile
   const isMobile = window.innerWidth <= 640;
@@ -597,6 +622,7 @@ const handlePinInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-xl font-bold text-gray-800">{user.name}</h1>
+                <p className="text-sm text-gray-600">Agent ID: {user.agent_id}</p>
               </div>
               <div className="text-right">
                 <p className="text-sm text-gray-500">Wallet Balance</p>
@@ -608,20 +634,20 @@ const handlePinInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
           </div>
            
          {/* PIN Management Button - Floating */}
-<div className="fixed bottom-20 right-4 z-40">
-  <button
-    onClick={() => setShowPinModal(true)}
-    className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-4 py-3 rounded-full shadow-lg transition-all duration-300 flex items-center gap-2 min-w-max"
-    title="Manage PIN"
-  >
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-    </svg>
-    <span className="text-sm font-medium">
-      {user?.isPinSet ? 'Update PIN' : 'Set PIN'}
-    </span>
-  </button>
-</div>
+        <div className="fixed bottom-20 right-4 z-40">
+          <button
+            onClick={() => setShowPinModal(true)}
+            className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-4 py-3 rounded-full shadow-lg transition-all duration-300 flex items-center gap-2 min-w-max"
+            title="Manage PIN"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+            <span className="text-sm font-medium">
+              {user?.isPinSet ? 'Update PIN' : 'Set PIN'}
+            </span>
+          </button>
+        </div>
 
           {transferComplete ? (
             <div className="bg-white shadow-md rounded-lg p-6 text-center">
@@ -631,7 +657,7 @@ const handlePinInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
               <h2 className="text-green-700 text-xl font-bold mb-2">Transfer Successful!</h2>
               <p className="mb-4">
                 You transferred <strong>₦{parseFloat(form.amount).toLocaleString()}</strong> to{' '}
-                <strong>{parentStoreData?.name || 'Parent Store'}</strong>.
+                <strong>{form.transferType === 'parentStore' ? (parentStoreData?.name || 'Parent Store') : form.recipientEmail}</strong>.
               </p>
               {transactionDetails && (
                 <div className="bg-gray-100 p-4 rounded my-4 text-sm text-gray-700">
@@ -641,54 +667,136 @@ const handlePinInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                   <p><strong>Date:</strong> {new Date().toLocaleString()}</p>
                 </div>
               )}
-             
             </div>
           ) : (
             <form onSubmit={(e) => { e.preventDefault(); if (validateForm()) setShowConfirm(true); }}>
               <div className="text-gray-600 bg-white shadow-md rounded-lg p-6">
                 <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
                   <Wallet className="w-5 h-5" />
-                  Transfer to Parent Store
+                  Make a Transfer
                 </h2>
 
-                {parentStoreData && (
-                  <div className="flex items-center gap-2 bg-blue-100 text-blue-800 p-3 rounded mb-4 text-sm">
-                    <Info className="w-4 h-4" />
-                    <div>
-                      <p><strong>Store:</strong> {parentStoreData.name}</p>
-                      {!needsStoreEmail && <p><strong>Email:</strong> {parentStoreData.email}</p>}
-                      <p><strong>Account:</strong> {parentStoreData.accountNumber}</p>
-                      <p><strong>Store ID:</strong> {parentStoreData.fullStoreId}</p>
+                {/* Transfer Type Selection */}
+                <div className="mb-6">
+                  <label className="block text-sm font-medium mb-3">Transfer To</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForm(prev => ({ ...prev, transferType: 'parentStore', storeEmail: '' }));
+                        setFormErrors(prev => ({ ...prev, storeEmail: '', recipientEmail: '' }));
+                      }}
+                      className={`p-4 border-2 rounded-lg text-center transition-all ${
+                        form.transferType === 'parentStore'
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="font-medium mb-1">Parent Store</div>
+                      <div className="text-xs text-gray-500">Quick transfer</div>
+                    </button>
+                    
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForm(prev => ({ ...prev, transferType: 'otherUser', storeEmail: '' }));
+                        setFormErrors(prev => ({ ...prev, storeEmail: '', recipientEmail: '' }));
+                      }}
+                      className={`p-4 border-2 rounded-lg text-center transition-all ${
+                        form.transferType === 'otherUser'
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="font-medium mb-1">Other User</div>
+                      <div className="text-xs text-gray-500">Any system user</div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Parent Store Info */}
+                {form.transferType === 'parentStore' && parentStoreData && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                    <div className="flex items-start gap-3">
+                      <Info className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-blue-800 mb-2">Parent Store Details</h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                          <div><span className="font-medium">Store:</span> {parentStoreData.name}</div>
+                          <div><span className="font-medium">Email:</span> {parentStoreData.email}</div>
+                          <div><span className="font-medium">Account:</span> {parentStoreData.accountNumber}</div>
+                          <div><span className="font-medium">Store ID:</span> {parentStoreData.fullStoreId}</div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
 
-                {needsStoreEmail && (
-                  <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded mb-4">
-                    <p className="text-sm">
-                      <strong>Note:</strong> Please enter your parent store's email address to complete the transfer.
-                    </p>
+                {/* Other User Transfer Form */}
+                {form.transferType === 'otherUser' && (
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-4">
+                    <div className="flex items-start gap-3">
+                      <Info className="w-5 h-5 text-purple-600 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-purple-800 mb-2">Transfer to Any User</h4>
+                        <p className="text-sm text-purple-700 mb-3">
+                          Enter the email address of any registered user in the system to transfer funds.
+                        </p>
+                        
+                        <div className="mb-3">
+                          <label className="block text-sm font-medium mb-1 text-gray-700">Recipient Email *</label>
+                          <input
+                            type="email"
+                            name="recipientEmail"
+                            value={form.recipientEmail || ''}
+                            onChange={handleChange}
+                            className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                            placeholder="Enter recipient's email address"
+                            required
+                          />
+                          {formErrors.recipientEmail && (
+                            <p className="text-red-500 text-sm mt-1">{formErrors.recipientEmail}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
 
-                {needsStoreEmail && (
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium mb-1">Parent Store Email *</label>
-                    <input
-                      type="email"
-                      name="storeEmail"
-                      value={form.storeEmail}
-                      onChange={handleChange}
-                      className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Enter parent store email"
-                      required
-                    />
-                    {formErrors.storeEmail && <p className="text-red-500 text-sm mt-1">{formErrors.storeEmail}</p>}
+                {/* Fallback for missing parent store data */}
+                {form.transferType === 'parentStore' && needsStoreEmail && (
+                  <div className="bg-yellow-50 border border-yellow-400 rounded-lg p-4 mb-4">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1">
+                        <p className="text-yellow-800 font-medium mb-2">Store Email Required</p>
+                        <p className="text-sm text-yellow-700 mb-3">
+                          Please enter your parent store's email address to complete the transfer.
+                        </p>
+                        
+                        <div>
+                          <label className="block text-sm font-medium mb-1 text-gray-700">Parent Store Email *</label>
+                          <input
+                            type="email"
+                            name="storeEmail"
+                            value={form.storeEmail}
+                            onChange={handleChange}
+                            className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                            placeholder="Enter parent store email"
+                            required
+                          />
+                          {formErrors.storeEmail && (
+                            <p className="text-red-500 text-sm mt-1">{formErrors.storeEmail}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
 
+                {/* Amount Input */}
                 <div className="mb-4">
-                  <label className="block text-sm font-medium mb-1">Amount (₦)</label>
+                  <label className="block text-sm font-medium mb-1">Amount (₦) *</label>
                   <input
                     type="number"
                     name="amount"
@@ -698,10 +806,16 @@ const handlePinInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                     placeholder="Enter amount"
                     min="1"
                     max={user.wallet.balance}
+                    required
                   />
                   {formErrors.amount && <p className="text-red-500 text-sm mt-1">{formErrors.amount}</p>}
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>Available: ₦{user.wallet.balance.toLocaleString()}</span>
+                    <span>Min: ₦1</span>
+                  </div>
                 </div>
 
+                {/* PIN Input */}
                 <div className="mb-4">
                   <label className="block text-sm font-medium mb-1">Transaction PIN *</label>
                   <div className="relative">
@@ -726,23 +840,27 @@ const handlePinInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                   {formErrors.pin && <p className="text-red-500 text-sm mt-1">{formErrors.pin}</p>}
                 </div>
 
-                <div className="mb-4">
+                {/* Description Input */}
+                <div className="mb-6">
                   <label className="block text-sm font-medium mb-1">Description (optional)</label>
                   <input
                     name="description"
                     value={form.description}
                     onChange={handleChange}
                     className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter description"
+                    placeholder="Enter transaction description"
                   />
                 </div>
 
+                {/* Transfer Button */}
                 <button
                   type="submit"
-                  disabled={!form.amount || !form.pin || !!formErrors.amount || !!formErrors.pin || (needsStoreEmail && (!form.storeEmail || !!formErrors.storeEmail))}
-                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-2 rounded transition-colors"
+                  disabled={!form.amount || !form.pin || !!formErrors.amount || !!formErrors.pin || 
+                    (form.transferType === 'parentStore' && needsStoreEmail && (!form.storeEmail || !!formErrors.storeEmail)) ||
+                    (form.transferType === 'otherUser' && (!form.recipientEmail || !!formErrors.recipientEmail))}
+                  className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg transition-all shadow-lg hover:shadow-xl"
                 >
-                  Transfer Funds
+                  {form.transferType === 'parentStore' ? 'Transfer to Parent Store' : 'Transfer to User'}
                 </button>
               </div>
             </form>
@@ -791,9 +909,12 @@ const handlePinInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
               <h4 className="font-semibold text-lg mb-2">Confirm Transfer</h4>
               <p className="mb-4">Please confirm the following details:</p>
               <ul className="text-sm space-y-2 mb-4">
-                <li><strong>To:</strong> {parentStoreData?.name || 'Parent Store'}</li>
-                <li><strong>Store ID:</strong> {parentStoreData?.storeId}</li>
-                <li><strong>Email:</strong> {needsStoreEmail ? form.storeEmail : parentStoreData?.email}</li>
+                <li><strong>Transfer Type:</strong> {form.transferType === 'parentStore' ? 'Parent Store' : 'Other User'}</li>
+                <li><strong>To:</strong> {form.transferType === 'parentStore' ? (parentStoreData?.name || 'Parent Store') : form.recipientEmail}</li>
+                {form.transferType === 'parentStore' && parentStoreData?.storeId && (
+                  <li><strong>Store ID:</strong> {parentStoreData.storeId}</li>
+                )}
+                <li><strong>Email:</strong> {form.transferType === 'parentStore' ? (needsStoreEmail ? form.storeEmail : parentStoreData?.email) : form.recipientEmail}</li>
                 <li><strong>Amount:</strong> ₦{parseFloat(form.amount).toLocaleString()}</li>
                 {form.description && <li><strong>Description:</strong> {form.description}</li>}
                 <li><strong>PIN:</strong> {'*'.repeat(form.pin.length)}</li>
@@ -825,130 +946,132 @@ const handlePinInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
             </div>
           </div>
         )}
-      {/* PIN Management Modal */}
-{showPinModal && (
-  <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-    <div className="bg-white rounded-xl shadow-2xl max-w-md w-full transform transition-all">
-      {/* Modal Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 rounded-t-xl">
-        <div className="flex items-center gap-3">
-          <div className="bg-white bg-opacity-20 p-2 rounded-lg">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-          </div>
-          <div>
-            <h4 className="font-bold text-xl">
-              {user?.isPinSet ? 'Update Your PIN' : 'Set Your PIN'}
-            </h4>
-            <p className="text-blue-100 text-sm">
-              {user?.isPinSet ? 'Change your 4-digit security PIN' : 'Create a 4-digit security PIN'}
-            </p>
-          </div>
-        </div>
-      </div>
-      
-      {/* Modal Body */}
-      <div className="p-6">
-        <form onSubmit={handlePinUpdate} className="space-y-5">
-          {user?.isPinSet && (
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Current PIN
-              </label>
-              <input
-                type="password"
-                name="currentPin"
-                value={pinData.currentPin}
-                onChange={handlePinInputChange}
-                className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-lg text-center tracking-widest text-black"
-                placeholder="••••"
-                maxLength={4}
-                required
-              />
-            </div>
-          )}
-          
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              {user?.isPinSet ? 'New PIN' : 'Create PIN'}
-            </label>
-            <input
-              type="password"
-              name="pin"
-              value={pinData.pin}
-              onChange={handlePinInputChange}
-              className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-lg text-center tracking-widest text-black"
-              placeholder="••••"
-              maxLength={4}
-              required
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Confirm {user?.isPinSet ? 'New ' : ''}PIN
-            </label>
-            <input
-              type="password"
-              name="newPin"
-              value={pinData.newPin}
-              onChange={handlePinInputChange}
-              className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-lg text-center tracking-widest text-black"
-              placeholder="••••"
-              maxLength={4}
-              required
-            />
-          </div>
-          
-          {/* Security Note */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex items-start gap-3">
-              <svg className="w-5 h-5 text-blue-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <div>
-                <p className="text-sm font-medium text-blue-800">Security Note</p>
-                <p className="text-xs text-blue-600 mt-1">
-                  Your PIN must be exactly 4 digits (0-9). Keep it secure and don't share it with anyone.
-                </p>
+
+        {/* PIN Management Modal */}
+        {showPinModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full transform transition-all">
+              {/* Modal Header */}
+              <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 rounded-t-xl">
+                <div className="flex items-center gap-3">
+                  <div className="bg-white bg-opacity-20 p-2 rounded-lg">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-xl">
+                      {user?.isPinSet ? 'Update Your PIN' : 'Set Your PIN'}
+                    </h4>
+                    <p className="text-blue-100 text-sm">
+                      {user?.isPinSet ? 'Change your 4-digit security PIN' : 'Create a 4-digit security PIN'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Modal Body */}
+              <div className="p-6">
+                <form onSubmit={handlePinUpdate} className="space-y-5">
+                  {user?.isPinSet && (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Current PIN
+                      </label>
+                      <input
+                        type="password"
+                        name="currentPin"
+                        value={pinData.currentPin}
+                        onChange={handlePinInputChange}
+                        className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-lg text-center tracking-widest text-black"
+                        placeholder="••••"
+                        maxLength={4}
+                        required
+                      />
+                    </div>
+                  )}
+                  
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      {user?.isPinSet ? 'New PIN' : 'Create PIN'}
+                    </label>
+                    <input
+                      type="password"
+                      name="pin"
+                      value={pinData.pin}
+                      onChange={handlePinInputChange}
+                      className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-lg text-center tracking-widest text-black"
+                      placeholder="••••"
+                      maxLength={4}
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Confirm {user?.isPinSet ? 'New ' : ''}PIN
+                    </label>
+                    <input
+                      type="password"
+                      name="newPin"
+                      value={pinData.newPin}
+                      onChange={handlePinInputChange}
+                      className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-lg text-center tracking-widest text-black"
+                      placeholder="••••"
+                      maxLength={4}
+                      required
+                    />
+                  </div>
+                  
+                  {/* Security Note */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <svg className="w-5 h-5 text-blue-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <div>
+                        <p className="text-sm font-medium text-blue-800">Security Note</p>
+                        <p className="text-xs text-blue-600 mt-1">
+                          Your PIN must be exactly 4 digits (0-9). Keep it secure and don't share it with anyone.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Action Buttons */}
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPinModal(false);
+                        setPinData({ currentPin: '', pin: '', newPin: '' });
+                      }}
+                      className="flex-1 px-4 py-3 border-2 border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all font-medium"
+                      disabled={isLoadingPin}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg transition-all font-medium shadow-lg hover:shadow-xl disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed"
+                      disabled={isLoadingPin}
+                    >
+                      {isLoadingPin ? (
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent animate-spin rounded-full"></div>
+                          <span>{user?.isPinSet ? 'Updating...' : 'Setting...'}</span>
+                        </div>
+                      ) : (
+                        <span>{user?.isPinSet ? 'Update PIN' : 'Set PIN'}</span>
+                      )}
+                    </button>
+                  </div>
+                </form>
               </div>
             </div>
           </div>
-          
-          {/* Action Buttons */}
-          <div className="flex gap-3 pt-4">
-            <button
-              type="button"
-              onClick={() => {
-                setShowPinModal(false);
-                setPinData({ currentPin: '', pin: '', newPin: '' });
-              }}
-              className="flex-1 px-4 py-3 border-2 border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all font-medium"
-              disabled={isLoadingPin}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg transition-all font-medium shadow-lg hover:shadow-xl disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed"
-              disabled={isLoadingPin}
-            >
-              {isLoadingPin ? (
-                <div className="flex items-center justify-center gap-2">
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent animate-spin rounded-full"></div>
-                  <span>{user?.isPinSet ? 'Updating...' : 'Setting...'}</span>
-                </div>
-              ) : (
-                <span>{user?.isPinSet ? 'Update PIN' : 'Set PIN'}</span>
-              )}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-)}
+        )}
+
         {/* Snackbar */}
         {snackbar && (
           <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-red-600 text-white px-4 py-2 rounded shadow z-50">

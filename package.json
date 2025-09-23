@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "start": "serve -s dist -l $PORT",
-    "deploy":"aws s3 sync dist s3://xpayfrontend"
+    "deploy":"aws s3 sync dist s3://xpayfrontend --delete"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",

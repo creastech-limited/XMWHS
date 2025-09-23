@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ArrowUp,
   ArrowDown,
@@ -87,6 +87,12 @@ interface ChartData {
   debits: number;
 }
 
+interface Recipient {
+  email: string;
+  name: string;
+}
+
+
 const KidsDashboard = () => {
   const navigate = useNavigate();
   const { token: authContextToken } = useAuth() || {};
@@ -116,13 +122,15 @@ const KidsDashboard = () => {
   const [transferAmount, setTransferAmount] = useState('');
   const [transferNote, setTransferNote] = useState('');
   const [transferPin, setTransferPin] = useState('');
-  interface Recipient {
-    email: string;
-    name: string;
-  }
   const [selectedRecipient, setSelectedRecipient] = useState<Recipient | null>(null);
   const [fundLoading, setFundLoading] = useState(false);
   const [transferLoading, setTransferLoading] = useState(false);
+
+  // School users state
+  const [schoolUsers, setSchoolUsers] = useState<Recipient[]>([]);
+  const [filteredUsers, setFilteredUsers] = useState<Recipient[]>([]);
+  const [fetchingUsers, setFetchingUsers] = useState(false);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
 
   const API_URL = import.meta.env.VITE_API_BASE_URL;
   const qrRef = useRef<HTMLDivElement>(null);
@@ -199,6 +207,52 @@ const KidsDashboard = () => {
     }
   };
 
+  // Fetch school users
+  const fetchSchoolUsers = useCallback(async () => {
+    if (!token) return;
+    
+    try {
+      setFetchingUsers(true);
+      const response = await axios.get(`${API_URL}/api/users/getallschooluser`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      console.log('School users response:', response.data);
+      
+      let users: Recipient[] = [];
+      if (response.data.users) {
+        users = response.data.users.map((user: { email: string; name?: string }) => ({
+          email: user.email,
+          name: user.name || user.email
+        }));
+      } else if (response.data.data) {
+        users = response.data.data.map((user: Recipient) => ({
+          email: user.email,
+          name: user.name || user.email
+        }));
+      } else if (Array.isArray(response.data)) {
+        users = response.data.map((user: { email: string; name?: string }) => ({
+          email: user.email,
+          name: user.name || user.email
+        }));
+      }
+
+      // Filter out current user if needed
+      const filteredUsers = users.filter(u => u.email !== profile?.email);
+      
+      setSchoolUsers(filteredUsers);
+      setFilteredUsers(filteredUsers);
+    } catch (error) {
+      console.error('Error fetching school users:', error);
+      showNotification('Failed to load school users', 'error');
+    } finally {
+      setFetchingUsers(false);
+    }
+  }, [token, profile?.email, API_URL]);
+
   // Fetch user profile
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -237,6 +291,11 @@ const KidsDashboard = () => {
 
     fetchUserProfile();
   }, [API_URL, token, navigate]);
+
+  // Fetch school users when component mounts
+  useEffect(() => {
+    fetchSchoolUsers();
+  }, [fetchSchoolUsers]);
 
   // Fetch user wallet
   const fetchUserWallet = async () => {
@@ -554,6 +613,43 @@ const KidsDashboard = () => {
     }
   };
 
+  // User dropdown handlers
+  const handleRecipientChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSelectedRecipient({ email: value, name: value });
+    
+    // Filter users based on input
+    if (value) {
+      const filtered = schoolUsers.filter(user =>
+        user.email.toLowerCase().includes(value.toLowerCase()) ||
+        user.name.toLowerCase().includes(value.toLowerCase())
+      );
+      setFilteredUsers(filtered);
+      setShowUserDropdown(true);
+    } else {
+      setFilteredUsers(schoolUsers);
+      setShowUserDropdown(true);
+    }
+  };
+
+  const handleUserSelect = (user: Recipient) => {
+    setSelectedRecipient(user);
+    setShowUserDropdown(false);
+  };
+
+  const handleInputFocus = () => {
+    if (schoolUsers.length > 0) {
+      setShowUserDropdown(true);
+    }
+  };
+
+  const handleInputBlur = () => {
+    // Small delay to allow click on dropdown items
+    setTimeout(() => {
+      setShowUserDropdown(false);
+    }, 200);
+  };
+
   // Fund Modal Component
   const FundModal = () => {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -665,10 +761,6 @@ const KidsDashboard = () => {
 
  // Transfer Modal Component
 const TransferModal = () => {
-  const handleRecipientChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSelectedRecipient({ email: e.target.value, name: e.target.value });
-  };
-
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setTransferAmount(e.target.value);
   };
@@ -717,7 +809,7 @@ const TransferModal = () => {
         <div className="p-6">
           <div className="space-y-5">
             {/* Recipient Field */}
-            <div>
+            <div className="relative">
               <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
                 <span>Recipient Email</span>
                 <span className="text-red-500 ml-1">*</span>
@@ -726,9 +818,37 @@ const TransferModal = () => {
                 type="email"
                 value={selectedRecipient?.email || ''}
                 onChange={handleRecipientChange}
+                onFocus={handleInputFocus}
+                onBlur={handleInputBlur}
                 className="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-black"
-                placeholder="recipient@example.com"
+                placeholder="Search by email or name"
               />
+              
+              {showUserDropdown && (
+                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                  {fetchingUsers ? (
+                    <div className="p-3 text-center text-gray-500">
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-green-500 mx-auto"></div>
+                      <p className="text-sm mt-1">Loading users...</p>
+                    </div>
+                  ) : filteredUsers.length > 0 ? (
+                    filteredUsers.map((user) => (
+                      <div
+                        key={user.email}
+                        onClick={() => handleUserSelect(user)}
+                        className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
+                      >
+                        <div className="font-medium text-gray-800">{user.name}</div>
+                        <div className="text-sm text-gray-600">{user.email}</div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-3 text-center text-gray-500">
+                      No users found
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Amount Field */}

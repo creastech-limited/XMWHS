@@ -332,7 +332,7 @@ const SchoolTransferPage: React.FC = () => {
       const data = await response.json();
       
       if (response.ok && data.message === "Transfer successful") {
-        setSnackbarMessage(`₦${Number(amount).toLocaleString()} successfully transferred to ${selectedUser.name}!`);
+        setSnackbarMessage(`₦${Number(amount).toLocaleString()} successfully transferred to ${selectedUser.email}!`);
         setSnackbarSeverity('success');
         setShowSnackbar(true);
         
