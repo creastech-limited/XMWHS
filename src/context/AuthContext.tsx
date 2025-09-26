@@ -91,14 +91,28 @@ const ROLE_SPECIFIC_ROUTES: Record<string, string[]> = {
   admin: ['/admin'],
 };
 
-// Public pages that don't require authentication
-const PUBLIC_PAGES = [
-  '/login',
-  '/signup',
-  '/schoolsignup',
-  '/forgot-password',
-  '/terms',
-];
+// Helper function to check if a path is public
+const isPublicPath = (pathname: string): boolean => {
+  const publicPaths = [
+    '/login',
+    '/signup',
+    '/schoolsignup',
+    '/forgot-password',
+    '/terms',
+  ];
+  
+  // Check exact matches first
+  if (publicPaths.includes(pathname)) {
+    return true;
+  }
+  
+  // Check for reset password route with token parameter
+  if (pathname.startsWith('/reset-password/')) {
+    return true;
+  }
+  
+  return false;
+};
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -148,15 +162,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     const checkAuthStatus = async () => {
       setIsLoading(true);
+      
+      const currentPath = location.pathname;
+      
+      // If user is on a public page, allow access without authentication
+      if (isPublicPath(currentPath)) {
+        setIsLoading(false);
+        return;
+      }
 
       const storedUser = localStorage.getItem('user');
       const storedToken = localStorage.getItem('token');
 
+      // If no token and not on public page, redirect to login
       if (!storedToken || !storedUser) {
         setIsLoading(false);
-        if (!PUBLIC_PAGES.includes(location.pathname)) {
-          navigate('/login');
-        }
+        navigate('/login');
         return;
       }
 
@@ -169,15 +190,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setToken(storedToken);
 
           // Check if current route is allowed for this user role
-          const currentPath = location.pathname;
-
-          // If user is on public page, no need to redirect
-          if (PUBLIC_PAGES.includes(currentPath)) {
-            setIsLoading(false);
-            return;
-          }
-
-          // If user is not on their role-specific route, redirect them
           const allowedRoutes = ROLE_SPECIFIC_ROUTES[parsedUser.role] || [];
           if (!allowedRoutes.some(route => currentPath.startsWith(route))) {
             navigate(ROLE_ROUTES[parsedUser.role] || '/');
@@ -201,10 +213,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (isLoading || !user) return;
 
     const currentPath = location.pathname;
-    const allowedRoutes = ROLE_SPECIFIC_ROUTES[user.role] || [];
-
+    
     // Allow access to public pages
-    if (PUBLIC_PAGES.includes(currentPath)) return;
+    if (isPublicPath(currentPath)) return;
+    
+    const allowedRoutes = ROLE_SPECIFIC_ROUTES[user.role] || [];
 
     // Redirect if user tries to access non-authorized route
     if (!allowedRoutes.some(route => currentPath.startsWith(route))) {
@@ -229,9 +242,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
   }, [logout]);
 
-  // Periodic token validation
+  // Periodic token validation (only when user is authenticated)
   useEffect(() => {
-    if (!token) return;
+    if (!token || !user) return;
 
     const intervalId = setInterval(async () => {
       const isValid = await validateToken(token);
@@ -241,7 +254,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }, 10 * 60 * 1000); // 10 minutes
 
     return () => clearInterval(intervalId);
-  }, [token, logout]);
+  }, [token, user, logout]);
 
   return (
     <AuthContext.Provider value={{ user, token, login, logout, isLoading }}>

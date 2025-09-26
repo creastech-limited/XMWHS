@@ -45,6 +45,8 @@ import Terms from './pages/Public Pages/TermsAndConditions.js';
 import Overview from './pages/Admin/overview';
 import AllUsers from './pages/Admin/AllUsers';
 import SchoolTransferPage from './pages/School/schooltransfer.js';
+import ForgotPasswordPage from './pages/Public Pages/ForgotPasswordPage.js';
+import ResetPasswordPage from './pages/Public Pages/ResetPasswordPage.js';
 
 function App() {
   return (
@@ -63,6 +65,8 @@ function App() {
           <Route path='/schoolsignup' element={<SchoolSignUpPage />} />
           <Route path="/students/new" element={<StudentRegistrationForm />} />
           <Route path="/stores/new" element={<StoreRegistrationForm />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
 
 
           {/* School dashboard */}
