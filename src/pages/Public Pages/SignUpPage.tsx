@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { Eye, EyeOff, User, Mail, Lock, AlertCircle, CheckCircle, School } from 'lucide-react';
 import bgImage from '../bg.jpeg';
-import logo from '../5.png'; // Added logo import to match login page
+import logo from '../5.png'; 
 
 const SignUpPage: React.FC = () => {
   const [formValues, setFormValues] = useState({
@@ -399,7 +399,7 @@ const SignUpPage: React.FC = () => {
             )}
           </button>
         </form>
-
+{/*}
         <div className="text-center mt-6">
           <p className="text-gray-600">
             Register as a{' '}
@@ -409,6 +409,7 @@ const SignUpPage: React.FC = () => {
             {' '} instead
           </p>
         </div>
+*/}
       </div>
     </div>
   );

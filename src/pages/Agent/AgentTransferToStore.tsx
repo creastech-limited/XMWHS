@@ -91,6 +91,7 @@ const AgentTransferToStore = () => {
     newPin: ''
   });
   const [isLoadingPin, setIsLoadingPin] = useState(false);
+  const [isMobile, setIsMobile] = useState<boolean>(window.innerWidth <= 768);
 
   // Authentication and data fetching
   const fetchUserDetails = useCallback(async (authToken: string) => {
@@ -319,6 +320,16 @@ const AgentTransferToStore = () => {
 
     initializeAuth();
   }, [fetchUserDetails, fetchUserTransactions, generateParentStoreInfo, fetchParentStoreDetails]);
+
+  // Handle resize for mobile detection
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // PIN Update Handler
   const handlePinUpdate = async (e: React.FormEvent) => {
@@ -568,9 +579,6 @@ const AgentTransferToStore = () => {
     }
   };
 
-  // Detect mobile
-  const isMobile = window.innerWidth <= 640;
-
   // Loading state
   if (loading) {
     return (
@@ -613,54 +621,59 @@ const AgentTransferToStore = () => {
   return (
     <div className="flex flex-col min-h-screen bg-[#f8faff]">
       <AHeader />
-      <main className="flex-grow p-4 sm:p-6">
-        <div className="mx-auto py-8 px-4" 
-             style={isMobile ? { maxWidth: '100%' } : { maxWidth: '800px' }}>
+      <main className="flex-grow p-3 sm:p-6">
+        <div className="mx-auto py-4 sm:py-8 px-2 sm:px-4 max-w-4xl">
           
-          {/* Agent Info Card */}
-          <div className="bg-white shadow-md rounded-lg p-6 mb-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-xl font-bold text-gray-800">{user.name}</h1>
-                <p className="text-sm text-gray-600">Agent ID: {user.agent_id}</p>
+          {/* Agent Info Card - Mobile Optimized */}
+          <div className="bg-white shadow-md rounded-lg p-4 sm:p-6 mb-4 sm:mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <h1 className="text-lg sm:text-xl font-bold text-gray-800 truncate">
+                  {user?.name || 'Loading...'}
+                </h1>
+                <p className="text-xs sm:text-sm text-gray-600 truncate">
+                  Agent ID: {user?.agent_id || 'N/A'}
+                </p>
               </div>
-              <div className="text-right">
-                <p className="text-sm text-gray-500">Wallet Balance</p>
-                <p className="text-2xl font-bold text-green-600">
-                  ₦{user.wallet.balance.toLocaleString()}
+              <div className="text-left sm:text-right">
+                <p className="text-xs sm:text-sm text-gray-500">Wallet Balance</p>
+                <p className="text-xl sm:text-2xl font-bold text-green-600 whitespace-nowrap">
+                  ₦{user?.wallet?.balance?.toLocaleString() || '0'}
                 </p>
               </div>
             </div>
           </div>
            
-         {/* PIN Management Button - Floating */}
-        <div className="fixed bottom-20 right-4 z-40">
+         {/* PIN Management Button - Mobile Optimized */}
+        <div className={`fixed ${isMobile ? 'bottom-4 right-4' : 'bottom-6 right-6'} z-40`}>
           <button
             onClick={() => setShowPinModal(true)}
-            className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-4 py-3 rounded-full shadow-lg transition-all duration-300 flex items-center gap-2 min-w-max"
+            className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white p-3 rounded-full shadow-lg transition-all duration-300 flex items-center gap-2"
             title="Manage PIN"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
-            <span className="text-sm font-medium">
-              {user?.isPinSet ? 'Update PIN' : 'Set PIN'}
-            </span>
+            {!isMobile && (
+              <span className="text-sm font-medium">
+                {user?.isPinSet ? 'Update PIN' : 'Set PIN'}
+              </span>
+            )}
           </button>
         </div>
 
           {transferComplete ? (
-            <div className="bg-white shadow-md rounded-lg p-6 text-center">
-              <div className="bg-green-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Wallet className="text-green-600 w-10 h-10" />
+            <div className="bg-white shadow-md rounded-lg p-4 sm:p-6 text-center">
+              <div className="bg-green-100 w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Wallet className="text-green-600 w-8 h-8 sm:w-10 sm:h-10" />
               </div>
-              <h2 className="text-green-700 text-xl font-bold mb-2">Transfer Successful!</h2>
-              <p className="mb-4">
+              <h2 className="text-green-700 text-lg sm:text-xl font-bold mb-2">Transfer Successful!</h2>
+              <p className="mb-4 text-sm sm:text-base">
                 You transferred <strong>₦{parseFloat(form.amount).toLocaleString()}</strong> to{' '}
                 <strong>{form.transferType === 'parentStore' ? (parentStoreData?.name || 'Parent Store') : form.recipientEmail}</strong>.
               </p>
               {transactionDetails && (
-                <div className="bg-gray-100 p-4 rounded my-4 text-sm text-gray-700">
+                <div className="bg-gray-100 p-3 sm:p-4 rounded my-4 text-xs sm:text-sm text-gray-700">
                   <p><strong>Transaction ID:</strong> {transactionDetails.reference}</p>
                   <p><strong>Receiver:</strong> {transactionDetails.receiver}</p>
                   <p><strong>Amount:</strong> ₦{transactionDetails.amount.toLocaleString()}</p>
@@ -670,29 +683,29 @@ const AgentTransferToStore = () => {
             </div>
           ) : (
             <form onSubmit={(e) => { e.preventDefault(); if (validateForm()) setShowConfirm(true); }}>
-              <div className="text-gray-600 bg-white shadow-md rounded-lg p-6">
-                <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
-                  <Wallet className="w-5 h-5" />
+              <div className="text-gray-600 bg-white shadow-md rounded-lg p-4 sm:p-6">
+                <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2 mb-4">
+                  <Wallet className="w-4 h-4 sm:w-5 sm:h-5" />
                   Make a Transfer
                 </h2>
 
-                {/* Transfer Type Selection */}
-                <div className="mb-6">
+                {/* Transfer Type Selection - Mobile Optimized */}
+                <div className="mb-4 sm:mb-6">
                   <label className="block text-sm font-medium mb-3">Transfer To</label>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 xs:grid-cols-2 gap-2 sm:gap-3">
                     <button
                       type="button"
                       onClick={() => {
                         setForm(prev => ({ ...prev, transferType: 'parentStore', storeEmail: '' }));
                         setFormErrors(prev => ({ ...prev, storeEmail: '', recipientEmail: '' }));
                       }}
-                      className={`p-4 border-2 rounded-lg text-center transition-all ${
+                      className={`p-3 sm:p-4 border-2 rounded-lg text-center transition-all ${
                         form.transferType === 'parentStore'
                           ? 'border-blue-500 bg-blue-50 text-blue-700'
                           : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
                       }`}
                     >
-                      <div className="font-medium mb-1">Parent Store</div>
+                      <div className="font-medium text-sm sm:text-base mb-1">Parent Store</div>
                       <div className="text-xs text-gray-500">Quick transfer</div>
                     </button>
                     
@@ -702,60 +715,60 @@ const AgentTransferToStore = () => {
                         setForm(prev => ({ ...prev, transferType: 'otherUser', storeEmail: '' }));
                         setFormErrors(prev => ({ ...prev, storeEmail: '', recipientEmail: '' }));
                       }}
-                      className={`p-4 border-2 rounded-lg text-center transition-all ${
+                      className={`p-3 sm:p-4 border-2 rounded-lg text-center transition-all ${
                         form.transferType === 'otherUser'
                           ? 'border-blue-500 bg-blue-50 text-blue-700'
                           : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
                       }`}
                     >
-                      <div className="font-medium mb-1">Other User</div>
+                      <div className="font-medium text-sm sm:text-base mb-1">Other User</div>
                       <div className="text-xs text-gray-500">Any system user</div>
                     </button>
                   </div>
                 </div>
 
-                {/* Parent Store Info */}
+                {/* Parent Store Info - Mobile Optimized */}
                 {form.transferType === 'parentStore' && parentStoreData && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                    <div className="flex items-start gap-3">
-                      <Info className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                      <div className="flex-1">
-                        <h4 className="font-semibold text-blue-800 mb-2">Parent Store Details</h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-                          <div><span className="font-medium">Store:</span> {parentStoreData.name}</div>
-                          <div><span className="font-medium">Email:</span> {parentStoreData.email}</div>
-                          <div><span className="font-medium">Account:</span> {parentStoreData.accountNumber}</div>
-                          <div><span className="font-medium">Store ID:</span> {parentStoreData.fullStoreId}</div>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4 mb-4">
+                    <div className="flex items-start gap-2 sm:gap-3">
+                      <Info className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-semibold text-blue-800 text-sm sm:text-base mb-2">Parent Store Details</h4>
+                        <div className="grid grid-cols-1 gap-1 sm:gap-2 text-xs sm:text-sm">
+                          <div className="truncate"><span className="font-medium">Store:</span> {parentStoreData.name}</div>
+                          <div className="truncate"><span className="font-medium">Email:</span> {parentStoreData.email}</div>
+                          <div className="truncate"><span className="font-medium">Account:</span> {parentStoreData.accountNumber}</div>
+                          <div className="truncate"><span className="font-medium">Store ID:</span> {parentStoreData.fullStoreId}</div>
                         </div>
                       </div>
                     </div>
                   </div>
                 )}
 
-                {/* Other User Transfer Form */}
+                {/* Other User Transfer Form - Mobile Optimized */}
                 {form.transferType === 'otherUser' && (
-                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-4">
-                    <div className="flex items-start gap-3">
-                      <Info className="w-5 h-5 text-purple-600 mt-0.5 flex-shrink-0" />
-                      <div className="flex-1">
-                        <h4 className="font-semibold text-purple-800 mb-2">Transfer to Any User</h4>
-                        <p className="text-sm text-purple-700 mb-3">
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 sm:p-4 mb-4">
+                    <div className="flex items-start gap-2 sm:gap-3">
+                      <Info className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-semibold text-purple-800 text-sm sm:text-base mb-2">Transfer to Any User</h4>
+                        <p className="text-xs sm:text-sm text-purple-700 mb-3">
                           Enter the email address of any registered user in the system to transfer funds.
                         </p>
                         
                         <div className="mb-3">
-                          <label className="block text-sm font-medium mb-1 text-gray-700">Recipient Email *</label>
+                          <label className="block text-xs sm:text-sm font-medium mb-1 text-gray-700">Recipient Email *</label>
                           <input
                             type="email"
                             name="recipientEmail"
                             value={form.recipientEmail || ''}
                             onChange={handleChange}
-                            className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                            className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
                             placeholder="Enter recipient's email address"
                             required
                           />
                           {formErrors.recipientEmail && (
-                            <p className="text-red-500 text-sm mt-1">{formErrors.recipientEmail}</p>
+                            <p className="text-red-500 text-xs mt-1">{formErrors.recipientEmail}</p>
                           )}
                         </div>
                       </div>
@@ -763,93 +776,65 @@ const AgentTransferToStore = () => {
                   </div>
                 )}
 
-                {/* Fallback for missing parent store data */}
-                {form.transferType === 'parentStore' && needsStoreEmail && (
-                  <div className="bg-yellow-50 border border-yellow-400 rounded-lg p-4 mb-4">
-                    <div className="flex items-start gap-3">
-                      <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
-                      <div className="flex-1">
-                        <p className="text-yellow-800 font-medium mb-2">Store Email Required</p>
-                        <p className="text-sm text-yellow-700 mb-3">
-                          Please enter your parent store's email address to complete the transfer.
-                        </p>
-                        
-                        <div>
-                          <label className="block text-sm font-medium mb-1 text-gray-700">Parent Store Email *</label>
-                          <input
-                            type="email"
-                            name="storeEmail"
-                            value={form.storeEmail}
-                            onChange={handleChange}
-                            className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                            placeholder="Enter parent store email"
-                            required
-                          />
-                          {formErrors.storeEmail && (
-                            <p className="text-red-500 text-sm mt-1">{formErrors.storeEmail}</p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Amount Input */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium mb-1">Amount (₦) *</label>
-                  <input
-                    type="number"
-                    name="amount"
-                    value={form.amount}
-                    onChange={handleChange}
-                    className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter amount"
-                    min="1"
-                    max={user.wallet.balance}
-                    required
-                  />
-                  {formErrors.amount && <p className="text-red-500 text-sm mt-1">{formErrors.amount}</p>}
-                  <div className="flex justify-between text-xs text-gray-500 mt-1">
-                    <span>Available: ₦{user.wallet.balance.toLocaleString()}</span>
-                    <span>Min: ₦1</span>
-                  </div>
-                </div>
-
-                {/* PIN Input */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium mb-1">Transaction PIN *</label>
-                  <div className="relative">
+                {/* Form Inputs - Mobile Optimized */}
+                <div className="space-y-4">
+                  {/* Amount Input */}
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium mb-1">Amount (₦) *</label>
                     <input
-                      type={showPin ? "text" : "password"}
-                      name="pin"
-                      value={form.pin}
+                      type="number"
+                      name="amount"
+                      value={form.amount}
                       onChange={handleChange}
-                      className="w-full border rounded px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Enter your 4-digit PIN"
-                      maxLength={4}
+                      className="w-full border rounded px-3 py-2 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Enter amount"
+                      min="1"
+                      max={user?.wallet?.balance}
                       required
                     />
-                    <button
-                      type="button"
-                      onClick={() => setShowPin(!showPin)}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                    >
-                      {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
+                    {formErrors.amount && <p className="text-red-500 text-xs mt-1">{formErrors.amount}</p>}
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>Available: ₦{user?.wallet?.balance?.toLocaleString() || '0'}</span>
+                      <span>Min: ₦1</span>
+                    </div>
                   </div>
-                  {formErrors.pin && <p className="text-red-500 text-sm mt-1">{formErrors.pin}</p>}
-                </div>
 
-                {/* Description Input */}
-                <div className="mb-6">
-                  <label className="block text-sm font-medium mb-1">Description (optional)</label>
-                  <input
-                    name="description"
-                    value={form.description}
-                    onChange={handleChange}
-                    className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter transaction description"
-                  />
+                  {/* PIN Input */}
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium mb-1">Transaction PIN *</label>
+                    <div className="relative">
+                      <input
+                        type={showPin ? "text" : "password"}
+                        name="pin"
+                        value={form.pin}
+                        onChange={handleChange}
+                        className="w-full border rounded px-3 py-2 pr-10 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Enter your 4-digit PIN"
+                        maxLength={4}
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPin(!showPin)}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                      >
+                        {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    {formErrors.pin && <p className="text-red-500 text-xs mt-1">{formErrors.pin}</p>}
+                  </div>
+
+                  {/* Description Input */}
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium mb-1">Description (optional)</label>
+                    <input
+                      name="description"
+                      value={form.description}
+                      onChange={handleChange}
+                      className="w-full border rounded px-3 py-2 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Enter transaction description"
+                    />
+                  </div>
                 </div>
 
                 {/* Transfer Button */}
@@ -858,7 +843,7 @@ const AgentTransferToStore = () => {
                   disabled={!form.amount || !form.pin || !!formErrors.amount || !!formErrors.pin || 
                     (form.transferType === 'parentStore' && needsStoreEmail && (!form.storeEmail || !!formErrors.storeEmail)) ||
                     (form.transferType === 'otherUser' && (!form.recipientEmail || !!formErrors.recipientEmail))}
-                  className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg transition-all shadow-lg hover:shadow-xl"
+                  className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg transition-all shadow-lg hover:shadow-xl text-sm sm:text-base mt-6"
                 >
                   {form.transferType === 'parentStore' ? 'Transfer to Parent Store' : 'Transfer to User'}
                 </button>
@@ -866,69 +851,72 @@ const AgentTransferToStore = () => {
             </form>
           )}
 
+          {/* Recent Transactions - Mobile Optimized */}
           {!transferComplete && (
-            <div className="text-gray-600 bg-white shadow-md rounded-lg p-4 mt-6">
-              <h3 className="flex items-center gap-2 font-semibold mb-3">
+            <div className="text-gray-600 bg-white shadow-md rounded-lg p-3 sm:p-4 mt-4 sm:mt-6">
+              <h3 className="flex items-center gap-2 font-semibold text-sm sm:text-base mb-3">
                 <History className="w-4 h-4" />
                 Recent Transactions
               </h3>
               {recentTransactions.length > 0 ? (
-                recentTransactions.map(tx => (
-                  <div key={tx._id} className="flex justify-between items-center bg-gray-100 p-3 rounded mb-2">
-                    <div>
-                      <div className="text-sm font-medium">{tx.reference}</div>
-                      <div className="text-xs text-gray-500">{tx.description}</div>
-                      <div className="text-xs text-gray-500">
-                        {new Date(tx.createdAt).toLocaleDateString()}
-                      </div>
-                      {tx.receiver && (
-                        <div className="text-xs text-gray-500">
-                          Store ID: {tx.receiver.includes('/') ? tx.receiver.split('/')[1] : tx.receiver}
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {recentTransactions.map(tx => (
+                    <div key={tx._id} className="flex justify-between items-start bg-gray-50 p-3 rounded border">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs sm:text-sm font-medium truncate">{tx.reference}</div>
+                        <div className="text-xs text-gray-500 mt-1 line-clamp-1">{tx.description}</div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {new Date(tx.createdAt).toLocaleDateString()}
                         </div>
-                      )}
-                    </div>
-                    <div className="text-right">
-                      <div className={`font-bold ${tx.category === 'credit' ? 'text-green-600' : 'text-red-600'}`}>
-                        {tx.category === 'credit' ? '+' : '-'}₦{tx.amount.toLocaleString()}
+                        {tx.receiver && (
+                          <div className="text-xs text-gray-500 mt-1 truncate">
+                            Store ID: {tx.receiver.includes('/') ? tx.receiver.split('/')[1] : tx.receiver}
+                          </div>
+                        )}
                       </div>
-                      <div className="text-xs text-gray-500 capitalize">{tx.status}</div>
+                      <div className="text-right ml-2 flex-shrink-0">
+                        <div className={`font-bold text-sm sm:text-base ${tx.category === 'credit' ? 'text-green-600' : 'text-red-600'}`}>
+                          {tx.category === 'credit' ? '+' : '-'}₦{tx.amount.toLocaleString()}
+                        </div>
+                        <div className="text-xs text-gray-500 capitalize">{tx.status}</div>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  ))}
+                </div>
               ) : (
-                <p className="text-center text-sm text-gray-500 py-4">No recent transactions</p>
+                <p className="text-center text-xs sm:text-sm text-gray-500 py-4">No recent transactions</p>
               )}
             </div>
           )}
         </div>
 
-        {/* Confirmation Modal */}
+        {/* Confirmation Modal - Mobile Optimized */}
         {showConfirm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 text-black">
-            <div className="bg-white p-6 rounded shadow max-w-md w-full mx-4">
-              <h4 className="font-semibold text-lg mb-2">Confirm Transfer</h4>
-              <p className="mb-4">Please confirm the following details:</p>
-              <ul className="text-sm space-y-2 mb-4">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white p-4 sm:p-6 rounded-lg shadow-lg max-w-md w-full mx-auto max-h-[90vh] overflow-y-auto">
+              <h4 className="font-semibold text-lg mb-3">Confirm Transfer</h4>
+              <p className="mb-4 text-sm sm:text-base">Please confirm the following details:</p>
+              <ul className="text-xs sm:text-sm space-y-2 mb-4">
                 <li><strong>Transfer Type:</strong> {form.transferType === 'parentStore' ? 'Parent Store' : 'Other User'}</li>
                 <li><strong>To:</strong> {form.transferType === 'parentStore' ? (parentStoreData?.name || 'Parent Store') : form.recipientEmail}</li>
                 {form.transferType === 'parentStore' && parentStoreData?.storeId && (
-                  <li><strong>Store ID:</strong> {parentStoreData.storeId}</li>
+                  <li className="break-all"><strong>Store ID:</strong> {parentStoreData.storeId}</li>
                 )}
-                <li><strong>Email:</strong> {form.transferType === 'parentStore' ? (needsStoreEmail ? form.storeEmail : parentStoreData?.email) : form.recipientEmail}</li>
+                <li className="break-all"><strong>Email:</strong> {form.transferType === 'parentStore' ? (needsStoreEmail ? form.storeEmail : parentStoreData?.email) : form.recipientEmail}</li>
                 <li><strong>Amount:</strong> ₦{parseFloat(form.amount).toLocaleString()}</li>
                 {form.description && <li><strong>Description:</strong> {form.description}</li>}
                 <li><strong>PIN:</strong> {'*'.repeat(form.pin.length)}</li>
               </ul>
-              <div className="flex justify-end gap-2">
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                 <button 
                   onClick={() => setShowConfirm(false)} 
-                  className="px-4 py-2 border rounded hover:bg-gray-50 transition-colors"
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded hover:bg-gray-50 transition-colors text-sm sm:text-base"
                 >
                   Cancel
                 </button>
                 <button 
                   onClick={handleSubmitTransfer} 
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm sm:text-base font-medium"
                 >
                   Confirm Transfer
                 </button>
@@ -1082,14 +1070,15 @@ const AgentTransferToStore = () => {
           </div>
         )}
 
-        <div className="text-center mt-6">
-          <Link
-            to="/agent"
-            className="bg-blue-600 px-6 py-2 rounded hover:bg-blue-700 transition-colors"
-          >
-            <span className="text-white">Back to Dashboard</span>
-          </Link>
-        </div>
+         <div className="text-center mt-6">
+                    <Link
+                      to="/agent"
+                      className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700"
+                    >
+                      <span className="text-white">Back to Dashboard</span>
+                    </Link>
+                  </div>
+                
       </main>
       <Footer />
     </div>

@@ -272,8 +272,7 @@ const AgentScanQR: React.FC = () => {
   if (!scanResult || !amount || !userEnteredPin) return;
 
   setProcessingTransaction(true);
-  // Don't close the PIN dialog yet - we'll keep it open if there's an error
-  // setShowPinDialog(false);
+  
   
   try {
     if (!scanResult.qrData.email) {
@@ -323,11 +322,7 @@ const AgentScanQR: React.FC = () => {
     }
     
     setError(errorMessage);
-    // Don't clear the PIN - let user see what they entered
-    // setUserEnteredPin('');
-    
-    // Keep the PIN dialog open to show the error
-    // setShowPinDialog(true); // Already open since we never closed it
+   
   }
 };
 

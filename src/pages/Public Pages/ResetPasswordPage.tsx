@@ -37,9 +37,9 @@ const ResetPasswordPage: React.FC = () => {
     
     console.log('Token appears valid, proceeding...');
     
-    // Optional: Validate token format (if you have specific requirements)
+    
     if (token.length < 10) {
-      console.log('Token appears too short');
+      
       setIsTokenValid(false);
       setErrorMessage('Invalid reset token format.');
       return;
@@ -102,8 +102,7 @@ const ResetPasswordPage: React.FC = () => {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    console.log('Form submitted');
-    console.log('Token for API call:', token);
+   
     
     if (!validateForm()) {
       console.log('Form validation failed');

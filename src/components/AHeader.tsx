@@ -44,7 +44,7 @@ const AHeader = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
-  const [isMobile, setIsMobile] = useState<boolean>(window.innerWidth < 640);
+  // Removed unused isMobile state
   const [isNotifOpen, setIsNotifOpen] = useState<boolean>(false);
   const { logout } = useAuth() || {};
   const navigate = useNavigate();
@@ -263,15 +263,7 @@ const AHeader = () => {
     initializeAuth();
   }, [auth]);
 
-  // Handle window resize for mobile detection
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 640);
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  
 
   // Close notifications when clicking outside
   useEffect(() => {
@@ -299,21 +291,21 @@ const AHeader = () => {
     return (
       <div className="flex m-2 flex-col bg-[#f8faff]">
         <div 
-          className="text-white p-4 sm:p-6 flex justify-between items-center"
+          className="text-white p-4 flex justify-between items-center"
           style={{ background: colors.headerGradient }}
         >
-          <div className="flex items-center gap-4">
-            <WalletIcon className={`text-white ${isMobile ? 'text-3xl' : 'text-4xl'}`} />
-            <div className="flex flex-col align-center justify-center">
-              <h1 className={isMobile ? "text-xl font-bold leading-tight" : "text-2xl font-bold leading-tight"}>
-                <span style={{ fontSize: isMobile ? '1.25rem' : '2.5rem' }}>Loading...</span>
+          <div className="flex items-center gap-3">
+            <WalletIcon className="text-white text-2xl sm:text-4xl" />
+            <div className="flex flex-col">
+              <h1 className="text-lg sm:text-2xl font-bold leading-tight">
+                Loading...
               </h1>
-              <p className="opacity-90 text-sm">Agent Dashboard</p>
+              <p className="opacity-90 text-xs">Agent Dashboard</p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <div>
-              <h2 className={isMobile ? "text-lg font-bold" : "text-xl font-bold"}>
+          <div className="flex items-center gap-3">
+            <div className="text-right">
+              <h2 className="text-base sm:text-xl font-bold">
                 ₦--
               </h2>
               <p className="opacity-80 text-xs">Wallet Balance</p>
@@ -322,7 +314,7 @@ const AHeader = () => {
               className="text-white p-2 rounded-full hover:text-blue-600 hover:bg-blue-600 hover:bg-opacity-10"
               aria-label="notifications"
             >
-              <Bell style={{ color: 'white' }} />
+              <Bell className="w-5 h-5" />
             </button>
           </div>
         </div>
@@ -333,107 +325,108 @@ const AHeader = () => {
   return (
     <div className="flex m-2 flex-col bg-[#f8faff]">
       <div 
-        className="text-white p-4 sm:p-6 flex justify-between items-center"
+        className="text-white p-4 flex justify-between items-center"
         style={{ background: colors.headerGradient }}
       >
-        <div className="flex items-center gap-4">
-          <WalletIcon className={`text-white ${isMobile ? 'text-3xl' : 'text-4xl'}`} />
-          <div className="flex flex-col align-center justify-center">
-            <h1 className={isMobile ? "text-xl font-bold leading-tight" : "text-2xl font-bold leading-tight"}>
-              <span style={{ fontSize: isMobile ? '1.25rem' : '2.5rem' }}>
-                {agentData?.name || user?.name || "Agent User"}
-              </span>
+        {/* Left Section - User Info */}
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <WalletIcon className="text-white text-2xl sm:text-4xl flex-shrink-0" />
+          <div className="flex flex-col min-w-0">
+            <h1 className="text-lg sm:text-2xl font-bold leading-tight truncate">
+              {agentData?.name || user?.name || "Agent User"}
             </h1>
-            <p className="opacity-90 text-sm">Agent Dashboard</p>
+            <p className="opacity-90 text-xs">Agent Dashboard</p>
           </div>
         </div>
-        <div className="flex items-center gap-4">
-          <div className='text-right'>
-            <h2 className={isMobile ? "mt-6 text-lg font-bold" : "text-xl font-bold"}>
+
+        {/* Right Section - Balance & Actions */}
+        <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+          {/* Wallet Balance - Hidden on very small screens, shown on sm and up */}
+          <div className='text-right hidden xs:block'>
+            <h2 className="text-base sm:text-xl font-bold whitespace-nowrap">
               ₦{agentData?.walletBalance?.toLocaleString() || '0'}
             </h2>
-            <p className="opacity-80 text-xs">Wallet Balance</p>
+            <p className="opacity-80 text-xs hidden sm:block">Wallet Balance</p>
           </div>
           
-          {/* Notifications dropdown */}
-          <div className="relative" ref={notifRef}>
-            <button 
-              className="text-white p-2 rounded-full hover:text-blue-600 hover:bg-blue-600 hover:bg-opacity-10 relative"
-              aria-label="notifications"
-              onClick={() => setIsNotifOpen(!isNotifOpen)}
+         {/* Notifications dropdown */}
+<div className="relative" ref={notifRef}>
+  <button 
+    className="text-white p-2 rounded-full hover:text-blue-600 hover:bg-blue-600 hover:bg-opacity-10 relative flex-shrink-0"
+    aria-label="notifications"
+    onClick={() => setIsNotifOpen(!isNotifOpen)}
+  >
+    <Bell className="w-5 h-5" />
+    {unreadCount > 0 && (
+      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full min-w-[18px] h-4 flex items-center justify-center px-1">
+        {unreadCount > 99 ? '99+' : unreadCount}
+      </span>
+    )}
+  </button>
+  
+  {isNotifOpen && (
+    <div className="fixed sm:absolute right-2 left-2 sm:right-0 sm:left-auto top-20 sm:top-full sm:mt-2 w-auto sm:w-96 bg-white rounded-md shadow-lg z-50 max-h-[70vh] overflow-y-auto border border-gray-200">
+      <div className="p-3 border-b border-gray-200 flex justify-between items-center">
+        <h3 className="font-semibold text-gray-800">Notifications</h3>
+        <button 
+          onClick={() => setIsNotifOpen(false)}
+          className="text-gray-500 hover:text-gray-700"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+      
+      {notifications.length === 0 ? (
+        <div className="p-4 text-center text-gray-500">
+          No notifications available
+        </div>
+      ) : (
+        <ul>
+          {notifications.map((notification) => (
+            <li 
+              key={notification._id}
+              className={`border-b border-gray-100 last:border-0 ${!notification.read ? 'bg-blue-50' : ''}`}
             >
-              <Bell style={{ color: 'white' }} />
-              {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
-                  {unreadCount > 99 ? '99+' : unreadCount}
-                </span>
-              )}
-            </button>
-            
-            {isNotifOpen && (
-              <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-md shadow-lg z-50 max-h-[80vh] overflow-y-auto">
-                <div className="p-3 border-b border-gray-200 flex justify-between items-center">
-                  <h3 className="font-semibold text-gray-800">Notifications</h3>
-                  <button 
-                    onClick={() => setIsNotifOpen(false)}
-                    className="text-gray-500 hover:text-gray-700"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-                
-                {notifications.length === 0 ? (
-                  <div className="p-4 text-center text-gray-500">
-                    No notifications available
+              <div 
+                className={`p-3 hover:bg-gray-50 cursor-pointer border-l-4 ${getNotificationTypeColor(notification.type)}`}
+                onClick={() => {
+                  if (!notification.read) {
+                    markNotificationAsRead(notification._id);
+                  }
+                }}
+              >
+                <div className="flex items-start gap-2">
+                  <div className="mt-1 flex-shrink-0">
+                    {getNotificationIcon(notification.type)}
                   </div>
-                ) : (
-                  <ul>
-                    {notifications.map((notification) => (
-                      <li 
-                        key={notification._id}
-                        className={`border-b border-gray-100 last:border-0 ${!notification.read ? 'bg-blue-50' : ''}`}
-                      >
-                        <div 
-                          className={`p-3 hover:bg-gray-50 cursor-pointer border-l-4 ${getNotificationTypeColor(notification.type)}`}
-                          onClick={() => {
-                            if (!notification.read) {
-                              markNotificationAsRead(notification._id);
-                            }
-                          }}
-                        >
-                          <div className="flex items-start gap-2">
-                            <div className="mt-1">
-                              {getNotificationIcon(notification.type)}
-                            </div>
-                            <div className="flex-1">
-                              {/* Fixed: Display the title instead of message, and message as subtitle */}
-                              <p className="text-sm font-medium text-gray-800">{notification.title}</p>
-                              <p className="text-xs text-gray-600 mt-1">{notification.message}</p>
-                              <p className="text-xs text-gray-500 mt-1">
-                                {formatDate(notification.createdAt)}
-                              </p>
-                            </div>
-                            {!notification.read && (
-                              <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                            )}
-                          </div>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">{notification.title}</p>
+                    <p className="text-xs text-gray-600 mt-1 line-clamp-2">{notification.message}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {formatDate(notification.createdAt)}
+                    </p>
+                  </div>
+                  {!notification.read && (
+                    <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0 mt-2"></span>
+                  )}
+                </div>
               </div>
-            )}
-          </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )}
+</div>
           
-          {/* Logout Button */}
+          {/* Logout Button - Icon only on mobile, text + icon on larger screens */}
           <button
             onClick={handleLogout}
-            className="px-4 py-2 bg-red-600 hover:bg-red-700 transition duration-200 rounded-lg flex items-center gap-2 font-medium text-white"
+            className="p-2 sm:px-4 sm:py-2 bg-red-600 hover:bg-red-700 transition duration-200 rounded-lg flex items-center gap-2 font-medium text-white flex-shrink-0"
             aria-label="Logout"
           >
-            <LogOut className="w-5 h-5" />
-            <span className={isMobile ? "hidden" : "block"}>Logout</span>
+            <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span className="hidden sm:block">Logout</span>
           </button>
         </div>
       </div>

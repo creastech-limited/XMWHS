@@ -35,7 +35,7 @@ import STransactionHistoryPage from './pages/Store/STransactionHistoryPage.js';
 import SWithdrawalPage from './pages/Store/SWithdrawalPage.js';
 import StoreSettingsPage from './pages/Store/StoreSettingsPage.js';
 import EditStudentDetails from './pages/School/EditStudentDetails.js';
-import EditStoreDetails from './pages/Store/EditStoreDetails.js';
+import EditStoreDetails from './pages/School/EditStoreDetails.js';
 import ViewStudentTransactions from './pages/School/ViewStudentTransactions.js';
 import Pdispute from './pages/Parent/Pdispute.js'; 
 import Kdispute from './pages/Student/Kdispute.js'; 

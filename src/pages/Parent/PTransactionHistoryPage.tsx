@@ -11,8 +11,7 @@ import {
   ArrowDown, 
   Search, 
   Receipt,
-  Menu,
-  X
+ 
 } from 'lucide-react';
 
 type Transaction = {
@@ -56,7 +55,7 @@ const TransactionHistoryPage: React.FC = () => {
 
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+ 
   
   const [snackbar, setSnackbar] = useState({
     open: false,
@@ -344,26 +343,7 @@ if (loading) {
           <Psidebar />
         </div>
         
-        {/* Mobile sidebar toggle button */}
-        <button 
-          className="md:hidden fixed bottom-4 right-4 bg-blue-500 text-white p-3 rounded-full shadow-lg z-50"
-          onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
-        >
-          {mobileSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </button>
-
-        {/* Mobile sidebar overlay */}
-        {mobileSidebarOpen && (
-          <div className="md:hidden fixed inset-0 z-40">
-            <div 
-              className="fixed inset-0 bg-black bg-opacity-50"
-              onClick={() => setMobileSidebarOpen(false)}
-            ></div>
-            <div className="fixed inset-y-0 left-0 w-64 bg-white z-50 shadow-xl">
-              <Psidebar />
-            </div>
-          </div>
-        )}
+        
 
         {/* Main content with reduced padding on mobile */}
         <main className="md:ml-65 flex-1 p-2 md:p-6 overflow-x-hidden">
