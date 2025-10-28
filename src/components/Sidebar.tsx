@@ -16,7 +16,7 @@ import {
 } from '@heroicons/react/24/outline';
 
 interface MenuItem {
-  name: string;
+  name: React.ReactNode;
   path: string;
   icon: React.ReactNode;
   badge?: number | null;
@@ -48,7 +48,11 @@ export const Sidebar: React.FC = () => {
     { name: 'Students', path: '/students', icon: <PeopleIcon className="h-5 w-5" />, badge: 3 },
     { name: 'Stores', path: '/stores', icon: <StorefrontIcon className="h-5 w-5" /> },
     { name: 'School Fees', path: '/schoolfees', icon: <PaymentIcon className="h-5 w-5" /> },
-    { name: 'Transfer', path: '/schooltransfer', icon: <PaymentIcon className="h-5 w-5" /> },
+  { 
+  name: <span>Transfer <span className="text-[10px] font-bold text-yellow-500 relative -top-1 ml-1">PRO</span></span>, 
+  path: '/schooltransfer', 
+  icon: <PaymentIcon className="h-5 w-5" /> 
+},
     { name: 'Transactions', path: '/transactions', icon: <ReceiptLongIcon className="h-5 w-5" />, badge: 12 },
     { name: 'Withdrawal', path: '/withdrawal', icon: <AccountBalanceWalletIcon className="h-5 w-5" /> },
     { name: 'Disputes', path: '/Sdisputes', icon: <WarningIcon className="h-5 w-5" />, badge: 2 },
@@ -147,7 +151,7 @@ export const Sidebar: React.FC = () => {
                 (item.path !== '/' && location.pathname.startsWith(item.path));
                 
               return (
-                <li key={item.name}>
+                <li key={item.path}>
                   <Link
                     to={item.path}
                     onClick={handleMenuItemClick}
