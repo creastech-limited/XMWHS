@@ -105,6 +105,10 @@ const StudentPage: React.FC = () => {
   const [availableParents, setAvailableParents] = useState<Parent[]>([]);
   const [guardianLoading, setGuardianLoading] = useState<boolean>(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [isBulkUploadOpen, setIsBulkUploadOpen] = useState<boolean>(false);
+const [selectedFile, setSelectedFile] = useState<File | null>(null);
+const [bulkUploadLoading, setBulkUploadLoading] = useState<boolean>(false);
+const [uploadProgress, setUploadProgress] = useState<number>(0);
 
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   const rowsPerPage = 10;
@@ -532,6 +536,84 @@ const StudentPage: React.FC = () => {
     handleMenuClose();
   }, [fetchParents, handleMenuClose]);
 
+  const handleBulkUpload = useCallback(async () => {
+  if (!selectedFile || !authToken) {
+    setSnackbar({
+      open: true,
+      message: 'Please select a file first',
+      severity: 'error',
+    });
+    return;
+  }
+
+  setBulkUploadLoading(true);
+  setUploadProgress(0);
+
+  try {
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+
+    const response = await fetch(`${API_BASE_URL}/api/users/bulkregister`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to upload students');
+    }
+
+    const result = await response.json();
+    
+    setSnackbar({
+      open: true,
+      message: `Successfully registered ${result.data?.length || 0} students`,
+      severity: 'success',
+    });
+
+    setIsBulkUploadOpen(false);
+    setSelectedFile(null);
+    
+    // Refresh student list
+    await fetchStudents();
+  } catch (error) {
+    console.error('Bulk upload error:', error);
+    setSnackbar({
+      open: true,
+      message: error instanceof Error ? error.message : 'Failed to upload students',
+      severity: 'error',
+    });
+  } finally {
+    setBulkUploadLoading(false);
+    setUploadProgress(0);
+  }
+}, [selectedFile, authToken, API_BASE_URL, fetchStudents]);
+
+const handleDownloadSample = useCallback(() => {
+  const sampleCSV = `firstName,lastName,email,phone,classAdmittedTo
+John,Doe,john.doe@example.com,+2348012345678,JSS 1
+Jane,Smith,jane.smith@example.com,+2348023456789,JSS 2
+Michael,Johnson,michael.j@example.com,+2348034567890,SS 1`;
+
+  const blob = new Blob([sampleCSV], { type: 'text/csv' });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'student_sample.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  window.URL.revokeObjectURL(url);
+
+  setSnackbar({
+    open: true,
+    message: 'Sample CSV downloaded successfully',
+    severity: 'success',
+  });
+}, []);
 
   // Data processing
   const filteredStudents = students.filter((s) => {
@@ -797,12 +879,27 @@ const StudentPage: React.FC = () => {
                 </select>
               </div>
             </div>
-            <div className="mt-3 md:mt-4 flex justify-end">
-              <button className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-4 py-2 md:px-6 md:py-3 rounded-lg flex items-center gap-2 transition-colors text-sm md:text-base">
-                <DownloadIcon className="h-4 w-4 md:h-5 md:w-5" />
-                <span className="hidden sm:inline">Export Data</span>
-              </button>
-            </div>
+          <div className="mt-3 md:mt-4 flex justify-end gap-2">
+  <button 
+    onClick={handleDownloadSample}
+    className="bg-green-100 hover:bg-green-200 text-green-700 font-medium px-4 py-2 md:px-6 md:py-3 rounded-lg flex items-center gap-2 transition-colors text-sm md:text-base"
+    title="Download sample CSV"
+  >
+    <DownloadIcon className="h-4 w-4 md:h-5 md:w-5" />
+    <span className="hidden sm:inline">Sample CSV</span>
+  </button>
+  <button 
+    onClick={() => setIsBulkUploadOpen(true)}
+    className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-medium px-4 py-2 md:px-6 md:py-3 rounded-lg flex items-center gap-2 transition-colors text-sm md:text-base"
+  >
+    <PlusIcon className="h-4 w-4 md:h-5 md:w-5" />
+    <span className="hidden sm:inline">Bulk Upload</span>
+  </button>
+  <button className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-4 py-2 md:px-6 md:py-3 rounded-lg flex items-center gap-2 transition-colors text-sm md:text-base">
+    <DownloadIcon className="h-4 w-4 md:h-5 md:w-5" />
+    <span className="hidden sm:inline">Export Data</span>
+  </button>
+</div>
           </div>
 
           {/* Students Table */}
@@ -1073,7 +1170,127 @@ const StudentPage: React.FC = () => {
           </div>
         </>
       )}
+
+    {/* Bulk Upload Modal */}
+{isBulkUploadOpen && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+    <div 
+      className="bg-white rounded-lg w-full max-w-md mx-auto p-6 shadow-xl"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="flex items-center mb-4">
+        <div className="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-purple-100">
+          <UsersIcon className="h-6 w-6 text-purple-600" />
+        </div>
+        <div className="ml-4">
+          <h3 className="text-lg font-medium text-gray-900">
+            Bulk Upload Students
+          </h3>
+          <p className="text-sm text-gray-500">
+            Upload a CSV file to register multiple students
+          </p>
+        </div>
+      </div>
       
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Select CSV File
+        </label>
+        
+        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-purple-500 transition-colors">
+          <input
+            type="file"
+            accept=".csv"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
+                  setSnackbar({
+                    open: true,
+                    message: 'Please select a valid CSV file',
+                    severity: 'error',
+                  });
+                  return;
+                }
+                setSelectedFile(file);
+              }
+            }}
+            className="hidden"
+            id="csv-upload"
+          />
+          <label
+            htmlFor="csv-upload"
+            className="cursor-pointer flex flex-col items-center"
+          >
+            <DownloadIcon className="h-12 w-12 text-gray-400 mb-2" />
+            <span className="text-sm text-gray-600">
+              {selectedFile ? selectedFile.name : 'Click to select CSV file'}
+            </span>
+            <span className="text-xs text-gray-500 mt-1">
+              Maximum file size: 5MB
+            </span>
+          </label>
+        </div>
+        
+        {uploadProgress > 0 && (
+          <div className="mt-4">
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div
+                className="bg-purple-600 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${uploadProgress}%` }}
+              ></div>
+            </div>
+            <p className="text-sm text-gray-600 mt-1 text-center">
+              Uploading... {uploadProgress}%
+            </p>
+          </div>
+        )}
+        
+        <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
+         <p className="text-xs text-blue-800">
+  <strong>CSV Format:</strong> firstName, lastName, email, phone, classAdmittedTo
+</p>
+          <button
+            onClick={handleDownloadSample}
+            className="text-xs text-blue-600 hover:text-blue-800 underline mt-1"
+          >
+            Download sample CSV file
+          </button>
+        </div>
+      </div>
+      
+      <div className="flex justify-end space-x-3">
+        <button
+          type="button"
+          onClick={() => {
+            setIsBulkUploadOpen(false);
+            setSelectedFile(null);
+            setUploadProgress(0);
+          }}
+          disabled={bulkUploadLoading}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={handleBulkUpload}
+          disabled={!selectedFile || bulkUploadLoading}
+          className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {bulkUploadLoading ? (
+            <>
+              <span className="inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1"></span>
+              Uploading...
+            </>
+          ) : (
+            'Upload Students'
+          )}
+        </button>
+      </div>
+    </div>
+  </div>
+)}  
       {/* Guardian Assignment Modal */}
       {isGuardianModalOpen && selectedStudent && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
