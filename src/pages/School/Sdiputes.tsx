@@ -15,14 +15,93 @@ import {
   XCircle, 
   FileText,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Trash2
 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
+// Interfaces
+interface UserProfile {
+    _id?: string;
+    name?: string;
+    email?: string;
+    role?: string;
+    [key: string]: unknown;
+}
+
+interface FetchUserDetailsResponse {
+    user?: {
+        data?: UserProfile;
+        [key: string]: unknown;
+    };
+    data?: UserProfile;
+    [key: string]: unknown;
+}
+
+interface Dispute {
+    _id?: string;
+    disputeType?: string;
+    description?: string;
+    transactionId?: string | {
+        _id?: string;
+        reference?: string;
+        amount?: number;
+        status?: string;
+        [key: string]: unknown;
+    };
+    paymentCategory?: string;
+    amount?: number;
+    supportingDocuments?: string[] | string;
+    status?: string;
+    createdAt?: string;
+    updatedAt?: string;
+    raisedByName?: string;
+    raisedByEmail?: string;
+    resolvedBy?: {
+        _id?: string;
+        email?: string;
+    };
+    resolvedDate?: string;
+    [key: string]: unknown;
+}
+
+interface FetchDisputesResponse {
+    message?: string;
+    disputes?: Dispute[];
+    data?: Dispute[];
+    [key: string]: unknown;
+}
+
+interface CreateDisputeData {
+    disputeType: string;
+    description: string;
+    transactionId: string;
+    paymentCategory: string;
+    amount: number;
+    supportingDocuments: string[];
+}
+
+interface CreateDisputeResponse {
+    message?: string;
+    savedDispute?: Dispute;
+    dispute?: Dispute;
+    data?: Dispute;
+    error?: string;
+    details?: string;
+    [key: string]: unknown;
+}
+
+interface StatusColorMap {
+    [key: string]: string;
+}
+
+interface StatusIconProps {
+    status?: string;
+}
+
 const DisputePage = () => {
   const auth = useAuth();
-  // Removed unused user state
   const [token, setToken] = useState('');
   const [loading, setLoading] = useState(true);
   const [disputes, setDisputes] = useState<Dispute[]>([]);
@@ -33,7 +112,10 @@ const DisputePage = () => {
   const [typeFilter, setTypeFilter] = useState('');
   const [selectedDispute, setSelectedDispute] = useState<Dispute | null>(null);
   const [showDetails, setShowDetails] = useState(false);
-  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'createdAt', direction: 'desc' });
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ 
+    key: 'createdAt', 
+    direction: 'desc' 
+  });
 
   // Form state for creating new dispute
   const [formData, setFormData] = useState({
@@ -42,7 +124,7 @@ const DisputePage = () => {
     transactionId: '',
     paymentCategory: '',
     amount: '',
-    supportingDocuments: ''
+    supportingDocuments: [] as string[]
   });
 
   const disputeTypes = [
@@ -65,23 +147,7 @@ const DisputePage = () => {
   const statuses = ['Pending', 'Under Investigation', 'Resolved', 'Closed'];
 
   // Fetch user details
-interface UserProfile {
-    _id?: string;
-    name?: string;
-    email?: string;
-    [key: string]: unknown;
-}
-
-interface FetchUserDetailsResponse {
-    user?: {
-        data?: UserProfile;
-        [key: string]: unknown;
-    };
-    data?: UserProfile;
-    [key: string]: unknown;
-}
-
-const fetchUserDetails = async (authToken: string): Promise<UserProfile> => {
+  const fetchUserDetails = async (authToken: string): Promise<UserProfile> => {
     try {
         const response = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
             method: 'GET',
@@ -113,45 +179,12 @@ const fetchUserDetails = async (authToken: string): Promise<UserProfile> => {
         console.error('Error fetching user details:', error);
         throw error;
     }
-};
+  };
 
-  // Fetch disputes
-interface Dispute {
-    _id?: string;
-    disputeType?: string;
-    description?: string;
-    transactionId?: string | {
-        _id?: string;
-        reference?: string;
-        amount?: number;
-        status?: string;
-        [key: string]: unknown;
-    };
-    paymentCategory?: string;
-    amount?: number;
-    supportingDocuments?: string[] | string;
-    status?: string;
-    createdAt?: string;
-    updatedAt?: string;
-    raisedByName?: string;
-    raisedByEmail?: string;
-    resolvedBy?: {
-        _id?: string;
-        email?: string;
-    };
-    resolvedDate?: string;
-    [key: string]: unknown;
-}
-
-interface FetchDisputesResponse {
-    message?: string;
-    disputes?: Dispute[];
-    [key: string]: unknown;
-}
-
-const fetchDisputes = async (authToken: string): Promise<Dispute[]> => {
+  // Fetch disputes - Updated to use getuserdispute endpoint
+  const fetchDisputes = async (authToken: string): Promise<Dispute[]> => {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/dispute/getschDispute`, {
+        const response = await fetch(`${API_BASE_URL}/api/dispute/getuserdispute`, {
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${authToken}`,
@@ -165,31 +198,29 @@ const fetchDisputes = async (authToken: string): Promise<Dispute[]> => {
 
         const data: FetchDisputesResponse = await response.json();
         
-        // Extract disputes from the nested response structure
-        return Array.isArray(data.disputes) ? data.disputes : [];
+        // Handle different response structures (matching Flutter logic)
+        let disputesList: Dispute[] = [];
+        if (Array.isArray(data.disputes)) {
+            disputesList = data.disputes;
+        } else if (data.data && Array.isArray(data.data)) {
+            disputesList = data.data as Dispute[];
+        } else if (Array.isArray(data)) {
+            disputesList = data as Dispute[];
+        }
+        
+        console.log('📡 Fetched disputes:', disputesList.length);
+        return disputesList;
     } catch (error) {
-        console.error('Error fetching disputes:', error);
+        console.error('❌ Error fetching disputes:', error);
         return [];
     }
-};
+  };
 
-  // Create new dispute
-interface CreateDisputeData {
-    disputeType: string;
-    description: string;
-    transactionId?: string;
-    paymentCategory?: string;
-    amount?: number;
-    supportingDocuments?: string | string[];
-}
-
-interface CreateDisputeResponse {
-    savedDispute?: Dispute;
-    [key: string]: unknown;
-}
-
-const createDispute = async (disputeData: CreateDisputeData): Promise<CreateDisputeResponse> => {
+  // Create new dispute - Updated with enhanced error handling
+  const createDispute = async (disputeData: CreateDisputeData): Promise<CreateDisputeResponse> => {
     try {
+        console.log('📤 Creating dispute with payload:', JSON.stringify(disputeData));
+
         const response = await fetch(`${API_BASE_URL}/api/dispute/createdispute`, {
             method: 'POST',
             headers: {
@@ -199,17 +230,43 @@ const createDispute = async (disputeData: CreateDisputeData): Promise<CreateDisp
             body: JSON.stringify(disputeData)
         });
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || 'Failed to create dispute');
+        console.log('📡 Dispute Response Status:', response.status);
+
+        // Try to parse response even on error
+        let responseData: CreateDisputeResponse;
+        try {
+            responseData = await response.json();
+            console.log('📡 Dispute Response Body:', JSON.stringify(responseData));
+        } catch (parseError) {
+            console.error('❌ Failed to parse response:', parseError);
+            throw new Error('Server returned invalid response');
         }
 
-        return await response.json();
+        if (response.ok || response.status === 200 || response.status === 201) {
+            return responseData;
+        } else {
+            // Extract detailed error message from backend (matching Flutter logic)
+            let errorMessage = 'Failed to create dispute';
+
+            if (responseData.message) {
+                errorMessage = responseData.message;
+            } else if (responseData.error) {
+                errorMessage = responseData.error;
+            } else if (responseData.details) {
+                errorMessage = String(responseData.details);
+            }
+
+            console.error('❌ Backend Error:', errorMessage);
+            throw new Error(errorMessage);
+        }
     } catch (error) {
-        console.error('Error creating dispute:', error);
-        throw error;
+        console.error('❌ API Error in createDispute:', error);
+        if (error instanceof Error) {
+            throw error;
+        }
+        throw new Error('Failed to create dispute');
     }
-};
+  };
 
   // Initialize auth and fetch data
   useEffect(() => {
@@ -234,16 +291,14 @@ const createDispute = async (disputeData: CreateDisputeData): Promise<CreateDisp
         const profile = await fetchUserDetails(storedToken);
         setToken(storedToken);
 
-        // Ensure all required User fields are present for AuthContext compatibility
         const mergedUser = {
           _id: profile._id || '',
           name: typeof profile.name === 'string' ? profile.name : '',
           email: typeof profile.email === 'string' ? profile.email : '',
-          role: typeof (profile as { role?: string }).role === 'string' ? (profile as { role?: string }).role : '',
+          role: typeof profile.role === 'string' ? profile.role : '',
           ...profile
         };
 
-        // Guarantee role is always a string (never undefined)
         const userWithRole: typeof mergedUser & { role: string } = {
           ...mergedUser,
           role: mergedUser.role ?? '',
@@ -290,14 +345,13 @@ const createDispute = async (disputeData: CreateDisputeData): Promise<CreateDisp
   }, [filteredDisputes, sortConfig]);
 
   // Request sort
-
-const requestSort = (key: string) => {
+  const requestSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc';
     if (sortConfig.key === key && sortConfig.direction === 'asc') {
         direction = 'desc';
     }
     setSortConfig({ key, direction });
-};
+  };
 
   // Filter disputes
   useEffect(() => {
@@ -324,34 +378,49 @@ const requestSort = (key: string) => {
     setFilteredDisputes(filtered);
   }, [disputes, searchTerm, statusFilter, typeFilter]);
 
-  // Handle form submission
-const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  // Handle form submission - Updated with all required fields
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (!formData.disputeType || !formData.description) {
-        alert('Please fill in all required fields');
+    // Validate all required fields
+    if (!formData.disputeType || !formData.description || !formData.transactionId || 
+        !formData.paymentCategory || !formData.amount) {
+        alert('Please fill in all required fields (marked with *)');
         return;
     }
 
     try {
         setLoading(true);
+        
+        // Filter out empty document URLs
+        const validDocs = formData.supportingDocuments.filter(doc => doc.trim() !== '');
+        
         const result: CreateDisputeResponse = await createDispute({
-            ...formData,
-            amount: formData.amount ? parseFloat(formData.amount) : 0
+            disputeType: formData.disputeType,
+            description: formData.description,
+            transactionId: formData.transactionId,
+            paymentCategory: formData.paymentCategory,
+            amount: parseFloat(formData.amount),
+            supportingDocuments: validDocs
         });
 
-        if (result.savedDispute) {
-            setDisputes((prev: Dispute[]) => [result.savedDispute as Dispute, ...prev]);
+        // Handle different response structures
+        const newDispute = result.savedDispute || result.dispute || result.data;
+
+        if (newDispute) {
+            setDisputes((prev: Dispute[]) => [newDispute, ...prev]);
             setFormData({
                 disputeType: '',
                 description: '',
                 transactionId: '',
                 paymentCategory: '',
                 amount: '',
-                supportingDocuments: ''
+                supportingDocuments: []
             });
             setShowCreateForm(false);
             alert('Dispute created successfully!');
+        } else {
+            throw new Error('Failed to create dispute - no dispute data returned');
         }
     } catch (error: unknown) {
         if (error instanceof Error) {
@@ -362,14 +431,10 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     } finally {
         setLoading(false);
     }
-};
+  };
 
   // Get status badge color
-interface StatusColorMap {
-    [key: string]: string;
-}
-
-const getStatusColor = (status: string | undefined): string => {
+  const getStatusColor = (status: string | undefined): string => {
     const statusColorMap: StatusColorMap = {
         'Pending': 'bg-yellow-100 text-yellow-800',
         'Under Investigation': 'bg-blue-100 text-blue-800',
@@ -377,14 +442,10 @@ const getStatusColor = (status: string | undefined): string => {
         'Closed': 'bg-gray-100 text-gray-800',
     };
     return status ? statusColorMap[status] || 'bg-gray-100 text-gray-800' : 'bg-gray-100 text-gray-800';
-};
+  };
 
   // Get status icon
-interface StatusIconProps {
-    status?: string;
-}
-
-const getStatusIcon = (status: StatusIconProps['status']): JSX.Element => {
+  const getStatusIcon = (status: StatusIconProps['status']): JSX.Element => {
     switch (status) {
         case 'Pending': return <Clock className="w-4 h-4" />;
         case 'Under Investigation': return <AlertCircle className="w-4 h-4" />;
@@ -392,16 +453,15 @@ const getStatusIcon = (status: StatusIconProps['status']): JSX.Element => {
         case 'Closed': return <XCircle className="w-4 h-4" />;
         default: return <AlertCircle className="w-4 h-4" />;
     }
-};
+  };
 
   // Get sort icon
-
-const getSortIcon = (key: string): JSX.Element | null => {
+  const getSortIcon = (key: string): JSX.Element | null => {
     if (sortConfig.key !== key) return null;
     return sortConfig.direction === 'asc'
         ? <ChevronUp className="w-4 h-4 ml-1" />
         : <ChevronDown className="w-4 h-4 ml-1" />;
-};
+  };
 
   if (loading && disputes.length === 0) {
     return (
@@ -411,27 +471,25 @@ const getSortIcon = (key: string): JSX.Element | null => {
     );
   }
 
-
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
-          <Header profilePath="/settings" />
-          <div className="flex flex-grow">
-              <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-none">
-                <Asidebar />
-              </aside>
+      <Header profilePath="/settings" />
+      <div className="flex flex-grow">
+        <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-none">
+          <Asidebar />
+        </aside>
         
         <main className="flex-grow p-4 md:p-8 md:ml-64 overflow-x-auto">
           <div className="max-w-7xl mx-auto">
-           
             <div className="mb-6">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                 <div>
                   <h1 className="text-2xl font-bold text-gray-900">Dispute Management</h1>
-                  <p className="text-gray-600">Manage disputes from users and escalate issues to development team</p>
+                  <p className="text-gray-600">Track and manage your payment disputes</p>
                 </div>
                 <button
                   onClick={() => setShowCreateForm(true)}
-                  className="flex items-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition-colors shadow-sm"
+                  className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition-colors shadow-sm"
                 >
                   <Plus className="w-5 h-5" />
                   Create Dispute
@@ -488,20 +546,20 @@ const getSortIcon = (key: string): JSX.Element | null => {
               <div className="bg-white p-4 rounded-lg shadow mb-6">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="relative">
-                    <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400 text-black" />
+                    <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
                     <input
                       type="text"
                       placeholder="Search disputes..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                     />
                   </div>
                   
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                   >
                     <option value="">All Statuses</option>
                     {statuses.map(status => (
@@ -512,7 +570,7 @@ const getSortIcon = (key: string): JSX.Element | null => {
                   <select
                     value={typeFilter}
                     onChange={(e) => setTypeFilter(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                   >
                     <option value="">All Types</option>
                     {disputeTypes.map(type => (
@@ -526,7 +584,7 @@ const getSortIcon = (key: string): JSX.Element | null => {
                       setStatusFilter('');
                       setTypeFilter('');
                     }}
-                    className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 flex items-center gap-2 transition-colors text-black text-black"
+                    className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 flex items-center justify-center gap-2 transition-colors"
                   >
                     <Filter className="w-4 h-4" />
                     Clear Filters
@@ -542,7 +600,7 @@ const getSortIcon = (key: string): JSX.Element | null => {
                   <thead className="bg-gray-50">
                     <tr>
                       <th 
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                         onClick={() => requestSort('_id')}
                       >
                         <div className="flex items-center">
@@ -551,7 +609,7 @@ const getSortIcon = (key: string): JSX.Element | null => {
                         </div>
                       </th>
                       <th 
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                         onClick={() => requestSort('disputeType')}
                       >
                         <div className="flex items-center">
@@ -560,16 +618,7 @@ const getSortIcon = (key: string): JSX.Element | null => {
                         </div>
                       </th>
                       <th 
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                        onClick={() => requestSort('raisedByName')}
-                      >
-                        <div className="flex items-center">
-                          Raised By
-                          {getSortIcon('raisedByName')}
-                        </div>
-                      </th>
-                      <th 
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                         onClick={() => requestSort('amount')}
                       >
                         <div className="flex items-center">
@@ -578,7 +627,7 @@ const getSortIcon = (key: string): JSX.Element | null => {
                         </div>
                       </th>
                       <th 
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                         onClick={() => requestSort('status')}
                       >
                         <div className="flex items-center">
@@ -587,7 +636,7 @@ const getSortIcon = (key: string): JSX.Element | null => {
                         </div>
                       </th>
                       <th 
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                         onClick={() => requestSort('createdAt')}
                       >
                         <div className="flex items-center">
@@ -606,7 +655,7 @@ const getSortIcon = (key: string): JSX.Element | null => {
                         <td className="px-6 py-4">
                           <div>
                             <div className="text-sm font-medium text-gray-900">
-                              ID: {dispute._id?.slice(-8) || 'N/A'}
+                              #{dispute._id?.slice(-8) || 'N/A'}
                             </div>
                             <div className="text-sm text-gray-500 max-w-xs truncate">
                               {dispute.description || 'No description'}
@@ -617,12 +666,8 @@ const getSortIcon = (key: string): JSX.Element | null => {
                           <div className="text-sm text-gray-900">{dispute.disputeType || 'N/A'}</div>
                           <div className="text-sm text-gray-500">{dispute.paymentCategory || 'N/A'}</div>
                         </td>
-                        <td className="px-6 py-4">
-                          <div className="text-sm text-gray-900">{dispute.raisedByName || 'N/A'}</div>
-                          <div className="text-sm text-gray-500">{dispute.raisedByEmail || 'N/A'}</div>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-900">
-                          ₦{dispute.amount?.toLocaleString() || 'N/A'}
+                        <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                          ₦{dispute.amount?.toLocaleString() || '0.00'}
                         </td>
                         <td className="px-6 py-4">
                           <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(dispute.status)}`}>
@@ -652,32 +697,40 @@ const getSortIcon = (key: string): JSX.Element | null => {
               </div>
 
               {filteredDisputes.length === 0 && (
-                <div className="text-center py-8">
+                <div className="text-center py-12">
                   <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500">No disputes found matching your criteria</p>
-                  <button
-                    onClick={() => {
-                      setSearchTerm('');
-                      setStatusFilter('');
-                      setTypeFilter('');
-                    }}
-                    className="mt-2 text-blue-600 hover:text-blue-800"
-                  >
-                    Clear all filters
-                  </button>
+                  <p className="text-gray-500 text-lg font-medium">No disputes found</p>
+                  <p className="text-gray-400 text-sm mt-1">
+                    {searchTerm || statusFilter || typeFilter 
+                      ? 'Try adjusting your filters' 
+                      : 'Create your first dispute to get started'}
+                  </p>
+                  {(searchTerm || statusFilter || typeFilter) && (
+                    <button
+                      onClick={() => {
+                        setSearchTerm('');
+                        setStatusFilter('');
+                        setTypeFilter('');
+                      }}
+                      className="mt-4 text-blue-600 hover:text-blue-800 text-sm font-medium"
+                    >
+                      Clear all filters
+                    </button>
+                  )}
                 </div>
               )}
             </div>
           </div>
         </main>
       </div>
+
       {/* Create Dispute Modal */}
       {showCreateForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-lg w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Create New Dispute</h3>
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-gray-900">Create New Dispute</h3>
                 <button
                   onClick={() => setShowCreateForm(false)}
                   className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -686,15 +739,15 @@ const getSortIcon = (key: string): JSX.Element | null => {
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} className="space-y-5">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Dispute Type *
+                    Dispute Type <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={formData.disputeType}
                     onChange={(e) => setFormData(prev => ({...prev, disputeType: e.target.value}))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                     required
                   >
                     <option value="">Select dispute type</option>
@@ -711,13 +764,13 @@ const getSortIcon = (key: string): JSX.Element | null => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Description *
+                    Description <span className="text-red-500">*</span>
                   </label>
                   <textarea
                     value={formData.description}
                     onChange={(e) => setFormData(prev => ({...prev, description: e.target.value}))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    rows={4}
                     placeholder="Describe the issue in detail..."
                     required
                   />
@@ -725,27 +778,29 @@ const getSortIcon = (key: string): JSX.Element | null => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Transaction ID (if applicable)
+                    Transaction ID <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={formData.transactionId}
                     onChange={(e) => setFormData(prev => ({...prev, transactionId: e.target.value}))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Transaction reference or ID"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    placeholder="Enter transaction reference or ID"
+                    required
                   />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Payment Category
+                    Payment Category <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={formData.paymentCategory}
                     onChange={(e) => setFormData(prev => ({...prev, paymentCategory: e.target.value}))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    required
                   >
-                    <option value="">Select category</option>
+                    <option value="">Select payment category</option>
                     {paymentCategories.map(category => (
                       <option key={category} value={category}>{category}</option>
                     ))}
@@ -754,46 +809,104 @@ const getSortIcon = (key: string): JSX.Element | null => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Amount (₦)
+                    Amount (₦) <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="number"
                     value={formData.amount}
                     onChange={(e) => setFormData(prev => ({...prev, amount: e.target.value}))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Amount involved"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    placeholder="Enter amount involved"
                     min="0"
                     step="0.01"
+                    required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Supporting Documents
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Supporting Documents (Optional)
                   </label>
-                  <input
-                    type="text"
-                    value={formData.supportingDocuments}
-                    onChange={(e) => setFormData(prev => ({...prev, supportingDocuments: e.target.value}))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="URLs or references to supporting documents"
-                  />
+                  <div className="space-y-3">
+                    {formData.supportingDocuments.map((doc, index) => (
+                      <div key={index} className="flex gap-2">
+                        <input
+                          type="url"
+                          value={doc}
+                          onChange={(e) => {
+                            const newDocs = [...formData.supportingDocuments];
+                            newDocs[index] = e.target.value;
+                            setFormData(prev => ({...prev, supportingDocuments: newDocs}));
+                          }}
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                          placeholder="https://example.com/document.pdf"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newDocs = formData.supportingDocuments.filter((_, i) => i !== index);
+                            setFormData(prev => ({...prev, supportingDocuments: newDocs}));
+                          }}
+                          className="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Remove document"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData(prev => ({
+                          ...prev,
+                          supportingDocuments: [...prev.supportingDocuments, '']
+                        }));
+                      }}
+                      className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1 font-medium"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Document URL
+                    </button>
+                    <p className="text-xs text-gray-500">
+                      Add URLs to supporting documents (screenshots, receipts, etc.)
+                    </p>
+                  </div>
                 </div>
 
-                <div className="flex justify-end gap-3 pt-4">
+                <div className="flex justify-end gap-3 pt-4 border-t">
                   <button
                     type="button"
-                    onClick={() => setShowCreateForm(false)}
-                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                    onClick={() => {
+                      setShowCreateForm(false);
+                      setFormData({
+                        disputeType: '',
+                        description: '',
+                        transactionId: '',
+                        paymentCategory: '',
+                        amount: '',
+                        supportingDocuments: []
+                      });
+                    }}
+                    className="px-6 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors font-medium"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={loading}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center gap-2"
                   >
-                    {loading ? 'Creating...' : 'Create Dispute'}
+                    {loading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-4 h-4" />
+                        Create Dispute
+                      </>
+                    )}
                   </button>
                 </div>
               </form>
@@ -805,10 +918,10 @@ const getSortIcon = (key: string): JSX.Element | null => {
       {/* View Dispute Details Modal */}
       {showDetails && selectedDispute && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Dispute Details</h3>
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-gray-900">Dispute Details</h3>
                 <button
                   onClick={() => setShowDetails(false)}
                   className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -817,94 +930,135 @@ const getSortIcon = (key: string): JSX.Element | null => {
                 </button>
               </div>
 
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-500">Dispute ID</label>
-                    <p className="text-sm text-gray-900">{selectedDispute._id || 'N/A'}</p>
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Dispute ID</label>
+                    <p className="text-sm text-gray-900 font-mono">#{selectedDispute._id || 'N/A'}</p>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-500">Status</label>
-                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(selectedDispute.status)}`}>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Status</label>
+                    <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(selectedDispute.status)}`}>
                       {getStatusIcon(selectedDispute.status)}
                       {selectedDispute.status || 'N/A'}
                     </span>
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-500">Dispute Type</label>
-                  <p className="text-sm text-gray-900">{selectedDispute.disputeType || 'N/A'}</p>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Dispute Type</label>
+                  <p className="text-sm text-gray-900 font-medium">{selectedDispute.disputeType || 'N/A'}</p>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-500">Description</label>
-                  <p className="text-sm text-gray-900">{selectedDispute.description || 'No description provided'}</p>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <label className="block text-xs font-medium text-gray-500 uppercase mb-2">Description</label>
+                  <p className="text-sm text-gray-900 leading-relaxed">{selectedDispute.description || 'No description provided'}</p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-500">Payment Category</label>
-                    <p className="text-sm text-gray-900">{selectedDispute.paymentCategory || 'N/A'}</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Payment Category</label>
+                    <p className="text-sm text-gray-900 font-medium">{selectedDispute.paymentCategory || 'N/A'}</p>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-500">Amount</label>
-                    <p className="text-sm text-gray-900">₦{selectedDispute.amount?.toLocaleString() || 'N/A'}</p>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Amount</label>
+                    <p className="text-lg text-gray-900 font-bold">₦{selectedDispute.amount?.toLocaleString() || '0.00'}</p>
                   </div>
                 </div>
 
                 {selectedDispute.transactionId && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-500">Transaction Details</label>
+                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                    <label className="block text-xs font-medium text-blue-700 uppercase mb-2">Transaction Details</label>
                     {typeof selectedDispute.transactionId === 'object' ? (
-                      <div className="bg-gray-50 p-3 rounded-lg text-sm text-black">
-                        <p><strong>ID:</strong> {selectedDispute.transactionId._id || 'N/A'}</p>
-                        <p><strong>Reference:</strong> {selectedDispute.transactionId.reference || 'N/A'}</p>
-                        <p><strong>Amount:</strong> ₦{selectedDispute.transactionId.amount?.toLocaleString() || 'N/A'}</p>
-                        <p><strong>Status:</strong> {selectedDispute.transactionId.status || 'N/A'}</p>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">ID:</span>
+                          <span className="text-gray-900 font-mono">{selectedDispute.transactionId._id || 'N/A'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Reference:</span>
+                          <span className="text-gray-900 font-mono">{selectedDispute.transactionId.reference || 'N/A'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Amount:</span>
+                          <span className="text-gray-900 font-semibold">₦{selectedDispute.transactionId.amount?.toLocaleString() || '0.00'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Status:</span>
+                          <span className="text-gray-900 font-medium">{selectedDispute.transactionId.status || 'N/A'}</span>
+                        </div>
                       </div>
                     ) : (
-                      <p className="text-sm text-gray-900">{selectedDispute.transactionId}</p>
+                      <p className="text-sm text-gray-900 font-mono">{selectedDispute.transactionId}</p>
                     )}
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-500">Created</label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Created Date</label>
                     <p className="text-sm text-gray-900">
-                      {selectedDispute.createdAt ? new Date(selectedDispute.createdAt).toLocaleString() : 'N/A'}
+                      {selectedDispute.createdAt ? new Date(selectedDispute.createdAt).toLocaleString('en-US', {
+                        dateStyle: 'medium',
+                        timeStyle: 'short'
+                      }) : 'N/A'}
                     </p>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-500">Last Updated</label>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Last Updated</label>
                     <p className="text-sm text-gray-900">
-                      {selectedDispute.updatedAt ? new Date(selectedDispute.updatedAt).toLocaleString() : 'N/A'}
+                      {selectedDispute.updatedAt ? new Date(selectedDispute.updatedAt).toLocaleString('en-US', {
+                        dateStyle: 'medium',
+                        timeStyle: 'short'
+                      }) : 'N/A'}
                     </p>
                   </div>
                 </div>
 
                 {selectedDispute.supportingDocuments && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-500">Supporting Documents</label>
-                    <div className="text-sm text-gray-900">
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <label className="block text-xs font-medium text-gray-500 uppercase mb-2">Supporting Documents</label>
+                    <div className="space-y-2">
                       {(Array.isArray(selectedDispute.supportingDocuments)
                         ? selectedDispute.supportingDocuments
                         : [selectedDispute.supportingDocuments]
                       )
                         .filter(doc => doc)
                         .map((doc, index) => (
-                          <p key={index}>{doc}</p>
+                          <a 
+                            key={index}
+                            href={doc}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                          >
+                            <FileText className="w-4 h-4" />
+                            Document {index + 1}
+                          </a>
                         ))}
+                    </div>
+                  </div>
+                )}
+
+                {(selectedDispute.raisedByName || selectedDispute.raisedByEmail) && (
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <label className="block text-xs font-medium text-gray-500 uppercase mb-2">Raised By</label>
+                    <div className="space-y-1">
+                      {selectedDispute.raisedByName && (
+                        <p className="text-sm text-gray-900 font-medium">{selectedDispute.raisedByName}</p>
+                      )}
+                      {selectedDispute.raisedByEmail && (
+                        <p className="text-sm text-gray-600">{selectedDispute.raisedByEmail}</p>
+                      )}
                     </div>
                   </div>
                 )}
               </div>
 
-              <div className="flex justify-end pt-4">
+              <div className="flex justify-end pt-6 border-t mt-6">
                 <button
                   onClick={() => setShowDetails(false)}
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                  className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
                 >
                   Close
                 </button>

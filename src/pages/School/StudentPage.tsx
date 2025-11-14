@@ -593,10 +593,11 @@ const [uploadProgress, setUploadProgress] = useState<number>(0);
 }, [selectedFile, authToken, API_BASE_URL, fetchStudents]);
 
 const handleDownloadSample = useCallback(() => {
+  // Using tab character and quotes to preserve phone numbers
   const sampleCSV = `firstName,lastName,email,phone,classAdmittedTo
-John,Doe,john.doe@example.com,+2348012345678,JSS 1
-Jane,Smith,jane.smith@example.com,+2348023456789,JSS 2
-Michael,Johnson,michael.j@example.com,+2348034567890,SS 1`;
+John,Doe,john.doe@example.com,"'+2348012345678",JSS 1
+Jane,Smith,jane.smith@example.com,"'+2348023456789",JSS 2
+Michael,Johnson,michael.j@example.com,"'+2348034567890",SS 1`;
 
   const blob = new Blob([sampleCSV], { type: 'text/csv' });
   const url = window.URL.createObjectURL(blob);
@@ -610,7 +611,7 @@ Michael,Johnson,michael.j@example.com,+2348034567890,SS 1`;
 
   setSnackbar({
     open: true,
-    message: 'Sample CSV downloaded successfully',
+    message: 'Sample CSV downloaded successfully. Note: Phone numbers are formatted to prevent Excel conversion.',
     severity: 'success',
   });
 }, []);
