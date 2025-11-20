@@ -19,6 +19,8 @@ import {
   CheckCircleIcon,
   ClockIcon,
   XCircleIcon,
+    KeyIcon,     
+  RefreshCwIcon, 
 } from 'lucide-react';
 
 // Updated TypeScript interfaces
@@ -109,6 +111,16 @@ const StudentPage: React.FC = () => {
 const [selectedFile, setSelectedFile] = useState<File | null>(null);
 const [bulkUploadLoading, setBulkUploadLoading] = useState<boolean>(false);
 const [uploadProgress, setUploadProgress] = useState<number>(0);
+const [isPinModalOpen, setIsPinModalOpen] = useState<boolean>(false);
+const [pinAction, setPinAction] = useState<'set' | 'update'>('set');
+const [pinData, setPinData] = useState({
+  currentPin: '',
+  newPin: '',
+  confirmPin: ''
+});
+const [pinLoading, setPinLoading] = useState<boolean>(false);
+
+
 
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   const rowsPerPage = 10;
@@ -281,54 +293,173 @@ const [uploadProgress, setUploadProgress] = useState<number>(0);
   }, [authToken, schoolId, API_BASE_URL]);
 
   const fetchStudents = useCallback(async () => {
-    if (!authToken || !schoolId) return;
+  if (!authToken || !schoolId) return;
 
-    setLoading(true);
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/users/getstudentbyid?id=${encodeURIComponent(schoolId)}`,
-        {
-          headers: {
-            Authorization: `Bearer ${authToken}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      if (!response.ok) throw new Error('Failed to fetch students');
-      
-      const data = await response.json();
-      let studentArray: Student[] = [];
-      
-      if (data && Array.isArray(data.data)) {
-        studentArray = data.data.map((student: Student) => ({
-          _id: student._id, // For backward compatibility
-          firstName: student.firstName,
-          lastName: student.lastName,
-          name: student.name || `${student.firstName} ${student.lastName}`,
-          email: student.email,
-          academicDetails: student.academicDetails || { classAdmittedTo: '' },
-          classAdmittedTo: student.academicDetails?.classAdmittedTo || 'Not Assigned',
-          status: student.status,
-          createdAt: student.createdAt,
-    guardian: student.guardian,
-  }));
-      } else {
-        console.error('Unexpected students data format:', data);
+  setLoading(true);
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/users/getstudentbyid?id=${encodeURIComponent(schoolId)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+        },
       }
+    );
 
-      setStudents(studentArray);
-    } catch (err) {
-      console.error(err);
-      setSnackbar({
-        open: true,
-        message: 'Failed to load student data: ' + (err instanceof Error ? err.message : 'Unknown error'),
-        severity: 'error',
-      });
-    } finally {
-      setLoading(false);
+    if (!response.ok) throw new Error('Failed to fetch students');
+    
+    const data = await response.json();
+    let studentArray: Student[] = [];
+    
+    // Check if it's the "no students" message
+    if (data.message && data.message.includes('No students found')) {
+      // This is not an error - just no students
+      studentArray = [];
+    } else if (data && Array.isArray(data.data)) {
+      studentArray = data.data.map((student: Student) => ({
+        _id: student._id,
+        firstName: student.firstName,
+        lastName: student.lastName,
+        name: student.name || `${student.firstName} ${student.lastName}`,
+        email: student.email,
+        academicDetails: student.academicDetails || { classAdmittedTo: '' },
+        classAdmittedTo: student.academicDetails?.classAdmittedTo || 'Not Assigned',
+        status: student.status,
+        createdAt: student.createdAt,
+        guardian: student.guardian,
+      }));
+    } else {
+      console.error('Unexpected students data format:', data);
     }
-  }, [authToken, schoolId, API_BASE_URL]);
+
+    setStudents(studentArray);
+  } catch (err) {
+    console.error(err);
+    setSnackbar({
+      open: true,
+      message: 'Failed to load student data: ' + (err instanceof Error ? err.message : 'Unknown error'),
+      severity: 'error',
+    });
+  } finally {
+    setLoading(false);
+  }
+}, [authToken, schoolId, API_BASE_URL]);
+const handleSetPin = useCallback(async () => {
+  if (!authToken || !menuStudent || !pinData.newPin) {
+    setSnackbar({
+      open: true,
+      message: 'Student information or PIN is missing',
+      severity: 'error',
+    });
+    return;
+  }
+
+  if (pinData.newPin !== pinData.confirmPin) {
+    setSnackbar({
+      open: true,
+      message: 'PIN and confirmation do not match',
+      severity: 'error',
+    });
+    return;
+  }
+
+  setPinLoading(true);
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/pin/setforstudent`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        studentEmail: menuStudent.email,
+        pin: pinData.newPin,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to set PIN');
+    }
+
+    setSnackbar({
+      open: true,
+      message: 'PIN set successfully!',
+      severity: 'success',
+    });
+
+    setIsPinModalOpen(false);
+    setPinData({ currentPin: '', newPin: '', confirmPin: '' });
+  } catch (error) {
+    console.error('Error setting PIN:', error);
+    setSnackbar({
+      open: true,
+      message: error instanceof Error ? error.message : 'Failed to set PIN',
+      severity: 'error',
+    });
+  } finally {
+    setPinLoading(false);
+  }
+}, [authToken, menuStudent, pinData, API_BASE_URL]);
+
+const handleUpdatePin = useCallback(async () => {
+  if (!authToken || !menuStudent || !pinData.newPin || !pinData.currentPin) {
+    setSnackbar({
+      open: true,
+      message: 'Required information is missing',
+      severity: 'error',
+    });
+    return;
+  }
+
+  if (pinData.newPin !== pinData.confirmPin) {
+    setSnackbar({
+      open: true,
+      message: 'New PIN and confirmation do not match',
+      severity: 'error',
+    });
+    return;
+  }
+
+  setPinLoading(true);
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/pin/updateforstudent`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        studentEmail: menuStudent.email,
+        newPin: pinData.newPin,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to update PIN');
+    }
+
+    setSnackbar({
+      open: true,
+      message: 'PIN updated successfully!',
+      severity: 'success',
+    });
+
+    setIsPinModalOpen(false);
+    setPinData({ currentPin: '', newPin: '', confirmPin: '' });
+  } catch (error) {
+    console.error('Error updating PIN:', error);
+    setSnackbar({
+      open: true,
+      message: error instanceof Error ? error.message : 'Failed to update PIN',
+      severity: 'error',
+    });
+  } finally {
+    setPinLoading(false);
+  }
+}, [authToken, menuStudent, pinData, API_BASE_URL]);
 
   // Initial data fetching
   useEffect(() => {
@@ -536,7 +667,7 @@ const [uploadProgress, setUploadProgress] = useState<number>(0);
     handleMenuClose();
   }, [fetchParents, handleMenuClose]);
 
-  const handleBulkUpload = useCallback(async () => {
+ const handleBulkUpload = useCallback(async () => {
   if (!selectedFile || !authToken) {
     setSnackbar({
       open: true,
@@ -568,11 +699,32 @@ const [uploadProgress, setUploadProgress] = useState<number>(0);
 
     const result = await response.json();
     
-    setSnackbar({
-      open: true,
-      message: `Successfully registered ${result.data?.length || 0} students`,
-      severity: 'success',
-    });
+    // Handle the bulk upload response format
+    if (result.errors && result.errors.length > 0) {
+      // There were errors in some rows
+      type BulkError = { row: number; error: string };
+      const errorEntries = result.errors as BulkError[];
+      const errorMessages = errorEntries
+        .map((err) => `Row ${err.row}: ${err.error}`)
+        .join(', ');
+      
+      const successCount = Array.isArray(result.successes) ? result.successes.length : 0;
+      const errorCount = errorEntries.length;
+      
+      setSnackbar({
+        open: true,
+        message: `Partially completed: ${successCount} students created, ${errorCount} errors. ${errorMessages}`,
+        severity: 'warning',
+      });
+    } else {
+      // All successful
+      const successCount = Array.isArray(result.successes) ? result.successes.length : result.total || 0;
+      setSnackbar({
+        open: true,
+        message: `Successfully registered ${successCount} students`,
+        severity: 'success',
+      });
+    }
 
     setIsBulkUploadOpen(false);
     setSelectedFile(null);
@@ -593,11 +745,11 @@ const [uploadProgress, setUploadProgress] = useState<number>(0);
 }, [selectedFile, authToken, API_BASE_URL, fetchStudents]);
 
 const handleDownloadSample = useCallback(() => {
-  // Using tab character and quotes to preserve phone numbers
+  // Match the exact format your API expects
   const sampleCSV = `firstName,lastName,email,phone,classAdmittedTo
-John,Doe,john.doe@example.com,"'+2348012345678",JSS 1
-Jane,Smith,jane.smith@example.com,"'+2348023456789",JSS 2
-Michael,Johnson,michael.j@example.com,"'+2348034567890",SS 1`;
+John,Doe,john.doe@example.com,"+2348012345678",JSS 1
+Jane,Smith,jane.smith@example.com,"+2348023456789",JSS 2
+Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
 
   const blob = new Blob([sampleCSV], { type: 'text/csv' });
   const url = window.URL.createObjectURL(blob);
@@ -611,7 +763,7 @@ Michael,Johnson,michael.j@example.com,"'+2348034567890",SS 1`;
 
   setSnackbar({
     open: true,
-    message: 'Sample CSV downloaded successfully. Note: Phone numbers are formatted to prevent Excel conversion.',
+    message: 'Sample CSV downloaded successfully',
     severity: 'success',
   });
 }, []);
@@ -1098,79 +1250,108 @@ Michael,Johnson,michael.j@example.com,"'+2348034567890",SS 1`;
         </main>
       </div>
       <Footer />
+{/* Context Menu */}
+{isMenuOpen && menuStudent && (
+  <>
+    <div 
+      className="fixed inset-0 z-10" 
+      onClick={handleMenuClose}
+    ></div>
+    <div
+      className="fixed z-20 bg-white rounded-lg shadow-lg py-2 w-56 border border-gray-200"
+      style={{
+        top: `${Math.min(menuPosition.top, window.innerHeight - 200)}px`,
+        left: `${Math.min(menuPosition.left - 100, window.innerWidth - 224)}px`,
+      }}
+    >
+      <button
+        className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
+        onClick={() => {
+          handleMenuClose();
+          window.location.href = `/students/edit/${menuStudent._id}`;
+        }}
+      >
+        <UserIcon className="h-4 w-4" />
+        View Details
+      </button>
+      <button
+        className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
+        onClick={() => {
+          handleMenuClose();
+          window.location.href = `/students/transactions/${menuStudent._id}`;
+        }}
+      >
+        <CalendarIcon className="h-4 w-4" />
+        Transaction Info
+      </button>
+      <button
+        className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
+        onClick={handleMenuClose}
+      >
+        <MailIcon className="h-4 w-4" />
+        Reset Password
+      </button>
+      
+      {/* PIN Management Options */}
+      <div className="border-t border-gray-100 my-1"></div>
+      
+      <button
+        className="flex items-center gap-3 px-4 py-2 text-sm text-blue-600 hover:bg-gray-50 w-full text-left"
+        onClick={() => {
+          setPinAction('set');
+          setIsPinModalOpen(true);
+          
+        }}
+      >
+        <KeyIcon className="h-4 w-4" />
+        Set PIN
+      </button>
+      
+      <button
+        className="flex items-center gap-3 px-4 py-2 text-sm text-blue-600 hover:bg-gray-50 w-full text-left"
+        onClick={() => {
+          setPinAction('update');
+          setIsPinModalOpen(true);
+         
+        }}
+      >
+        <RefreshCwIcon className="h-4 w-4" />
+        Update PIN
+      </button>
 
-      {/* Context Menu */}
-      {isMenuOpen && menuStudent && (
-        <>
-          <div 
-            className="fixed inset-0 z-10" 
-            onClick={handleMenuClose}
-          ></div>
-          <div
-            className="fixed z-20 bg-white rounded-lg shadow-lg py-2 w-56 border border-gray-200"
-            style={{
-              top: `${Math.min(menuPosition.top, window.innerHeight - 200)}px`,
-              left: `${Math.min(menuPosition.left - 100, window.innerWidth - 224)}px`,
-            }}
-          >
-            <button
-              className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
-              onClick={() => {
-                handleMenuClose();
-                window.location.href = `/students/edit/${menuStudent._id}`;
-              }}
-            >
-              <UserIcon className="h-4 w-4" />
-              View Details
-            </button>
-            <button
-              className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
-              onClick={() => {
-                handleMenuClose();
-                window.location.href = `/students/transactions/${menuStudent._id}`;
-              }}
-            >
-              <CalendarIcon className="h-4 w-4" />
-              Transaction Info
-            </button>
-            <button
-              className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
-              onClick={handleMenuClose}
-            >
-              <MailIcon className="h-4 w-4" />
-              Reset Password
-            </button>
-            <button
-              className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
-              onClick={() => handleGuardianClick(menuStudent)}
-            >
-              <UsersIcon className="h-4 w-4" />
-              Assign Guardian
-            </button>
-            <div className="border-t border-gray-100 my-1"></div>
-            <button
-              className={`flex items-center gap-3 px-4 py-2 text-sm hover:bg-gray-50 w-full text-left ${
-                menuStudent.status.toLowerCase() === 'active'
-                  ? 'text-red-600'
-                  : 'text-green-600'
-              }`}
-              onClick={() => handleActivateDeactivate(menuStudent)}
-            >
-              {menuStudent.status.toLowerCase() === 'active' ? (
-                <>
-                  <XCircleIcon className="h-4 w-4" />
-                  Deactivate Student
-                </>
-              ) : (
-                <>
-                  <CheckCircleIcon className="h-4 w-4" />
-                  Activate Student
-                </>
-              )}
-            </button>
-          </div>
-        </>
-      )}
+      <button
+        className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
+        onClick={() => handleGuardianClick(menuStudent)}
+      >
+        <UsersIcon className="h-4 w-4" />
+        Assign Guardian
+      </button>
+      
+      <div className="border-t border-gray-100 my-1"></div>
+      
+      <button
+        className={`flex items-center gap-3 px-4 py-2 text-sm hover:bg-gray-50 w-full text-left ${
+          menuStudent.status.toLowerCase() === 'active'
+            ? 'text-red-600'
+            : 'text-green-600'
+        }`}
+        onClick={() => handleActivateDeactivate(menuStudent)}
+      >
+        {menuStudent.status.toLowerCase() === 'active' ? (
+          <>
+            <XCircleIcon className="h-4 w-4" />
+            Deactivate Student
+          </>
+        ) : (
+          <>
+            <CheckCircleIcon className="h-4 w-4" />
+            Activate Student
+          </>
+        )}
+      </button>
+    </div>
+  </>
+)}
 
     {/* Bulk Upload Modal */}
 {isBulkUploadOpen && (
@@ -1292,84 +1473,99 @@ Michael,Johnson,michael.j@example.com,"'+2348034567890",SS 1`;
     </div>
   </div>
 )}  
-      {/* Guardian Assignment Modal */}
-      {isGuardianModalOpen && selectedStudent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
-          <div 
-            className="bg-white rounded-lg w-full max-w-md mx-auto p-6 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center mb-4">
-              <div className="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">
-                <UsersIcon className="h-6 w-6 text-blue-600" />
-              </div>
-              <div className="ml-4">
-                <h3 className="text-lg font-medium text-gray-900">
-                  Assign Guardian
-                </h3>
-                <p className="text-sm text-gray-500">
-                  For student: <strong>{selectedStudent.name}</strong>
-                </p>
-              </div>
-            </div>
-            
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Select Guardian
-              </label>
-              
-              {availableParents.length === 0 ? (
-                <div className="text-center py-4 text-gray-500">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                  Loading parents...
-                </div>
-              ) : (
-                <select
-                  value={guardianEmail}
-                  onChange={(e) => setGuardianEmail(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
-                >
-                  <option value="">Select a guardian...</option>
-                  {availableParents.map((parent) => (
-                    <option key={parent._id} value={parent.email}>
-                      {parent.name} ({parent.email})
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-            
-            <div className="flex justify-end space-x-3">
-              <button
-                type="button"
-                onClick={() => setIsGuardianModalOpen(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleUpdateGuardian}
-                disabled={!guardianEmail || guardianLoading}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {guardianLoading ? (
-                  <>
-                    <span className="inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1"></span>
-                    Assigning...
-                  </>
-                ) : (
-                  'Assign Guardian'
-                )}
-              </button>
+     {/* Guardian Assignment Modal */}
+{isGuardianModalOpen && selectedStudent && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+    <div 
+      className="bg-white rounded-lg w-full max-w-md mx-auto p-6 shadow-xl"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="flex items-center mb-4">
+        <div className="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">
+          <UsersIcon className="h-6 w-6 text-blue-600" />
+        </div>
+        <div className="ml-4">
+          <h3 className="text-lg font-medium text-gray-900">
+            Assign Guardian
+          </h3>
+          <p className="text-sm text-gray-500">
+            For student: <strong>{selectedStudent.name}</strong>
+          </p>
+        </div>
+      </div>
+      
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Select Guardian
+        </label>
+        
+        {availableParents.length === 0 ? (
+          <div className="flex justify-center items-center py-4">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+              <p className="text-sm text-gray-500">Loading available parents...</p>
             </div>
           </div>
-        </div>
-      )}
+        ) : (
+          <select
+            value={guardianEmail}
+            onChange={(e) => setGuardianEmail(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-black"
+          >
+            <option value="">Select a guardian...</option>
+            {availableParents.map((parent) => (
+              <option key={parent._id} value={parent.email}>
+                {parent.name || `${parent.firstName} ${parent.lastName}`} ({parent.email})
+              </option>
+            ))}
+          </select>
+        )}
+        
+        {availableParents.length > 0 && guardianEmail && (
+          <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+            <p className="text-xs text-blue-800">
+              Selected guardian: <strong>
+                {availableParents.find(p => p.email === guardianEmail)?.name || 
+                 `${availableParents.find(p => p.email === guardianEmail)?.firstName} ${availableParents.find(p => p.email === guardianEmail)?.lastName}`}
+              </strong>
+            </p>
+          </div>
+        )}
+      </div>
+      
+      <div className="flex justify-end space-x-3">
+        <button
+          type="button"
+          onClick={() => {
+            setIsGuardianModalOpen(false);
+            setGuardianEmail('');
+            setSelectedStudent(null);
+          }}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={handleUpdateGuardian}
+          disabled={!guardianEmail || guardianLoading}
+          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {guardianLoading ? (
+            <>
+              <span className="inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1"></span>
+              Assigning...
+            </>
+          ) : (
+            'Assign Guardian'
+          )}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 {availableParents.length === 0 ? (
   <div className="flex justify-center items-center py-4">
-    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-    <span className="ml-2 text-sm text-gray-500">Loading parents...</span>
   </div>
 ) : (
   <select
@@ -1384,6 +1580,114 @@ Michael,Johnson,michael.j@example.com,"'+2348034567890",SS 1`;
       </option>
     ))}
   </select>
+)}
+{/* PIN Management Modal */}
+{isPinModalOpen && menuStudent && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+    <div 
+      className="bg-white rounded-lg w-full max-w-md mx-auto p-6 shadow-xl"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="flex items-center mb-4">
+        <div className="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">
+          <KeyIcon className="h-6 w-6 text-blue-600" />
+        </div>
+        <div className="ml-4">
+          <h3 className="text-lg font-medium text-gray-900">
+            {pinAction === 'set' ? 'Set PIN' : 'Update PIN'}
+          </h3>
+          <p className="text-sm text-gray-500">
+            For student: <strong>{menuStudent.name}</strong>
+          </p>
+        </div>
+      </div>
+      
+      <div className="space-y-4">
+        {pinAction === 'update' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Current PIN
+            </label>
+            <input
+              type="password"
+              value={pinData.currentPin}
+              onChange={(e) => setPinData(prev => ({ ...prev, currentPin: e.target.value }))}
+              placeholder="Enter current PIN"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-black"
+              maxLength={4}
+            />
+          </div>
+        )}
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            {pinAction === 'set' ? 'New PIN' : 'New PIN'}
+          </label>
+          <input
+            type="password"
+            value={pinData.newPin}
+            onChange={(e) => setPinData(prev => ({ ...prev, newPin: e.target.value }))}
+            placeholder="Enter 4-digit PIN"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-black"
+            maxLength={4}
+            pattern="[0-9]{4}"
+            title="PIN must be 4 digits"
+          />
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Confirm PIN
+          </label>
+          <input
+            type="password"
+            value={pinData.confirmPin}
+            onChange={(e) => setPinData(prev => ({ ...prev, confirmPin: e.target.value }))}
+            placeholder="Confirm PIN"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-black"
+            maxLength={4}
+            pattern="[0-9]{4}"
+            title="PIN must be 4 digits"
+          />
+        </div>
+        
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <p className="text-xs text-blue-800">
+            <strong>Note:</strong> PIN must be exactly 4 digits (0-9)
+          </p>
+        </div>
+      </div>
+      
+      <div className="flex justify-end space-x-3 mt-6">
+        <button
+          type="button"
+          onClick={() => {
+            setIsPinModalOpen(false);
+            setPinData({ currentPin: '', newPin: '', confirmPin: '' });
+          }}
+          disabled={pinLoading}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={pinAction === 'set' ? handleSetPin : handleUpdatePin}
+          disabled={pinLoading || !pinData.newPin || !pinData.confirmPin || pinData.newPin !== pinData.confirmPin}
+          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {pinLoading ? (
+            <>
+              <span className="inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1"></span>
+              {pinAction === 'set' ? 'Setting...' : 'Updating...'}
+            </>
+          ) : (
+            pinAction === 'set' ? 'Set PIN' : 'Update PIN'
+          )}
+        </button>
+      </div>
+    </div>
+  </div>
 )}
       {/* Snackbar */}
       {snackbar.open && (

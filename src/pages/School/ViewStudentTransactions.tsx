@@ -29,8 +29,20 @@ interface Student {
   parentId?: string;
   role?: string;
   phone?: string;
+ 
+  academicDetails?: {
+    classAdmittedTo: string;
+    section?: string;
+  };
+  classAdmittedTo?: string;
+  status?: string;
+  createdAt?: string;
+  guardian?: {
+    fullName: string;
+    relationship: string;
+    email: string;
+  };
 }
-
 interface SchoolFee {
   _id: string;
   studentId: string;
@@ -163,70 +175,91 @@ const ViewStudentTransactions: React.FC = () => {
   }, [auth?.token, showSnackbar]);
 
   // Fetch single student by ID
-  const fetchStudentById = useCallback(
-    async (authToken: string, _Id: string): Promise<Student | null> => {
-      try {
-        console.log(`Fetching student with ID: ${_Id}`);
+ // Fetch single student by ID
+const fetchStudentById = useCallback(
+  async (authToken: string, _Id: string): Promise<Student | null> => {
+    try {
+      console.log(`Fetching student with ID: ${_Id}`);
 
-        const response = await fetch(
-          `${API_BASE_URL}/api/users/getuser/${_Id}`,
-          {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${authToken}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+      const response = await fetch(
+        `${API_BASE_URL}/api/users/getuser/${_Id}`,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+            'Content-Type': 'application/json',
+          },
         }
+      );
 
-        const data = await response.json();
-        console.log('Raw student API response:', data);
-
-        let studentData: Student | null = null;
-
-        if (data?.data) {
-          studentData = data.data;
-        } else if (data?.user) {
-          studentData = data.user;
-        } else if (data) {
-          studentData = data;
-        }
-
-        if (!studentData?._id) {
-          throw new Error('Invalid student data structure received');
-        }
-
-        // Process the student data
-        const processedStudent: Student = {
-          _id: studentData.student_id || studentData._id,
-          student_id: studentData.student_id,
-          firstName: studentData.firstName || 'Unknown',
-          lastName: studentData.lastName || '',
-          fullName:
-            studentData.fullName ||
-            `${studentData.firstName || 'Unknown'} ${studentData.lastName || ''}`.trim(),
-          email: studentData.email || '',
-          className: studentData.className || 'No Class', // Updated this line
-          schoolId: studentData.schoolId,
-          parentId: studentData.parentId,
-          role: studentData.role,
-          phone: studentData.phone,
-        };
-
-        console.log('Processed student:', processedStudent);
-        return processedStudent;
-      } catch (error) {
-        console.error('Error fetching student:', error);
-        showSnackbar('Failed to fetch student. Please try again.', 'error');
-        return null;
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-    },
-    [showSnackbar]
-  );
+
+      const data = await response.json();
+      console.log('Raw student API response:', data);
+
+      let studentData: Partial<Student> | null = null;
+
+      if (data?.data) {
+        studentData = data.data;
+      } else if (data?.user) {
+        studentData = data.user;
+      } else if (data) {
+        studentData = data;
+      }
+
+      if (!studentData?._id) {
+        throw new Error('Invalid student data structure received');
+      }
+
+      // Extract class information using multiple possible paths (like the main StudentPage)
+      const classAdmittedTo = studentData.academicDetails?.classAdmittedTo || 
+                             studentData.classAdmittedTo || 
+                             studentData.className ||
+                             'Not Assigned';
+
+      // Process the student data
+      const processedStudent: Student = {
+        _id: studentData._id,
+        student_id: studentData.student_id || studentData._id,
+        firstName: studentData.firstName || 'Unknown',
+        lastName: studentData.lastName || '',
+        fullName:
+          studentData.fullName ||
+          `${studentData.firstName || 'Unknown'} ${studentData.lastName || ''}`.trim(),
+        email: studentData.email || '',
+        className: classAdmittedTo,
+        schoolId: studentData.schoolId,
+        parentId: studentData.parentId,
+        role: studentData.role,
+        phone: studentData.phone,
+        // Include the academic details structure
+        academicDetails: {
+          classAdmittedTo: classAdmittedTo,
+          section: studentData.academicDetails?.section ||  '',
+        },
+        classAdmittedTo: classAdmittedTo, // For consistency
+        status: studentData.status,
+        createdAt: studentData.createdAt,
+        guardian: studentData.guardian,
+      };
+
+      console.log('Processed student:', processedStudent);
+      console.log('Class information:', {
+        className: processedStudent.className,
+        academicDetails: processedStudent.academicDetails,
+        classAdmittedTo: processedStudent.classAdmittedTo
+      });
+      return processedStudent;
+    } catch (error) {
+      console.error('Error fetching student:', error);
+      showSnackbar('Failed to fetch student. Please try again.', 'error');
+      return null;
+    }
+  },
+  [showSnackbar]
+);
 
   // Transform fees to bills format
   const transformFeesToBills = useCallback((fees: SchoolFee[]): Bill[] => {
@@ -413,26 +446,32 @@ const ViewStudentTransactions: React.FC = () => {
 
             {student && !loadingFees && (
               <>
-                <div className="mb-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center">
-                      <UserIcon className="h-6 w-6 text-indigo-600" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-indigo-900">
-                        {student.fullName}
-                      </h3>
-                      <p className="text-sm text-indigo-600">
-                        Class: {student.className}
-                      </p>
-                      {student.email && (
-                        <p className="text-xs text-indigo-500">
-                          {student.email}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
+               <div className="mb-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+  <div className="flex items-center gap-3">
+    <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center">
+      <UserIcon className="h-6 w-6 text-indigo-600" />
+    </div>
+    <div>
+      <h3 className="text-lg font-semibold text-indigo-900">
+        {student.fullName}
+      </h3>
+      <p className="text-sm text-indigo-600">
+        Class: {student.academicDetails?.classAdmittedTo || student.classAdmittedTo || student.className || 'Not Assigned'}
+        {student.academicDetails?.section && ` - Section ${student.academicDetails.section}`}
+      </p>
+      {student.email && (
+        <p className="text-xs text-indigo-500">
+          {student.email}
+        </p>
+      )}
+      {student.status && (
+        <p className="text-xs text-indigo-400 mt-1">
+          Status: <span className="capitalize">{student.status}</span>
+        </p>
+      )}
+    </div>
+  </div>
+</div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                   <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">

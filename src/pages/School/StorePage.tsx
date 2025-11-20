@@ -69,7 +69,6 @@ export const StorePage: React.FC = () => {
   const API_BASE_URL =
     import.meta.env.VITE_API_BASE_URL;
 
-  // 1) Fetch user profile to get schoolId and storeLink
 // 1) Fetch user profile to get schoolId and storeLink
 useEffect(() => {
   if (!authToken) return;
@@ -85,14 +84,18 @@ useEffect(() => {
       return res.json();
     })
     .then((data) => {
-      const profile = data.user;
-      const schoolId = profile.data.schoolId;
-      const schoolName = profile.data.schoolName || profile.data.name || '';
+      const profile = data.user || data;
+      const schoolId = profile.data?.schoolId || profile.schoolId;
+      const schoolName = profile.data?.schoolName || profile.schoolName || profile.data?.name || profile.name || '';
       
+      if (!schoolId) {
+        throw new Error('School ID not found in user profile');
+      }
+
       setSchoolId(schoolId);
 
       // Construct the full store registration link with schoolId and schoolName
-      const linkPath = profile.Link || '';
+      const linkPath = profile.Link || profile.data?.Link || '';
       const fullLink = `${window.location.origin}/stores/new${linkPath}?schoolId=${schoolId}&schoolName=${encodeURIComponent(schoolName)}`;
       setStoreLink(fullLink);
     })
@@ -102,98 +105,136 @@ useEffect(() => {
     });
 }, [authToken, API_BASE_URL]);
 
-  // 2) Fetch stores for this schoolId using the getstorebyid endpoint
-  useEffect(() => {
-    if (!authToken || !schoolId) return;
+// 2) Fetch stores for this schoolId using the getstorebyid endpoint
+useEffect(() => {
+  if (!authToken || !schoolId) return;
 
-    setLoading(true);
-    fetch(
-      `${API_BASE_URL}/api/users/getstorebyid?id=${encodeURIComponent(schoolId)}`,
-      {
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
+  setLoading(true);
+  fetch(
+    `${API_BASE_URL}/api/users/getstorebyid?id=${encodeURIComponent(schoolId)}`,
+    {
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+        'Content-Type': 'application/json',
+      },
+    }
+  )
+    .then((res) => {
+      if (!res.ok) throw new Error('Failed to fetch stores');
+      return res.json();
+    })
+    .then((data) => {
+      console.log('Stores API response:', data);
+      
+      let storeArray: Store[] = [];
+      
+      // Handle the specific response format: {"message":"No store found in this school"}
+      if (data.message && data.message.includes('No store found')) {
+        // This is a valid "no stores" response - NOT an error
+        storeArray = [];
+        console.log('No stores found for this school - this is normal');
+      } 
+      // Handle case where stores are found in data array
+      else if (data && Array.isArray(data)) {
+        storeArray = data;
       }
-    )
-      .then((res) => {
-        if (!res.ok) throw new Error('Failed to fetch stores');
-        return res.json();
-      })
-      .then((data) => {
-        // Handle the response structure properly
-        let storeArray: Store[] = [];
-        if (data && data.data && Array.isArray(data.data)) {
-          storeArray = data.data;
-        } else {
-          console.error('Unexpected stores data format:', data);
-        }
-
-        setStores(storeArray);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error('Fetch error:', err);
-        setStores([]);
-        setSnackbar({
-          open: true,
-          message: 'Failed to load store data: ' + err.message,
-          severity: 'error',
-        });
-        setLoading(false);
-      });
-  }, [authToken, schoolId, API_BASE_URL]);
-
-  // 3) Fetch store count for this schoolId
-  useEffect(() => {
-    if (!authToken || !schoolId) return;
-
-    // Fetch total store count
-    fetch(
-      `${API_BASE_URL}/api/users/getstorebyidcount?id=${encodeURIComponent(schoolId)}`,
-      {
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
+      // Handle case where stores are in data.data array
+      else if (data && data.data && Array.isArray(data.data)) {
+        storeArray = data.data;
       }
-    )
-      .then((res) => {
-        if (!res.ok) throw new Error('Failed to fetch store count');
-        return res.json();
-      })
-      .then((data) => {
-        setStoreCount(data.data || 0);
-      })
-      .catch((err) => {
-        console.error(err);
+      // Handle unexpected format but with stores array
+      else if (data && Array.isArray(data.stores)) {
+        storeArray = data.stores;
+      }
+      else {
+        console.log('No stores found or unexpected format:', data);
+        storeArray = [];
+      }
+
+      setStores(storeArray);
+      setLoading(false);
+    })
+    .catch((err) => {
+      console.error('Fetch error:', err);
+      setStores([]);
+      setLoading(false);
+      // REMOVED the snackbar error completely for store fetching
+      // The empty state UI will handle the "no stores" case
+    });
+}, [authToken, schoolId, API_BASE_URL]);
+
+ // 3) Fetch store count for this schoolId
+useEffect(() => {
+  if (!authToken || !schoolId) return;
+
+  // Fetch total store count
+  fetch(
+    `${API_BASE_URL}/api/users/getstorebyidcount?id=${encodeURIComponent(schoolId)}`,
+    {
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+        'Content-Type': 'application/json',
+      },
+    }
+  )
+    .then((res) => {
+      if (!res.ok) throw new Error('Failed to fetch store count');
+      return res.json();
+    })
+    .then((data) => {
+      console.log('Store count API response:', data); // Debug log
+      
+      // Handle the specific response format: {"message":"Found 0 store(s) in xpay school","data":0}
+      if (data.data !== undefined && data.data !== null) {
+        setStoreCount(data.data);
+      } else if (typeof data === 'number') {
+        setStoreCount(data);
+      } else {
+        // Fallback to local stores count
         setStoreCount(stores.length);
-      });
-
-    // Fetch active store count
-    fetch(
-      `${API_BASE_URL}/api/users/getstorebyidcount?id=${encodeURIComponent(schoolId)}&status=active`,
-      {
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
       }
-    )
-      .then((res) => {
-        if (!res.ok) throw new Error('Failed to fetch active store count');
-        return res.json();
-      })
-      .then((data) => {
-        setActiveStoreCount(data.data || 0);
-      })
-      .catch((err) => {
-        console.error(err);
+    })
+    .catch((err) => {
+      console.error('Store count error:', err);
+      setStoreCount(stores.length);
+    });
+
+  // Fetch active store count
+  fetch(
+    `${API_BASE_URL}/api/users/getstorebyidcount?id=${encodeURIComponent(schoolId)}&status=active`,
+    {
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+        'Content-Type': 'application/json',
+      },
+    }
+  )
+    .then((res) => {
+      if (!res.ok) throw new Error('Failed to fetch active store count');
+      return res.json();
+    })
+    .then((data) => {
+      console.log('Active store count API response:', data); // Debug log
+      
+      // Handle the specific response format
+      if (data.data !== undefined && data.data !== null) {
+        setActiveStoreCount(data.data);
+      } else if (typeof data === 'number') {
+        setActiveStoreCount(data);
+      } else {
+        // Fallback to local active stores count
         setActiveStoreCount(
           stores.filter((s) => s?.status?.toLowerCase() === 'active').length
         );
-      });
-  }, [authToken, schoolId, API_BASE_URL, stores]);
+      }
+    })
+    .catch((err) => {
+      console.error('Active store count error:', err);
+      setActiveStoreCount(
+        stores.filter((s) => s?.status?.toLowerCase() === 'active').length
+      );
+    });
+}, [authToken, schoolId, API_BASE_URL, stores]);
 
   // Filter stores based on search, status, and type
   const filteredStores = stores.filter((store) => {
@@ -548,17 +589,33 @@ useEffect(() => {
             </div>
           ) : (
             <>
-              {filteredStores.length === 0 ? (
-                <div className="bg-white rounded-xl shadow-sm p-12 text-center border border-gray-100">
-                  <Store className="mx-auto h-12 w-12 text-gray-300 mb-3" />
-                  <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                    No stores found
-                  </h3>
-                  <p className="text-gray-500">
-                    Try adjusting your search or filter criteria
-                  </p>
-                </div>
-              ) : (
+           {filteredStores.length === 0 ? (
+  <div className="bg-white rounded-xl shadow-sm p-12 text-center border border-gray-100">
+    <Store className="mx-auto h-12 w-12 text-gray-300 mb-3" />
+    <h3 className="text-xl font-semibold text-gray-700 mb-2">
+      {loading ? 'Loading stores...' : 'No stores found'}
+    </h3>
+    <p className="text-gray-500 mb-4">
+      {loading 
+        ? 'Please wait while we load your store data' 
+        : 'No stores are currently registered for your school'
+      }
+    </p>
+    {!loading && (
+      <button
+        onClick={() => {
+          if (storeLink) {
+            window.location.href = storeLink;
+          }
+        }}
+        className="flex items-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition-colors shadow-sm mx-auto"
+      >
+        <Plus className="h-5 w-5" />
+        <span>Add Your First Store</span>
+      </button>
+    )}
+  </div>
+) : (
                 <>
                   <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200">

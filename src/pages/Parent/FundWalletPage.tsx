@@ -29,6 +29,8 @@ interface Charge {
   name: string;
   chargeType: string;
   amount: number;
+  amount2?: number;
+  amount3?: number;
   description: string;
   status: string;
 }
@@ -139,7 +141,6 @@ const FundWalletPage: React.FC = () => {
           
           setEmail(profile.data.email || "");
           await fetchWalletBalance();
-          await fetchTransactionCharges();
         }
       } catch (error: unknown) {
       if (axios.isAxiosError(error) && error.response?.status === 401) {
@@ -162,35 +163,104 @@ const FundWalletPage: React.FC = () => {
    fetchUserProfile();
 }, [authToken, navigate]);
 
-const fetchTransactionCharges = async () => {
-  if (!authToken) return;
+// Quick amount selection
+const handleQuickAmountClick = async (value: number) => {
+  setAmount(value.toString());
+  setActiveStep(1);
   
-  try {
-    const response = await axios.get(`${API_BASE_URL}/api/charge/getallcharges`, {
-      headers: {
-        Authorization: `Bearer ${authToken}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    if (response.data && Array.isArray(response.data)) {
-      // Find the topup charge
-      const topupCharge = response.data.find((charge: Charge) => 
-        charge.name.toLowerCase().includes('topup') && charge.status === 'Active'
-      );
+  // Calculate transaction fee inline
+  if (authToken) {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/charge/getallcharges`, {
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
       
-      if (topupCharge) {
-        setTransactionFee(topupCharge.amount);
+      if (response.data && Array.isArray(response.data)) {
+        const charges: Charge[] = response.data as Charge[];
+        const topupCharge = charges.find((charge: Charge) => 
+          charge.name.toLowerCase().includes('topup') && charge.status === 'Active'
+        );
+        
+        if (topupCharge) {
+          const calculatedFee = calculateCharge(value, topupCharge);
+          setTransactionFee(calculatedFee);
+        }
       }
+    } catch (error: unknown) {
+      console.error('Error fetching transaction charges:', error);
+      setTransactionFee(0);
     }
-  } catch (error: unknown) {
-    console.error('Error fetching transaction charges:', error);
-    // Set default fee if API fails
+  }
+};
+
+const handleAmountChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const inputValue = e.target.value;
+  setAmount(inputValue);
+  setActiveStep(inputValue ? 1 : 0);
+  
+  // Calculate transaction fee inline
+  const numericAmount = Number(inputValue) || 0;
+  if (authToken && numericAmount > 0) {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/charge/getallcharges`, {
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.data && Array.isArray(response.data)) {
+        const charges: Charge[] = response.data as Charge[];
+        const topupCharge = charges.find((charge: Charge) => 
+          charge.name.toLowerCase().includes('topup') && charge.status === 'Active'
+        );
+        
+        if (topupCharge) {
+          const calculatedFee = calculateCharge(inputValue, topupCharge);
+          setTransactionFee(calculatedFee);
+        }
+      }
+    } catch (error: unknown) {
+      console.error('Error fetching transaction charges:', error);
+      setTransactionFee(0);
+    }
+  } else {
     setTransactionFee(0);
   }
 };
 
-  // Fetch transactions
+
+const calculateCharge = (transactionAmount: number | string, charge: Charge): number => {
+  let chargeAmount = 0;
+  const amt = Number(transactionAmount) || 0;
+  
+  if (charge.chargeType === 'Flat') {
+    chargeAmount = charge.amount;
+  } 
+  else if (charge.chargeType === 'Percentage') {
+    let computedPercent = 0;
+    
+    if (amt > 0 && amt <= 50000) {
+      computedPercent = (amt * (charge.amount || 0)) / 100;
+    } 
+    else if (amt > 50000 && amt <= 150000) {
+      computedPercent = (amt * (charge.amount2 || 0)) / 100;
+    } 
+    else if (amt > 150000) {
+      computedPercent = (amt * (charge.amount3 || 0)) / 100;
+    }
+    
+    chargeAmount = Math.min(computedPercent, 2500);
+  }
+   
+  return chargeAmount;
+ console.log('Calculated charge amount:', chargeAmount);
+};
+
+  // Fetch transaction
   const fetchTransactions = async () => {
     if (!authToken || !userId) return;
     
@@ -228,16 +298,7 @@ const fetchTransactionCharges = async () => {
     }
   };
 
-  // Quick amount selection
-  const handleQuickAmountClick = (value: number) => {
-    setAmount(value.toString());
-    setActiveStep(1);
-  };
-
-  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setAmount(e.target.value);
-    setActiveStep(e.target.value ? 1 : 0);
-  };
+ 
 
   const validateForm = (): boolean => {
     return !!amount && Number(amount) > 0 && !!email && email.includes('@');
