@@ -284,14 +284,73 @@ useEffect(() => {
       });
   };
 
-  const handleExport = () => {
+ const handleExport = () => {
+  if (!stores || stores.length === 0) {
     setSnackbar({
       open: true,
-      message: 'Exporting store data...',
-      severity: 'info',
+      message: "No stores available to export",
+      severity: "warning",
     });
-    // Implement export functionality as needed
-  };
+    return;
+  }
+
+  setSnackbar({
+    open: true,
+    message: "Exporting store data...",
+    severity: "info",
+  });
+
+  // ----- Build CSV with fixed headers -----
+  const headers = [
+    "_id",
+    "storeName",
+    "storeType",
+    "location",
+    "email",
+    "phone",
+    "status",
+    "createdAt"
+  ];
+
+  const csvHeader = headers.join(",") + "\n";
+
+  const csvRows = stores
+    .map((store) =>
+      headers
+        .map((key) => {
+          const value = (store as any)[key] ?? "";
+
+          // Escape if contains comma or quote
+          if (typeof value === "string" && (value.includes(",") || value.includes('"'))) {
+            return `"${value.replace(/"/g, '""')}"`;
+          }
+          return value;
+        })
+        .join(",")
+    )
+    .join("\n");
+
+  const csvContent = csvHeader + csvRows;
+
+  // ----- Download the CSV -----
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = "stores_export.csv";
+  link.click();
+
+  URL.revokeObjectURL(url);
+
+  // ----- Success snackbar -----
+  setSnackbar({
+    open: true,
+    message: "Stores exported successfully",
+    severity: "success",
+  });
+};
+
 
   // Handle menu close
   const handleMenuClose = () => {

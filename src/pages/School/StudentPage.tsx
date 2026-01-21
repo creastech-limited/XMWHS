@@ -19,8 +19,8 @@ import {
   CheckCircleIcon,
   ClockIcon,
   XCircleIcon,
-    KeyIcon,     
-  RefreshCwIcon, 
+  KeyIcon,
+  RefreshCwIcon,
 } from 'lucide-react';
 
 // Updated TypeScript interfaces
@@ -35,12 +35,12 @@ interface Student {
   };
   status: string;
   createdAt: string;
-  classAdmittedTo?: string; 
-   guardian?: {
+  classAdmittedTo?: string;
+  guardian?: {
     fullName: string;
     relationship: string;
     email: string;
-    
+
   };
 }
 
@@ -108,17 +108,17 @@ const StudentPage: React.FC = () => {
   const [guardianLoading, setGuardianLoading] = useState<boolean>(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState<boolean>(false);
-const [selectedFile, setSelectedFile] = useState<File | null>(null);
-const [bulkUploadLoading, setBulkUploadLoading] = useState<boolean>(false);
-const [uploadProgress, setUploadProgress] = useState<number>(0);
-const [isPinModalOpen, setIsPinModalOpen] = useState<boolean>(false);
-const [pinAction, setPinAction] = useState<'set' | 'update'>('set');
-const [pinData, setPinData] = useState({
-  currentPin: '',
-  newPin: '',
-  confirmPin: ''
-});
-const [pinLoading, setPinLoading] = useState<boolean>(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [bulkUploadLoading, setBulkUploadLoading] = useState<boolean>(false);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [isPinModalOpen, setIsPinModalOpen] = useState<boolean>(false);
+  const [pinAction, setPinAction] = useState<'set' | 'update'>('set');
+  const [pinData, setPinData] = useState({
+    currentPin: '',
+    newPin: '',
+    confirmPin: ''
+  });
+  const [pinLoading, setPinLoading] = useState<boolean>(false);
 
 
 
@@ -186,10 +186,10 @@ const [pinLoading, setPinLoading] = useState<boolean>(false);
       });
 
       if (!response.ok) throw new Error('Failed to fetch user profile');
-      
+
       const data = await response.json();
       const userProfile = data.user?.data || data.user || data;
-      const id = userProfile.schoolId;  
+      const id = userProfile.schoolId;
       const schoolName = userProfile.schoolName || 'School';
       const schoolType = userProfile.schoolType || 'secondary';
       const schoolAddress = userProfile.schoolAddress || '';
@@ -206,11 +206,11 @@ const [pinLoading, setPinLoading] = useState<boolean>(false);
 
       // Construct URL with all necessary parameters
       const params = new URLSearchParams();
-      params.append('schoolId', id);  
+      params.append('schoolId', id);
       params.append('schoolName', encodeURIComponent(schoolName));
       params.append('schoolType', encodeURIComponent(schoolType));
       if (schoolAddress) params.append('schoolAddress', encodeURIComponent(schoolAddress));
-      
+
       const fullLink = `${window.location.origin}/students/new?${params.toString()}`;
       setRegistrationLink(fullLink);
     } catch (err) {
@@ -236,9 +236,9 @@ const [pinLoading, setPinLoading] = useState<boolean>(false);
       });
 
       if (!response.ok) throw new Error('Failed to fetch classes');
-      
+
       const data = await response.json();
-      
+
       if (data.status && Array.isArray(data.data)) {
         // Get user profile to find the correct schoolId for class filtering
         const userResponse = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
@@ -247,34 +247,34 @@ const [pinLoading, setPinLoading] = useState<boolean>(false);
             'Content-Type': 'application/json',
           },
         });
-        
+
         if (!userResponse.ok) throw new Error('Failed to fetch user profile');
-        
+
         const userProfileData = await userResponse.json();
         const userProfile = userProfileData.user?.data || userProfileData.user || userProfileData;
-        
+
         // Try to find matching classes using the user's _id (ObjectId format)
         const userObjectId = userProfile._id;
-        
+
         let schoolClasses = [];
-        
+
         if (userObjectId) {
           // Filter classes by the ObjectId format schoolId
           schoolClasses = data.data.filter(
             (cls: Class) => cls.schoolId === userObjectId
           );
         }
-        
+
         // If no classes found with ObjectId, try with string schoolId as fallback
         if (schoolClasses.length === 0 && schoolId) {
           schoolClasses = data.data.filter(
             (cls: Class) => cls.schoolId === schoolId
           );
         }
-        
+
         console.log('Filtered classes:', schoolClasses.length, 'out of', data.data.length);
         console.log('User ObjectId:', userObjectId, 'Student schoolId:', schoolId);
-        
+
         setClasses(schoolClasses);
       } else {
         console.error('Unexpected classes data format:', data);
@@ -307,16 +307,27 @@ const [pinLoading, setPinLoading] = useState<boolean>(false);
       }
     );
 
-    if (!response.ok) throw new Error('Failed to fetch students');
-    
     const data = await response.json();
-    let studentArray: Student[] = [];
-    
-    // Check if it's the "no students" message
+
+    // Handle "No students found" without treating it as an error
     if (data.message && data.message.includes('No students found')) {
-      // This is not an error - just no students
-      studentArray = [];
-    } else if (data && Array.isArray(data.data)) {
+      setStudents([]);
+
+      setSnackbar({
+        open: true,
+        message: 'No students found',
+        severity: 'info',
+      });
+
+      return; // stop here and avoid throwing error
+    }
+
+    // Keep the original error check but AFTER checking "no students"
+    if (!response.ok) throw new Error('Failed to fetch students');
+
+    let studentArray: Student[] = [];
+
+    if (data && Array.isArray(data.data)) {
       studentArray = data.data.map((student: Student) => ({
         _id: student._id,
         firstName: student.firstName,
@@ -345,121 +356,124 @@ const [pinLoading, setPinLoading] = useState<boolean>(false);
     setLoading(false);
   }
 }, [authToken, schoolId, API_BASE_URL]);
-const handleSetPin = useCallback(async () => {
-  if (!authToken || !menuStudent || !pinData.newPin) {
-    setSnackbar({
-      open: true,
-      message: 'Student information or PIN is missing',
-      severity: 'error',
-    });
-    return;
-  }
 
-  if (pinData.newPin !== pinData.confirmPin) {
-    setSnackbar({
-      open: true,
-      message: 'PIN and confirmation do not match',
-      severity: 'error',
-    });
-    return;
-  }
 
-  setPinLoading(true);
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/pin/setforstudent`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${authToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        studentEmail: menuStudent.email,
-        pin: pinData.newPin,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Failed to set PIN');
+  //set and update pin 
+  const handleSetPin = useCallback(async () => {
+    if (!authToken || !menuStudent || !pinData.newPin) {
+      setSnackbar({
+        open: true,
+        message: 'Student information or PIN is missing',
+        severity: 'error',
+      });
+      return;
     }
 
-    setSnackbar({
-      open: true,
-      message: 'PIN set successfully!',
-      severity: 'success',
-    });
-
-    setIsPinModalOpen(false);
-    setPinData({ currentPin: '', newPin: '', confirmPin: '' });
-  } catch (error) {
-    console.error('Error setting PIN:', error);
-    setSnackbar({
-      open: true,
-      message: error instanceof Error ? error.message : 'Failed to set PIN',
-      severity: 'error',
-    });
-  } finally {
-    setPinLoading(false);
-  }
-}, [authToken, menuStudent, pinData, API_BASE_URL]);
-
-const handleUpdatePin = useCallback(async () => {
-  if (!authToken || !menuStudent || !pinData.newPin || !pinData.currentPin) {
-    setSnackbar({
-      open: true,
-      message: 'Required information is missing',
-      severity: 'error',
-    });
-    return;
-  }
-
-  if (pinData.newPin !== pinData.confirmPin) {
-    setSnackbar({
-      open: true,
-      message: 'New PIN and confirmation do not match',
-      severity: 'error',
-    });
-    return;
-  }
-
-  setPinLoading(true);
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/pin/updateforstudent`, {
-      method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${authToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        studentEmail: menuStudent.email,
-        newPin: pinData.newPin,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Failed to update PIN');
+    if (pinData.newPin !== pinData.confirmPin) {
+      setSnackbar({
+        open: true,
+        message: 'PIN and confirmation do not match',
+        severity: 'error',
+      });
+      return;
     }
 
-    setSnackbar({
-      open: true,
-      message: 'PIN updated successfully!',
-      severity: 'success',
-    });
+    setPinLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/pin/setforstudent`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          studentEmail: menuStudent.email,
+          pin: pinData.newPin,
+        }),
+      });
 
-    setIsPinModalOpen(false);
-    setPinData({ currentPin: '', newPin: '', confirmPin: '' });
-  } catch (error) {
-    console.error('Error updating PIN:', error);
-    setSnackbar({
-      open: true,
-      message: error instanceof Error ? error.message : 'Failed to update PIN',
-      severity: 'error',
-    });
-  } finally {
-    setPinLoading(false);
-  }
-}, [authToken, menuStudent, pinData, API_BASE_URL]);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to set PIN');
+      }
+
+      setSnackbar({
+        open: true,
+        message: 'PIN set successfully!',
+        severity: 'success',
+      });
+
+      setIsPinModalOpen(false);
+      setPinData({ currentPin: '', newPin: '', confirmPin: '' });
+    } catch (error) {
+      console.error('Error setting PIN:', error);
+      setSnackbar({
+        open: true,
+        message: error instanceof Error ? error.message : 'Failed to set PIN',
+        severity: 'error',
+      });
+    } finally {
+      setPinLoading(false);
+    }
+  }, [authToken, menuStudent, pinData, API_BASE_URL]);
+
+  const handleUpdatePin = useCallback(async () => {
+    if (!authToken || !menuStudent || !pinData.newPin || !pinData.currentPin) {
+      setSnackbar({
+        open: true,
+        message: 'Required information is missing',
+        severity: 'error',
+      });
+      return;
+    }
+
+    if (pinData.newPin !== pinData.confirmPin) {
+      setSnackbar({
+        open: true,
+        message: 'New PIN and confirmation do not match',
+        severity: 'error',
+      });
+      return;
+    }
+
+    setPinLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/pin/updateforstudent`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          studentEmail: menuStudent.email,
+          newPin: pinData.newPin,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update PIN');
+      }
+
+      setSnackbar({
+        open: true,
+        message: 'PIN updated successfully!',
+        severity: 'success',
+      });
+
+      setIsPinModalOpen(false);
+      setPinData({ currentPin: '', newPin: '', confirmPin: '' });
+    } catch (error) {
+      console.error('Error updating PIN:', error);
+      setSnackbar({
+        open: true,
+        message: error instanceof Error ? error.message : 'Failed to update PIN',
+        severity: 'error',
+      });
+    } finally {
+      setPinLoading(false);
+    }
+  }, [authToken, menuStudent, pinData, API_BASE_URL]);
 
   // Initial data fetching
   useEffect(() => {
@@ -476,7 +490,7 @@ const handleUpdatePin = useCallback(async () => {
   // Event handlers
   const handleCopyLink = useCallback(() => {
     if (!registrationLink) return;
-    
+
     navigator.clipboard
       .writeText(registrationLink)
       .then(() =>
@@ -517,7 +531,7 @@ const handleUpdatePin = useCallback(async () => {
       return;
     }
 
-    const endpoint = 
+    const endpoint =
       student.status.toLowerCase() === 'active'
         ? `${API_BASE_URL}/api/users/deactive/${student._id}`
         : `${API_BASE_URL}/api/users/active/${student._id}`;
@@ -536,7 +550,7 @@ const handleUpdatePin = useCallback(async () => {
       }
 
       const data = await response.json();
-      
+
       // Update the student status in the local state
       setStudents(prevStudents =>
         prevStudents.map(s =>
@@ -573,13 +587,13 @@ const handleUpdatePin = useCallback(async () => {
       });
 
       if (!response.ok) throw new Error('Failed to fetch parents');
-      
+
       const data = await response.json();
       console.log('Parents API full response:', data);
-      
+
       // Extract parents based on the response structure you provided
       let parentsArray = [];
-      
+
       if (data.parent && Array.isArray(data.parent)) {
         // If response has a parent array
         parentsArray = data.parent;
@@ -590,7 +604,7 @@ const handleUpdatePin = useCallback(async () => {
         // If response is directly an array
         parentsArray = data;
       }
-      
+
       console.log('Processed parents:', parentsArray);
       setAvailableParents(parentsArray);
     } catch (error) {
@@ -625,7 +639,7 @@ const handleUpdatePin = useCallback(async () => {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to update guardian');
       }
-      
+
       const result = await response.json();
       console.log('Guardian update result:', result);
 
@@ -654,7 +668,7 @@ const handleUpdatePin = useCallback(async () => {
     console.log('Guardian click for student:', student);
     setSelectedStudent(student);
     setGuardianEmail('');
-    
+
     // Fetch parents first, then open modal
     try {
       await fetchParents();
@@ -663,110 +677,166 @@ const handleUpdatePin = useCallback(async () => {
     } catch (error) {
       console.error('Error preparing guardian modal:', error);
     }
-    
+
     handleMenuClose();
   }, [fetchParents, handleMenuClose]);
 
- const handleBulkUpload = useCallback(async () => {
-  if (!selectedFile || !authToken) {
-    setSnackbar({
-      open: true,
-      message: 'Please select a file first',
-      severity: 'error',
-    });
-    return;
-  }
-
-  setBulkUploadLoading(true);
-  setUploadProgress(0);
-
-  try {
-    const formData = new FormData();
-    formData.append('file', selectedFile);
-
-    const response = await fetch(`${API_BASE_URL}/api/users/bulkregister`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${authToken}`,
-      },
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Failed to upload students');
-    }
-
-    const result = await response.json();
-    
-    // Handle the bulk upload response format
-    if (result.errors && result.errors.length > 0) {
-      // There were errors in some rows
-      type BulkError = { row: number; error: string };
-      const errorEntries = result.errors as BulkError[];
-      const errorMessages = errorEntries
-        .map((err) => `Row ${err.row}: ${err.error}`)
-        .join(', ');
-      
-      const successCount = Array.isArray(result.successes) ? result.successes.length : 0;
-      const errorCount = errorEntries.length;
-      
+  const handleBulkUpload = useCallback(async () => {
+    if (!selectedFile || !authToken) {
       setSnackbar({
         open: true,
-        message: `Partially completed: ${successCount} students created, ${errorCount} errors. ${errorMessages}`,
-        severity: 'warning',
+        message: 'Please select a file first',
+        severity: 'error',
       });
-    } else {
-      // All successful
-      const successCount = Array.isArray(result.successes) ? result.successes.length : result.total || 0;
-      setSnackbar({
-        open: true,
-        message: `Successfully registered ${successCount} students`,
-        severity: 'success',
-      });
+      return;
     }
 
-    setIsBulkUploadOpen(false);
-    setSelectedFile(null);
-    
-    // Refresh student list
-    await fetchStudents();
-  } catch (error) {
-    console.error('Bulk upload error:', error);
-    setSnackbar({
-      open: true,
-      message: error instanceof Error ? error.message : 'Failed to upload students',
-      severity: 'error',
-    });
-  } finally {
-    setBulkUploadLoading(false);
+    setBulkUploadLoading(true);
     setUploadProgress(0);
-  }
-}, [selectedFile, authToken, API_BASE_URL, fetchStudents]);
 
-const handleDownloadSample = useCallback(() => {
-  // Match the exact format your API expects
-  const sampleCSV = `firstName,lastName,email,phone,classAdmittedTo
+    try {
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      const response = await fetch(`${API_BASE_URL}/api/users/bulkregister`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to upload students');
+      }
+
+      const result = await response.json();
+
+      // Handle the bulk upload response format
+      if (result.errors && result.errors.length > 0) {
+        // There were errors in some rows
+        type BulkError = { row: number; error: string };
+        const errorEntries = result.errors as BulkError[];
+        const errorMessages = errorEntries
+          .map((err) => `Row ${err.row}: ${err.error}`)
+          .join(', ');
+
+        const successCount = Array.isArray(result.successes) ? result.successes.length : 0;
+        const errorCount = errorEntries.length;
+
+        setSnackbar({
+          open: true,
+          message: `Partially completed: ${successCount} students created, ${errorCount} errors. ${errorMessages}`,
+          severity: 'warning',
+        });
+      } else {
+        // All successful
+        const successCount = Array.isArray(result.successes) ? result.successes.length : result.total || 0;
+        setSnackbar({
+          open: true,
+          message: `Successfully registered ${successCount} students`,
+          severity: 'success',
+        });
+      }
+
+      setIsBulkUploadOpen(false);
+      setSelectedFile(null);
+
+      // Refresh student list
+      await fetchStudents();
+    } catch (error) {
+      console.error('Bulk upload error:', error);
+      setSnackbar({
+        open: true,
+        message: error instanceof Error ? error.message : 'Failed to upload students',
+        severity: 'error',
+      });
+    } finally {
+      setBulkUploadLoading(false);
+      setUploadProgress(0);
+    }
+  }, [selectedFile, authToken, API_BASE_URL, fetchStudents]);
+
+  const handleDownloadSample = useCallback(() => {
+    // Match the exact format your API expects
+    const sampleCSV = `firstName,lastName,email,phone,classAdmittedTo
 John,Doe,john.doe@example.com,"+2348012345678",JSS 1
 Jane,Smith,jane.smith@example.com,"+2348023456789",JSS 2
 Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
 
-  const blob = new Blob([sampleCSV], { type: 'text/csv' });
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'student_sample.csv';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  window.URL.revokeObjectURL(url);
+    const blob = new Blob([sampleCSV], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'student_sample.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+
+    setSnackbar({
+      open: true,
+      message: 'Sample CSV downloaded successfully',
+      severity: 'success',
+    });
+  }, []);
+
+
+  const handleExport = () => {
+  if (!students || students.length === 0) {
+    setSnackbar({
+      open: true,
+      message: "No students available to export",
+      severity: "warning",
+    });
+    return;
+  }
 
   setSnackbar({
     open: true,
-    message: 'Sample CSV downloaded successfully',
-    severity: 'success',
+    message: "Exporting students...",
+    severity: "info",
   });
-}, []);
+
+  // --- Build CSV dynamically ---
+  const headers = Object.keys(students[0]).join(",") + "\n";
+
+  const rows = students
+    .map((student) =>
+      Object.values(student)
+        .map((value) => {
+          const strValue = value ?? "";
+          if (typeof strValue === "string" && (strValue.includes(",") || strValue.includes('"'))) {
+            return `"${strValue.replace(/"/g, '""')}"`;
+          }
+          return strValue;
+        })
+        .join(",")
+    )
+    .join("\n");
+
+  const csvContent = headers + rows;
+
+  // --- Download CSV ---
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = "students_export.csv";
+  link.click();
+
+  URL.revokeObjectURL(url);
+
+  // --- Success message ---
+  setSnackbar({
+    open: true,
+    message: "Students exported successfully",
+    severity: "success",
+  });
+};
+
 
   // Data processing
   const filteredStudents = students.filter((s) => {
@@ -804,7 +874,7 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
-      <Header profilePath="/settings"/>
+      <Header profilePath="/settings" />
       <div className="flex flex-grow">
         <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-none">
           <Sidebar />
@@ -909,7 +979,7 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
               </div>
             </div>
           </div>
-           
+
           {/* School Classes Overview */}
           {!classesLoading && classes.length > 0 && (
             <div className="bg-white rounded-xl shadow-sm mb-6 md:mb-8 p-4 md:p-6 border border-gray-100">
@@ -1032,27 +1102,29 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
                 </select>
               </div>
             </div>
-          <div className="mt-3 md:mt-4 flex justify-end gap-2">
-  <button 
-    onClick={handleDownloadSample}
-    className="bg-green-100 hover:bg-green-200 text-green-700 font-medium px-4 py-2 md:px-6 md:py-3 rounded-lg flex items-center gap-2 transition-colors text-sm md:text-base"
-    title="Download sample CSV"
-  >
-    <DownloadIcon className="h-4 w-4 md:h-5 md:w-5" />
-    <span className="hidden sm:inline">Sample CSV</span>
-  </button>
-  <button 
-    onClick={() => setIsBulkUploadOpen(true)}
-    className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-medium px-4 py-2 md:px-6 md:py-3 rounded-lg flex items-center gap-2 transition-colors text-sm md:text-base"
-  >
-    <PlusIcon className="h-4 w-4 md:h-5 md:w-5" />
-    <span className="hidden sm:inline">Bulk Upload</span>
-  </button>
-  <button className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-4 py-2 md:px-6 md:py-3 rounded-lg flex items-center gap-2 transition-colors text-sm md:text-base">
-    <DownloadIcon className="h-4 w-4 md:h-5 md:w-5" />
-    <span className="hidden sm:inline">Export Data</span>
-  </button>
-</div>
+            <div className="mt-3 md:mt-4 flex justify-end gap-2">
+              <button
+                onClick={handleDownloadSample}
+                className="bg-green-100 hover:bg-green-200 text-green-700 font-medium px-4 py-2 md:px-6 md:py-3 rounded-lg flex items-center gap-2 transition-colors text-sm md:text-base"
+                title="Download sample CSV"
+              >
+                <DownloadIcon className="h-4 w-4 md:h-5 md:w-5" />
+                <span className="hidden sm:inline">Sample CSV</span>
+              </button>
+              <button
+                onClick={() => setIsBulkUploadOpen(true)}
+                className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-medium px-4 py-2 md:px-6 md:py-3 rounded-lg flex items-center gap-2 transition-colors text-sm md:text-base"
+              >
+                <PlusIcon className="h-4 w-4 md:h-5 md:w-5" />
+                <span className="hidden sm:inline">Bulk Upload</span>
+              </button>
+              <button
+                onClick={handleExport}
+                className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-4 py-2 md:px-6 md:py-3 rounded-lg flex items-center gap-2 transition-colors text-sm md:text-base">
+                <DownloadIcon className="h-4 w-4 md:h-5 md:w-5" />
+                <span className="hidden sm:inline">Export Data</span>
+              </button>
+            </div>
           </div>
 
           {/* Students Table */}
@@ -1081,8 +1153,8 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
                         Student Details
                       </th>
                       <th className="px-4 py-3 md:px-6 md:py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-  Guardian
-</th>
+                        Guardian
+                      </th>
                       <th className="px-4 py-3 md:px-6 md:py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                         Class
                       </th>
@@ -1126,18 +1198,18 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
                             </div>
                           </div>
                         </td>
-                         <td className="px-4 py-3 md:px-6 md:py-4 whitespace-nowrap">
-  {student.guardian ? (
-    <div className="text-sm text-gray-900">
-      <div className="font-medium">{student.guardian.fullName}</div>
-      <div className="text-xs text-gray-500">
-        {student.guardian.relationship} • {student.guardian.email}
-      </div>
-    </div>
-  ) : (
-    <span className="text-xs text-gray-500 italic">No guardian assigned</span>
-  )}
-</td>
+                        <td className="px-4 py-3 md:px-6 md:py-4 whitespace-nowrap">
+                          {student.guardian ? (
+                            <div className="text-sm text-gray-900">
+                              <div className="font-medium">{student.guardian.fullName}</div>
+                              <div className="text-xs text-gray-500">
+                                {student.guardian.relationship} • {student.guardian.email}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-500 italic">No guardian assigned</span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 md:px-6 md:py-4 whitespace-nowrap">
                           <div className="flex items-center gap-2">
                             <BookOpenIcon className="h-4 w-4 text-gray-400" />
@@ -1198,11 +1270,10 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
                   <button
                     onClick={() => setPage(Math.max(1, page - 1))}
                     disabled={page === 1}
-                    className={`relative inline-flex items-center px-2 py-1 md:px-3 md:py-2 rounded-l-lg border text-xs md:text-sm font-medium ${
-                      page === 1
+                    className={`relative inline-flex items-center px-2 py-1 md:px-3 md:py-2 rounded-l-lg border text-xs md:text-sm font-medium ${page === 1
                         ? 'text-gray-300 bg-gray-100 border-gray-200 cursor-not-allowed'
                         : 'text-gray-500 bg-white border-gray-300 hover:bg-gray-50'
-                    }`}
+                      }`}
                   >
                     Previous
                   </button>
@@ -1221,11 +1292,10 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
                         <button
                           key={i}
                           onClick={() => setPage(pageNum)}
-                          className={`relative inline-flex items-center px-3 py-1 md:px-4 md:py-2 border text-xs md:text-sm font-medium ${
-                            page === pageNum
+                          className={`relative inline-flex items-center px-3 py-1 md:px-4 md:py-2 border text-xs md:text-sm font-medium ${page === pageNum
                               ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
                               : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-                          }`}
+                            }`}
                         >
                           {pageNum}
                         </button>
@@ -1235,11 +1305,10 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
                   <button
                     onClick={() => setPage(Math.min(pageCount, page + 1))}
                     disabled={page === pageCount}
-                    className={`relative inline-flex items-center px-2 py-1 md:px-3 md:py-2 rounded-r-lg border text-xs md:text-sm font-medium ${
-                      page === pageCount
+                    className={`relative inline-flex items-center px-2 py-1 md:px-3 md:py-2 rounded-r-lg border text-xs md:text-sm font-medium ${page === pageCount
                         ? 'text-gray-300 bg-gray-100 border-gray-200 cursor-not-allowed'
                         : 'text-gray-500 bg-white border-gray-300 hover:bg-gray-50'
-                    }`}
+                      }`}
                   >
                     Next
                   </button>
@@ -1250,457 +1319,455 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
         </main>
       </div>
       <Footer />
-{/* Context Menu */}
-{isMenuOpen && menuStudent && (
-  <>
-    <div 
-      className="fixed inset-0 z-10" 
-      onClick={handleMenuClose}
-    ></div>
-    <div
-      className="fixed z-20 bg-white rounded-lg shadow-lg py-2 w-56 border border-gray-200"
-      style={{
-        top: `${Math.min(menuPosition.top, window.innerHeight - 200)}px`,
-        left: `${Math.min(menuPosition.left - 100, window.innerWidth - 224)}px`,
-      }}
-    >
-      <button
-        className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
-        onClick={() => {
-          handleMenuClose();
-          window.location.href = `/students/edit/${menuStudent._id}`;
-        }}
-      >
-        <UserIcon className="h-4 w-4" />
-        View Details
-      </button>
-      <button
-        className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
-        onClick={() => {
-          handleMenuClose();
-          window.location.href = `/students/transactions/${menuStudent._id}`;
-        }}
-      >
-        <CalendarIcon className="h-4 w-4" />
-        Transaction Info
-      </button>
-      <button
-        className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
-        onClick={handleMenuClose}
-      >
-        <MailIcon className="h-4 w-4" />
-        Reset Password
-      </button>
-      
-      {/* PIN Management Options */}
-      <div className="border-t border-gray-100 my-1"></div>
-      
-      <button
-        className="flex items-center gap-3 px-4 py-2 text-sm text-blue-600 hover:bg-gray-50 w-full text-left"
-        onClick={() => {
-          setPinAction('set');
-          setIsPinModalOpen(true);
-          
-        }}
-      >
-        <KeyIcon className="h-4 w-4" />
-        Set PIN
-      </button>
-      
-      <button
-        className="flex items-center gap-3 px-4 py-2 text-sm text-blue-600 hover:bg-gray-50 w-full text-left"
-        onClick={() => {
-          setPinAction('update');
-          setIsPinModalOpen(true);
-         
-        }}
-      >
-        <RefreshCwIcon className="h-4 w-4" />
-        Update PIN
-      </button>
-
-      <button
-        className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
-        onClick={() => handleGuardianClick(menuStudent)}
-      >
-        <UsersIcon className="h-4 w-4" />
-        Assign Guardian
-      </button>
-      
-      <div className="border-t border-gray-100 my-1"></div>
-      
-      <button
-        className={`flex items-center gap-3 px-4 py-2 text-sm hover:bg-gray-50 w-full text-left ${
-          menuStudent.status.toLowerCase() === 'active'
-            ? 'text-red-600'
-            : 'text-green-600'
-        }`}
-        onClick={() => handleActivateDeactivate(menuStudent)}
-      >
-        {menuStudent.status.toLowerCase() === 'active' ? (
-          <>
-            <XCircleIcon className="h-4 w-4" />
-            Deactivate Student
-          </>
-        ) : (
-          <>
-            <CheckCircleIcon className="h-4 w-4" />
-            Activate Student
-          </>
-        )}
-      </button>
-    </div>
-  </>
-)}
-
-    {/* Bulk Upload Modal */}
-{isBulkUploadOpen && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
-    <div 
-      className="bg-white rounded-lg w-full max-w-md mx-auto p-6 shadow-xl"
-      onClick={(e) => e.stopPropagation()}
-    >
-      <div className="flex items-center mb-4">
-        <div className="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-purple-100">
-          <UsersIcon className="h-6 w-6 text-purple-600" />
-        </div>
-        <div className="ml-4">
-          <h3 className="text-lg font-medium text-gray-900">
-            Bulk Upload Students
-          </h3>
-          <p className="text-sm text-gray-500">
-            Upload a CSV file to register multiple students
-          </p>
-        </div>
-      </div>
-      
-      <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Select CSV File
-        </label>
-        
-        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-purple-500 transition-colors">
-          <input
-            type="file"
-            accept=".csv"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) {
-                if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
-                  setSnackbar({
-                    open: true,
-                    message: 'Please select a valid CSV file',
-                    severity: 'error',
-                  });
-                  return;
-                }
-                setSelectedFile(file);
-              }
+      {/* Context Menu */}
+      {isMenuOpen && menuStudent && (
+        <>
+          <div
+            className="fixed inset-0 z-10"
+            onClick={handleMenuClose}
+          ></div>
+          <div
+            className="fixed z-20 bg-white rounded-lg shadow-lg py-2 w-56 border border-gray-200"
+            style={{
+              top: `${Math.min(menuPosition.top, window.innerHeight - 200)}px`,
+              left: `${Math.min(menuPosition.left - 100, window.innerWidth - 224)}px`,
             }}
-            className="hidden"
-            id="csv-upload"
-          />
-          <label
-            htmlFor="csv-upload"
-            className="cursor-pointer flex flex-col items-center"
           >
-            <DownloadIcon className="h-12 w-12 text-gray-400 mb-2" />
-            <span className="text-sm text-gray-600">
-              {selectedFile ? selectedFile.name : 'Click to select CSV file'}
-            </span>
-            <span className="text-xs text-gray-500 mt-1">
-              Maximum file size: 5MB
-            </span>
-          </label>
-        </div>
-        
-        {uploadProgress > 0 && (
-          <div className="mt-4">
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div
-                className="bg-purple-600 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${uploadProgress}%` }}
-              ></div>
+            <button
+              className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
+              onClick={() => {
+                handleMenuClose();
+                window.location.href = `/students/edit/${menuStudent._id}`;
+              }}
+            >
+              <UserIcon className="h-4 w-4" />
+              View Details
+            </button>
+            <button
+              className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
+              onClick={() => {
+                handleMenuClose();
+                window.location.href = `/students/transactions/${menuStudent._id}`;
+              }}
+            >
+              <CalendarIcon className="h-4 w-4" />
+              Transaction Info
+            </button>
+            <button
+              className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
+              onClick={handleMenuClose}
+            >
+              <MailIcon className="h-4 w-4" />
+              Reset Password
+            </button>
+
+            {/* PIN Management Options */}
+            <div className="border-t border-gray-100 my-1"></div>
+
+            <button
+              className="flex items-center gap-3 px-4 py-2 text-sm text-blue-600 hover:bg-gray-50 w-full text-left"
+              onClick={() => {
+                setPinAction('set');
+                setIsPinModalOpen(true);
+
+              }}
+            >
+              <KeyIcon className="h-4 w-4" />
+              Set PIN
+            </button>
+
+            <button
+              className="flex items-center gap-3 px-4 py-2 text-sm text-blue-600 hover:bg-gray-50 w-full text-left"
+              onClick={() => {
+                setPinAction('update');
+                setIsPinModalOpen(true);
+
+              }}
+            >
+              <RefreshCwIcon className="h-4 w-4" />
+              Update PIN
+            </button>
+
+            <button
+              className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
+              onClick={() => handleGuardianClick(menuStudent)}
+            >
+              <UsersIcon className="h-4 w-4" />
+              Assign Guardian
+            </button>
+
+            <div className="border-t border-gray-100 my-1"></div>
+
+            <button
+              className={`flex items-center gap-3 px-4 py-2 text-sm hover:bg-gray-50 w-full text-left ${menuStudent.status.toLowerCase() === 'active'
+                  ? 'text-red-600'
+                  : 'text-green-600'
+                }`}
+              onClick={() => handleActivateDeactivate(menuStudent)}
+            >
+              {menuStudent.status.toLowerCase() === 'active' ? (
+                <>
+                  <XCircleIcon className="h-4 w-4" />
+                  Deactivate Student
+                </>
+              ) : (
+                <>
+                  <CheckCircleIcon className="h-4 w-4" />
+                  Activate Student
+                </>
+              )}
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* Bulk Upload Modal */}
+      {isBulkUploadOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+          <div
+            className="bg-white rounded-lg w-full max-w-md mx-auto p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center mb-4">
+              <div className="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-purple-100">
+                <UsersIcon className="h-6 w-6 text-purple-600" />
+              </div>
+              <div className="ml-4">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Bulk Upload Students
+                </h3>
+                <p className="text-sm text-gray-500">
+                  Upload a CSV file to register multiple students
+                </p>
+              </div>
             </div>
-            <p className="text-sm text-gray-600 mt-1 text-center">
-              Uploading... {uploadProgress}%
-            </p>
-          </div>
-        )}
-        
-        <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
-         <p className="text-xs text-blue-800">
-  <strong>CSV Format:</strong> firstName, lastName, email, phone, classAdmittedTo
-</p>
-          <button
-            onClick={handleDownloadSample}
-            className="text-xs text-blue-600 hover:text-blue-800 underline mt-1"
-          >
-            Download sample CSV file
-          </button>
-        </div>
-      </div>
-      
-      <div className="flex justify-end space-x-3">
-        <button
-          type="button"
-          onClick={() => {
-            setIsBulkUploadOpen(false);
-            setSelectedFile(null);
-            setUploadProgress(0);
-          }}
-          disabled={bulkUploadLoading}
-          className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          onClick={handleBulkUpload}
-          disabled={!selectedFile || bulkUploadLoading}
-          className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {bulkUploadLoading ? (
-            <>
-              <span className="inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1"></span>
-              Uploading...
-            </>
-          ) : (
-            'Upload Students'
-          )}
-        </button>
-      </div>
-    </div>
-  </div>
-)}  
-     {/* Guardian Assignment Modal */}
-{isGuardianModalOpen && selectedStudent && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
-    <div 
-      className="bg-white rounded-lg w-full max-w-md mx-auto p-6 shadow-xl"
-      onClick={(e) => e.stopPropagation()}
-    >
-      <div className="flex items-center mb-4">
-        <div className="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">
-          <UsersIcon className="h-6 w-6 text-blue-600" />
-        </div>
-        <div className="ml-4">
-          <h3 className="text-lg font-medium text-gray-900">
-            Assign Guardian
-          </h3>
-          <p className="text-sm text-gray-500">
-            For student: <strong>{selectedStudent.name}</strong>
-          </p>
-        </div>
-      </div>
-      
-      <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Select Guardian
-        </label>
-        
-        {availableParents.length === 0 ? (
-          <div className="flex justify-center items-center py-4">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-              <p className="text-sm text-gray-500">Loading available parents...</p>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select CSV File
+              </label>
+
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-purple-500 transition-colors">
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
+                        setSnackbar({
+                          open: true,
+                          message: 'Please select a valid CSV file',
+                          severity: 'error',
+                        });
+                        return;
+                      }
+                      setSelectedFile(file);
+                    }
+                  }}
+                  className="hidden"
+                  id="csv-upload"
+                />
+                <label
+                  htmlFor="csv-upload"
+                  className="cursor-pointer flex flex-col items-center"
+                >
+                  <DownloadIcon className="h-12 w-12 text-gray-400 mb-2" />
+                  <span className="text-sm text-gray-600">
+                    {selectedFile ? selectedFile.name : 'Click to select CSV file'}
+                  </span>
+                  <span className="text-xs text-gray-500 mt-1">
+                    Maximum file size: 5MB
+                  </span>
+                </label>
+              </div>
+
+              {uploadProgress > 0 && (
+                <div className="mt-4">
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-purple-600 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${uploadProgress}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-sm text-gray-600 mt-1 text-center">
+                    Uploading... {uploadProgress}%
+                  </p>
+                </div>
+              )}
+
+              <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-xs text-blue-800">
+                  <strong>CSV Format:</strong> firstName, lastName, email, phone, classAdmittedTo
+                </p>
+                <button
+                  onClick={handleDownloadSample}
+                  className="text-xs text-blue-600 hover:text-blue-800 underline mt-1"
+                >
+                  Download sample CSV file
+                </button>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsBulkUploadOpen(false);
+                  setSelectedFile(null);
+                  setUploadProgress(0);
+                }}
+                disabled={bulkUploadLoading}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleBulkUpload}
+                disabled={!selectedFile || bulkUploadLoading}
+                className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {bulkUploadLoading ? (
+                  <>
+                    <span className="inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1"></span>
+                    Uploading...
+                  </>
+                ) : (
+                  'Upload Students'
+                )}
+              </button>
             </div>
           </div>
-        ) : (
-          <select
-            value={guardianEmail}
-            onChange={(e) => setGuardianEmail(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-black"
+        </div>
+      )}
+      {/* Guardian Assignment Modal */}
+      {isGuardianModalOpen && selectedStudent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+          <div
+            className="bg-white rounded-lg w-full max-w-md mx-auto p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
           >
-            <option value="">Select a guardian...</option>
-            {availableParents.map((parent) => (
-              <option key={parent._id} value={parent.email}>
-                {parent.name || `${parent.firstName} ${parent.lastName}`} ({parent.email})
-              </option>
-            ))}
-          </select>
-        )}
-        
-        {availableParents.length > 0 && guardianEmail && (
-          <div className="mt-3 p-3 bg-blue-50 rounded-lg">
-            <p className="text-xs text-blue-800">
-              Selected guardian: <strong>
-                {availableParents.find(p => p.email === guardianEmail)?.name || 
-                 `${availableParents.find(p => p.email === guardianEmail)?.firstName} ${availableParents.find(p => p.email === guardianEmail)?.lastName}`}
-              </strong>
-            </p>
+            <div className="flex items-center mb-4">
+              <div className="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">
+                <UsersIcon className="h-6 w-6 text-blue-600" />
+              </div>
+              <div className="ml-4">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Assign Guardian
+                </h3>
+                <p className="text-sm text-gray-500">
+                  For student: <strong>{selectedStudent.name}</strong>
+                </p>
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Guardian
+              </label>
+
+              {availableParents.length === 0 ? (
+                <div className="flex justify-center items-center py-4">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                    <p className="text-sm text-gray-500">Loading available parents...</p>
+                  </div>
+                </div>
+              ) : (
+                <select
+                  value={guardianEmail}
+                  onChange={(e) => setGuardianEmail(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-black"
+                >
+                  <option value="">Select a guardian...</option>
+                  {availableParents.map((parent) => (
+                    <option key={parent._id} value={parent.email}>
+                      {parent.name || `${parent.firstName} ${parent.lastName}`} ({parent.email})
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {availableParents.length > 0 && guardianEmail && (
+                <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                  <p className="text-xs text-blue-800">
+                    Selected guardian: <strong>
+                      {availableParents.find(p => p.email === guardianEmail)?.name ||
+                        `${availableParents.find(p => p.email === guardianEmail)?.firstName} ${availableParents.find(p => p.email === guardianEmail)?.lastName}`}
+                    </strong>
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsGuardianModalOpen(false);
+                  setGuardianEmail('');
+                  setSelectedStudent(null);
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleUpdateGuardian}
+                disabled={!guardianEmail || guardianLoading}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {guardianLoading ? (
+                  <>
+                    <span className="inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1"></span>
+                    Assigning...
+                  </>
+                ) : (
+                  'Assign Guardian'
+                )}
+              </button>
+            </div>
           </div>
-        )}
-      </div>
-      
-      <div className="flex justify-end space-x-3">
-        <button
-          type="button"
-          onClick={() => {
-            setIsGuardianModalOpen(false);
-            setGuardianEmail('');
-            setSelectedStudent(null);
-          }}
-          className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          onClick={handleUpdateGuardian}
-          disabled={!guardianEmail || guardianLoading}
-          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {guardianLoading ? (
-            <>
-              <span className="inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1"></span>
-              Assigning...
-            </>
-          ) : (
-            'Assign Guardian'
-          )}
-        </button>
-      </div>
-    </div>
-  </div>
-)}
-{availableParents.length === 0 ? (
-  <div className="flex justify-center items-center py-4">
-  </div>
-) : (
-  <select
-    value={guardianEmail}
-    onChange={(e) => setGuardianEmail(e.target.value)}
-    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-  >
-    <option value="">Select a guardian...</option>
-    {availableParents.map((parent) => (
-      <option key={parent._id} value={parent.email}>
-        {parent.name} ({parent.email})
-      </option>
-    ))}
-  </select>
-)}
-{/* PIN Management Modal */}
-{isPinModalOpen && menuStudent && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
-    <div 
-      className="bg-white rounded-lg w-full max-w-md mx-auto p-6 shadow-xl"
-      onClick={(e) => e.stopPropagation()}
-    >
-      <div className="flex items-center mb-4">
-        <div className="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">
-          <KeyIcon className="h-6 w-6 text-blue-600" />
         </div>
-        <div className="ml-4">
-          <h3 className="text-lg font-medium text-gray-900">
-            {pinAction === 'set' ? 'Set PIN' : 'Update PIN'}
-          </h3>
-          <p className="text-sm text-gray-500">
-            For student: <strong>{menuStudent.name}</strong>
-          </p>
+      )}
+      {availableParents.length === 0 ? (
+        <div className="flex justify-center items-center py-4">
         </div>
-      </div>
-      
-      <div className="space-y-4">
-        {pinAction === 'update' && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Current PIN
-            </label>
-            <input
-              type="password"
-              value={pinData.currentPin}
-              onChange={(e) => setPinData(prev => ({ ...prev, currentPin: e.target.value }))}
-              placeholder="Enter current PIN"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-black"
-              maxLength={4}
-            />
+      ) : (
+        <select
+          value={guardianEmail}
+          onChange={(e) => setGuardianEmail(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        >
+          <option value="">Select a guardian...</option>
+          {availableParents.map((parent) => (
+            <option key={parent._id} value={parent.email}>
+              {parent.name} ({parent.email})
+            </option>
+          ))}
+        </select>
+      )}
+      {/* PIN Management Modal */}
+      {isPinModalOpen && menuStudent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+          <div
+            className="bg-white rounded-lg w-full max-w-md mx-auto p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center mb-4">
+              <div className="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">
+                <KeyIcon className="h-6 w-6 text-blue-600" />
+              </div>
+              <div className="ml-4">
+                <h3 className="text-lg font-medium text-gray-900">
+                  {pinAction === 'set' ? 'Set PIN' : 'Update PIN'}
+                </h3>
+                <p className="text-sm text-gray-500">
+                  For student: <strong>{menuStudent.name}</strong>
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {pinAction === 'update' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Current PIN
+                  </label>
+                  <input
+                    type="password"
+                    value={pinData.currentPin}
+                    onChange={(e) => setPinData(prev => ({ ...prev, currentPin: e.target.value }))}
+                    placeholder="Enter current PIN"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-black"
+                    maxLength={4}
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {pinAction === 'set' ? 'New PIN' : 'New PIN'}
+                </label>
+                <input
+                  type="password"
+                  value={pinData.newPin}
+                  onChange={(e) => setPinData(prev => ({ ...prev, newPin: e.target.value }))}
+                  placeholder="Enter 4-digit PIN"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-black"
+                  maxLength={4}
+                  pattern="[0-9]{4}"
+                  title="PIN must be 4 digits"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Confirm PIN
+                </label>
+                <input
+                  type="password"
+                  value={pinData.confirmPin}
+                  onChange={(e) => setPinData(prev => ({ ...prev, confirmPin: e.target.value }))}
+                  placeholder="Confirm PIN"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-black"
+                  maxLength={4}
+                  pattern="[0-9]{4}"
+                  title="PIN must be 4 digits"
+                />
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-xs text-blue-800">
+                  <strong>Note:</strong> PIN must be exactly 4 digits (0-9)
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsPinModalOpen(false);
+                  setPinData({ currentPin: '', newPin: '', confirmPin: '' });
+                }}
+                disabled={pinLoading}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={pinAction === 'set' ? handleSetPin : handleUpdatePin}
+                disabled={pinLoading || !pinData.newPin || !pinData.confirmPin || pinData.newPin !== pinData.confirmPin}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {pinLoading ? (
+                  <>
+                    <span className="inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1"></span>
+                    {pinAction === 'set' ? 'Setting...' : 'Updating...'}
+                  </>
+                ) : (
+                  pinAction === 'set' ? 'Set PIN' : 'Update PIN'
+                )}
+              </button>
+            </div>
           </div>
-        )}
-        
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            {pinAction === 'set' ? 'New PIN' : 'New PIN'}
-          </label>
-          <input
-            type="password"
-            value={pinData.newPin}
-            onChange={(e) => setPinData(prev => ({ ...prev, newPin: e.target.value }))}
-            placeholder="Enter 4-digit PIN"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-black"
-            maxLength={4}
-            pattern="[0-9]{4}"
-            title="PIN must be 4 digits"
-          />
         </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Confirm PIN
-          </label>
-          <input
-            type="password"
-            value={pinData.confirmPin}
-            onChange={(e) => setPinData(prev => ({ ...prev, confirmPin: e.target.value }))}
-            placeholder="Confirm PIN"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-black"
-            maxLength={4}
-            pattern="[0-9]{4}"
-            title="PIN must be 4 digits"
-          />
-        </div>
-        
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-          <p className="text-xs text-blue-800">
-            <strong>Note:</strong> PIN must be exactly 4 digits (0-9)
-          </p>
-        </div>
-      </div>
-      
-      <div className="flex justify-end space-x-3 mt-6">
-        <button
-          type="button"
-          onClick={() => {
-            setIsPinModalOpen(false);
-            setPinData({ currentPin: '', newPin: '', confirmPin: '' });
-          }}
-          disabled={pinLoading}
-          className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          onClick={pinAction === 'set' ? handleSetPin : handleUpdatePin}
-          disabled={pinLoading || !pinData.newPin || !pinData.confirmPin || pinData.newPin !== pinData.confirmPin}
-          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {pinLoading ? (
-            <>
-              <span className="inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1"></span>
-              {pinAction === 'set' ? 'Setting...' : 'Updating...'}
-            </>
-          ) : (
-            pinAction === 'set' ? 'Set PIN' : 'Update PIN'
-          )}
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+      )}
       {/* Snackbar */}
       {snackbar.open && (
         <div
-          className={`fixed bottom-4 right-4 z-50 py-2 px-4 md:py-3 md:px-6 rounded-lg shadow-lg ${
-            snackbar.severity === 'success'
+          className={`fixed bottom-4 right-4 z-50 py-2 px-4 md:py-3 md:px-6 rounded-lg shadow-lg ${snackbar.severity === 'success'
               ? 'bg-green-500'
               : snackbar.severity === 'error'
                 ? 'bg-red-500'
                 : snackbar.severity === 'warning'
                   ? 'bg-yellow-500'
                   : 'bg-blue-500'
-          } text-white transition-all duration-300 ease-in-out max-w-xs md:max-w-md`}
+            } text-white transition-all duration-300 ease-in-out max-w-xs md:max-w-md`}
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
