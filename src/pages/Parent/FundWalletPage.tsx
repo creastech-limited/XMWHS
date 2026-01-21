@@ -320,7 +320,8 @@ const calculateCharge = (transactionAmount: number | string, charge: Charge): nu
     try {
       const callbackUrl = `${window.location.origin}/payment/callback`;
       
-      const response = await axios.post(`${API_BASE_URL}/api/transaction/initiateTransaction`, 
+      //const response = await axios.post(`${API_BASE_URL}/api/transaction/initiateTransaction`,
+        const response = await axios.post(`${API_BASE_URL}/api/transaction/initiatenomba`,  
         {
           email,
           amount: Number(amount) ,
@@ -334,9 +335,9 @@ const calculateCharge = (transactionAmount: number | string, charge: Charge): nu
         }
       );
       
-      if (response.data?.authorization_url) {
-        localStorage.setItem('paymentReference', response.data.reference);
-        window.location.href = response.data.authorization_url;
+       if (response.data?.checkoutLink) {
+        localStorage.setItem('paymentReference', response.data.orderReference);
+        window.location.href = response.data.checkoutLink;
       } else {
         throw new Error('Invalid response from payment gateway');
       }
@@ -368,7 +369,8 @@ const calculateCharge = (transactionAmount: number | string, charge: Charge): nu
     if (!authToken) return;
     
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/transaction/verifyTransaction/${reference}`, {
+      //const response = await axios.get(`${API_BASE_URL}/api/transaction/verifyTransaction/${reference}`, {
+      const response = await axios.get(`${API_BASE_URL}/api/transaction/verifynomba/${reference}`, {
         headers: {
           Authorization: `Bearer ${authToken}`,
           'Content-Type': 'application/json'

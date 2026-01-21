@@ -984,7 +984,7 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
                 <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search by store name or email..."
+                  placeholder="Search by student name or email..."
                   value={searchQuery}
                   onChange={(e) => {
                     setSearchQuery(e.target.value);
