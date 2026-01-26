@@ -12,6 +12,12 @@ import {
   UserPlus,
 } from 'lucide-react';
 import bgImage from '../bg.jpeg';
+import { registerStudent, getSchoolById } from '../../services';
+import type { 
+  StudentRegistrationRequest, 
+  SchoolInfoResponse,
+  RegistrationResponse 
+} from '../../types/auth';
 
 interface ClassInfo {
   className: string;
@@ -51,19 +57,7 @@ const StudentRegistrationForm: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  // Debug: Log all URL parameters
-  useEffect(() => {
-    console.log('=== URL Debug Info ===');
-    console.log('Current URL:', window.location.href);
-    console.log('Search params string:', window.location.search);
-    console.log('All search params:');
-    searchParams.forEach((value, key) => {
-      console.log(`  ${key}: ${value}`);
-    });
-    console.log('===================');
-  }, [searchParams]);
-
-  // Get all parameters from URL with better error handling and URL decoding
+  // Get URL parameters
   const schoolId = searchParams.get('schoolId')?.trim() || ''; 
   const schoolName = decodeURIComponent(searchParams.get('schoolName')?.trim() || '');
   const schoolType = decodeURIComponent(searchParams.get('schoolType')?.trim() || '');
@@ -90,89 +84,33 @@ const StudentRegistrationForm: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [debugMode, setDebugMode] = useState(false);
   const [snackbar, setSnackbar] = useState<SnackbarState>({
     open: false,
     message: '',
     severity: 'success',
   });
 
-  // Fix API base URL - remove trailing slash if present and ensure it's defined
-  const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '') || 'https://nodes-staging-xp.up.railway.app';
-
-  // Enhanced validation with better error messages
+  // Fetch school information
   useEffect(() => {
-    console.log('Validating URL parameters...');
-    console.log('School ID:', schoolId);
-    console.log('Decoded school name:', schoolName);
-    console.log('Decoded school address:', schoolAddress);
-    
     if (!schoolId) {
-      const urlParams = new URLSearchParams(window.location.search);
-      const allParams = Object.fromEntries(urlParams.entries());
-      
-      console.error('Missing schoolId parameter');
-      console.log('Available parameters:', allParams);
-      
       setSnackbar({
         open: true,
-        message: `Invalid registration link. Missing school identification. Available params: ${Object.keys(allParams).join(', ') || 'none'}`,
+        message: 'Invalid registration link. Missing school identification.',
         severity: 'error',
       });
       setSchoolNotFound(true);
       setSchoolLoading(false);
       return;
     }
-    
-    console.log('School ID validation passed');
-  }, [schoolId, schoolName, schoolAddress]);
-
-  // Fetch school information with enhanced error handling and CORS support
-  useEffect(() => {
-    if (!schoolId) return;
 
     const fetchSchoolInfo = async () => {
       try {
         setSchoolLoading(true);
-        console.log(`Fetching school info for ID: ${schoolId}`);
-        console.log(`API URL: ${API_BASE_URL}/api/users/getschoolbyid/${schoolId}`);
         
-        const response = await fetch(
-          `${API_BASE_URL}/api/users/getschoolbyid/${schoolId}`,
-          {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-              // Add more headers that might be needed for production
-              'Accept': 'application/json',
-            },
-            // Add mode and credentials for CORS handling
-            mode: 'cors',
-            credentials: 'omit',
-          }
-        );
-
-        console.log('Response status:', response.status);
-        console.log('Response headers:', Object.fromEntries(response.headers.entries()));
-        
-        // Check if response is JSON
-        const contentType = response.headers.get('content-type');
-        if (!contentType || !contentType.includes('application/json')) {
-          const textResponse = await response.text();
-          console.error('Non-JSON response received:', textResponse);
-          throw new Error(`Server returned non-JSON response. Status: ${response.status}`);
-        }
-
-        const result = await response.json();
-        console.log('API Response:', result);
-
-        if (!response.ok) {
-          throw new Error(result.message || `HTTP ${response.status}: Failed to fetch school information`);
-        }
+        const result: SchoolInfoResponse = await getSchoolById(schoolId);
 
         if (result.success && result.data) {
           const data = result.data;
-          console.log('School data received:', data);
           
           setSchoolInfo({
             _id: data._id,
@@ -190,24 +128,18 @@ const StudentRegistrationForm: React.FC = () => {
             schoolAddress: data.schoolAddress || schoolAddress,
           }));
         } else {
-          throw new Error('Invalid school data format or no data received');
+          throw new Error(result.message || 'Invalid school data received');
         }
-      } catch (error) {
+      } catch (error: unknown) {
         console.error('Error fetching school info:', error);
         
-        let errorMessage = 'Error loading school information';
-        if (error instanceof Error) {
-          errorMessage = error.message;
-        }
-        
-        // Check if it's a network error
-        if (error instanceof TypeError && error.message.includes('fetch')) {
-          errorMessage = 'Network error: Unable to connect to server. Please check your internet connection.';
-        }
+        const errorMessage = error instanceof Error 
+          ? error.message 
+          : (error as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Error loading school information.';
         
         setSnackbar({
           open: true,
-          message: `${errorMessage}. School ID: ${schoolId}`,
+          message: errorMessage,
           severity: 'error',
         });
         setSchoolNotFound(true);
@@ -217,7 +149,7 @@ const StudentRegistrationForm: React.FC = () => {
     };
 
     fetchSchoolInfo();
-  }, [schoolId, schoolName, schoolType, schoolAddress, API_BASE_URL]);
+  }, [schoolId, schoolName, schoolType, schoolAddress]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -296,72 +228,45 @@ const StudentRegistrationForm: React.FC = () => {
 
     setIsSubmitting(true);
 
-    const payload = {
-      firstName: formData.firstName,
-      lastName: formData.lastName,
-      email: formData.email,
-      phone: formData.phone,
-      role: 'student',
-      password: formData.password,
-      academicDetails: {
-        classAdmittedTo: formData.classAdmittedTo,
-      },
-      schoolId: formData.schoolId,
-      schoolName: formData.schoolName,
-      schoolType: formData.schoolType,
-      schoolAddress: formData.schoolAddress,
-    };
-
-    console.log('Submitting registration payload:', payload);
-
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/register`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
+      const registrationData: StudentRegistrationRequest = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        phone: formData.phone,
+        role: 'student',
+        password: formData.password,
+        academicDetails: {
+          classAdmittedTo: formData.classAdmittedTo,
         },
-        mode: 'cors',
-        credentials: 'omit',
-        body: JSON.stringify(payload),
-      });
+        schoolId: formData.schoolId,
+        schoolName: formData.schoolName,
+        schoolType: formData.schoolType,
+        schoolAddress: formData.schoolAddress,
+      };
 
-      console.log('Registration response status:', response.status);
-      
-      // Check if response is JSON
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        const textResponse = await response.text();
-        console.error('Non-JSON registration response:', textResponse);
-        throw new Error(`Server returned non-JSON response. Status: ${response.status}`);
+      const result: RegistrationResponse = await registerStudent(registrationData);
+
+      // Assuming your API returns a success flag or message
+      if (result.success || result.message?.includes('success')) {
+        setSnackbar({
+          open: true,
+          message: result.message || 'Registration successful! Redirecting...',
+          severity: 'success',
+        });
+        
+        setTimeout(() => navigate('/login'), 2000);
+      } else {
+        setSnackbar({
+          open: true,
+          message: result.message || 'Registration failed',
+          severity: 'error',
+        });
       }
-
-      const result = await response.json();
-      console.log('Registration response:', result);
-
-      if (!response.ok) {
-        throw new Error(result.message || 'Registration failed');
-      }
-
-      setSnackbar({
-        open: true,
-        message: 'Registration successful! Redirecting...',
-        severity: 'success',
-      });
-      
-      setTimeout(() => navigate('/login'), 2000);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Registration error:', error);
       
-      let errorMessage = 'Registration failed. Please try again.';
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      
-      // Check if it's a network error
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        errorMessage = 'Network error: Unable to connect to server. Please check your internet connection.';
-      }
+      const errorMessage = (error as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Registration failed. Please try again.';
       
       setSnackbar({
         open: true,
@@ -383,36 +288,6 @@ const StudentRegistrationForm: React.FC = () => {
           <p className="text-gray-600 mb-6">
             The registration link is invalid or expired. Please contact your school administrator for assistance.
           </p>
-          
-          {/* Debug Information Toggle */}
-          <button
-            onClick={() => setDebugMode(!debugMode)}
-            className="mb-4 text-sm text-blue-600 hover:text-blue-800 underline"
-          >
-            {debugMode ? 'Hide' : 'Show'} Debug Info
-          </button>
-          
-          {debugMode && (
-            <div className="mb-6 p-4 bg-gray-100 rounded-lg text-left text-xs">
-              <h3 className="font-bold mb-2">Debug Information:</h3>
-              <p><strong>Current URL:</strong> {window.location.href}</p>
-              <p><strong>Search Params:</strong> {window.location.search || 'none'}</p>
-              <p><strong>School ID:</strong> {schoolId || 'missing'}</p>
-              <p><strong>Decoded School Name:</strong> {schoolName || 'missing'}</p>
-              <p><strong>Decoded School Address:</strong> {schoolAddress || 'missing'}</p>
-              <p><strong>API Base URL:</strong> {API_BASE_URL}</p>
-              <div className="mt-2">
-                <strong>All URL Parameters:</strong>
-                <ul className="ml-4 mt-1">
-                  {Array.from(searchParams.entries()).map(([key, value]) => (
-                    <li key={key}>• {key}: {value} (decoded: {decodeURIComponent(value)})</li>
-                  ))}
-                  {Array.from(searchParams.entries()).length === 0 && <li>• No parameters found</li>}
-                </ul>
-              </div>
-            </div>
-          )}
-          
           <button
             onClick={() => navigate('/')}
             className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg"

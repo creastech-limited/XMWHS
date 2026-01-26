@@ -6,33 +6,13 @@ import React, {
   useCallback,
 } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import type { User } from '../types/user';
+import type { AuthContextType, AuthProviderProps } from '../types/auth.js';
+import { validateToken } from '../services/api/authService';
 import axios from 'axios';
-import type { ReactNode } from 'react';
-
-interface User {
-  _id: string;
-  name: string;
-  email: string;
-  role: string;
-  avatar?: string;
-  [key: string]: unknown;
-}
-
-interface AuthContextType {
-  user: User | null;
-  token: string | null;
-  login: (userData: User, jwt: string) => void;
-  logout: () => void;
-  isLoading: boolean;
-}
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-interface AuthProviderProps {
-  children: ReactNode;
-}
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string;
 
 // Define role-based routes
 const ROLE_ROUTES: Record<string, string> = {
@@ -121,21 +101,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const validateToken = async (tokenToValidate: string): Promise<boolean> => {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/api/users/getuserone`, {
-        headers: {
-          Authorization: `Bearer ${tokenToValidate}`,
-          'Content-Type': 'application/json',
-        },
-        timeout: 10000,
-      });
-      return response.status === 200;
-    } catch (error) {
-      console.error('Token validation failed:', error);
-      return false;
-    }
-  };
+ 
 
   const logout = useCallback(() => {
     localStorage.removeItem('user');

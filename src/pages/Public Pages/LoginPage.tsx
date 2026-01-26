@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import type { FormEvent } from 'react';
-import { useNavigate, Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink } from 'react-router-dom';
+import { login as apiLogin} from '../../services';
+import type { LoginRequest } from '../../types/auth';
 import { useAuth } from '../../context/AuthContext';
 import { AlertCircle, Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import logo from '../5.png';
@@ -25,9 +27,9 @@ const LoginPage: React.FC = () => {
     throw new Error('AuthContext is undefined. Ensure you are using AuthProvider.');
   }
   const { login } = authContext;
-  const navigate = useNavigate();
+  
 
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
 
   const validateForm = () => {
     let isValid = true;
@@ -81,55 +83,25 @@ const LoginPage: React.FC = () => {
     setIsLoading(true);
     setErrorMessage('');
 
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/users/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'ngrok-skip-browser-warning': 'skip-browser-warning',
-        },
-        body: JSON.stringify({
-          email: formValues.email,
-          password: formValues.password,
-          rememberMe: formValues.rememberMe
-        })
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        setErrorMessage(data.message || 'Login failed');
-      } else {
-        login(data.user, data.accessToken);
-        const role = data.user?.role;
-        switch (role) {
-          case 'school':
-            navigate('/schools');
-            break;
-          case 'parent':
-            navigate('/parent');
-            break;
-          case 'student':
-            navigate('/kidswallet');
-            break;
-          case 'store':
-            navigate('/store');
-            break;
-          case 'agent':
-            navigate('/agent');
-            break;
-            case 'admin':
-            navigate('/admin');
-            break;
-          default:
-            navigate('/');
-        }
-      }
-    } catch (error) {
-      console.error('Login error:', error);
-      setErrorMessage('An error occurred. Please try again later.');
-    } finally {
-      setIsLoading(false);
-    }
+try {
+  const credentials: LoginRequest = {
+    email: formValues.email,
+    password: formValues.password,
+    rememberMe: formValues.rememberMe
+  };
+  
+  const data = await apiLogin(credentials);
+  
+  // Call the auth context login function (which handles navigation)
+  login(data.user, data.accessToken);
+  // Note: No need for navigate() here - auth context login handles it
+} catch (error: Error | unknown) {
+  console.error('Login error:', error);
+  const errorMessage = error instanceof Error ? error.message : 'An error occurred. Please try again later.';
+  setErrorMessage(errorMessage);
+} finally {
+  setIsLoading(false);
+}
   };
 
   return (

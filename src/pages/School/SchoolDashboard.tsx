@@ -19,6 +19,26 @@ import {
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 import { FaWallet, FaUsers, FaStore, FaCalendarAlt } from 'react-icons/fa';
+
+// Import services
+import { 
+  getUserDetails, 
+  getStoreCount, 
+  getClasses, 
+  getUserTransactions 
+} from '../../services';
+
+// Import types
+import type { 
+  User,
+  UserResponse,
+  StoreCountResponse,
+  ClassesResponse,
+  TransactionsResponse,
+  Transaction as TransactionType,
+  ClassItem
+} from '../../types/user';
+
 const calendarStyles = `
   .react-calendar {
     background: white;
@@ -123,35 +143,6 @@ interface Transaction {
   status?: string;
 }
 
-interface Wallet {
-  id: string;
-  balance: number;
-  currency: string;
-  type: string;
-  // ... other wallet properties
-}
-
-interface User {
-  _id: string;
-  name: string;
-  email: string;
-  role: string;
-  avatar?: string;
-  balance?: number;
-  wallet?: Wallet;
-  [key: string]: unknown;
-}
-
-interface Student {
-  _id: string;
-  classLevel: string;
-  createdAt: string;
-}
-
-
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL;
-
 const Dashboard: React.FC = () => {
   const auth = useAuth();
   const [user, setUser] = useState<User | null>(auth?.user || null);
@@ -192,99 +183,72 @@ const Dashboard: React.FC = () => {
 
   // Enhanced fetchUserDetails function with better balance handling
   const fetchUserDetails = useCallback(
-  async (authToken: string): Promise<User> => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
-        headers: { Authorization: `Bearer ${authToken}` },
-      });
+    async (): Promise<User> => {
+      try {
+        const data: UserResponse = await getUserDetails();
 
-      if (!res.ok) throw new Error(`Profile fetch failed (${res.status})`);
+        console.log('User details response:', data);
 
-      const data = await res.json();
+        let profile: User | undefined;
+        let userBalance: number = 0;
 
-      console.log('Full API Response:', JSON.stringify(data, null, 2));
-
-      let profile: User | undefined;
-      let userBalance: number = 0;
-
-      // Try different possible response structures
-      if (data.user?.data) {
-        profile = data.user.data;
-        // Check if wallet exists and has balance
-        if (data.user.wallet?.balance !== undefined) {
-          userBalance = data.user.wallet.balance;
+        // Try different possible response structures
+        if (data.user?.data) {
+          profile = data.user.data;
+          if (data.user.wallet?.balance !== undefined) {
+            userBalance = data.user.wallet.balance;
+          }
+        } else if (data.data) {
+          profile = data.data;
+          if (data.wallet?.balance !== undefined) {
+            userBalance = data.wallet.balance;
+          }
+        } else if (data.user) {
+          profile = data.user as User;
+          if (data.user.wallet?.balance !== undefined) {
+            userBalance = data.user.wallet.balance;
+          }
+        } else {
+          profile = data as User;
+          if (data.wallet?.balance !== undefined) {
+            userBalance = data.wallet.balance;
+          }
         }
-      } else if (data.data) {
-        profile = data.data;
-        if (data.wallet?.balance !== undefined) {
-          userBalance = data.wallet.balance;
+
+        // Convert balance to number if it's a string
+        if (typeof userBalance === 'string') {
+          userBalance = parseFloat(userBalance) || 0;
         }
-      } else if (data.user) {
-        profile = data.user as User;
-        if (data.user.wallet?.balance !== undefined) {
-          userBalance = data.user.wallet.balance;
-        }
-      } else {
-        profile = data as User;
-        if (data.wallet?.balance !== undefined) {
-          userBalance = data.wallet.balance;
-        }
-      }
 
-      // Convert balance to number if it's a string
-      if (typeof userBalance === 'string') {
-        userBalance = parseFloat(userBalance) || 0;
-      }
+        if (!profile?._id) throw new Error('Invalid user payload');
 
-      console.log('Extracted profile:', profile);
-      console.log('Extracted balance (raw):', userBalance);
-      console.log('Balance type:', typeof userBalance);
+        const updatedProfile = { 
+          ...profile, 
+          balance: userBalance 
+        };
 
-      if (!profile?._id) throw new Error('Invalid user payload');
-
-      // Create updated profile with balance
-      const updatedProfile = { 
-        ...profile, 
-        balance: userBalance 
-      };
-
-      console.log('Updated profile with balance:', updatedProfile);
-
-      // Update user state
-      setUser(updatedProfile);
-      
-      // Update stats with the balance - do this immediately
-      setStats(prevStats => {
-        const newStats = {
+        // Update user state
+        setUser(updatedProfile);
+        
+        // Update stats with the balance
+        setStats(prevStats => ({
           ...prevStats,
           balance: userBalance
-        };
-        console.log('Setting stats with balance:', newStats);
-        return newStats;
-      });
-      
-      // Update auth context
-      auth?.login?.(updatedProfile, authToken);
-      
-      return updatedProfile;
-    } catch (error) {
-      console.error('Error fetching user details:', error);
-      throw error;
-    }
-  },
-  [auth]
-);
+        }));
+        
+        return updatedProfile;
+      } catch (error) {
+        console.error('Error fetching user details:', error);
+        throw error;
+      }
+    },
+    [auth]
+  );
 
   // Fetch store count data
-  const fetchStoreCount = useCallback(async (authToken: string) => {
+  const fetchStoreCount = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/getstorebyidcount`, {
-        headers: { Authorization: `Bearer ${authToken}` },
-      });
-      
-      if (!response.ok) throw new Error('Failed to fetch store count');
-      
-      const data = await response.json();
+      const data: StoreCountResponse = await getStoreCount();
       
       console.log('Store Count API Response:', JSON.stringify(data, null, 2));
       
@@ -317,148 +281,131 @@ const Dashboard: React.FC = () => {
   }, []);
 
   // Fetch students data for distribution
-const fetchStudentsData = useCallback(async (authToken: string) => {
-  try {
-    const classesResponse = await fetch(`${API_BASE_URL}/api/users/getclasse`, {
-      headers: { Authorization: `Bearer ${authToken}` },
-    });
-    
-    if (!classesResponse.ok) throw new Error('Failed to fetch classes');
-    
-    const classesData = await classesResponse.json();
-    
-    // Process classes data for pie chart (class distribution)
-    if (classesData.data && Array.isArray(classesData.data)) {
-      // Create data for pie chart
-      const pieColors = ['#42a5f5', '#66bb6a', '#ffca28', '#ef5350', '#ab47bc', '#26c6da'];
+  const fetchStudentsData = useCallback(async () => {
+    try {
+      const classesData: ClassesResponse = await getClasses();
       
-    interface ClassItem {
-      className: string;
-      students?: Student[];
-      [key: string]: unknown;
+      // Process classes data for pie chart (class distribution)
+      if (classesData.data && Array.isArray(classesData.data)) {
+        // Create data for pie chart
+        const pieColors = ['#42a5f5', '#66bb6a', '#ffca28', '#ef5350', '#ab47bc', '#26c6da'];
+        
+        const pieData: PieDataEntry[] = classesData.data
+          .filter((classItem: ClassItem) => classItem.className) // ensure className exists
+          .map((classItem: ClassItem, index: number): PieDataEntry => ({
+            name: classItem.className,
+            value: classItem.students?.length || 0,
+            color: pieColors[index % pieColors.length]
+          }));
+        
+        // Calculate total students
+        const totalStudents = classesData.data.reduce(
+          (sum: number, classItem: ClassItem) => sum + (classItem.students?.length || 0), 
+          0
+        );
+        
+        setPieData(pieData);
+        setStats(prev => ({
+          ...prev, 
+          totalStudents
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching classes data:', error);
+      setSnackbar({
+        open: true,
+        message: 'Failed to load class data',
+        severity: 'error'
+      });
     }
-
-    const pieData: PieDataEntry[] = (classesData.data as ClassItem[])
-      .filter((classItem: ClassItem) => classItem.className) // ensure className exists
-      .map((classItem: ClassItem, index: number): PieDataEntry => ({
-        name: classItem.className,
-        value: classItem.students?.length || 0,
-        color: pieColors[index % pieColors.length]
-      }));
-      
-      // Calculate total students
-      const totalStudents = classesData.data.reduce(
-        (sum: number, classItem: ClassItem) => sum + (classItem.students?.length || 0), 
-        0
-      );
-      
-      setPieData(pieData);
-      setStats(prev => ({
-        ...prev, 
-        totalStudents
-      }));
-    }
-  } catch (error) {
-    console.error('Error fetching classes data:', error);
-    setSnackbar({
-      open: true,
-      message: 'Failed to load class data',
-      severity: 'error'
-    });
-  }
-}, []);
+  }, []);
 
   // Fetch transactions data with proper credit/debit handling
-  const fetchTransactionsData = useCallback(async (authToken: string) => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/transaction/getusertransaction`, {
-      headers: { Authorization: `Bearer ${authToken}` },
-    });
-    
-    if (!response.ok) throw new Error('Failed to fetch transactions');
-    
-    const data = await response.json();
-    
-    console.log('Transactions API Response:', JSON.stringify(data, null, 2));
-    
-    if (data.data && Array.isArray(data.data)) {
-      // Process recent transactions with proper credit/debit logic
-      const recentTransactions = data.data
-        .slice(0, 4)
-        .map((tx: Transaction) => {
-          // Determine transaction type based on direction field primarily
-          let transactionType: 'credit' | 'debit' | 'pending' = 'debit';
+  const fetchTransactionsData = useCallback(async () => {
+    try {
+      const data: TransactionsResponse = await getUserTransactions();
+      
+      console.log('Transactions API Response:', JSON.stringify(data, null, 2));
+      
+      if (data.data && Array.isArray(data.data)) {
+        // Process recent transactions with proper credit/debit logic
+        const recentTransactions = data.data
+          .slice(0, 4)
+          .map((tx: TransactionType) => {
+            // Determine transaction type based on direction field primarily
+            let transactionType: 'credit' | 'debit' | 'pending' = 'debit';
+            
+            // First check status for pending transactions
+            if (tx.status === 'pending') {
+              transactionType = 'pending';
+            } 
+            // Then use direction field as primary indicator
+            else if (tx.category === 'credit') {
+              transactionType = 'credit';
+            } 
+            else if (tx.category === 'debit') {
+              transactionType = 'debit';
+            }
           
-          // First check status for pending transactions
-          if (tx.status === 'pending') {
-            transactionType = 'pending';
-          } 
-          // Then use direction field as primary indicator
-          else if (tx.category === 'credit') {
-            transactionType = 'credit';
-          } 
-          else if (tx.category === 'debit') {
-            transactionType = 'debit';
-          }
+            return {
+              id: tx._id,
+              date: tx.createdAt,
+              description: tx.description || tx.category || 'Transaction',
+              category: tx.category || 'Transaction',
+              amount: tx.amount,
+              type: transactionType,
+              status: tx.status // include status for reference
+            };
+          });
         
+        setTransactions(recentTransactions);
+        
+        // Process fee collection trend (last 6 months) - only credit transactions
+        const now = new Date();
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        
+        const last6Months = Array.from({length: 6}, (_, i) => {
+          const date = new Date(now);
+          date.setMonth(date.getMonth() - i);
           return {
-            id: tx._id,
-            date: tx.createdAt,
-          category: tx.category || 'Transaction',
-            amount: tx.amount,
-            type: transactionType,
-            status: tx.status // include status for reference
+            month: monthNames[date.getMonth()],
+            year: date.getFullYear(),
+            monthIndex: date.getMonth()
+          };
+        }).reverse();
+        
+        const feeData = last6Months.map(({month, year, monthIndex}) => {
+          const monthlyTotal = (data.data ?? [])
+            .filter((tx: TransactionType) => {
+              const txDate = new Date(tx.createdAt ?? '');
+              const txMonth = txDate.getMonth();
+              const txYear = txDate.getFullYear();
+              
+              // Check if it's a credit transaction (fee received)
+              const isCredit = tx.category === 'credit' || tx.category === 'credit';
+              
+              return txMonth === monthIndex && txYear === year && isCredit;
+            })
+            .reduce((sum: number, tx: TransactionType) => sum + (tx.amount || 0), 0);
+          
+          return {
+            month,
+            fees: monthlyTotal
           };
         });
-      
-      setTransactions(recentTransactions);
-      
-      // Process fee collection trend (last 6 months) - only credit transactions
-      const now = new Date();
-      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      
-      const last6Months = Array.from({length: 6}, (_, i) => {
-        const date = new Date(now);
-        date.setMonth(date.getMonth() - i);
-        return {
-          month: monthNames[date.getMonth()],
-          year: date.getFullYear(),
-          monthIndex: date.getMonth()
-        };
-      }).reverse();
-      
-      const feeData = last6Months.map(({month, year, monthIndex}) => {
-        const monthlyTotal = data.data
-          .filter((tx: Transaction) => {
-            const txDate = new Date(tx.createdAt ?? '');
-            const txMonth = txDate.getMonth();
-            const txYear = txDate.getFullYear();
-            
-            // Check if it's a credit transaction (fee received)
-            const isCredit = tx.category === 'credit' || tx.category === 'credit';
-            
-            return txMonth === monthIndex && txYear === year && isCredit;
-          })
-          .reduce((sum: number, tx: Transaction) => sum + (tx.amount || 0), 0);
         
-        return {
-          month,
-          fees: monthlyTotal
-        };
+        console.log('Processed fee data:', feeData);
+        setBarData(feeData);
+      }
+    } catch (error) {
+      console.error('Error fetching transactions:', error);
+      setSnackbar({
+        open: true,
+        message: 'Failed to load transaction data',
+        severity: 'error'
       });
-      
-      console.log('Processed fee data:', feeData);
-      setBarData(feeData);
     }
-  } catch (error) {
-    console.error('Error fetching transactions:', error);
-    setSnackbar({
-      open: true,
-      message: 'Failed to load transaction data',
-      severity: 'error'
-    });
-  }
-}, []);
+  }, []);
 
   // Enhanced initialization with better balance handling
   useEffect(() => {
@@ -477,9 +424,9 @@ const fetchStudentsData = useCallback(async (authToken: string) => {
           
           // Still fetch other data including store count
           await Promise.all([
-            fetchStudentsData(auth.token),
-            fetchTransactionsData(auth.token),
-            fetchStoreCount(auth.token)
+            fetchStudentsData(),
+            fetchTransactionsData(),
+            fetchStoreCount()
           ]);
           
           setLoading(false);
@@ -494,16 +441,16 @@ const fetchStudentsData = useCallback(async (authToken: string) => {
 
         console.log('Fetching fresh user data...');
         // Fetch fresh user data
-        const profile = await fetchUserDetails(storedToken);
+        const profile = await fetchUserDetails();
         
         console.log('Profile fetched, balance should be:', profile.balance);
 
         // After successful auth, fetch other data including store count
         if (profile._id) {
           await Promise.all([
-            fetchStudentsData(storedToken),
-            fetchTransactionsData(storedToken),
-            fetchStoreCount(storedToken)
+            fetchStudentsData(),
+            fetchTransactionsData(),
+            fetchStoreCount()
           ]);
         }
       } catch (error) {
@@ -541,15 +488,16 @@ const fetchStudentsData = useCallback(async (authToken: string) => {
   useEffect(() => {
     if (authError) setTimeout(() => (window.location.href = '/login'), 3000);
   }, [authError]);
-  useEffect(() => {
-  const styleElement = document.createElement('style');
-  styleElement.textContent = calendarStyles;
-  document.head.appendChild(styleElement);
   
-  return () => {
-    document.head.removeChild(styleElement);
-  };
-}, []);
+  useEffect(() => {
+    const styleElement = document.createElement('style');
+    styleElement.textContent = calendarStyles;
+    document.head.appendChild(styleElement);
+    
+    return () => {
+      document.head.removeChild(styleElement);
+    };
+  }, []);
 
   if (loading)
     return (
@@ -606,9 +554,6 @@ const fetchStudentsData = useCallback(async (authToken: string) => {
                 <p className="text-2xl font-bold text-gray-800">
                  ₦{stats.balance.toLocaleString()}
                 </p>
-                {/* <p className="text-xs text-green-600 mt-1">
-                 {stats.balance > 0 ? '+5.3% from last month' : 'No balance history'}
-                </p> */}
               </div>
             </div>
             <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100 hover:shadow-md transition-all duration-300 flex items-start">
@@ -622,9 +567,6 @@ const fetchStudentsData = useCallback(async (authToken: string) => {
                 <p className="text-2xl font-bold text-gray-800">
                   {stats.totalStudents.toLocaleString()}
                 </p>
-                {/* <p className="text-xs text-green-600 mt-1">
-                  +12 new this week
-                </p> */}
               </div>
             </div>
             <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100 hover:shadow-md transition-all duration-300 flex items-start">
@@ -638,9 +580,6 @@ const fetchStudentsData = useCallback(async (authToken: string) => {
                 <p className="text-2xl font-bold text-gray-800">
                   {stats.totalStores.toLocaleString()}
                 </p>
-                {/* <p className="text-xs text-green-600 mt-1">
-                  {stats.totalStores > 0 ? '+2 new this month' : 'No stores yet'}
-                </p> */}
               </div>
             </div>
           </div>

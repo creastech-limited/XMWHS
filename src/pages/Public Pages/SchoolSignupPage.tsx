@@ -15,8 +15,8 @@ import {
 } from '@heroicons/react/24/outline';
 import bgImage from '../bg.jpeg';
 import { AlertCircle, CheckCircle } from 'react-feather';
-
-type SchoolType = 'primary' | 'secondary' | 'polytechnic' | 'university';
+import { registerSchool } from '../../services';
+import type { SchoolRegistrationRequest, SchoolType } from '../../types/auth';
 
 const SignUpPage: React.FC = () => {
   const [role, setRole] = useState<string>('school');
@@ -26,9 +26,8 @@ const SignUpPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [schoolType, setSchoolType] = useState<SchoolType>('primary');
 
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-
-  const handleRoleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+  
+ const handleRoleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     setRole(event.target.value);
   };
 
@@ -81,7 +80,6 @@ const SignUpPage: React.FC = () => {
   }
 
   // Check for weak password
-  // Example: at least 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char
   const weakPassword =
     password.length < 8 ||
     !/[A-Z]/.test(password) ||
@@ -95,58 +93,36 @@ const SignUpPage: React.FC = () => {
     return;
   }
 
-    // Prepare data
-    const data = { 
-      firstName, 
-      lastName, 
-      email, 
-      password, 
-      role, 
-      schoolName, 
-      schoolAddress, 
-      phone,
-      schoolType 
-    };
-
     try {
-    const response = await fetch(`${API_BASE_URL}/api/users/register`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'ngrok-skip-browser-warning': 'skip-browser-warning',
-      },
-      body: JSON.stringify(data)
-    });
+  const registrationData: SchoolRegistrationRequest = {
+    firstName,
+    lastName,
+    email,
+    password,
+    role,
+    schoolName,
+    schoolAddress,
+    phone,
+    schoolType
+  };
 
-    const responseText = await response.text();
-    
-    // Try to parse the response as JSON, but fall back to text if it fails
-    let result;
-    try {
-      result = responseText ? JSON.parse(responseText) : {};
-    } catch (e) {
-      console.error('Failed to parse JSON:', e);
-      result = { message: responseText || 'Registration successful' };
-    }
+  const result = await registerSchool(registrationData);
 
-    if (!response.ok) {
-      throw new Error(result.message || 'Registration failed');
-    }
-
+  if (result.success) {
     setSuccessMessage(result.message || 'User registered successfully');
     form.reset();
     setRole('school');
     setSchoolType('primary');
-  } catch (error) {
-    console.error('Registration error:', error);
-    if (error instanceof Error) {
-      setErrorMessage(error.message || 'Something went wrong. Please try again.');
-    } else {
-      setErrorMessage('Something went wrong. Please try again.');
-    }
-  } finally {
-    setLoading(false);
+  } else {
+    setErrorMessage(result.message || 'Registration failed');
   }
+} catch (error) {
+  console.error('Registration error:', error);
+  const errorMessage = error instanceof Error ? error.message : 'Something went wrong. Please try again.';
+  setErrorMessage(errorMessage);
+} finally {
+  setLoading(false);
+}
 };
 
   return (

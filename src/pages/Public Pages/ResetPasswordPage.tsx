@@ -4,6 +4,9 @@ import { useNavigate, useParams, Link as RouterLink } from 'react-router-dom';
 import { AlertCircle, Eye, EyeOff, Lock, CheckCircle, XCircle } from 'lucide-react';
 import logo from '../5.png';
 import bgImage from '../bg.jpeg';
+import { resetPassword } from '../../services';
+import type { ResetPasswordResponse } from '../../types/auth';
+import { AxiosError } from 'axios';
 
 const ResetPasswordPage: React.FC = () => {
   const [newPassword, setNewPassword] = useState('');
@@ -21,33 +24,15 @@ const ResetPasswordPage: React.FC = () => {
 
   const navigate = useNavigate();
   const { token } = useParams<{ token: string }>();
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   useEffect(() => {
-    console.log('Token validation effect running');
-    console.log('Token value:', token);
-    console.log('Token type:', typeof token);
-    
-    if (!token || token.trim() === '') {
-      console.log('Token is invalid or missing');
+    if (!token || token.trim() === '' || token.length < 10) {
       setIsTokenValid(false);
       setErrorMessage('Invalid or missing reset token.');
       return;
     }
     
-    console.log('Token appears valid, proceeding...');
-    
-    
-    if (token.length < 10) {
-      
-      setIsTokenValid(false);
-      setErrorMessage('Invalid reset token format.');
-      return;
-    }
-    
-    // Token is valid
     setIsTokenValid(true);
-    
   }, [token]);
 
   const validatePassword = (password: string): boolean => {
@@ -102,10 +87,8 @@ const ResetPasswordPage: React.FC = () => {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-   
     
     if (!validateForm()) {
-      console.log('Form validation failed');
       return;
     }
     
@@ -114,39 +97,36 @@ const ResetPasswordPage: React.FC = () => {
     setMessage('');
 
     try {
-      const apiUrl = `${API_BASE_URL}/api/users/reset-password/${token}`;
-      console.log('Making API call to:', apiUrl);
-      
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'ngrok-skip-browser-warning': 'skip-browser-warning',
-        },
-        body: JSON.stringify({ password: newPassword }), 
-      });
+      if (!token) {
+        throw new Error('Invalid reset token');
+      }
 
-      console.log('Response status:', response.status);
-      const data = await response.json();
-      console.log('Response data:', data);
+      const result: ResetPasswordResponse = await resetPassword(token, newPassword);
 
-      if (response.ok) {
-        setMessage('Password reset successfully! Redirecting to login...');
+      if (result.success) {
+        setMessage(result.message || 'Password reset successfully! Redirecting to login...');
         setTimeout(() => {
           navigate('/login');
         }, 2000);
       } else {
-        setErrorMessage(data.message || 'Failed to reset password. The link may have expired.');
-        if (response.status === 400 || response.status === 410) {
-          setIsTokenValid(false);
-        }
+        setErrorMessage(result.message || 'Failed to reset password. The link may have expired.');
+        setIsTokenValid(false);
       }
-    } catch (error) {
-      console.error('Reset password error:', error);
-      setErrorMessage('Network error. Please check your connection and try again.');
-    } finally {
-      setIsLoading(false);
-    }
+    } catch (error: unknown) {
+  console.error('Reset password error:', error);
+  
+  // Handle specific error cases
+  if (error instanceof AxiosError && (error.response?.status === 400 || error.response?.status === 410)) {
+    setIsTokenValid(false);
+    setErrorMessage(error.response?.data?.message || 'This reset link has expired or is invalid.');
+  } else if (error instanceof Error) {
+    setErrorMessage(error.message || 'Network error. Please check your connection and try again.');
+  } else {
+    setErrorMessage('Network error. Please check your connection and try again.');
+  }
+} finally {
+  setIsLoading(false);
+}
   };
 
   const passwordRequirements = [
@@ -156,9 +136,6 @@ const ResetPasswordPage: React.FC = () => {
     { label: 'Number', met: /\d/.test(newPassword) },
     { label: 'Special character', met: /[!@#$%^&*(),.?":{}|<>]/.test(newPassword) },
   ];
-
-  // Debug render
-  console.log('Rendering component. isTokenValid:', isTokenValid);
 
   // Show invalid token page ONLY when token is NOT valid
   if (!isTokenValid) {

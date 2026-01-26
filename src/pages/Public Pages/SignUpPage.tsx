@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { Eye, EyeOff, User, Mail, Lock, AlertCircle, CheckCircle, School } from 'lucide-react';
+import { registerParent } from '../../services';
+import type { ParentRegistrationRequest } from '../../types/auth';
 import bgImage from '../bg.jpeg';
 import logo from '../5.png'; 
 
@@ -30,7 +32,7 @@ const SignUpPage: React.FC = () => {
   const [successMessage, setSuccessMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+ 
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -135,44 +137,41 @@ const SignUpPage: React.FC = () => {
 
     const { firstName, lastName, email, password, role } = formValues;
 
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/users/register`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'ngrok-skip-browser-warning': 'skip-browser-warning'
-        },
-        body: JSON.stringify({ firstName, lastName, email, password, role }),
-      });
+  try {
+  const registrationData: ParentRegistrationRequest = {
+    firstName,
+    lastName,
+    email,
+    password,
+    role, // Should be 'parent'
+    termsAccepted: formValues.termsAccepted
+  };
 
-      const result = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(result.message || 'Registration failed');
-      }
+  const result = await registerParent(registrationData);
 
-      setSuccessMessage(result.message || 'Account created successfully! You can now sign in.');
-      
-      // Reset form after successful submission
-      setFormValues({
-        firstName: '',
-        lastName: '',
-        email: '',
-        role: 'parent',
-        password: '',
-        confirmPassword: '',
-        termsAccepted: false
-      });
-      
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        setErrorMessage(error.message || 'Something went wrong. Please try again.');
-      } else {
-        setErrorMessage('Something went wrong. Please try again.');
-      }
-    } finally {
-      setLoading(false);
-    }
+  if (result.success) {
+    setSuccessMessage(result.message || 'Account created successfully! You can now sign in.');
+    
+    // Reset form after successful submission
+    setFormValues({
+      firstName: '',
+      lastName: '',
+      email: '',
+      role: 'parent',
+      password: '',
+      confirmPassword: '',
+      termsAccepted: false
+    });
+  } else {
+    setErrorMessage(result.message || 'Registration failed');
+  }
+} catch (error: unknown) {
+  console.error('Registration error:', error);
+  const errorMessage = error instanceof Error ? error.message : 'Something went wrong. Please try again.';
+  setErrorMessage(errorMessage);
+} finally {
+  setLoading(false);
+}
   };
 
   return (

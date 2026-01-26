@@ -23,54 +23,37 @@ import {
   RefreshCwIcon,
 } from 'lucide-react';
 
-// Updated TypeScript interfaces
-interface Student {
-  _id: string;
-  firstName: string;
-  lastName: string;
-  name: string;
-  email: string;
-  academicDetails: {
-    classAdmittedTo: string;
-  };
-  status: string;
-  createdAt: string;
-  classAdmittedTo?: string;
-  guardian?: {
-    fullName: string;
-    relationship: string;
-    email: string;
+// Import services
+import { 
+  getUserDetails, 
+  getClasses, 
+  getStudentsBySchoolId, 
+  getParents,
+  updateGuardian,
+  activateStudent,
+  deactivateStudent,
+  setStudentPin,
+  updateStudentPin,
+  bulkUploadStudents
+} from '../../services';
 
-  };
-}
+// Import types
+import type { 
+  Student,
+  SchoolProfile,
+  Parent,
+  StudentsResponse,
+  ParentsResponse,
+  PinRequest,
+  PinResponse
+} from '../../types/student';
 
-interface Class {
-  _id: string;
-  className: string;
-  section: string;
-  schoolId: string;
-  students: string[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface SchoolProfile {
-  schoolId: string;
-  schoolName: string;
-  schoolType: string;
-  ownership: string;
-  Link: string;
-}
-
-
-interface Parent {
-  _id: string;
-  firstName: string;
-  lastName: string;
-  name: string;
-  email: string;
-  phone: string;
-}
+import type { 
+  UserResponse,
+  ClassesResponse,
+  ClassItem,
+  User
+} from '../../types/user';
 
 interface SnackbarState {
   open: boolean;
@@ -78,10 +61,22 @@ interface SnackbarState {
   severity: 'success' | 'error' | 'warning' | 'info';
 }
 
+// Define local Class interface that matches ClassItem from types
+interface Class {
+  _id: string;
+  className: string;
+  section: string;
+  schoolId: string;
+  students: string[] | Student[];
+  createdAt: string;
+  updatedAt: string;
+  [key: string]: unknown;
+}
+
 const StudentPage: React.FC = () => {
   const authContext = useAuth();
   const token = authContext?.token || localStorage.getItem('token');
-  const authToken = token || localStorage.getItem('token');
+  const authToken = token;
 
   const [schoolId, setSchoolId] = useState<string>('');
   const [schoolProfile, setSchoolProfile] = useState<SchoolProfile | null>(null);
@@ -120,9 +115,6 @@ const StudentPage: React.FC = () => {
   });
   const [pinLoading, setPinLoading] = useState<boolean>(false);
 
-
-
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   const rowsPerPage = 10;
 
   // Helper functions
@@ -174,191 +166,227 @@ const StudentPage: React.FC = () => {
   }, []);
 
   // API call functions
-  const fetchUserProfile = useCallback(async () => {
-    if (!authToken) return;
+ const fetchUserProfile = useCallback(async () => {
+  if (!authToken) return;
 
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) throw new Error('Failed to fetch user profile');
-
-      const data = await response.json();
-      const userProfile = data.user?.data || data.user || data;
-      const id = userProfile.schoolId;
-      const schoolName = userProfile.schoolName || 'School';
-      const schoolType = userProfile.schoolType || 'secondary';
-      const schoolAddress = userProfile.schoolAddress || '';
-      const ownership = userProfile.ownership || 'private';
-
-      setSchoolId(id);
-      setSchoolProfile({
-        schoolId: id,
-        schoolName,
-        schoolType,
-        ownership,
-        Link: userProfile.Link || '',
-      });
-
-      // Construct URL with all necessary parameters
-      const params = new URLSearchParams();
-      params.append('schoolId', id);
-      params.append('schoolName', encodeURIComponent(schoolName));
-      params.append('schoolType', encodeURIComponent(schoolType));
-      if (schoolAddress) params.append('schoolAddress', encodeURIComponent(schoolAddress));
-
-      const fullLink = `${window.location.origin}/students/new?${params.toString()}`;
-      setRegistrationLink(fullLink);
-    } catch (err) {
-      console.error('Profile fetch error:', err);
-      setSnackbar({
-        open: true,
-        message: err instanceof Error ? err.message : 'Failed to load school profile',
-        severity: 'error',
-      });
-    }
-  }, [authToken, API_BASE_URL]);
-
-  const fetchClasses = useCallback(async () => {
-    if (!authToken) return;
-
-    setClassesLoading(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/users/getclasse`, {
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) throw new Error('Failed to fetch classes');
-
-      const data = await response.json();
-
-      if (data.status && Array.isArray(data.data)) {
-        // Get user profile to find the correct schoolId for class filtering
-        const userResponse = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
-          headers: {
-            Authorization: `Bearer ${authToken}`,
-            'Content-Type': 'application/json',
-          },
-        });
-
-        if (!userResponse.ok) throw new Error('Failed to fetch user profile');
-
-        const userProfileData = await userResponse.json();
-        const userProfile = userProfileData.user?.data || userProfileData.user || userProfileData;
-
-        // Try to find matching classes using the user's _id (ObjectId format)
-        const userObjectId = userProfile._id;
-
-        let schoolClasses = [];
-
-        if (userObjectId) {
-          // Filter classes by the ObjectId format schoolId
-          schoolClasses = data.data.filter(
-            (cls: Class) => cls.schoolId === userObjectId
-          );
-        }
-
-        // If no classes found with ObjectId, try with string schoolId as fallback
-        if (schoolClasses.length === 0 && schoolId) {
-          schoolClasses = data.data.filter(
-            (cls: Class) => cls.schoolId === schoolId
-          );
-        }
-
-        console.log('Filtered classes:', schoolClasses.length, 'out of', data.data.length);
-        console.log('User ObjectId:', userObjectId, 'Student schoolId:', schoolId);
-
-        setClasses(schoolClasses);
-      } else {
-        console.error('Unexpected classes data format:', data);
-        setClasses([]);
-      }
-    } catch (err) {
-      console.error('Classes fetch error:', err);
-      setSnackbar({
-        open: true,
-        message: 'Failed to load classes: ' + (err instanceof Error ? err.message : 'Unknown error'),
-        severity: 'error',
-      });
-    } finally {
-      setClassesLoading(false);
-    }
-  }, [authToken, schoolId, API_BASE_URL]);
-
-  const fetchStudents = useCallback(async () => {
-  if (!authToken || !schoolId) return;
-
-  setLoading(true);
   try {
-    const response = await fetch(
-      `${API_BASE_URL}/api/users/getstudentbyid?id=${encodeURIComponent(schoolId)}`,
-      {
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    const data = await response.json();
-
-    // Handle "No students found" without treating it as an error
-    if (data.message && data.message.includes('No students found')) {
-      setStudents([]);
-
-      setSnackbar({
-        open: true,
-        message: 'No students found',
-        severity: 'info',
-      });
-
-      return; // stop here and avoid throwing error
-    }
-
-    // Keep the original error check but AFTER checking "no students"
-    if (!response.ok) throw new Error('Failed to fetch students');
-
-    let studentArray: Student[] = [];
-
-    if (data && Array.isArray(data.data)) {
-      studentArray = data.data.map((student: Student) => ({
-        _id: student._id,
-        firstName: student.firstName,
-        lastName: student.lastName,
-        name: student.name || `${student.firstName} ${student.lastName}`,
-        email: student.email,
-        academicDetails: student.academicDetails || { classAdmittedTo: '' },
-        classAdmittedTo: student.academicDetails?.classAdmittedTo || 'Not Assigned',
-        status: student.status,
-        createdAt: student.createdAt,
-        guardian: student.guardian,
-      }));
+    const data: UserResponse = await getUserDetails();
+    
+    // Extract user data safely - define proper type
+    let userProfile: User | { data?: User; wallet?: { balance: number } } | UserResponse;
+    
+    if (data.user?.data) {
+      userProfile = data.user.data;
+    } else if (data.user) {
+      userProfile = data.user;
+    } else if (data.data) {
+      userProfile = data.data;
     } else {
-      console.error('Unexpected students data format:', data);
+      userProfile = data;
     }
 
-    setStudents(studentArray);
+    // Type guard to safely access properties
+    const getId = () => {
+      if (userProfile && typeof userProfile === 'object') {
+        if ('schoolId' in userProfile) {
+          return (userProfile as User).schoolId || '';
+        } else if ('data' in userProfile && userProfile.data && typeof userProfile.data === 'object' && 'schoolId' in userProfile.data) {
+          return (userProfile.data as User).schoolId || '';
+        }
+      }
+      return '';
+    };
+
+    const getStringProp = (prop: keyof User, defaultValue: string = ''): string => {
+      if (userProfile && typeof userProfile === 'object') {
+        if (prop in userProfile) {
+          const value = (userProfile as User)[prop];
+          return typeof value === 'string' ? value : defaultValue;
+        } else if ('data' in userProfile && userProfile.data && typeof userProfile.data === 'object' && prop in userProfile.data) {
+          const value = (userProfile.data as User)[prop];
+          return typeof value === 'string' ? value : defaultValue;
+        }
+      }
+      return defaultValue;
+    };
+
+    const id = getId();
+    const schoolName = getStringProp('schoolName', 'School');
+    const schoolType = getStringProp('schoolType', 'secondary');
+    const schoolAddress = getStringProp('schoolAddress', '');
+    const ownership = getStringProp('ownership', 'private');
+    const link = getStringProp('Link', '');
+
+    setSchoolId(id);
+    setSchoolProfile({
+      schoolId: id,
+      schoolName,
+      schoolType,
+      ownership,
+      Link: link,
+    });
+
+    // Construct URL with all necessary parameters
+    const params = new URLSearchParams();
+    if (id) params.append('schoolId', id);
+    params.append('schoolName', encodeURIComponent(schoolName));
+    params.append('schoolType', encodeURIComponent(schoolType));
+    if (schoolAddress) params.append('schoolAddress', encodeURIComponent(schoolAddress));
+
+    const fullLink = `${window.location.origin}/students/new?${params.toString()}`;
+    setRegistrationLink(fullLink);
   } catch (err) {
-    console.error(err);
+    console.error('Profile fetch error:', err);
     setSnackbar({
       open: true,
-      message: 'Failed to load student data: ' + (err instanceof Error ? err.message : 'Unknown error'),
+      message: err instanceof Error ? err.message : 'Failed to load school profile',
+      severity: 'error',
+    });
+  }
+}, [authToken]);
+
+const fetchClasses = useCallback(async () => {
+  if (!authToken) return;
+
+  setClassesLoading(true);
+  try {
+    const data: ClassesResponse = await getClasses();
+
+    if (data.status && Array.isArray(data.data)) {
+      // Get user profile to find the correct schoolId for class filtering
+      const userProfileData: UserResponse = await getUserDetails();
+      
+      // Extract user profile safely with proper type
+      let userProfile: User | { data?: User; wallet?: { balance: number } } | UserResponse;
+      
+      if (userProfileData.user?.data) {
+        userProfile = userProfileData.user.data;
+      } else if (userProfileData.user) {
+        userProfile = userProfileData.user;
+      } else if (userProfileData.data) {
+        userProfile = userProfileData.data;
+      } else {
+        userProfile = userProfileData;
+      }
+
+      // Type guard to safely access _id
+      const getUserObjectId = () => {
+        if (userProfile && typeof userProfile === 'object') {
+          if ('_id' in userProfile) {
+            return (userProfile as User)._id || '';
+          } else if ('data' in userProfile && userProfile.data && typeof userProfile.data === 'object' && '_id' in userProfile.data) {
+            return (userProfile.data as User)._id || '';
+          }
+        }
+        return '';
+      };
+
+      // Try to find matching classes using the user's _id (ObjectId format)
+      const userObjectId = getUserObjectId();
+
+      let schoolClasses: Class[] = [];
+
+      if (userObjectId) {
+        // Filter classes by the ObjectId format schoolId
+        schoolClasses = (data.data as ClassItem[]).filter(
+          (cls: ClassItem) => cls.schoolId === userObjectId
+        ).map((item: ClassItem): Class => ({
+          _id: item._id,
+          className: item.className,
+          section: item.section,
+          schoolId: item.schoolId,
+          students: item.students,
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt,
+        }));
+      }
+
+      // If no classes found with ObjectId, try with string schoolId as fallback
+      if (schoolClasses.length === 0 && schoolId) {
+        schoolClasses = (data.data as ClassItem[]).filter(
+          (cls: ClassItem) => cls.schoolId === schoolId
+        ).map((item: ClassItem): Class => ({
+          _id: item._id,
+          className: item.className,
+          section: item.section,
+          schoolId: item.schoolId,
+          students: item.students,
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt,
+        }));
+      }
+
+      console.log('Filtered classes:', schoolClasses.length, 'out of', data.data?.length || 0);
+      console.log('User ObjectId:', userObjectId, 'Student schoolId:', schoolId);
+
+      setClasses(schoolClasses);
+    } else {
+      console.error('Unexpected classes data format:', data);
+      setClasses([]);
+    }
+  } catch (err) {
+    console.error('Classes fetch error:', err);
+    setSnackbar({
+      open: true,
+      message: 'Failed to load classes: ' + (err instanceof Error ? err.message : 'Unknown error'),
       severity: 'error',
     });
   } finally {
-    setLoading(false);
+    setClassesLoading(false);
   }
-}, [authToken, schoolId, API_BASE_URL]);
+}, [authToken, schoolId]);
 
+  const fetchStudents = useCallback(async () => {
+    if (!authToken || !schoolId) return;
 
-  //set and update pin 
+    setLoading(true);
+    try {
+      const data: StudentsResponse = await getStudentsBySchoolId(schoolId);
+
+      // Handle "No students found" without treating it as an error
+      if (data.message && data.message.includes('No students found')) {
+        setStudents([]);
+        setSnackbar({
+          open: true,
+          message: 'No students found',
+          severity: 'info',
+        });
+        return; // stop here and avoid throwing error
+      }
+
+      let studentArray: Student[] = [];
+
+      if (data && Array.isArray(data.data)) {
+        studentArray = data.data.map((student: Student) => ({
+          _id: student._id,
+          firstName: student.firstName,
+          lastName: student.lastName,
+          name: student.name || `${student.firstName} ${student.lastName}`,
+          email: student.email,
+          academicDetails: student.academicDetails || { classAdmittedTo: '' },
+          classAdmittedTo: student.academicDetails?.classAdmittedTo || 'Not Assigned',
+          status: student.status,
+          createdAt: student.createdAt,
+          guardian: student.guardian,
+        }));
+      } else {
+        console.error('Unexpected students data format:', data);
+      }
+
+      setStudents(studentArray);
+    } catch (err) {
+      console.error(err);
+      setSnackbar({
+        open: true,
+        message: 'Failed to load student data: ' + (err instanceof Error ? err.message : 'Unknown error'),
+        severity: 'error',
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [authToken, schoolId]);
+
+  // Set and update pin 
   const handleSetPin = useCallback(async () => {
     if (!authToken || !menuStudent || !pinData.newPin) {
       setSnackbar({
@@ -380,42 +408,33 @@ const StudentPage: React.FC = () => {
 
     setPinLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/pin/setforstudent`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          studentEmail: menuStudent.email,
-          pin: pinData.newPin,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to set PIN');
-      }
+      const pinRequest: PinRequest = {
+        studentEmail: menuStudent.email,
+        pin: pinData.newPin,
+      };
+      
+      const result: PinResponse = await setStudentPin(pinRequest);
 
       setSnackbar({
         open: true,
-        message: 'PIN set successfully!',
+        message: result.message || 'PIN set successfully!',
         severity: 'success',
       });
 
       setIsPinModalOpen(false);
       setPinData({ currentPin: '', newPin: '', confirmPin: '' });
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error setting PIN:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to set PIN';
       setSnackbar({
         open: true,
-        message: error instanceof Error ? error.message : 'Failed to set PIN',
+        message: errorMessage,
         severity: 'error',
       });
     } finally {
       setPinLoading(false);
     }
-  }, [authToken, menuStudent, pinData, API_BASE_URL]);
+  }, [authToken, menuStudent, pinData]);
 
   const handleUpdatePin = useCallback(async () => {
     if (!authToken || !menuStudent || !pinData.newPin || !pinData.currentPin) {
@@ -438,42 +457,33 @@ const StudentPage: React.FC = () => {
 
     setPinLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/pin/updateforstudent`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          studentEmail: menuStudent.email,
-          newPin: pinData.newPin,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to update PIN');
-      }
+      const pinRequest: PinRequest = {
+        studentEmail: menuStudent.email,
+        newPin: pinData.newPin,
+      };
+      
+      const result: PinResponse = await updateStudentPin(pinRequest);
 
       setSnackbar({
         open: true,
-        message: 'PIN updated successfully!',
+        message: result.message || 'PIN updated successfully!',
         severity: 'success',
       });
 
       setIsPinModalOpen(false);
       setPinData({ currentPin: '', newPin: '', confirmPin: '' });
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error updating PIN:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update PIN';
       setSnackbar({
         open: true,
-        message: error instanceof Error ? error.message : 'Failed to update PIN',
+        message: errorMessage,
         severity: 'error',
       });
     } finally {
       setPinLoading(false);
     }
-  }, [authToken, menuStudent, pinData, API_BASE_URL]);
+  }, [authToken, menuStudent, pinData]);
 
   // Initial data fetching
   useEffect(() => {
@@ -531,25 +541,10 @@ const StudentPage: React.FC = () => {
       return;
     }
 
-    const endpoint =
-      student.status.toLowerCase() === 'active'
-        ? `${API_BASE_URL}/api/users/deactive/${student._id}`
-        : `${API_BASE_URL}/api/users/active/${student._id}`;
-
     try {
-      const response = await fetch(endpoint, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update student status');
-      }
-
-      const data = await response.json();
+      const data = student.status.toLowerCase() === 'active' 
+        ? await deactivateStudent(student._id)
+        : await activateStudent(student._id);
 
       // Update the student status in the local state
       setStudents(prevStudents =>
@@ -565,34 +560,26 @@ const StudentPage: React.FC = () => {
         message: `Student ${student.status.toLowerCase() === 'active' ? 'deactivated' : 'activated'} successfully`,
         severity: 'success',
       });
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error updating student status:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update student status';
       setSnackbar({
         open: true,
-        message: error instanceof Error ? error.message : 'Failed to update student status',
+        message: errorMessage,
         severity: 'error',
       });
     } finally {
       handleMenuClose();
     }
-  }, [authToken, API_BASE_URL, handleMenuClose]);
+  }, [authToken, handleMenuClose]);
 
   const fetchParents = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/getparents`, {
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) throw new Error('Failed to fetch parents');
-
-      const data = await response.json();
+      const data: ParentsResponse = await getParents();
       console.log('Parents API full response:', data);
 
       // Extract parents based on the response structure you provided
-      let parentsArray = [];
+      let parentsArray: Parent[] = [];
 
       if (data.parent && Array.isArray(data.parent)) {
         // If response has a parent array
@@ -607,62 +594,47 @@ const StudentPage: React.FC = () => {
 
       console.log('Processed parents:', parentsArray);
       setAvailableParents(parentsArray);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error fetching parents:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load available parents';
       setSnackbar({
         open: true,
-        message: 'Failed to load available parents',
+        message: errorMessage,
         severity: 'error',
       });
     }
-  }, [authToken, API_BASE_URL]);
-
+  }, []);
 
   const handleUpdateGuardian = useCallback(async () => {
     if (!guardianEmail || !selectedStudent) return;
 
     setGuardianLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/updateguardian`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          guardianEmail: guardianEmail,
-          kidEmail: selectedStudent.email,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to update guardian');
-      }
-
-      const result = await response.json();
+      const result = await updateGuardian(guardianEmail, selectedStudent.email);
+      
       console.log('Guardian update result:', result);
 
       setSnackbar({
         open: true,
-        message: 'Guardian updated successfully!',
+        message: result.message || 'Guardian updated successfully!',
         severity: 'success',
       });
 
       setIsGuardianModalOpen(false);
       setGuardianEmail('');
       setSelectedStudent(null);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error updating guardian:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update guardian';
       setSnackbar({
         open: true,
-        message: error instanceof Error ? error.message : 'Failed to update guardian',
+        message: errorMessage,
         severity: 'error',
       });
     } finally {
       setGuardianLoading(false);
     }
-  }, [guardianEmail, selectedStudent, authToken, API_BASE_URL]);
+  }, [guardianEmail, selectedStudent]);
 
   const handleGuardianClick = useCallback(async (student: Student) => {
     console.log('Guardian click for student:', student);
@@ -695,35 +667,17 @@ const StudentPage: React.FC = () => {
     setUploadProgress(0);
 
     try {
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-
-      const response = await fetch(`${API_BASE_URL}/api/users/bulkregister`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-        },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to upload students');
-      }
-
-      const result = await response.json();
+      const result = await bulkUploadStudents(selectedFile);
 
       // Handle the bulk upload response format
       if (result.errors && result.errors.length > 0) {
         // There were errors in some rows
-        type BulkError = { row: number; error: string };
-        const errorEntries = result.errors as BulkError[];
-        const errorMessages = errorEntries
+        const errorMessages = result.errors
           .map((err) => `Row ${err.row}: ${err.error}`)
           .join(', ');
 
         const successCount = Array.isArray(result.successes) ? result.successes.length : 0;
-        const errorCount = errorEntries.length;
+        const errorCount = result.errors.length;
 
         setSnackbar({
           open: true,
@@ -745,18 +699,19 @@ const StudentPage: React.FC = () => {
 
       // Refresh student list
       await fetchStudents();
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Bulk upload error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to upload students';
       setSnackbar({
         open: true,
-        message: error instanceof Error ? error.message : 'Failed to upload students',
+        message: errorMessage,
         severity: 'error',
       });
     } finally {
       setBulkUploadLoading(false);
       setUploadProgress(0);
     }
-  }, [selectedFile, authToken, API_BASE_URL, fetchStudents]);
+  }, [selectedFile, authToken, fetchStudents]);
 
   const handleDownloadSample = useCallback(() => {
     // Match the exact format your API expects
@@ -782,61 +737,59 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
     });
   }, []);
 
-
   const handleExport = () => {
-  if (!students || students.length === 0) {
+    if (!students || students.length === 0) {
+      setSnackbar({
+        open: true,
+        message: "No students available to export",
+        severity: "warning",
+      });
+      return;
+    }
+
     setSnackbar({
       open: true,
-      message: "No students available to export",
-      severity: "warning",
+      message: "Exporting students...",
+      severity: "info",
     });
-    return;
-  }
 
-  setSnackbar({
-    open: true,
-    message: "Exporting students...",
-    severity: "info",
-  });
+    // --- Build CSV dynamically ---
+    const headers = Object.keys(students[0]).join(",") + "\n";
 
-  // --- Build CSV dynamically ---
-  const headers = Object.keys(students[0]).join(",") + "\n";
+    const rows = students
+      .map((student) =>
+        Object.values(student)
+          .map((value) => {
+            const strValue = value ?? "";
+            if (typeof strValue === "string" && (strValue.includes(",") || strValue.includes('"'))) {
+              return `"${strValue.replace(/"/g, '""')}"`;
+            }
+            return strValue;
+          })
+          .join(",")
+      )
+      .join("\n");
 
-  const rows = students
-    .map((student) =>
-      Object.values(student)
-        .map((value) => {
-          const strValue = value ?? "";
-          if (typeof strValue === "string" && (strValue.includes(",") || strValue.includes('"'))) {
-            return `"${strValue.replace(/"/g, '""')}"`;
-          }
-          return strValue;
-        })
-        .join(",")
-    )
-    .join("\n");
+    const csvContent = headers + rows;
 
-  const csvContent = headers + rows;
+    // --- Download CSV ---
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
 
-  // --- Download CSV ---
-  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
+    link.href = url;
+    link.download = "students_export.csv";
+    link.click();
 
-  link.href = url;
-  link.download = "students_export.csv";
-  link.click();
+    URL.revokeObjectURL(url);
 
-  URL.revokeObjectURL(url);
-
-  // --- Success message ---
-  setSnackbar({
-    open: true,
-    message: "Students exported successfully",
-    severity: "success",
-  });
-};
-
+    // --- Success message ---
+    setSnackbar({
+      open: true,
+      message: "Students exported successfully",
+      severity: "success",
+    });
+  };
 
   // Data processing
   const filteredStudents = students.filter((s) => {
@@ -1369,7 +1322,6 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
               onClick={() => {
                 setPinAction('set');
                 setIsPinModalOpen(true);
-
               }}
             >
               <KeyIcon className="h-4 w-4" />
@@ -1381,7 +1333,6 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
               onClick={() => {
                 setPinAction('update');
                 setIsPinModalOpen(true);
-
               }}
             >
               <RefreshCwIcon className="h-4 w-4" />
@@ -1631,23 +1582,6 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
             </div>
           </div>
         </div>
-      )}
-      {availableParents.length === 0 ? (
-        <div className="flex justify-center items-center py-4">
-        </div>
-      ) : (
-        <select
-          value={guardianEmail}
-          onChange={(e) => setGuardianEmail(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        >
-          <option value="">Select a guardian...</option>
-          {availableParents.map((parent) => (
-            <option key={parent._id} value={parent.email}>
-              {parent.name} ({parent.email})
-            </option>
-          ))}
-        </select>
       )}
       {/* PIN Management Modal */}
       {isPinModalOpen && menuStudent && (

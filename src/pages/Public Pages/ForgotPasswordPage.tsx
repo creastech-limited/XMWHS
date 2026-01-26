@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import type { FormEvent } from 'react';
+import type { AxiosError } from 'axios';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import { AlertCircle, Mail } from 'lucide-react';
+import { forgotPassword } from '../../services';
 import logo from '../5.png';
 import bgImage from '../bg.jpeg';
 
@@ -13,7 +15,6 @@ const ForgotPasswordPage: React.FC = () => {
   const [formError, setFormError] = useState('');
 
   const navigate = useNavigate();
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   const validateForm = () => {
     if (!email) {
@@ -53,33 +54,28 @@ const ForgotPasswordPage: React.FC = () => {
     setErrorMessage('');
     setMessage('');
 
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/users/forgotpassword`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'ngrok-skip-browser-warning': 'skip-browser-warning',
-        },
-        body: JSON.stringify({ email })
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        setErrorMessage(data.message || 'Failed to send reset link. Please try again.');
-      } else {
-        setMessage('Password reset link has been sent to your email!');
-        setEmail('');
-        setTimeout(() => {
-          navigate('/login');
-        }, 3000);
-      }
-    } catch (error) {
-      console.error('Forgot password error:', error);
-      setErrorMessage('Network error. Please check your connection and try again.');
-    } finally {
-      setIsLoading(false);
-    }
+  try {
+  const data = await forgotPassword(email);
+  
+  // Assuming your API returns success: true on success
+  if (data.success) {
+    setMessage(data.message || 'Password reset link has been sent to your email!');
+    setEmail('');
+    setTimeout(() => {
+      navigate('/login');
+    }, 3000);
+  } else {
+    setErrorMessage(data.message || 'Failed to send reset link. Please try again.');
+  }
+}  catch (error) {
+  const axiosError = error as AxiosError<{ message: string }>;
+  console.error('Forgot password error:', error);
+  setErrorMessage(axiosError.response?.data?.message || 'Network error. Please check your connection and try again.');
+} finally {
+  setIsLoading(false);
+}
   };
+
 
   return (
     <div

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import type { JSX } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { registerStore } from '../../services';
+import type { StoreRegistrationRequest } from '../../types/auth';
 import { 
   Store, 
   ArrowRight, 
@@ -20,8 +22,7 @@ import {
 
 import bgImage from '../bg.jpeg';
 
-// API Base URL
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
 
 // Define steps for the stepper
 const steps = ['Store Information', 'Contact Details', 'Security'];
@@ -252,72 +253,70 @@ const StoreRegistrationForm: React.FC = () => {
 
   setIsSubmitting(true);
 
-  const payload = {
-    firstName: formData.firstName,
-      lastName: formData.lastName,
-      email: formData.email,
-      password: formData.password,
-      role: "store",
-      storeName: formData.storeName,
-      storeType: formData.storeType,
-      phone: formData.phone,
-      location: formData.location,
-      description: formData.description,
-      schoolId: schoolId,
-      schoolName: displaySchool,
-      school: schoolId,
-    };
+ 
 
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/users/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        credentials: 'include'
-      });
-      
-      const result = await response.json();
-      
-      if (!response.ok) {
-        setSnackbar({
-          open: true,
-          message: result.message || "Registration failed",
-          severity: "error"
-        });
-      } else {
-        setSnackbar({
-          open: true,
-          message: result.message || `Store "${formData.storeName}" registered successfully!`,
-          severity: "success"
-        });
-        
-        setFormData({
-          firstName: '',
-          lastName: '',
-          storeName: '',
-          storeType: '',
-          email: '',
-          phone: '',
-          location: '',
-          password: '',
-          confirmPassword: '',
-          description: ''
-        });
-        
-        setTimeout(() => {
-          navigate('/login');
-        }, 2000);
-      }
-    } catch (error) {
-      console.error("Error during registration:", error);
-      setSnackbar({
-        open: true,
-        message: "Network error. Please check your connection and try again.",
-        severity: "error"
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
+  try {
+  const registrationData: StoreRegistrationRequest = {
+    firstName: formData.firstName,
+    lastName: formData.lastName,
+    email: formData.email,
+    password: formData.password,
+    role: "store",
+    storeName: formData.storeName,
+    storeType: formData.storeType,
+    phone: formData.phone,
+    location: formData.location,
+    description: formData.description,
+    schoolId: schoolId,
+    schoolName: displaySchool,
+    school: schoolId,
+  };
+
+  const result = await registerStore(registrationData);
+
+  if (result.success) {
+    setSnackbar({
+      open: true,
+      message: result.message || `Store "${formData.storeName}" registered successfully!`,
+      severity: "success"
+    });
+    
+    setFormData({
+      firstName: '',
+      lastName: '',
+      storeName: '',
+      storeType: '',
+      email: '',
+      phone: '',
+      location: '',
+      password: '',
+      confirmPassword: '',
+      description: ''
+    });
+    
+    setTimeout(() => {
+      navigate('/login');
+    }, 2000);
+  } else {
+    setSnackbar({
+      open: true,
+      message: result.message || "Registration failed",
+      severity: "error"
+    });
+  }
+} catch (error) {
+  console.error("Error during registration:", error);
+  const errorMessage = error instanceof Error && 'response' in error 
+    ? (((error as Record<string, unknown>).response as Record<string, unknown>)?.data as Record<string, unknown>)?.message as string
+    : "Network error. Please check your connection and try again.";
+  setSnackbar({
+    open: true,
+    message: (errorMessage as string) || "Network error. Please check your connection and try again.",
+    severity: "error"
+  });
+} finally {
+  setIsSubmitting(false);
+}
   };
 
   const getStepContent = (step: number): JSX.Element => {
