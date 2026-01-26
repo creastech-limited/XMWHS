@@ -4,38 +4,28 @@ import { Sidebar } from '../../components/Sidebar';
 import Footer from '../../components/Footer';
 import { Store } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import { useParams } from 'react-router-dom';
+import { getStoreById, updateStoreProfile } from '../../services';
 
-interface UserData {
-  _id: string;
-  name: string;
-  email: string;
-  location: string;
-  profilePic: string;
-  createdAt?: string;
-  type: string;
-  phone?: string;
-}
+// Import types
+import type { StoreDetails, StoreProfileFormData } from '../../types/user';
 
 const EditStoreDetails = () => {
   const authContext = useAuth();
   const { id } = useParams<{ id: string }>();
-  const [user, setUser] = useState<UserData | null>(null);
+  const [user, setUser] = useState<StoreDetails | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
-  const [profile, setProfile] = useState({
+  const [profile, setProfile] = useState<StoreProfileFormData>({
     name: '',
     email: '',
     location: '',
     type: '',
     phone: '',
   });
-
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   const getAuthToken = React.useCallback(() => {
     return authContext?.token || localStorage.getItem('token');
@@ -59,55 +49,34 @@ const EditStoreDetails = () => {
       setFetchError(null);
 
       try {
-        const res = await axios.get(`${API_BASE_URL}/api/users/getuser/${id}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          timeout: 10000
-        });
+        // Using the service function instead of axios directly
+        const storeData = await getStoreById(id);
 
-        if (res.data?.user?.data) {
-          setUser(res.data.user.data);
-          setProfile({
-            name: res.data.user.data.name || '',
-            type: res.data.user.data.type || '',
-            email: res.data.user.data.email || '',
-            location: res.data.user.data.location || '',
-            phone: res.data.user.data.phone || '',
-          });
-        } else if (res.data?.data) {
-          setUser(res.data.data);
-          setProfile({
-            name: res.data.data.name || '',
-            type: res.data.data.type || '',
-            email: res.data.data.email || '',
-            location: res.data.data.location || '',
-            phone: res.data.data.phone || '',
-          });
-        } else if (res.data) {
-          setUser(res.data);
-          setProfile({
-            name: res.data.name || '',
-            type: res.data.type || '',
-            email: res.data.email || '',
-            location: res.data.location || '',
-            phone: res.data.phone || '',
-          });
-        } else {
-          setFetchError('Invalid response format from server');
-        }
+        setUser(storeData);
+        setProfile({
+          name: storeData.name || storeData.storeName || '',
+          type: storeData.type || storeData.storeType || '',
+          email: storeData.email || '',
+          location: storeData.location || '',
+          phone: storeData.phone || '',
+        });
       } catch (error) {
         console.error('Error fetching store data:', error);
-        if (axios.isAxiosError(error)) {
-          if (error.code === 'ECONNABORTED') {
-            setFetchError('Request timeout - please try again');
-          } else if (error.response?.status === 404) {
+        
+        // Handle service errors
+        if (error instanceof Error) {
+          const errorMessage = error.message;
+          
+          if (errorMessage.includes('404') || errorMessage.includes('not found')) {
             setFetchError('Store not found');
-          } else if (error.response?.status === 401) {
+          } else if (errorMessage.includes('401') || errorMessage.includes('unauthorized')) {
             setFetchError('Unauthorized - please login again');
+          } else if (errorMessage.includes('Invalid response structure')) {
+            setFetchError('Server returned an unexpected response format');
+          } else if (errorMessage.includes('timeout')) {
+            setFetchError('Request timeout - please try again');
           } else {
-            setFetchError(`Error: ${error.response?.data?.message || error.message}`);
+            setFetchError(`Error: ${errorMessage}`);
           }
         } else {
           setFetchError('An unexpected error occurred');
@@ -118,14 +87,14 @@ const EditStoreDetails = () => {
     };
 
     fetchStoreData();
-  }, [id, authContext?.token, API_BASE_URL, getAuthToken]);
+  }, [id, getAuthToken]);
 
   const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     const token = getAuthToken();
     
     if (!token || !user?._id) {
-      setFetchError('Authentication or user data missing');
+      setFetchError('Authentication or store data missing');
       return;
     }
 
@@ -133,27 +102,27 @@ const EditStoreDetails = () => {
     setFetchError(null);
 
     try {
-      await axios.put(
-        `${API_BASE_URL}/api/users/update-user/${user._id}`,
-        {
-          name: profile.name,
-          email: profile.email,
-          location: profile.location,
-          phone: profile.phone,
-          type: profile.type,
-        },
-        {
-          headers: { 
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
+      // Using the service function instead of axios directly
+      const result = await updateStoreProfile(user._id, profile);
+
+      if (result.message) {
+        // Update local state with returned data if available
+        if (result.data) {
+          setUser(result.data);
+        } else {
+          // Update with form data if no data returned
+          const updatedData = { ...user, ...profile } as StoreDetails;
+          setUser(updatedData);
         }
-      );
-      setIsEditing(false);
+        setIsEditing(false);
+        setFetchError(null);
+      }
     } catch (error) {
       console.error('Profile update failed:', error);
-      if (axios.isAxiosError(error)) {
-        setFetchError(`Update failed: ${error.response?.data?.message || error.message}`);
+      
+      // Handle service errors
+      if (error instanceof Error) {
+        setFetchError(`Update failed: ${error.message}`);
       } else {
         setFetchError('Profile update failed');
       }
