@@ -12,119 +12,17 @@ import { Sidebar } from '../../components/Sidebar';
 import Footer from '../../components/Footer';
 import { useAuth } from '../../context/AuthContext';
 
-// API Configuration
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL;
+// Import services
+import { getStudentById, getFeesForStudent } from '../../services';
 
-// Define TypeScript interfaces
-interface Student {
-  _id: string;
-  student_id?: string;
-  firstName: string;
-  lastName: string;
-  fullName: string;
-  email: string;
-  className?: string;
-  schoolId?: string;
-  parentId?: string;
-  role?: string;
-  phone?: string;
- 
-  academicDetails?: {
-    classAdmittedTo: string;
-    section?: string;
-  };
-  classAdmittedTo?: string;
-  status?: string;
-  createdAt?: string;
-  guardian?: {
-    fullName: string;
-    relationship: string;
-    email: string;
-  };
-}
-interface SchoolFee {
-  _id: string;
-  studentId: string;
-  feeId: string;
-  amount: number;
-  feeType: string;
-  term: string;
-  session: string;
-  className: string;
-  schoolId: string;
-  amountPaid: number;
-  paymentMethod: string;
-  transactionId: string;
-  status: 'Paid' | 'Unpaid' | 'partial';
-  paymentDate: string;
-  createdAt: string;
-  updatedAt: string;
-  __v?: number;
-}
-
-interface Bill {
-  id: string;
-  _id: string;
-  feeId: string;
-  description: string;
-  amount: number;
-  amountPaid: number;
-  dueDate: string;
-  status: 'paid' | 'unpaid';
-  term: string;
-  session: string;
-  transactionId: string;
-}
-
-interface Summary {
-  total: number;
-  paid: number;
-  remaining: number;
-}
+// Import types
+import type { Student, SchoolFee, Bill, TransactionSummary } from '../../types/student';
 
 interface SnackbarState {
   open: boolean;
   message: string;
   severity: 'success' | 'error' | 'info' | 'warning';
 }
-
-// Fetch fees for a student by email
-const fetchFeesForStudent = async (
-  authToken: string,
-  email: string
-): Promise<SchoolFee[]> => {
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}/api/fee/getFeeForStudent/${encodeURIComponent(email)}`,
-      {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
-
-    // The API may return { success, data: [...] } or just an array
-    if (Array.isArray(data)) {
-      return data as SchoolFee[];
-    } else if (Array.isArray(data?.data)) {
-      return data.data as SchoolFee[];
-    } else {
-      return [];
-    }
-  } catch (error) {
-    console.error('Error fetching fees for student:', error);
-    return [];
-  }
-};
 
 const ViewStudentTransactions: React.FC = () => {
   const { _id: studentIdFromUrl } = useParams();
@@ -174,93 +72,6 @@ const ViewStudentTransactions: React.FC = () => {
     }
   }, [auth?.token, showSnackbar]);
 
-  // Fetch single student by ID
- // Fetch single student by ID
-const fetchStudentById = useCallback(
-  async (authToken: string, _Id: string): Promise<Student | null> => {
-    try {
-      console.log(`Fetching student with ID: ${_Id}`);
-
-      const response = await fetch(
-        `${API_BASE_URL}/api/users/getuser/${_Id}`,
-        {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${authToken}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log('Raw student API response:', data);
-
-      let studentData: Partial<Student> | null = null;
-
-      if (data?.data) {
-        studentData = data.data;
-      } else if (data?.user) {
-        studentData = data.user;
-      } else if (data) {
-        studentData = data;
-      }
-
-      if (!studentData?._id) {
-        throw new Error('Invalid student data structure received');
-      }
-
-      // Extract class information using multiple possible paths (like the main StudentPage)
-      const classAdmittedTo = studentData.academicDetails?.classAdmittedTo || 
-                             studentData.classAdmittedTo || 
-                             studentData.className ||
-                             'Not Assigned';
-
-      // Process the student data
-      const processedStudent: Student = {
-        _id: studentData._id,
-        student_id: studentData.student_id || studentData._id,
-        firstName: studentData.firstName || 'Unknown',
-        lastName: studentData.lastName || '',
-        fullName:
-          studentData.fullName ||
-          `${studentData.firstName || 'Unknown'} ${studentData.lastName || ''}`.trim(),
-        email: studentData.email || '',
-        className: classAdmittedTo,
-        schoolId: studentData.schoolId,
-        parentId: studentData.parentId,
-        role: studentData.role,
-        phone: studentData.phone,
-        // Include the academic details structure
-        academicDetails: {
-          classAdmittedTo: classAdmittedTo,
-          section: studentData.academicDetails?.section ||  '',
-        },
-        classAdmittedTo: classAdmittedTo, // For consistency
-        status: studentData.status,
-        createdAt: studentData.createdAt,
-        guardian: studentData.guardian,
-      };
-
-      console.log('Processed student:', processedStudent);
-      console.log('Class information:', {
-        className: processedStudent.className,
-        academicDetails: processedStudent.academicDetails,
-        classAdmittedTo: processedStudent.classAdmittedTo
-      });
-      return processedStudent;
-    } catch (error) {
-      console.error('Error fetching student:', error);
-      showSnackbar('Failed to fetch student. Please try again.', 'error');
-      return null;
-    }
-  },
-  [showSnackbar]
-);
-
   // Transform fees to bills format
   const transformFeesToBills = useCallback((fees: SchoolFee[]): Bill[] => {
     return fees.map((fee) => ({
@@ -294,15 +105,7 @@ const fetchStudentById = useCallback(
 
         setLoadingFees(true);
 
-        const authToken = getAuthToken();
-        if (!authToken) {
-          throw new Error('No authentication token found');
-        }
-
-        const studentFees = await fetchFeesForStudent(
-          authToken,
-          studentData.email
-        );
+        const studentFees = await getFeesForStudent(studentData.email);
         console.log('Fetched fees for student:', studentFees);
 
         const transformedBills = transformFeesToBills(studentFees);
@@ -311,10 +114,10 @@ const fetchStudentById = useCallback(
         setBills(transformedBills);
 
         if (transformedBills.length === 0) {
-          showSnackbar(`No fees found for ${studentData.fullName}`, 'info');
+          showSnackbar(`No fees found for ${studentData.firstName} ${studentData.lastName}`, 'info');
         } else {
           showSnackbar(
-            `Loaded ${transformedBills.length} transactions for ${studentData.fullName}`,
+            `Loaded ${transformedBills.length} transactions for ${studentData.firstName} ${studentData.lastName}`,
             'success'
           );
         }
@@ -325,7 +128,7 @@ const fetchStudentById = useCallback(
         setLoadingFees(false);
       }
     },
-    [transformFeesToBills, showSnackbar, getAuthToken]
+    [transformFeesToBills, showSnackbar]
   );
 
   // Initialize data - Only run once when component mounts
@@ -342,13 +145,27 @@ const fetchStudentById = useCallback(
 
         // Only fetch if we have a student ID in the URL
         if (studentIdFromUrl) {
-          const studentData = await fetchStudentById(
-            authToken,
-            studentIdFromUrl
-          );
+          // Using the getStudentById service function
+          const studentData = await getStudentById(studentIdFromUrl);
+          
+          // Process the student data for display
           if (studentData) {
-            setStudent(studentData);
-            await loadStudentFees(studentData);
+            // Create processed student object with fullName
+            const processedStudent: Student & { fullName: string } = {
+              _id: studentData._id,
+              name: studentData.name || `${studentData.firstName || ''} ${studentData.lastName || ''}`.trim(),
+              firstName: studentData.firstName || '',
+              lastName: studentData.lastName || '',
+              fullName: studentData.name || `${studentData.firstName || ''} ${studentData.lastName || ''}`.trim(),
+              email: studentData.email || '',
+              academicDetails: studentData.academicDetails || { classAdmittedTo: '' },
+              classAdmittedTo: studentData.academicDetails?.classAdmittedTo || studentData.class || '',
+              status: studentData.status || '',
+              createdAt: studentData.createdAt || '',
+            };
+            
+            setStudent(processedStudent);
+            await loadStudentFees(processedStudent);
           } else {
             showSnackbar('Student not found', 'error');
           }
@@ -370,7 +187,7 @@ const fetchStudentById = useCallback(
   }, [studentIdFromUrl]); // Only depend on studentIdFromUrl
 
   // Calculate summary
-  const calculateSummary = (): Summary => {
+  const calculateSummary = (): TransactionSummary => {
     const total = bills.reduce((sum, bill) => sum + bill.amount, 0);
     const paid = bills.reduce((sum, bill) => sum + bill.amountPaid, 0);
 
@@ -446,32 +263,31 @@ const fetchStudentById = useCallback(
 
             {student && !loadingFees && (
               <>
-               <div className="mb-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
-  <div className="flex items-center gap-3">
-    <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center">
-      <UserIcon className="h-6 w-6 text-indigo-600" />
-    </div>
-    <div>
-      <h3 className="text-lg font-semibold text-indigo-900">
-        {student.fullName}
-      </h3>
-      <p className="text-sm text-indigo-600">
-        Class: {student.academicDetails?.classAdmittedTo || student.classAdmittedTo || student.className || 'Not Assigned'}
-        {student.academicDetails?.section && ` - Section ${student.academicDetails.section}`}
-      </p>
-      {student.email && (
-        <p className="text-xs text-indigo-500">
-          {student.email}
-        </p>
-      )}
-      {student.status && (
-        <p className="text-xs text-indigo-400 mt-1">
-          Status: <span className="capitalize">{student.status}</span>
-        </p>
-      )}
-    </div>
-  </div>
-</div>
+                <div className="mb-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center">
+                      <UserIcon className="h-6 w-6 text-indigo-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-indigo-900">
+                        {student.name || `${student.firstName} ${student.lastName}`.trim()}
+                      </h3>
+                      <p className="text-sm text-indigo-600">
+                        Class: {student.academicDetails?.classAdmittedTo || student.classAdmittedTo || 'Not Assigned'}
+                      </p>
+                      {student.email && (
+                        <p className="text-xs text-indigo-500">
+                          {student.email}
+                        </p>
+                      )}
+                      {student.status && (
+                        <p className="text-xs text-indigo-400 mt-1">
+                          Status: <span className="capitalize">{student.status}</span>
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                   <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
@@ -507,7 +323,7 @@ const fetchStudentById = useCallback(
                 </div>
 
                 <h2 className="text-xl font-semibold text-gray-800 mb-2">
-                  {student.fullName}'s Transactions
+                  {student.name || `${student.firstName} ${student.lastName}`.trim()}'s Transactions
                 </h2>
                 <hr className="mb-6" />
 
@@ -604,7 +420,7 @@ const fetchStudentById = useCallback(
                   <div className="flex flex-col items-center justify-center py-16">
                     <DocumentTextIcon className="h-16 w-16 text-gray-300 mb-4" />
                     <p className="text-gray-500 text-lg">
-                      No transactions found for {student.fullName}
+                      No transactions found for {student.name || `${student.firstName} ${student.lastName}`.trim()}
                     </p>
                     <p className="text-sm text-gray-400 mt-2">
                       Transactions will appear here when payments are made

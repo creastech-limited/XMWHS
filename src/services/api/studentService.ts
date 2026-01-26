@@ -3,7 +3,9 @@ import type {
   StudentsResponse,
   ParentsResponse,
   PinRequest,
-  PinResponse
+  PinResponse,
+  StudentDetails, StudentProfileFormData,
+  SchoolFee,
 } from '../../types/student';
 
 // Get students by school ID
@@ -74,4 +76,76 @@ export const bulkUploadStudents = async (file: File): Promise<{
     },
   });
   return response.data;
+};
+
+// Get student by ID
+export const getStudentById = async (studentId: string): Promise<StudentDetails> => {
+  const response = await apiClient.get<{
+    user?: { data?: StudentDetails } | StudentDetails;
+    data?: StudentDetails;
+  }>(`/api/users/getuser/${studentId}`);
+  
+  const responseData = response.data;
+  
+  // Handle different API response structures
+  if (responseData.user) {
+    if ('data' in responseData.user && responseData.user.data) {
+      return responseData.user.data;
+    } else if ('_id' in responseData.user) {
+      return responseData.user as StudentDetails;
+    }
+  }
+  
+  if (responseData.data) {
+    return responseData.data;
+  }
+  
+  throw new Error('Invalid response structure from server');
+};
+
+// Update student profile
+export const updateStudentProfile = async (
+  studentId: string, 
+  profileData: StudentProfileFormData
+): Promise<{ message: string; data?: StudentDetails }> => {
+  const response = await apiClient.put<{ message: string; data?: StudentDetails }>(
+    `/api/users/update-user/${studentId}`,
+    profileData
+  );
+  return response.data;
+};
+
+// Fetch fees for a student by email
+export const getFeesForStudent = async (email: string): Promise<SchoolFee[]> => {
+  const response = await apiClient.get<SchoolFee[] | { data: SchoolFee[] }>(
+    `/api/fee/getFeeForStudent/${encodeURIComponent(email)}`
+  );
+  
+  const responseData = response.data;
+  
+  // Handle different API response structures
+  if (Array.isArray(responseData)) {
+    return responseData;
+  } else if (Array.isArray(responseData?.data)) {
+    return responseData.data;
+  }
+  
+  return [];
+};
+
+// Fetch fees by student ID 
+export const getFeesByStudentId = async (studentId: string): Promise<SchoolFee[]> => {
+  const response = await apiClient.get<SchoolFee[] | { data: SchoolFee[] }>(
+    `/api/fee/student/${studentId}`
+  );
+  
+  const responseData = response.data;
+  
+  if (Array.isArray(responseData)) {
+    return responseData;
+  } else if (Array.isArray(responseData?.data)) {
+    return responseData.data;
+  }
+  
+  return [];
 };

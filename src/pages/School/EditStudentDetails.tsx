@@ -4,50 +4,33 @@ import { Sidebar } from '../../components/Sidebar';
 import Footer from '../../components/Footer';
 import { UsersIcon } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import { useParams } from 'react-router-dom';
 
-interface UserData {
-  _id: string;
-  name: string;
-  email: string;
-  phone: string;
-  profilePic: string;
-  createdAt?: string;
-  class: string;
-  address: string;
-  firstName?: string;
-  lastName?: string;
-  academicDetails?: {
-    classAdmittedTo: string;
-  };
-  status?: string;
-  role?: string;
-}
+// Import services
+import { getStudentById, updateStudentProfile } from '../../services';
+
+// Import types
+import type { StudentDetails, StudentProfileFormData } from '../../types/student';
 
 const EditStudentDetails = () => {
   const auth = useAuth();
   const { _id } = useParams<{ _id: string }>();
   
   // State management
-  const [user, setUser] = useState<UserData | null>(null);
+  const [user, setUser] = useState<StudentDetails | null>(null);
   const [fetchLoading, setFetchLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   // Profile State
-  const [profile, setProfile] = useState({
+  const [profile, setProfile] = useState<StudentProfileFormData>({
     name: '',
     email: '',
     phone: '',
     class: '',
     address: '',
   });
-
-  
-  const API_BASE_URL = 
-    import.meta.env.VITE_API_BASE_URL;
 
   // Get token from auth context or localStorage
   const getAuthToken = () => {
@@ -73,27 +56,7 @@ const EditStudentDetails = () => {
       setFetchLoading(true);
       setError(null);
       
-      const res = await axios.get(`${API_BASE_URL}/api/users/getuser/${_id}`, {
-        headers: { 
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        timeout: 10000
-      });
-      
-      // Handle different API response structures
-      let studentData: UserData;
-      if (res.data.user?.data) {
-        studentData = res.data.user.data;
-      } else if (res.data.data) {
-        studentData = res.data.data;
-      } else if (res.data.user) {
-        studentData = res.data.user;
-      } else if (res.data._id) {
-        studentData = res.data;
-      } else {
-        throw new Error('Invalid response structure from server');
-      }
+      const studentData = await getStudentById(_id);
 
       setUser(studentData);
       setProfile({
@@ -113,20 +76,22 @@ const EditStudentDetails = () => {
 
   // Handle fetch errors
   const handleFetchError = (error: unknown) => {
-    if (axios.isAxiosError(error)) {
-      if (error.response?.status === 401) {
+    if (error instanceof Error) {
+      const errorMessage = error.message;
+      
+      if (errorMessage.includes('401') || errorMessage.includes('unauthorized')) {
         setError('Session expired. Please login again.');
         auth?.logout?.();
         localStorage.removeItem('token');
-      } else if (error.response?.status === 404) {
+      } else if (errorMessage.includes('404')) {
         setError('Student not found. The student may have been deleted or the ID is invalid.');
-      } else if (error.response?.status === 403) {
+      } else if (errorMessage.includes('403')) {
         setError('Access denied. You do not have permission to view this student.');
+      } else if (errorMessage.includes('Invalid response structure')) {
+        setError('Server returned an unexpected response format.');
       } else {
-        setError(error.response?.data?.message || error.message || 'Failed to fetch student data');
+        setError(errorMessage || 'Failed to fetch student data');
       }
-    } else if (error instanceof Error) {
-      setError(error.message || 'Failed to fetch student data');
     } else {
       setError('An unexpected error occurred while fetching student data');
     }
@@ -156,7 +121,7 @@ const EditStudentDetails = () => {
     setError(null);
 
     // Enhanced validation
-    const trimmedProfile = {
+    const trimmedProfile: StudentProfileFormData = {
       name: profile.name.trim(),
       email: profile.email.trim(),
       phone: profile.phone.trim(),
@@ -185,28 +150,23 @@ const EditStudentDetails = () => {
     }
 
     try {
-      const response = await axios.put(
-        `${API_BASE_URL}/api/users/update-user/${_id}`,
-        trimmedProfile,
-        {
-          headers: { 
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          timeout: 10000
-        }
-      );
+      const result = await updateStudentProfile(_id, trimmedProfile);
 
-      if (response.data) {
-        // Update local state
-        const updatedData = { ...user, ...trimmedProfile };
-        setUser(updatedData as UserData);
+      if (result.message) {
+        // Update local state with returned data if available
+        if (result.data) {
+          setUser(result.data);
+        } else {
+          // Update with form data if no data returned
+          const updatedData = { ...user, ...trimmedProfile } as StudentDetails;
+          setUser(updatedData);
+        }
         setProfile(trimmedProfile);
         
         // Update auth context if editing current user
         if (auth?.user?._id === _id) {
           const userWithRole = { 
-            ...updatedData, 
+            ...(result.data || { ...user, ...trimmedProfile }), 
             _id: _id,
             role: user?.role ?? 'student'
           };
@@ -224,20 +184,20 @@ const EditStudentDetails = () => {
 
   // Handle update errors
   const handleUpdateError = (error: unknown) => {
-    if (axios.isAxiosError(error)) {
-      if (error.response?.status === 401) {
+    if (error instanceof Error) {
+      const errorMessage = error.message;
+      
+      if (errorMessage.includes('401') || errorMessage.includes('unauthorized')) {
         setError('Session expired. Please login again.');
         auth?.logout?.();
         localStorage.removeItem('token');
-      } else if (error.response?.status === 404) {
+      } else if (errorMessage.includes('404')) {
         setError('Student not found. Unable to update profile.');
-      } else if (error.response?.status === 403) {
+      } else if (errorMessage.includes('403')) {
         setError('Access denied. You do not have permission to update this student.');
       } else {
-        setError(error.response?.data?.message || error.message || 'Failed to update profile');
+        setError(errorMessage || 'Failed to update profile');
       }
-    } else if (error instanceof Error) {
-      setError(error.message || 'Failed to update profile');
     } else {
       setError('An unexpected error occurred while updating profile');
     }

@@ -20,22 +20,11 @@ import { Sidebar } from '../../components/Sidebar';
 import Footer from '../../components/Footer';
 import { useAuth } from '../../context/AuthContext';
 
-type Store = {
-  _id: string;
-  storeName: string;
-  storeType: string;
-  location: string;
-  email: string;
-  phone: string;
-  status: string;
-  createdAt: string;
-};
+// Import services
+import { getUserDetails, getStoresBySchoolId, getStoreCountBySchoolId, resetPassword, activateStore, deactivateStore } from '../../services';
 
-type SnackbarState = {
-  open: boolean;
-  message: string;
-  severity: 'success' | 'error' | 'info' | 'warning';
-};
+// Import types
+import type { Store as StoreType, UserResponse, SnackbarState } from '../../types/user';
 
 export const StorePage: React.FC = () => {
   // Auth context for getting token
@@ -45,12 +34,12 @@ export const StorePage: React.FC = () => {
 
   // UI state
   const [dropdownOpen, setDropdownOpen] = useState<string | null>(null);
-  const [menuStore, setMenuStore] = useState<Store | null>(null);
+  const [menuStore, setMenuStore] = useState<StoreType | null>(null);
 
   // Store data state
   const [schoolId, setSchoolId] = useState('');
   const [storeLink, setStoreLink] = useState('');
-  const [stores, setStores] = useState<Store[]>([]);
+  const [stores, setStores] = useState<StoreType[]>([]);
   const [storeCount, setStoreCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -65,176 +54,97 @@ export const StorePage: React.FC = () => {
   });
   const [activeStoreCount, setActiveStoreCount] = useState(0);
 
-  // Use API base URL from environment variable or default
-  const API_BASE_URL =
-    import.meta.env.VITE_API_BASE_URL;
+  // 1) Fetch user profile to get schoolId and storeLink
+  useEffect(() => {
+    if (!authToken) return;
 
-// 1) Fetch user profile to get schoolId and storeLink
-useEffect(() => {
-  if (!authToken) return;
+    const fetchUserProfile = async () => {
+      try {
+        const data: UserResponse = await getUserDetails();
+        
+        // Extract user data safely
+        let userProfile: Record<string, unknown>;
+        if (data.user?.data) {
+          userProfile = data.user.data as Record<string, unknown>;
+        } else if (data.user) {
+          userProfile = data.user as Record<string, unknown>;
+        } else if (data.data) {
+          userProfile = data.data as Record<string, unknown>;
+        } else {
+          userProfile = data as Record<string, unknown>;
+        }
 
-  fetch(`${API_BASE_URL}/api/users/getuserone`, {
-    headers: {
-      Authorization: `Bearer ${authToken}`,
-      'Content-Type': 'application/json',
-    },
-  })
-    .then((res) => {
-      if (!res.ok) throw new Error('Failed to fetch user profile');
-      return res.json();
-    })
-    .then((data) => {
-      const profile = data.user || data;
-      const schoolId = profile.data?.schoolId || profile.schoolId;
-      const schoolName = profile.data?.schoolName || profile.schoolName || profile.data?.name || profile.name || '';
-      
-      if (!schoolId) {
-        throw new Error('School ID not found in user profile');
+        const schoolId = (userProfile?.schoolId as string) || '';
+        const schoolName = (userProfile?.schoolName as string) || (userProfile?.data as Record<string, unknown>)?.schoolName as string || (userProfile?.name as string) || '';
+        const linkPath = (userProfile?.Link as string) || (userProfile?.data as Record<string, unknown>)?.Link as string || '';
+        
+        if (!schoolId) {
+          throw new Error('School ID not found in user profile');
+        }
+
+        setSchoolId(schoolId);
+
+        // Construct the full store registration link with schoolId and schoolName
+        const fullLink = `${window.location.origin}/stores/new${linkPath}?schoolId=${schoolId}&schoolName=${encodeURIComponent(schoolName)}`;
+        setStoreLink(fullLink);
+      } catch (err) {
+        console.error(err);
+        const errorMessage = err instanceof Error ? err.message : 'Failed to fetch user profile';
+        setSnackbar({ open: true, message: errorMessage, severity: 'error' });
       }
+    };
 
-      setSchoolId(schoolId);
+    fetchUserProfile();
+  }, [authToken]);
 
-      // Construct the full store registration link with schoolId and schoolName
-      const linkPath = profile.Link || profile.data?.Link || '';
-      const fullLink = `${window.location.origin}/stores/new${linkPath}?schoolId=${schoolId}&schoolName=${encodeURIComponent(schoolName)}`;
-      setStoreLink(fullLink);
-    })
-    .catch((err) => {
-      console.error(err);
-      setSnackbar({ open: true, message: err.message, severity: 'error' });
-    });
-}, [authToken, API_BASE_URL]);
+  // 2) Fetch stores for this schoolId
+  useEffect(() => {
+    if (!authToken || !schoolId) return;
 
-// 2) Fetch stores for this schoolId using the getstorebyid endpoint
-useEffect(() => {
-  if (!authToken || !schoolId) return;
-
-  setLoading(true);
-  fetch(
-    `${API_BASE_URL}/api/users/getstorebyid?id=${encodeURIComponent(schoolId)}`,
-    {
-      headers: {
-        Authorization: `Bearer ${authToken}`,
-        'Content-Type': 'application/json',
-      },
-    }
-  )
-    .then((res) => {
-      if (!res.ok) throw new Error('Failed to fetch stores');
-      return res.json();
-    })
-    .then((data) => {
-      console.log('Stores API response:', data);
-      
-      let storeArray: Store[] = [];
-      
-      // Handle the specific response format: {"message":"No store found in this school"}
-      if (data.message && data.message.includes('No store found')) {
-        // This is a valid "no stores" response - NOT an error
-        storeArray = [];
-        console.log('No stores found for this school - this is normal');
-      } 
-      // Handle case where stores are found in data array
-      else if (data && Array.isArray(data)) {
-        storeArray = data;
+    const fetchStores = async () => {
+      setLoading(true);
+      try {
+        const storeData = await getStoresBySchoolId(schoolId);
+        console.log('Stores API response:', storeData);
+        
+        setStores(storeData);
+      } catch (err) {
+        console.error('Fetch error:', err);
+        setStores([]);
+        // No snackbar error for store fetching - empty state UI handles it
+      } finally {
+        setLoading(false);
       }
-      // Handle case where stores are in data.data array
-      else if (data && data.data && Array.isArray(data.data)) {
-        storeArray = data.data;
-      }
-      // Handle unexpected format but with stores array
-      else if (data && Array.isArray(data.stores)) {
-        storeArray = data.stores;
-      }
-      else {
-        console.log('No stores found or unexpected format:', data);
-        storeArray = [];
-      }
+    };
 
-      setStores(storeArray);
-      setLoading(false);
-    })
-    .catch((err) => {
-      console.error('Fetch error:', err);
-      setStores([]);
-      setLoading(false);
-      // REMOVED the snackbar error completely for store fetching
-      // The empty state UI will handle the "no stores" case
-    });
-}, [authToken, schoolId, API_BASE_URL]);
+    fetchStores();
+  }, [authToken, schoolId]);
 
- // 3) Fetch store count for this schoolId
-useEffect(() => {
-  if (!authToken || !schoolId) return;
+  // 3) Fetch store count for this schoolId
+  useEffect(() => {
+    if (!authToken || !schoolId) return;
 
-  // Fetch total store count
-  fetch(
-    `${API_BASE_URL}/api/users/getstorebyidcount?id=${encodeURIComponent(schoolId)}`,
-    {
-      headers: {
-        Authorization: `Bearer ${authToken}`,
-        'Content-Type': 'application/json',
-      },
-    }
-  )
-    .then((res) => {
-      if (!res.ok) throw new Error('Failed to fetch store count');
-      return res.json();
-    })
-    .then((data) => {
-      console.log('Store count API response:', data); // Debug log
-      
-      // Handle the specific response format: {"message":"Found 0 store(s) in xpay school","data":0}
-      if (data.data !== undefined && data.data !== null) {
-        setStoreCount(data.data);
-      } else if (typeof data === 'number') {
-        setStoreCount(data);
-      } else {
-        // Fallback to local stores count
+    const fetchStoreCounts = async () => {
+      try {
+        // Fetch total store count
+        const totalCount = await getStoreCountBySchoolId(schoolId);
+        setStoreCount(totalCount);
+
+        // Fetch active store count
+        const activeCount = await getStoreCountBySchoolId(schoolId, 'active');
+        setActiveStoreCount(activeCount);
+      } catch (err) {
+        console.error('Store count error:', err);
+        // Fallback to local counts
         setStoreCount(stores.length);
-      }
-    })
-    .catch((err) => {
-      console.error('Store count error:', err);
-      setStoreCount(stores.length);
-    });
-
-  // Fetch active store count
-  fetch(
-    `${API_BASE_URL}/api/users/getstorebyidcount?id=${encodeURIComponent(schoolId)}&status=active`,
-    {
-      headers: {
-        Authorization: `Bearer ${authToken}`,
-        'Content-Type': 'application/json',
-      },
-    }
-  )
-    .then((res) => {
-      if (!res.ok) throw new Error('Failed to fetch active store count');
-      return res.json();
-    })
-    .then((data) => {
-      console.log('Active store count API response:', data); // Debug log
-      
-      // Handle the specific response format
-      if (data.data !== undefined && data.data !== null) {
-        setActiveStoreCount(data.data);
-      } else if (typeof data === 'number') {
-        setActiveStoreCount(data);
-      } else {
-        // Fallback to local active stores count
         setActiveStoreCount(
           stores.filter((s) => s?.status?.toLowerCase() === 'active').length
         );
       }
-    })
-    .catch((err) => {
-      console.error('Active store count error:', err);
-      setActiveStoreCount(
-        stores.filter((s) => s?.status?.toLowerCase() === 'active').length
-      );
-    });
-}, [authToken, schoolId, API_BASE_URL, stores]);
+    };
+
+    fetchStoreCounts();
+  }, [authToken, schoolId, stores]);
 
   // Filter stores based on search, status, and type
   const filteredStores = stores.filter((store) => {
@@ -284,73 +194,72 @@ useEffect(() => {
       });
   };
 
- const handleExport = () => {
-  if (!stores || stores.length === 0) {
+  const handleExport = () => {
+    if (!stores || stores.length === 0) {
+      setSnackbar({
+        open: true,
+        message: "No stores available to export",
+        severity: "warning",
+      });
+      return;
+    }
+
     setSnackbar({
       open: true,
-      message: "No stores available to export",
-      severity: "warning",
+      message: "Exporting store data...",
+      severity: "info",
     });
-    return;
-  }
 
-  setSnackbar({
-    open: true,
-    message: "Exporting store data...",
-    severity: "info",
-  });
+    // ----- Build CSV with fixed headers -----
+    const headers = [
+      "_id",
+      "storeName",
+      "storeType",
+      "location",
+      "email",
+      "phone",
+      "status",
+      "createdAt"
+    ];
 
-  // ----- Build CSV with fixed headers -----
-  const headers = [
-    "_id",
-    "storeName",
-    "storeType",
-    "location",
-    "email",
-    "phone",
-    "status",
-    "createdAt"
-  ];
+    const csvHeader = headers.join(",") + "\n";
 
-  const csvHeader = headers.join(",") + "\n";
+    const csvRows = stores
+      .map((store) =>
+        headers
+          .map((key) => {
+            const value = (store as unknown as Record<string, unknown>)[key] ?? "";
 
-  const csvRows = stores
-    .map((store) =>
-      headers
-        .map((key) => {
-          const value = (store as any)[key] ?? "";
+            // Escape if contains comma or quote
+            if (typeof value === "string" && (value.includes(",") || value.includes('"'))) {
+              return `"${value.replace(/"/g, '""')}"`;
+            }
+            return value;
+          })
+          .join(",")
+      )
+      .join("\n");
 
-          // Escape if contains comma or quote
-          if (typeof value === "string" && (value.includes(",") || value.includes('"'))) {
-            return `"${value.replace(/"/g, '""')}"`;
-          }
-          return value;
-        })
-        .join(",")
-    )
-    .join("\n");
+    const csvContent = csvHeader + csvRows;
 
-  const csvContent = csvHeader + csvRows;
+    // ----- Download the CSV -----
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
 
-  // ----- Download the CSV -----
-  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
+    link.href = url;
+    link.download = "stores_export.csv";
+    link.click();
 
-  link.href = url;
-  link.download = "stores_export.csv";
-  link.click();
+    URL.revokeObjectURL(url);
 
-  URL.revokeObjectURL(url);
-
-  // ----- Success snackbar -----
-  setSnackbar({
-    open: true,
-    message: "Stores exported successfully",
-    severity: "success",
-  });
-};
-
+    // ----- Success snackbar -----
+    setSnackbar({
+      open: true,
+      message: "Stores exported successfully",
+      severity: "success",
+    });
+  };
 
   // Handle menu close
   const handleMenuClose = () => {
@@ -359,20 +268,10 @@ useEffect(() => {
   };
 
   // Handle Reset Password
-  const handleResetPassword = async (store: Store) => {
+  const handleResetPassword = async (store: StoreType) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/resetpassword`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email: store.email }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to reset password');
-      }
+      const tempPassword = Math.random().toString(36).slice(-8);
+      await resetPassword(store.email, tempPassword);
 
       setSnackbar({
         open: true,
@@ -381,9 +280,10 @@ useEffect(() => {
       });
     } catch (error) {
       console.error('Error resetting password:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to reset password';
       setSnackbar({
         open: true,
-        message: error instanceof Error ? error.message : 'Failed to reset password',
+        message: errorMessage,
         severity: 'error',
       });
     } finally {
@@ -392,32 +292,17 @@ useEffect(() => {
   };
 
   // Handle Activate/Deactivate Store
-  const handleActivateDeactivate = async (store: Store) => {
-    const endpoint = 
-      store.status.toLowerCase() === 'active'
-        ? `${API_BASE_URL}/api/users/deactive/${store._id}`
-        : `${API_BASE_URL}/api/users/active/${store._id}`;
-
+  const handleActivateDeactivate = async (store: StoreType) => {
     try {
-      const response = await fetch(endpoint, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update store status');
-      }
-
-      const data = await response.json();
+      const result = store.status.toLowerCase() === 'active'
+        ? await deactivateStore(store._id)
+        : await activateStore(store._id);
       
       // Update the store status in the local state
       setStores(prevStores =>
         prevStores.map(s =>
           s._id === store._id
-            ? { ...s, status: data.status || (store.status.toLowerCase() === 'active' ? 'inactive' : 'active') }
+            ? { ...s, status: result.status || (store.status.toLowerCase() === 'active' ? 'inactive' : 'active') }
             : s
         )
       );
@@ -429,9 +314,10 @@ useEffect(() => {
       });
     } catch (error) {
       console.error('Error updating store status:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update store status';
       setSnackbar({
         open: true,
-        message: error instanceof Error ? error.message : 'Failed to update store status',
+        message: errorMessage,
         severity: 'error',
       });
     } finally {
@@ -480,7 +366,7 @@ useEffect(() => {
   };
 
   // Toggle dropdown menu for a store
-  const toggleDropdown = (id: string, store: Store) => {
+  const toggleDropdown = (id: string, store: StoreType) => {
     if (dropdownOpen === id) {
       setDropdownOpen(null);
       setMenuStore(null);
@@ -641,6 +527,7 @@ useEffect(() => {
               </div>
             </div>
           </div>
+          
           {/* Loading Indicator */}
           {loading ? (
             <div className="flex justify-center py-12">
@@ -648,71 +535,57 @@ useEffect(() => {
             </div>
           ) : (
             <>
-           {filteredStores.length === 0 ? (
-  <div className="bg-white rounded-xl shadow-sm p-12 text-center border border-gray-100">
-    <Store className="mx-auto h-12 w-12 text-gray-300 mb-3" />
-    <h3 className="text-xl font-semibold text-gray-700 mb-2">
-      {loading ? 'Loading stores...' : 'No stores found'}
-    </h3>
-    <p className="text-gray-500 mb-4">
-      {loading 
-        ? 'Please wait while we load your store data' 
-        : 'No stores are currently registered for your school'
-      }
-    </p>
-    {!loading && (
-      <button
-        onClick={() => {
-          if (storeLink) {
-            window.location.href = storeLink;
-          }
-        }}
-        className="flex items-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition-colors shadow-sm mx-auto"
-      >
-        <Plus className="h-5 w-5" />
-        <span>Add Your First Store</span>
-      </button>
-    )}
-  </div>
-) : (
+              {filteredStores.length === 0 ? (
+                <div className="bg-white rounded-xl shadow-sm p-12 text-center border border-gray-100">
+                  <Store className="mx-auto h-12 w-12 text-gray-300 mb-3" />
+                  <h3 className="text-xl font-semibold text-gray-700 mb-2">
+                    {loading ? 'Loading stores...' : 'No stores found'}
+                  </h3>
+                  <p className="text-gray-500 mb-4">
+                    {loading 
+                      ? 'Please wait while we load your store data' 
+                      : 'No stores are currently registered for your school'
+                    }
+                  </p>
+                  {!loading && (
+                    <button
+                      onClick={() => {
+                        if (storeLink) {
+                          window.location.href = storeLink;
+                        }
+                      }}
+                      className="flex items-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition-colors shadow-sm mx-auto"
+                    >
+                      <Plus className="h-5 w-5" />
+                      <span>Add Your First Store</span>
+                    </button>
+                  )}
+                </div>
+              ) : (
                 <>
                   <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th
-                           className="px-4 py-3 md:px-6 md:py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider"
-                          >
+                          <th className="px-4 py-3 md:px-6 md:py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                             Store
                           </th>
-                          <th
-                            className="px-4 py-3 md:px-6 md:py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider"
-                          >
+                          <th className="px-4 py-3 md:px-6 md:py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                             Type
                           </th>
-                          <th
-                           className="px-4 py-3 md:px-6 md:py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider"
-                          >
+                          <th className="px-4 py-3 md:px-6 md:py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                             Location
                           </th>
-                          <th
-                            className="px-4 py-3 md:px-6 md:py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider"
-                          >
+                          <th className="px-4 py-3 md:px-6 md:py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                             Contact
                           </th>
-                          <th
-                            className="px-4 py-3 md:px-6 md:py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider"
-                          >
+                          <th className="px-4 py-3 md:px-6 md:py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                             Status
                           </th>
-                          <th
-                            className="px-4 py-3 md:px-6 md:py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider"
-                          >
+                          <th className="px-4 py-3 md:px-6 md:py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                             Join Date
                           </th>
-                          <th
-                            className="px-4 py-3 md:px-6 md:py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider"
-                          >
+                          <th className="px-4 py-3 md:px-6 md:py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
                             Actions
                           </th>
                         </tr>

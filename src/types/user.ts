@@ -77,3 +77,49 @@ export interface TransactionsResponse {
   data?: Transaction[];
   message?: string;
 }
+
+export interface Store {
+  _id: string;
+  storeName: string;
+  storeType: string;
+  location: string;
+  email: string;
+  phone: string;
+  status: string;
+  createdAt: string;
+  schoolId?: string;
+}
+
+export interface StoreCountResponse {
+  data?: number;
+  count?: number;
+  message?: string;
+}
+
+export interface SnackbarState {
+  open: boolean;
+  message: string;
+  severity: 'success' | 'error' | 'info' | 'warning';
+}
+export interface StoreDetails {
+  _id: string;
+  name: string;
+  email: string;
+  location: string;
+  profilePic: string;
+  createdAt?: string;
+  type: string;
+  phone?: string;
+  storeType?: string; 
+  storeName?: string;
+  status?: string;
+  schoolId?: string;
+}
+
+export interface StoreProfileFormData {
+  name: string;
+  email: string;
+  location: string;
+  type: string;
+  phone: string;
+}
