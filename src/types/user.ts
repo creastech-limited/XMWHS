@@ -123,3 +123,33 @@ export interface StoreProfileFormData {
   type: string;
   phone: string;
 }
+export interface Transaction {
+  _id: string;
+  transactionType: string;
+  category: string;
+  amount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  reference: string;
+  description: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  direction: string;
+  senderWalletId?: {
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  receiverWalletId?: {
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+}
+
+export interface TransactionsResponse {
+  success?: boolean;
+  message?: string;
+  data?: Transaction[];
+}

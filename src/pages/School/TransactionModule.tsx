@@ -4,44 +4,11 @@ import { Header } from '../../components/Header';
 import { Sidebar as Asidebar } from '../../components/Sidebar';
 import Footer from '../../components/Footer';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+// Import services
+import { getUserTransactions } from '../../services';
 
-interface SnackbarState {
-  open: boolean;
-  message: string;
-  severity: 'success' | 'error' | 'info' | 'warning';
-}
-
-interface Transaction {
-  _id: string;
-  transactionType: string;
-  category: string;
-  amount: number;
-  balanceBefore: number;
-  balanceAfter: number;
-  reference: string;
-  description: string;
-  status: string;
-  createdAt: string;
-  updatedAt: string;
-  direction: string;
-  senderWalletId?: {
-    firstName: string;
-    lastName: string;
-    email: string;
-  };
-  receiverWalletId?: {
-    firstName: string;
-    lastName: string;
-    email: string;
-  };
-}
-
-interface ApiResponse {
-  success: boolean;
-  message: string;
-  data: Transaction[];
-}
+// Import types
+import type { Transaction, TransactionsResponse, SnackbarState } from '../../types/user';
 
 const TransactionModule: React.FC = () => {
   const auth = useAuth();
@@ -68,7 +35,7 @@ const TransactionModule: React.FC = () => {
     return localStorage.getItem('token');
   };
 
-  // Fetch transactions from API
+  // Fetch transactions from API using service
   const fetchTransactions = async () => {
     try {
       setLoading(true);
@@ -79,19 +46,8 @@ const TransactionModule: React.FC = () => {
         throw new Error('No authentication token found');
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/transaction/getusertransaction`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data: ApiResponse = await response.json();
+      // Using the service function
+      const data: TransactionsResponse = await getUserTransactions();
 
       if (data.success && data.data) {
         setTransactions(data.data);
@@ -203,7 +159,8 @@ const TransactionModule: React.FC = () => {
         return 'bg-gray-100 text-gray-800';
     }
   };
-   const getTransactionTypeColor = (transaction: Transaction) => {
+   
+  const getTransactionTypeColor = (transaction: Transaction) => {
     const isDebit = transaction.direction === 'debit' || 
                     transaction.transactionType.toLowerCase().includes('debit') ||
                     transaction.amount < 0;
@@ -342,10 +299,10 @@ const TransactionModule: React.FC = () => {
                                     <div className="text-xs text-gray-500">{transaction.category}</div>
                                   </td>
                                   <td className="px-3 py-4 whitespace-nowrap text-sm font-medium">
-  <span className={getTransactionTypeColor(transaction)}>
-    {formatCurrency(transaction.amount)}
-  </span>
-</td>
+                                    <span className={getTransactionTypeColor(transaction)}>
+                                      {formatCurrency(transaction.amount)}
+                                    </span>
+                                  </td>
                                   <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
                                     <span
                                       className={`inline-flex px-2 py-1 rounded-full text-xs font-semibold capitalize ${getStatusColor(transaction.status)}`}
