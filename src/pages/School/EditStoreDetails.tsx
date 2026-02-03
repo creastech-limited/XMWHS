@@ -253,6 +253,7 @@ const EditStoreDetails = () => {
                         }
                         className="w-full px-4 py-2.5 text-sm text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100"
                         disabled={!isEditing}
+                        aria-label="Store Type"
                       >
                         <option value="" disabled>
                           Store Type
@@ -292,6 +293,7 @@ const EditStoreDetails = () => {
                         }
                         className="w-full px-4 py-2.5 text-sm text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100"
                         disabled={!isEditing}
+                        aria-label="Store Location"
                       >
                         <option value="" disabled>
                           Store Location

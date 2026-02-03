@@ -461,6 +461,8 @@ export const StorePage: React.FC = () => {
                   type="text"
                   value={storeLink}
                   readOnly
+                  placeholder="Store registration link"
+                  title="Store registration link - copy and share with store managers"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-800 text-sm focus:outline-none font-medium"
                 />
               </div>
@@ -482,6 +484,7 @@ export const StorePage: React.FC = () => {
                 <input
                   type="text"
                   placeholder="Search by store name or email..."
+                  title="Search for stores by name or email address"
                   value={searchQuery}
                   onChange={(e) => {
                     setSearchQuery(e.target.value);
@@ -493,7 +496,8 @@ export const StorePage: React.FC = () => {
               <div className="flex flex-col sm:flex-row gap-4">
                 <select
                   id="statusFilter"
-                  aria-label="Filter by status"
+                  aria-label="Filter stores by status"
+                  title="Filter by status"
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800 font-medium"
@@ -504,8 +508,9 @@ export const StorePage: React.FC = () => {
                   <option value="inactive">Inactive</option>
                 </select>
                 <select
-                  id="gradeFiltertype"
-                  aria-label="Filter by type"
+                  id="typeFilter"
+                  aria-label="Filter stores by type"
+                  title="Filter by type"
                   value={typeFilter}
                   onChange={(e) => setTypeFilter(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800 font-medium"

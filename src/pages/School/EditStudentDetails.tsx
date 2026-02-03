@@ -343,6 +343,7 @@ const EditStudentDetails = () => {
                               disabled={isLoading}
                               required
                               maxLength={100}
+                              title="Enter the student's full name"
                             />
                           </div>
                           
@@ -358,6 +359,7 @@ const EditStudentDetails = () => {
                               disabled={isLoading}
                               required
                               maxLength={100}
+                              title="Enter the student's email address"
                             />
                           </div>
                           
@@ -372,6 +374,7 @@ const EditStudentDetails = () => {
                               className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 transition-colors text-black"
                               disabled={isLoading}
                               maxLength={20}
+                              title="Enter the student's phone number"
                             />
                           </div>
                           
@@ -386,6 +389,7 @@ const EditStudentDetails = () => {
                               className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 transition-colors text-black"
                               disabled={isLoading}
                               maxLength={50}
+                              title="Enter the student's class"
                             />
                           </div>
                         </div>
@@ -401,6 +405,7 @@ const EditStudentDetails = () => {
                             rows={3}
                             disabled={isLoading}
                             maxLength={200}
+                            placeholder="Enter student address"
                           />
                         </div>
                         
