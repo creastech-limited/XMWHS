@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  Search, 
-  Send, 
-  ArrowLeft, 
-  User, 
-  AlertCircle, 
-  Check, 
+import {
+  Search,
+  Send,
+  ArrowLeft,
+  User,
+  AlertCircle,
+  Check,
   X,
   DollarSign,
   Users,
@@ -15,17 +15,9 @@ import { Header } from '../../components/Header';
 import { Sidebar as Asidebar } from '../../components/Sidebar';
 import Footer from '../../components/Footer';
 import { useAuth } from '../../context/AuthContext';
+import { getAllCharges, getAllSchoolUsers, getUserDetails, transferFunds } from '../../services';
+import type { Charge, SchoolUser } from '../../types';
 
-interface SchoolUser {
-  _id: string;
-  firstName: string;
-  lastName: string;
-  name: string;
-  email: string;
-  role: string;
-  profilePicture?: string;
-  phone?: string;
-}
 
 interface User {
   _id: string;
@@ -41,21 +33,13 @@ interface User {
   wallet?: {
     balance?: number | string;
   };
-  [key: string]: unknown; 
+  [key: string]: unknown;
 }
 
-interface Charge {
-  _id: string;
-  name: string;
-  amount: number;
-  status: string;
-}
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const SchoolTransferPage: React.FC = () => {
   const { user: authUser, token, login } = useAuth();
-  
+
   // State management
   const [user, setUser] = useState<User | null>(null);
   const [schoolUsers, setSchoolUsers] = useState<SchoolUser[]>([]);
@@ -73,183 +57,161 @@ const SchoolTransferPage: React.FC = () => {
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error'>('success');
   const [transactionFee, setTransactionFee] = useState(0);
-  
+
   // Check if user has permission to access this page
   const hasPermission = user?.role === 'school' && user?.schoolCanTransfer === true;
 
   // Fetch transaction charges
-  const fetchTransactionCharges = useCallback(async () => {
-    if (!token) return;
+// Fetch transaction charges
+const fetchTransactionCharges = useCallback(async () => {
+  if (!token) return;
+
+  try {
+    const data = await getAllCharges();
     
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/charge/getallcharges`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch charges: ${response.status}`);
+    if (data && Array.isArray(data)) {
+      const transferCharge = data.find((charge: Charge) =>
+        charge.name.toLowerCase().includes('transfer') && charge.status === 'Active'
+      );
+
+      if (transferCharge) {
+        setTransactionFee(transferCharge.amount);
       }
-      
-      const data = await response.json();
-      
-      if (data && Array.isArray(data)) {
-        const transferCharge = data.find((charge: Charge) => 
-          charge.name.toLowerCase().includes('transfer') && charge.status === 'Active'
-        );
-        
-        if (transferCharge) {
-          setTransactionFee(transferCharge.amount);
-        }
-      }
-    } catch (error: unknown) {
-      console.error('Error fetching transaction charges:', error);
-      setTransactionFee(0);
     }
-  }, [token]);
+  } catch (error: unknown) {
+    console.error('Error fetching transaction charges:', error);
+    setTransactionFee(0);
+  }
+}, [token]);
 
   // Fetch user details from API
   const fetchUserDetails = useCallback(
-    async (authToken: string): Promise<User | null> => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
-          headers: { Authorization: `Bearer ${authToken}` },
-        });
-
-        if (!res.ok) throw new Error(`Profile fetch failed (${res.status})`);
-
-        const data = await res.json();
-        console.log('User API Response:', data);
-
-        // Extract user data from different possible response structures
-        let userData: Partial<User> | null = null;
-        let balance = 0;
-
-        if (data.user?.data) {
-          userData = data.user.data;
-        } else if (data.data) {
-          userData = data.data;
-        } else if (data.user) {
-          userData = data.user;
-        } else {
-          userData = data;
-        }
-
-        // Extract balance from different possible locations
-        if (data.user?.wallet?.balance !== undefined) {
-          balance = data.user.wallet.balance;
-        } else if (data.wallet?.balance !== undefined) {
-          balance = data.wallet.balance;
-        } else if (userData?.wallet?.balance !== undefined) {
-          balance = typeof userData.wallet.balance === 'string' ? parseFloat(userData.wallet.balance) || 0 : userData.wallet.balance;
-        } else if (userData?.balance !== undefined) {
-          balance = userData.balance;
-        }
-
-        // Convert balance to number if it's a string
-        if (typeof balance === 'string') {
-          balance = parseFloat(balance) || 0;
-        }
-
-        // Create the user object with all required properties
-        if (!userData) {
-          throw new Error('User data is missing in response');
-        }
-        const userProfile: User = {
-          _id: userData._id ?? '',
-          firstName: userData.firstName ?? '',
-          lastName: userData.lastName ?? '',
-          name: userData?.name ?? `${userData?.firstName ?? ''} ${userData?.lastName ?? ''}`,
-          email: userData.email ?? '',
-          balance: balance,
-          schoolCanTransfer: userData.schoolCanTransfer === true,
-          role: userData.role ?? '',
-          schoolId: userData.schoolId,
-          schoolName: userData.schoolName
-        };
-
-        console.log('Processed user profile:', userProfile);
-
-        // Update user state
-        setUser(userProfile);
-        
-        // Update auth context if login function is available
-        if (login) {
-          login(userProfile, authToken);
-        }
-        
-        return userProfile;
-      } catch (error) {
-        console.error('Error fetching user details:', error);
-        setSnackbarMessage('Failed to load user details. Please try again.');
-        setSnackbarSeverity('error');
-        setShowSnackbar(true);
-        return null;
-      }
-    },
-    [login]
-  );
-
-  // Fetch school users
-  const fetchSchoolUsers = useCallback(async () => {
-    if (!token || !hasPermission) return;
-    
+  async (authToken: string): Promise<User | null> => {
     try {
-      setFetchingUsers(true);
-      const response = await fetch(`${API_BASE_URL}/api/users/getallschooluser`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      const data = await getUserDetails();
+      console.log('User API Response:', data);
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch school users: ${response.status}`);
-      }
+      // Extract user data from different possible response structures
+      let userData: Partial<User> | null = null;
+      let balance = 0;
 
-      const data = await response.json();
-      console.log('School users response:', data);
-      
-      let users: SchoolUser[] = [];
-      if (data.users) {
-        users = data.users;
+      if (data.user?.data) {
+        userData = data.user.data;
       } else if (data.data) {
-        users = data.data;
-      } else if (Array.isArray(data)) {
-        users = data;
+        userData = data.data;
+      } else if (data.user) {
+        userData = data.user;
+      } else {
+        userData = data;
       }
 
-      const filteredUsers = users.filter(u => u._id !== user?._id);
+      // Extract balance from different possible locations
+      if (data.user?.wallet?.balance !== undefined) {
+        balance = data.user.wallet.balance;
+      } else if (data.wallet?.balance !== undefined) {
+        balance = data.wallet.balance;
+      } else if (userData?.wallet?.balance !== undefined) {
+        balance = typeof userData.wallet.balance === 'string' ? parseFloat(userData.wallet.balance) || 0 : userData.wallet.balance;
+      } else if (userData?.balance !== undefined) {
+        balance = userData.balance;
+      }
+
+      // Convert balance to number if it's a string
+      if (typeof balance === 'string') {
+        balance = parseFloat(balance) || 0;
+      }
+
+      // Create the user object with all required properties
+      if (!userData) {
+        throw new Error('User data is missing in response');
+      }
       
-      setSchoolUsers(filteredUsers);
-      setFilteredUsers(filteredUsers);
+      const userProfile: User = {
+        _id: userData._id ?? '',
+        firstName: userData.firstName ?? '',
+        lastName: userData.lastName ?? '',
+        name: userData?.name ?? `${userData?.firstName ?? ''} ${userData?.lastName ?? ''}`,
+        email: userData.email ?? '',
+        balance: balance,
+        schoolCanTransfer: userData.schoolCanTransfer === true,
+        role: userData.role ?? '',
+        schoolId: userData.schoolId,
+        schoolName: userData.schoolName
+      };
+
+      console.log('Processed user profile:', userProfile);
+
+      // Update user state
+      setUser(userProfile);
+
+      // Update auth context if login function is available
+      if (login) {
+        login(userProfile, authToken);
+      }
+
+      return userProfile;
     } catch (error) {
-      console.error('Error fetching school users:', error);
-      setSnackbarMessage('Failed to load school users. Please try again.');
+      console.error('Error fetching user details:', error);
+      setSnackbarMessage('Failed to load user details. Please try again.');
       setSnackbarSeverity('error');
       setShowSnackbar(true);
-    } finally {
-      setFetchingUsers(false);
+      return null;
     }
-  }, [token, hasPermission, user?._id]);
+  },
+  [login]
+);
+  // Fetch school users
+const fetchSchoolUsers = useCallback(async () => {
+  if (!token || !hasPermission) return;
 
-  // Filter users based on search term
-  useEffect(() => {
-    if (!searchTerm.trim()) {
-      setFilteredUsers(schoolUsers);
-      return;
+  try {
+    setFetchingUsers(true);
+    const data = await getAllSchoolUsers();
+
+    console.log('School users response:', data);
+
+    let users: SchoolUser[] = [];
+    if (data.users) {
+      users = data.users;
+    } else if (data.data) {
+      users = data.data;
+    } else if (Array.isArray(data)) {
+      users = data;
     }
 
-    const filtered = schoolUsers.filter(user => 
-      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.role.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredUsers = users.filter(u => u._id !== user?._id);
+
+    setSchoolUsers(filteredUsers);
+    setFilteredUsers(filteredUsers);
+  } catch (error: any) {
+    console.error('Error fetching school users:', error);
     
-    setFilteredUsers(filtered);
-  }, [searchTerm, schoolUsers]);
+    const errorMessage = error.response?.data?.message || 
+                         'Failed to load school users. Please try again.';
+    
+    setSnackbarMessage(errorMessage);
+    setSnackbarSeverity('error');
+    setShowSnackbar(true);
+  } finally {
+    setFetchingUsers(false);
+  }
+}, [token, hasPermission, user?._id]);
+
+// Filter users based on search term
+useEffect(() => {
+  if (!searchTerm.trim()) {
+    setFilteredUsers(schoolUsers);
+    return;
+  }
+
+  const filtered = schoolUsers.filter(user =>
+    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.role.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  setFilteredUsers(filtered);
+}, [searchTerm, schoolUsers]);
 
   // Load user details and school users on component mount
   useEffect(() => {
@@ -260,10 +222,10 @@ const SchoolTransferPage: React.FC = () => {
         setShowSnackbar(true);
         return;
       }
-      
+
       try {
         setFetchingUserDetails(true);
-        
+
         // First check if we already have user data in auth context
         if (authUser && typeof authUser === 'object') {
           // Try to extract the required properties from authUser
@@ -280,13 +242,13 @@ const SchoolTransferPage: React.FC = () => {
             schoolId: authUserData.schoolId,
             schoolName: authUserData.schoolName
           };
-          
+
           setUser(userProfile);
         } else {
           // Fetch user details from API if not available in auth context
           await fetchUserDetails(token);
         }
-        
+
         // Then fetch transaction charges
         await fetchTransactionCharges();
       } catch (error) {
@@ -309,70 +271,61 @@ const SchoolTransferPage: React.FC = () => {
     }
   }, [hasPermission, fetchSchoolUsers, fetchingUserDetails]);
 
-  // Handle transfer submission
-  const handleSubmitTransfer = async () => {
-    if (!selectedUser || !pin) return;
-    
-    setTransferLoading(true);
-    
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/transaction/transfer`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          receiverEmail: selectedUser.email,
-          amount: Number(amount),
-          pin: pin
-        })
-      });
+ // Handle transfer submission
+const handleSubmitTransfer = async () => {
+  if (!selectedUser || !pin) return;
 
-      const data = await response.json();
-      
-      if (response.ok && data.message === "Transfer successful") {
-        setSnackbarMessage(`₦${Number(amount).toLocaleString()} successfully transferred to ${selectedUser.email}!`);
-        setSnackbarSeverity('success');
-        setShowSnackbar(true);
-        
-        // Clear form
-        setSelectedUser(null);
-        setAmount('');
-        setNote('');
-        setPin('');
-      } else {
-        throw new Error(data.message || 'Transfer failed');
-      }
-    } catch (error) {
-      console.error('Transfer error:', error);
-      let errorMessage = 'Transfer failed. Please try again.';
-      
-      if (error instanceof Error) {
-        const message = error.message.toLowerCase();
-        if (message.includes('pin')) {
-          errorMessage = 'Invalid PIN. Please check your PIN and try again.';
-        } else if (message.includes('balance') || message.includes('insufficient')) {
-          errorMessage = 'Insufficient balance. Please fund your wallet first.';
-        } else if (message.includes('user') || message.includes('recipient')) {
-          errorMessage = 'Recipient not found. Please verify the recipient details.';
-        } else {
-          errorMessage = error.message;
-        }
-      }
-      
-      setSnackbarMessage(errorMessage);
-      setSnackbarSeverity('error');
+  setTransferLoading(true);
+
+  try {
+    const data = await transferFunds({
+      receiverEmail: selectedUser.email,
+      amount: Number(amount),
+      pin: pin
+    });
+
+    if (data.message === "Transfer successful") {
+      setSnackbarMessage(`₦${Number(amount).toLocaleString()} successfully transferred to ${selectedUser.email}!`);
+      setSnackbarSeverity('success');
       setShowSnackbar(true);
-    } finally {
-      setTransferLoading(false);
-      setPinDialogOpen(false);
-    }
-  };
 
+      // Clear form
+      setSelectedUser(null);
+      setAmount('');
+      setNote('');
+      setPin('');
+    } else {
+      throw new Error(data.message || 'Transfer failed');
+    }
+  } catch (error: any) {
+    console.error('Transfer error:', error);
+    
+    let errorMessage = 'Transfer failed. Please try again.';
+    const message = error.message?.toLowerCase() || error.response?.data?.message?.toLowerCase() || '';
+
+    if (message.includes('pin')) {
+      errorMessage = 'Invalid PIN. Please check your PIN and try again.';
+    } else if (message.includes('balance') || message.includes('insufficient')) {
+      errorMessage = 'Insufficient balance. Please fund your wallet first.';
+    } else if (message.includes('user') || message.includes('recipient')) {
+      errorMessage = 'Recipient not found. Please verify the recipient details.';
+    } else if (error.response?.data?.message) {
+      errorMessage = error.response.data.message;
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+
+    setSnackbarMessage(errorMessage);
+    setSnackbarSeverity('error');
+    setShowSnackbar(true);
+  } finally {
+    setTransferLoading(false);
+    setPinDialogOpen(false);
+  }
+};
   const handleTransferClick = () => {
     if (!selectedUser || !amount || Number(amount) <= 0) return;
-    
+
     const totalAmount = Number(amount) + transactionFee;
     const userBalance = typeof user?.balance === 'number' ? user.balance : 0;
     if (userBalance < totalAmount) {
@@ -381,7 +334,7 @@ const SchoolTransferPage: React.FC = () => {
       setShowSnackbar(true);
       return;
     }
-    
+
     setPinDialogOpen(true);
   };
 
@@ -389,9 +342,9 @@ const SchoolTransferPage: React.FC = () => {
   if (fetchingUserDetails) {
     return (
       <div className="flex flex-col min-h-screen bg-gray-50">
-        <Header profilePath="/settings"/>
+        <Header profilePath="/settings" />
         <div className="flex flex-grow">
-          <div className="z-[100] hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-white shadow z-10">
+          <div className=" hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-white shadow z-10">
             <Asidebar />
           </div>
           <main className="flex-1 p-4 text-center">
@@ -408,9 +361,9 @@ const SchoolTransferPage: React.FC = () => {
   if (user?.role !== 'school') {
     return (
       <div className="flex flex-col min-h-screen bg-gray-50">
-        <Header profilePath="/settings"/>
+        <Header profilePath="/settings" />
         <div className="flex flex-grow">
-          <div className="z-[100] hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-white shadow z-10">
+          <div className=" hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-white shadow z-10">
             <Asidebar />
           </div>
           <main className="flex-1 p-4">
@@ -421,7 +374,7 @@ const SchoolTransferPage: React.FC = () => {
                 <p className="text-gray-600 mb-4">
                   This feature is only available for school accounts. Your account role is: {user?.role || 'unknown'}
                 </p>
-                <button 
+                <button
                   onClick={() => window.history.back()}
                   className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
                 >
@@ -440,9 +393,9 @@ const SchoolTransferPage: React.FC = () => {
   if (user?.role === 'school' && !user?.schoolCanTransfer) {
     return (
       <div className="flex flex-col min-h-screen bg-gray-50">
-        <Header profilePath="/settings"/>
+        <Header profilePath="/settings" />
         <div className="flex flex-grow">
-          <div className="z-[100] hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-white shadow z-10">
+          <div className=" hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-white shadow z-10">
             <Asidebar />
           </div>
           <main className="flex-1 p-4">
@@ -463,7 +416,7 @@ const SchoolTransferPage: React.FC = () => {
                     Transfer permissions are currently disabled
                   </p>
                 </div>
-                <button 
+                <button
                   onClick={() => window.history.back()}
                   className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
                 >
@@ -481,9 +434,9 @@ const SchoolTransferPage: React.FC = () => {
   // Main page rendering
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
-      <Header profilePath="/settings"/>
+      <Header profilePath="/settings" />
       <div className="flex flex-grow">
-        <div className="z-[100] hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-white shadow z-10">
+        <div className=" hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-white shadow z-10">
           <Asidebar />
         </div>
         <main className="flex-1 p-4 md:ml-64">
@@ -497,7 +450,7 @@ const SchoolTransferPage: React.FC = () => {
                   >
                     <ArrowLeft className="w-5 h-5" />
                   </button>
-                
+
                 </div>
                 <div className="text-right">
                   <p className="text-sm text-gray-600">{user?.schoolName || 'School'}</p>
@@ -549,11 +502,10 @@ const SchoolTransferPage: React.FC = () => {
                       <div
                         key={user._id}
                         onClick={() => setSelectedUser(user)}
-                        className={`p-3 rounded-lg border cursor-pointer transition-all ${
-                          selectedUser?._id === user._id
+                        className={`p-3 rounded-lg border cursor-pointer transition-all ${selectedUser?._id === user._id
                             ? 'border-blue-500 bg-blue-50'
                             : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                        }`}
+                          }`}
                       >
                         <div className="flex items-center space-x-3">
                           <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
@@ -690,7 +642,7 @@ const SchoolTransferPage: React.FC = () => {
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
               <div className="bg-white rounded-lg max-w-md w-full p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Enter PIN to Confirm Transfer</h3>
-                
+
                 <div className="mb-4">
                   <p className="text-sm text-gray-600 mb-2">
                     Transfer ₦{Number(amount).toLocaleString()} to {selectedUser?.name}
@@ -699,7 +651,7 @@ const SchoolTransferPage: React.FC = () => {
                     Total debit: ₦{(Number(amount) + transactionFee).toLocaleString()} (including ₦{transactionFee.toLocaleString()} fee)
                   </p>
                 </div>
-                
+
                 <input
                   type="password"
                   value={pin}
@@ -709,7 +661,7 @@ const SchoolTransferPage: React.FC = () => {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-4 text-black"
                   autoFocus
                 />
-                
+
                 <div className="flex space-x-3">
                   <button
                     onClick={() => {
@@ -740,11 +692,10 @@ const SchoolTransferPage: React.FC = () => {
           {/* Snackbar */}
           {showSnackbar && (
             <div className="fixed bottom-4 right-4 z-50">
-              <div className={`p-4 rounded-lg shadow-lg flex items-center space-x-3 ${
-                snackbarSeverity === 'success' 
-                  ? 'bg-green-600 text-white' 
+              <div className={`p-4 rounded-lg shadow-lg flex items-center space-x-3 ${snackbarSeverity === 'success'
+                  ? 'bg-green-600 text-white'
                   : 'bg-red-600 text-white'
-              }`}>
+                }`}>
                 {snackbarSeverity === 'success' ? (
                   <Check className="w-5 h-5" />
                 ) : (

@@ -4,105 +4,37 @@ import { Header } from '../../components/Header';
 import { Sidebar as Asidebar } from '../../components/Sidebar';
 import Footer from '../../components/Footer';
 import { useAuth } from '../../context/AuthContext';
-import { 
-  AlertCircle, 
-  Plus, 
-  Search, 
-  Filter, 
-  Eye, 
-  Clock, 
-  CheckCircle, 
-  XCircle, 
+import {
+  AlertCircle,
+  Plus,
+  Search,
+  Filter,
+  Eye,
+  Clock,
+  CheckCircle,
+  XCircle,
   FileText,
   ChevronDown,
   ChevronUp,
   Trash2
 } from 'lucide-react';
+import { createDisputeApi, getUserDetails, getUserDisputes } from '../../services';
+import type { CreateDisputeData, CreateDisputeResponse, Dispute, FetchDisputesResponse, FetchUserDetailsResponse, UserProfile } from '../../types';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 // Interfaces
-interface UserProfile {
-    _id?: string;
-    name?: string;
-    email?: string;
-    role?: string;
-    [key: string]: unknown;
-}
 
-interface FetchUserDetailsResponse {
-    user?: {
-        data?: UserProfile;
-        [key: string]: unknown;
-    };
-    data?: UserProfile;
-    [key: string]: unknown;
-}
-
-interface Dispute {
-    _id?: string;
-    disputeType?: string;
-    description?: string;
-    transactionId?: string | {
-        _id?: string;
-        reference?: string;
-        amount?: number;
-        status?: string;
-        [key: string]: unknown;
-    };
-    paymentCategory?: string;
-    amount?: number;
-    supportingDocuments?: string[] | string;
-    status?: string;
-    createdAt?: string;
-    updatedAt?: string;
-    raisedByName?: string;
-    raisedByEmail?: string;
-    resolvedBy?: {
-        _id?: string;
-        email?: string;
-    };
-    resolvedDate?: string;
-    [key: string]: unknown;
-}
-
-interface FetchDisputesResponse {
-    message?: string;
-    disputes?: Dispute[];
-    data?: Dispute[];
-    [key: string]: unknown;
-}
-
-interface CreateDisputeData {
-    disputeType: string;
-    description: string;
-    transactionId: string;
-    paymentCategory: string;
-    amount: number;
-    supportingDocuments: string[];
-}
-
-interface CreateDisputeResponse {
-    message?: string;
-    savedDispute?: Dispute;
-    dispute?: Dispute;
-    data?: Dispute;
-    error?: string;
-    details?: string;
-    [key: string]: unknown;
-}
 
 interface StatusColorMap {
-    [key: string]: string;
+  [key: string]: string;
 }
 
 interface StatusIconProps {
-    status?: string;
+  status?: string;
 }
 
 const DisputePage = () => {
   const auth = useAuth();
-  const [token, setToken] = useState('');
   const [loading, setLoading] = useState(true);
   const [disputes, setDisputes] = useState<Dispute[]>([]);
   const [filteredDisputes, setFilteredDisputes] = useState<Dispute[]>([]);
@@ -112,9 +44,9 @@ const DisputePage = () => {
   const [typeFilter, setTypeFilter] = useState('');
   const [selectedDispute, setSelectedDispute] = useState<Dispute | null>(null);
   const [showDetails, setShowDetails] = useState(false);
-  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ 
-    key: 'createdAt', 
-    direction: 'desc' 
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({
+    key: 'createdAt',
+    direction: 'desc'
   });
 
   // Form state for creating new dispute
@@ -129,7 +61,7 @@ const DisputePage = () => {
 
   const disputeTypes = [
     'Billing Issue',
-    'Account Discrepancy', 
+    'Account Discrepancy',
     'Transaction Error',
     'Service Concern',
     'Other'
@@ -147,124 +79,81 @@ const DisputePage = () => {
   const statuses = ['Pending', 'Under Investigation', 'Resolved', 'Closed'];
 
   // Fetch user details
-  const fetchUserDetails = async (authToken: string): Promise<UserProfile> => {
+  const fetchUserDetails = async (): Promise<UserProfile> => {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${authToken}`,
-                'Content-Type': 'application/json'
-            }
-        });
 
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
 
-        const data: FetchUserDetailsResponse = await response.json();
-        
-        let profile: UserProfile;
-        if (data.user?.data) {
-            profile = data.user.data;
-        } else if (data.data) {
-            profile = data.data;
-        } else if (data.user) {
-            profile = data.user as UserProfile;
-        } else {
-            profile = data as UserProfile;
-        }
+      const data: FetchUserDetailsResponse = await getUserDetails();
 
-        return profile;
+      let profile: UserProfile;
+      if (data.user?.data) {
+        profile = data.user.data;
+      } else if (data.data) {
+        profile = data.data;
+      } else if (data.user) {
+        profile = data.user as UserProfile;
+      } else {
+        profile = data as UserProfile;
+      }
+
+      return profile;
     } catch (error) {
-        console.error('Error fetching user details:', error);
-        throw error;
+      console.error('Error fetching user details:', error);
+      throw error;
     }
   };
 
   // Fetch disputes - Updated to use getuserdispute endpoint
-  const fetchDisputes = async (authToken: string): Promise<Dispute[]> => {
+  const fetchDisputes = async (): Promise<Dispute[]> => {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/dispute/getuserdispute`, {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${authToken}`,
-                'Content-Type': 'application/json'
-            }
-        });
 
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
+      const data: FetchDisputesResponse = await getUserDisputes();
 
-        const data: FetchDisputesResponse = await response.json();
-        
-        // Handle different response structures (matching Flutter logic)
-        let disputesList: Dispute[] = [];
-        if (Array.isArray(data.disputes)) {
-            disputesList = data.disputes;
-        } else if (data.data && Array.isArray(data.data)) {
-            disputesList = data.data as Dispute[];
-        } else if (Array.isArray(data)) {
-            disputesList = data as Dispute[];
-        }
-        
-        console.log('📡 Fetched disputes:', disputesList.length);
-        return disputesList;
+      // Handle different response structures (matching Flutter logic)
+      let disputesList: Dispute[] = [];
+      if (Array.isArray(data.disputes)) {
+        disputesList = data.disputes;
+      } else if (data.data && Array.isArray(data.data)) {
+        disputesList = data.data as Dispute[];
+      } else if (Array.isArray(data)) {
+        disputesList = data as Dispute[];
+      }
+
+      console.log(' Fetched disputes:', disputesList.length);
+      return disputesList;
     } catch (error) {
-        console.error('❌ Error fetching disputes:', error);
-        return [];
+      console.error(' Error fetching disputes:', error);
+      return [];
     }
   };
 
   // Create new dispute - Updated with enhanced error handling
   const createDispute = async (disputeData: CreateDisputeData): Promise<CreateDisputeResponse> => {
     try {
-        console.log('📤 Creating dispute with payload:', JSON.stringify(disputeData));
+      console.log('📤 Creating dispute with payload:', JSON.stringify(disputeData));
 
-        const response = await fetch(`${API_BASE_URL}/api/dispute/createdispute`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(disputeData)
-        });
+      const responseData = await createDisputeApi(disputeData);
+      console.log('📡 Dispute Response Body:', JSON.stringify(responseData));
 
-        console.log('📡 Dispute Response Status:', response.status);
+      return responseData;
+    } catch (error: any) {
+      console.error(' API Error in createDispute:', error);
 
-        // Try to parse response even on error
-        let responseData: CreateDisputeResponse;
-        try {
-            responseData = await response.json();
-            console.log('📡 Dispute Response Body:', JSON.stringify(responseData));
-        } catch (parseError) {
-            console.error('❌ Failed to parse response:', parseError);
-            throw new Error('Server returned invalid response');
-        }
+      // Extract detailed error message
+      let errorMessage = 'Failed to create dispute';
 
-        if (response.ok || response.status === 200 || response.status === 201) {
-            return responseData;
-        } else {
-            // Extract detailed error message from backend (matching Flutter logic)
-            let errorMessage = 'Failed to create dispute';
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.response?.data?.details) {
+        errorMessage = String(error.response.data.details);
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
 
-            if (responseData.message) {
-                errorMessage = responseData.message;
-            } else if (responseData.error) {
-                errorMessage = responseData.error;
-            } else if (responseData.details) {
-                errorMessage = String(responseData.details);
-            }
-
-            console.error('❌ Backend Error:', errorMessage);
-            throw new Error(errorMessage);
-        }
-    } catch (error) {
-        console.error('❌ API Error in createDispute:', error);
-        if (error instanceof Error) {
-            throw error;
-        }
-        throw new Error('Failed to create dispute');
+      console.error(' Backend Error:', errorMessage);
+      throw new Error(errorMessage);
     }
   };
 
@@ -273,10 +162,10 @@ const DisputePage = () => {
     const initializeAuth = async () => {
       try {
         setLoading(true);
-        
+
         if (auth?.user?._id && auth?.token) {
-          setToken(auth.token);
-          const disputesData = await fetchDisputes(auth.token);
+          (auth.token);
+          const disputesData = await fetchDisputes();
           setDisputes(disputesData);
           setFilteredDisputes(disputesData);
           setLoading(false);
@@ -288,8 +177,8 @@ const DisputePage = () => {
           throw new Error('No authentication token found');
         }
 
-        const profile = await fetchUserDetails(storedToken);
-        setToken(storedToken);
+        const profile = await fetchUserDetails();
+        (storedToken);
 
         const mergedUser = {
           _id: profile._id || '',
@@ -308,10 +197,10 @@ const DisputePage = () => {
           auth.login(userWithRole, storedToken);
         }
 
-        const disputesData = await fetchDisputes(storedToken);
+        const disputesData = await fetchDisputes();
         setDisputes(disputesData);
         setFilteredDisputes(disputesData);
-        
+
       } catch (error) {
         console.error('Auth initialization error:', error);
       } finally {
@@ -348,7 +237,7 @@ const DisputePage = () => {
   const requestSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc';
     if (sortConfig.key === key && sortConfig.direction === 'asc') {
-        direction = 'desc';
+      direction = 'desc';
     }
     setSortConfig({ key, direction });
   };
@@ -358,7 +247,7 @@ const DisputePage = () => {
     let filtered = disputes;
 
     if (searchTerm) {
-      filtered = filtered.filter(dispute => 
+      filtered = filtered.filter(dispute =>
         dispute.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         dispute.disputeType?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         dispute._id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -383,63 +272,63 @@ const DisputePage = () => {
     e.preventDefault();
 
     // Validate all required fields
-    if (!formData.disputeType || !formData.description || !formData.transactionId || 
-        !formData.paymentCategory || !formData.amount) {
-        alert('Please fill in all required fields (marked with *)');
-        return;
+    if (!formData.disputeType || !formData.description || !formData.transactionId ||
+      !formData.paymentCategory || !formData.amount) {
+      alert('Please fill in all required fields (marked with *)');
+      return;
     }
 
     try {
-        setLoading(true);
-        
-        // Filter out empty document URLs
-        const validDocs = formData.supportingDocuments.filter(doc => doc.trim() !== '');
-        
-        const result: CreateDisputeResponse = await createDispute({
-            disputeType: formData.disputeType,
-            description: formData.description,
-            transactionId: formData.transactionId,
-            paymentCategory: formData.paymentCategory,
-            amount: parseFloat(formData.amount),
-            supportingDocuments: validDocs
+      setLoading(true);
+
+      // Filter out empty document URLs
+      const validDocs = formData.supportingDocuments.filter(doc => doc.trim() !== '');
+
+      const result: CreateDisputeResponse = await createDispute({
+        disputeType: formData.disputeType,
+        description: formData.description,
+        transactionId: formData.transactionId,
+        paymentCategory: formData.paymentCategory,
+        amount: parseFloat(formData.amount),
+        supportingDocuments: validDocs
+      });
+
+      // Handle different response structures
+      const newDispute = result.savedDispute || result.dispute || result.data;
+
+      if (newDispute) {
+        setDisputes((prev: Dispute[]) => [newDispute, ...prev]);
+        setFormData({
+          disputeType: '',
+          description: '',
+          transactionId: '',
+          paymentCategory: '',
+          amount: '',
+          supportingDocuments: []
         });
-
-        // Handle different response structures
-        const newDispute = result.savedDispute || result.dispute || result.data;
-
-        if (newDispute) {
-            setDisputes((prev: Dispute[]) => [newDispute, ...prev]);
-            setFormData({
-                disputeType: '',
-                description: '',
-                transactionId: '',
-                paymentCategory: '',
-                amount: '',
-                supportingDocuments: []
-            });
-            setShowCreateForm(false);
-            alert('Dispute created successfully!');
-        } else {
-            throw new Error('Failed to create dispute - no dispute data returned');
-        }
+        setShowCreateForm(false);
+        alert('Dispute created successfully!');
+      } else {
+        throw new Error('Failed to create dispute - no dispute data returned');
+      }
     } catch (error: unknown) {
-        if (error instanceof Error) {
-            alert(error.message || 'Error creating dispute. Please try again.');
-        } else {
-            alert('Error creating dispute. Please try again.');
-        }
+      if (error instanceof Error) {
+        alert(error.message || 'Error creating dispute. Please try again.');
+      } else {
+        alert('Error creating dispute. Please try again.');
+      }
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
 
   // Get status badge color
   const getStatusColor = (status: string | undefined): string => {
     const statusColorMap: StatusColorMap = {
-        'Pending': 'bg-yellow-100 text-yellow-800',
-        'Under Investigation': 'bg-blue-100 text-blue-800',
-        'Resolved': 'bg-green-100 text-green-800',
-        'Closed': 'bg-gray-100 text-gray-800',
+      'Pending': 'bg-yellow-100 text-yellow-800',
+      'Under Investigation': 'bg-blue-100 text-blue-800',
+      'Resolved': 'bg-green-100 text-green-800',
+      'Closed': 'bg-gray-100 text-gray-800',
     };
     return status ? statusColorMap[status] || 'bg-gray-100 text-gray-800' : 'bg-gray-100 text-gray-800';
   };
@@ -447,11 +336,11 @@ const DisputePage = () => {
   // Get status icon
   const getStatusIcon = (status: StatusIconProps['status']): JSX.Element => {
     switch (status) {
-        case 'Pending': return <Clock className="w-4 h-4" />;
-        case 'Under Investigation': return <AlertCircle className="w-4 h-4" />;
-        case 'Resolved': return <CheckCircle className="w-4 h-4" />;
-        case 'Closed': return <XCircle className="w-4 h-4" />;
-        default: return <AlertCircle className="w-4 h-4" />;
+      case 'Pending': return <Clock className="w-4 h-4" />;
+      case 'Under Investigation': return <AlertCircle className="w-4 h-4" />;
+      case 'Resolved': return <CheckCircle className="w-4 h-4" />;
+      case 'Closed': return <XCircle className="w-4 h-4" />;
+      default: return <AlertCircle className="w-4 h-4" />;
     }
   };
 
@@ -459,8 +348,8 @@ const DisputePage = () => {
   const getSortIcon = (key: string): JSX.Element | null => {
     if (sortConfig.key !== key) return null;
     return sortConfig.direction === 'asc'
-        ? <ChevronUp className="w-4 h-4 ml-1" />
-        : <ChevronDown className="w-4 h-4 ml-1" />;
+      ? <ChevronUp className="w-4 h-4 ml-1" />
+      : <ChevronDown className="w-4 h-4 ml-1" />;
   };
 
   if (loading && disputes.length === 0) {
@@ -478,7 +367,7 @@ const DisputePage = () => {
         <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-none">
           <Asidebar />
         </aside>
-        
+
         <main className="flex-grow p-4 md:p-8 md:ml-64 overflow-x-auto">
           <div className="max-w-7xl mx-auto">
             <div className="mb-6">
@@ -555,7 +444,7 @@ const DisputePage = () => {
                       className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                     />
                   </div>
-                  
+
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
@@ -599,7 +488,7 @@ const DisputePage = () => {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th 
+                      <th
                         className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                         onClick={() => requestSort('_id')}
                       >
@@ -608,7 +497,7 @@ const DisputePage = () => {
                           {getSortIcon('_id')}
                         </div>
                       </th>
-                      <th 
+                      <th
                         className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                         onClick={() => requestSort('disputeType')}
                       >
@@ -617,7 +506,7 @@ const DisputePage = () => {
                           {getSortIcon('disputeType')}
                         </div>
                       </th>
-                      <th 
+                      <th
                         className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                         onClick={() => requestSort('amount')}
                       >
@@ -626,7 +515,7 @@ const DisputePage = () => {
                           {getSortIcon('amount')}
                         </div>
                       </th>
-                      <th 
+                      <th
                         className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                         onClick={() => requestSort('status')}
                       >
@@ -635,7 +524,7 @@ const DisputePage = () => {
                           {getSortIcon('status')}
                         </div>
                       </th>
-                      <th 
+                      <th
                         className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                         onClick={() => requestSort('createdAt')}
                       >
@@ -701,8 +590,8 @@ const DisputePage = () => {
                   <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                   <p className="text-gray-500 text-lg font-medium">No disputes found</p>
                   <p className="text-gray-400 text-sm mt-1">
-                    {searchTerm || statusFilter || typeFilter 
-                      ? 'Try adjusting your filters' 
+                    {searchTerm || statusFilter || typeFilter
+                      ? 'Try adjusting your filters'
                       : 'Create your first dispute to get started'}
                   </p>
                   {(searchTerm || statusFilter || typeFilter) && (
@@ -746,7 +635,7 @@ const DisputePage = () => {
                   </label>
                   <select
                     value={formData.disputeType}
-                    onChange={(e) => setFormData(prev => ({...prev, disputeType: e.target.value}))}
+                    onChange={(e) => setFormData(prev => ({ ...prev, disputeType: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                     required
                   >
@@ -768,7 +657,7 @@ const DisputePage = () => {
                   </label>
                   <textarea
                     value={formData.description}
-                    onChange={(e) => setFormData(prev => ({...prev, description: e.target.value}))}
+                    onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                     rows={4}
                     placeholder="Describe the issue in detail..."
@@ -783,7 +672,7 @@ const DisputePage = () => {
                   <input
                     type="text"
                     value={formData.transactionId}
-                    onChange={(e) => setFormData(prev => ({...prev, transactionId: e.target.value}))}
+                    onChange={(e) => setFormData(prev => ({ ...prev, transactionId: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                     placeholder="Enter transaction reference or ID"
                     required
@@ -796,7 +685,7 @@ const DisputePage = () => {
                   </label>
                   <select
                     value={formData.paymentCategory}
-                    onChange={(e) => setFormData(prev => ({...prev, paymentCategory: e.target.value}))}
+                    onChange={(e) => setFormData(prev => ({ ...prev, paymentCategory: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                     required
                   >
@@ -814,7 +703,7 @@ const DisputePage = () => {
                   <input
                     type="number"
                     value={formData.amount}
-                    onChange={(e) => setFormData(prev => ({...prev, amount: e.target.value}))}
+                    onChange={(e) => setFormData(prev => ({ ...prev, amount: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                     placeholder="Enter amount involved"
                     min="0"
@@ -836,7 +725,7 @@ const DisputePage = () => {
                           onChange={(e) => {
                             const newDocs = [...formData.supportingDocuments];
                             newDocs[index] = e.target.value;
-                            setFormData(prev => ({...prev, supportingDocuments: newDocs}));
+                            setFormData(prev => ({ ...prev, supportingDocuments: newDocs }));
                           }}
                           className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                           placeholder="https://example.com/document.pdf"
@@ -845,7 +734,7 @@ const DisputePage = () => {
                           type="button"
                           onClick={() => {
                             const newDocs = formData.supportingDocuments.filter((_, i) => i !== index);
-                            setFormData(prev => ({...prev, supportingDocuments: newDocs}));
+                            setFormData(prev => ({ ...prev, supportingDocuments: newDocs }));
                           }}
                           className="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                           title="Remove document"
@@ -1025,7 +914,7 @@ const DisputePage = () => {
                       )
                         .filter(doc => doc)
                         .map((doc, index) => (
-                          <a 
+                          <a
                             key={index}
                             href={doc}
                             target="_blank"

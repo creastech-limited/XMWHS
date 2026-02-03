@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { 
+import {
     ArrowLeft,
-    Receipt, 
-    Filter, 
+    Receipt,
+    Filter,
     Search as SearchIcon,
     Download,
     Check,
@@ -17,9 +17,9 @@ import StoreHeader from '../../components/StoreHeader';
 import StoreSidebar from '../../components/StoreSidebar';
 import Footer from '../../components/Footer';
 import { useAuth } from '../../context/AuthContext';
+import type { TransactionsResponse, UserResponse } from '../../types';
+import { getUserDetails, getUserTransactions } from '../../services';
 
-// API Base URL Configuration
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 type Transaction = {
     id: string;
@@ -62,22 +62,13 @@ const STransactionHistoryPage = () => {
     }, [auth]);
 
     // Fetch user details from API
-    const fetchUserDetails = useCallback(async (authToken: string): Promise<User> => {
+    const fetchUserDetails = useCallback(async (): Promise<User> => {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${authToken}`,
-                    'Content-Type': 'application/json',
-                },
-            });
+            const data: UserResponse = await getUserDetails();
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
+            console.log('User details response:', data);
 
-            const data = await response.json();
-            
+
             // Handle different response structures
             let profile: User | undefined;
             if (data.user?.data) {
@@ -102,22 +93,13 @@ const STransactionHistoryPage = () => {
     }, []);
 
     // Fetch transactions from API
-    const fetchTransactions = useCallback(async (authToken: string): Promise<Transaction[]> => {
+    const fetchTransactions = useCallback(async (): Promise<Transaction[]> => {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/transaction/getusertransaction`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${authToken}`,
-                    'Content-Type': 'application/json',
-                },
-            });
+            const data: TransactionsResponse = await getUserTransactions();
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
+            console.log('Transactions API Response:', JSON.stringify(data, null, 2));
 
-            const data = await response.json();
-            
+
             // Handle different response structures for transactions
             let transactionList: unknown[] = [];
             if (data.transactions) {
@@ -130,10 +112,10 @@ const STransactionHistoryPage = () => {
 
             // Transform API data to match our Transaction type
             const transformedTransactions: Transaction[] = transactionList.map((txn, index: number) => {
-               const t = txn as Record<string, unknown> & {
-    metadata?: { senderEmail?: string; receiverEmail?: string };
-    senderWalletId?: { email?: string };
-};
+                const t = txn as Record<string, unknown> & {
+                    metadata?: { senderEmail?: string; receiverEmail?: string };
+                    senderWalletId?: { email?: string };
+                };
                 // Determine status based on API response
                 let status: 'Completed' | 'Pending' | 'Failed' = 'Completed';
                 if (t.status) {
@@ -153,7 +135,7 @@ const STransactionHistoryPage = () => {
                     month: 'short',
                     year: 'numeric'
                 });
-                
+
                 if (t.date || t.createdAt) {
                     const dateObj = new Date((t.date as string | number | Date) || (t.createdAt as string | number | Date));
                     if (!isNaN(dateObj.getTime())) {
@@ -170,15 +152,15 @@ const STransactionHistoryPage = () => {
                     date: formattedDate,
                     amount: Math.abs(Number(t.amount) || 0),
                     status,
-                agent: String(
-    t.metadata?.senderEmail || 
-    t.senderWalletId?.email || 
-    t.agent || 
-    t.agentName || 
-    t.from || 
-    t.to || 
-    `Agent ${String.fromCharCode(65 + (index % 26))}`
-),
+                    agent: String(
+                        t.metadata?.senderEmail ||
+                        t.senderWalletId?.email ||
+                        t.agent ||
+                        t.agentName ||
+                        t.from ||
+                        t.to ||
+                        `Agent ${String.fromCharCode(65 + (index % 26))}`
+                    ),
                     agentId: t.agentId ? String(t.agentId) : t.agent_id ? String(t.agent_id) : undefined,
                     description: t.description ? String(t.description) : t.note ? String(t.note) : undefined,
                     createdAt: t.createdAt ? String(t.createdAt) : undefined,
@@ -205,17 +187,17 @@ const STransactionHistoryPage = () => {
                 if (auth?.user?._id && auth?.token) {
                     console.log('Found user in auth context:', auth.user);
                     setUser(auth.user);
-                    
+
                     // Fetch transactions with existing token
                     try {
-                        const transactionData = await fetchTransactions(auth.token);
+                        const transactionData = await fetchTransactions();
                         setTransactions(transactionData);
                         setFilteredTransactions(transactionData);
                     } catch (transactionError) {
                         console.error('Error fetching transactions:', transactionError);
                         setError('Failed to load transactions');
                     }
-                    
+
                     setLoading(false);
                     return;
                 }
@@ -231,7 +213,7 @@ const STransactionHistoryPage = () => {
 
                 // Fetch user from API to ensure fresh data
                 console.log('Fetching user from API...');
-                const profile = await fetchUserDetails(storedToken);
+                const profile = await fetchUserDetails();
                 console.log('Successfully fetched user profile:', profile);
 
                 // Update local state
@@ -242,7 +224,7 @@ const STransactionHistoryPage = () => {
 
                 // Fetch transactions
                 console.log('Fetching transactions from API...');
-                const transactionData = await fetchTransactions(storedToken);
+                const transactionData = await fetchTransactions();
                 console.log('Successfully fetched transactions:', transactionData);
                 setTransactions(transactionData);
                 setFilteredTransactions(transactionData);
@@ -280,7 +262,7 @@ const STransactionHistoryPage = () => {
             setLoading(true);
             setError(null);
             try {
-                const transactionData = await fetchTransactions(retryToken);
+                const transactionData = await fetchTransactions();
                 setTransactions(transactionData);
                 setFilteredTransactions(transactionData);
             } catch {
@@ -293,7 +275,7 @@ const STransactionHistoryPage = () => {
 
     // Function to render a status indicator with icon
     const getStatusChip = (status: Transaction['status']) => {
-        switch(status) {
+        switch (status) {
             case 'Completed':
                 return (
                     <span className="inline-flex items-center gap-1 rounded-full border border-green-500 px-2 py-1 text-xs font-medium text-green-600">
@@ -325,7 +307,7 @@ const STransactionHistoryPage = () => {
         const letter = agentName.charAt(0);
         const colors = ['bg-blue-600', 'bg-pink-600', 'bg-cyan-500', 'bg-orange-500', 'bg-green-500'];
         const colorIndex = letter.charCodeAt(0) % colors.length;
-        
+
         return (
             <div className="flex items-center gap-3">
                 <div className={`flex h-8 w-8 items-center justify-center rounded-full ${colors[colorIndex]} text-sm font-medium text-white`}>
@@ -348,11 +330,11 @@ const STransactionHistoryPage = () => {
             {/* Header and Sidebar */}
             <StoreHeader />
             <div className="z-100">
-      <StoreSidebar />  
-      </div>
+                <StoreSidebar />
+            </div>
 
             {/* Main content wrapper with proper layout */}
-           <main className="flex-grow p-4 lg:p-8 lg:ml-64 transition-all duration-300">
+            <main className="flex-grow p-4 lg:p-8 lg:ml-64 transition-all duration-300">
                 {/* Main content */}
                 <div className="flex flex-1 flex-col px-4 sm:px-6 mt-4 mb-4 max-w-6xl mx-auto w-full">
                     <div className="flex items-center mb-6">
@@ -402,7 +384,7 @@ const STransactionHistoryPage = () => {
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                     />
                                 </div>
-                                
+
                                 <div className="flex gap-2">
                                     <button
                                         type="button"
@@ -412,7 +394,7 @@ const STransactionHistoryPage = () => {
                                         <Filter className="h-4 w-4" />
                                         Filters
                                     </button>
-                                    
+
                                     <button
                                         type="button"
                                         onClick={handleExport}
@@ -424,7 +406,7 @@ const STransactionHistoryPage = () => {
                                     </button>
                                 </div>
                             </div>
-                            
+
                             <div className="border-b border-gray-200 mb-4"></div>
 
                             {filteredTransactions.length === 0 ? (
@@ -481,12 +463,12 @@ const STransactionHistoryPage = () => {
                                                             <th scope="col" className="px-4 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                                 Status
                                                             </th>
-                                                            
+
                                                         </tr>
                                                     </thead>
                                                     <tbody className="bg-white divide-y divide-gray-200">
                                                         {filteredTransactions.map((txn) => (
-                                                            <tr 
+                                                            <tr
                                                                 key={txn.id}
                                                                 className="hover:bg-gray-50"
                                                             >
@@ -505,7 +487,7 @@ const STransactionHistoryPage = () => {
                                                                 <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-center">
                                                                     {getStatusChip(txn.status)}
                                                                 </td>
-                                                                
+
                                                             </tr>
                                                         ))}
                                                     </tbody>
@@ -531,8 +513,8 @@ const STransactionHistoryPage = () => {
 
                 {/* Footer stays at the bottom */}
                 <div className="fixed bottom-0 left-0 w-full">
-        <Footer />
-      </div>
+                    <Footer />
+                </div>
             </main>
         </div>
     );

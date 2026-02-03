@@ -7,7 +7,6 @@ import type {
   StudentDetails, StudentProfileFormData,
   SchoolFee,
 } from '../../types/student';
-
 // Get students by school ID
 export const getStudentsBySchoolId = async (schoolId: string): Promise<StudentsResponse> => {
   const response = await apiClient.get<StudentsResponse>(`/api/users/getstudentbyid?id=${encodeURIComponent(schoolId)}`);
@@ -149,3 +148,4 @@ export const getFeesByStudentId = async (studentId: string): Promise<SchoolFee[]
   
   return [];
 };
+

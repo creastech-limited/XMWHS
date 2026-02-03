@@ -693,7 +693,7 @@ const KidsDashboard = () => {
         <div className="p-6">
           <div className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+              <label className=" text-sm font-medium text-gray-700 mb-2 flex items-center">
                 <span>Amount to Fund</span>
                 <span className="text-red-500 ml-1">*</span>
               </label>
@@ -810,7 +810,7 @@ const TransferModal = () => {
           <div className="space-y-5">
             {/* Recipient Field */}
             <div className="relative">
-              <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+              <label className=" text-sm font-medium text-gray-700 mb-2 flex items-center">
                 <span>Recipient Email</span>
                 <span className="text-red-500 ml-1">*</span>
               </label>
@@ -853,7 +853,7 @@ const TransferModal = () => {
 
             {/* Amount Field */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+              <label className=" text-sm font-medium text-gray-700 mb-2 flex items-center">
                 <span>Amount</span>
                 <span className="text-red-500 ml-1">*</span>
               </label>
@@ -886,7 +886,7 @@ const TransferModal = () => {
 
             {/* PIN Field */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+              <label className=" text-sm font-medium text-gray-700 mb-2 flex items-center">
                 <span>Security PIN</span>
                 <span className="text-red-500 ml-1">*</span>
               </label>

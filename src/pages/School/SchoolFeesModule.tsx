@@ -3,44 +3,9 @@ import { useAuth } from '../../context/AuthContext';
 import { Header } from '../../components/Header';
 import { Sidebar as Asidebar } from '../../components/Sidebar';
 import Footer from '../../components/Footer';
+import type { FeeBill, FormData, SchoolClass, SnackbarState } from '../../types';
+import { deleteFeeBill, getClasses, getSchoolFees, raiseFeeBill, updateFee } from '../../services';
 
-// Define TypeScript interfaces
-interface FeeBill {
-  _id: string;
-  className: string;
-  session: string;
-  term: string;
-  amount: string;
-  description: string;
-  dueDate: string;
-  feeType: string;
-}
-
-interface SchoolClass {
-  _id: string;
-  className: string;
-  schoolId: string;
-  students: string[];
-  __v?: number;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-interface FormData {
-  className: string;
-  session: string;
-  term: string;
-  amount: string;
-  description: string;
-  dueDate: string;
-  feeType: string;
-}
-
-interface SnackbarState {
-  open: boolean;
-  message: string;
-  severity: 'success' | 'error' | 'info' | 'warning';
-}
 
 const SchoolFeesModule: React.FC = () => {
   const auth = useAuth();
@@ -65,9 +30,6 @@ const SchoolFeesModule: React.FC = () => {
     severity: 'success',
   });
 
-  const API_BASE_URL =
-    import.meta.env.VITE_API_BASE_URL;
-
   // Get authentication token - prioritize context, fallback to localStorage
   const getAuthToken = () => {
     return auth?.token || localStorage.getItem('token');
@@ -75,233 +37,164 @@ const SchoolFeesModule: React.FC = () => {
 
   // Fetch classes for the school
   const fetchClasses = async () => {
-    try {
-      const token = getAuthToken();
-      if (!token) {
-        setSnackbar({
-          open: true,
-          message: 'Authentication required',
-          severity: 'error',
-        });
-        return;
-      }
-
-      setLoading(true);
-
-      const response = await fetch(`${API_BASE_URL}/api/users/getclasse`, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch classes: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log('Classes API Response:', data); // Debug log
-
-      // Handle the response structure
-      let classesData: SchoolClass[] = [];
-
-      if (Array.isArray(data)) {
-        // Direct array response
-        classesData = data;
-      } else if (data && Array.isArray(data.data)) {
-        // Response with data property containing array
-        classesData = data.data;
-      } else if (data && data.classes && Array.isArray(data.classes)) {
-        // Response with classes property containing array
-        classesData = data.classes;
-      } else {
-        console.warn('Unexpected API response structure:', data);
-        classesData = [];
-      }
-
-      console.log('Processed classes data:', classesData); // Debug log
-      setClasses(classesData);
-
-      if (classesData.length === 0) {
-        setSnackbar({
-          open: true,
-          message: 'No classes found for your school',
-          severity: 'info',
-        });
-      }
-    } catch (error) {
-      console.error('Error fetching classes:', error);
+  try {
+    const token = getAuthToken();
+    if (!token) {
       setSnackbar({
         open: true,
-        message:
-          error instanceof Error ? error.message : 'Failed to fetch classes',
+        message: 'Authentication required',
         severity: 'error',
       });
-    } finally {
-      setLoading(false);
+      return;
     }
-  };
+
+    setLoading(true);
+
+
+    const data = await getClasses();
+
+    console.log('Classes API Response:', data);
+
+    let classesData: SchoolClass[] = [];
+
+    // Handle possible response formats
+    if (Array.isArray(data)) {
+      classesData = data;
+    } else if (data && Array.isArray(data.data)) {
+      classesData = data.data;
+    } else if (data && data.classes && Array.isArray(data.classes)) {
+      classesData = data.classes;
+    } else {
+      console.warn('Unexpected API response structure:', data);
+      classesData = [];
+    }
+
+    console.log('Processed classes data:', classesData);
+    setClasses(classesData);
+
+    if (classesData.length === 0) {
+      setSnackbar({
+        open: true,
+        message: 'No classes found for your school',
+        severity: 'info',
+      });
+    }
+  } catch (error) {
+    console.error('Error fetching classes:', error);
+    setSnackbar({
+      open: true,
+      message: error instanceof Error ? error.message : 'Failed to fetch classes',
+      severity: 'error',
+    });
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   // Fetch all fees for the school
-  const fetchAllFees = async () => {
-    try {
-      const token = getAuthToken();
-      if (!token) {
-        setSnackbar({
-          open: true,
-          message: 'Authentication required',
-          severity: 'error',
-        });
-        return;
-      }
-
-      // Only fetch fees if we have a school ID
-      if (!auth?.user?.schoolId) {
-        setSnackbar({
-          open: true,
-          message: 'School information not available',
-          severity: 'error',
-        });
-        return;
-      }
-
-      setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/api/fee/getchoolFees`, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch fees: ${response.status}`);
-      }
-
-      const data = await response.json();
-      setBills(data.fees || data.data || []);
-    } catch (error) {
-      console.error('Error fetching fees:', error);
+// Fetch all fees for the school
+const fetchAllFees = async () => {
+  try {
+    // Only fetch fees if we have a school ID
+    if (!auth?.user?.schoolId) {
       setSnackbar({
         open: true,
-        message: 'Failed to fetch fee bills',
+        message: 'School information not available',
         severity: 'error',
       });
-    } finally {
-      setLoading(false);
+      return;
     }
-  };
+
+    setLoading(true);
+    const data = await getSchoolFees();
+    setBills(data.fees || data.data || []);
+  } catch (error: any) {
+    console.error('Error fetching fees:', error);
+    
+    const errorMessage = error.response?.data?.message || 
+                         'Failed to fetch fee bills';
+    
+    setSnackbar({
+      open: true,
+      message: errorMessage,
+      severity: 'error',
+    });
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Raise/Create a new fee bill
-  const raiseFee = async (feeData: FormData) => {
-    try {
-      const token = getAuthToken();
-      if (!token) {
-        setSnackbar({
-          open: true,
-          message: 'Authentication required',
-          severity: 'error',
-        });
-        return;
-      }
-
-      if (!auth?.user?.schoolId) {
-        setSnackbar({
-          open: true,
-          message: 'School information not available',
-          severity: 'error',
-        });
-        return;
-      }
-
-      const payload = {
-        ...feeData,
-        schoolId: auth.user.schoolId,
-      };
-
-      const response = await fetch(`${API_BASE_URL}/api/fee/raise`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.message || 'Failed to raise fee bill');
-      }
-
+const raiseFee = async (feeData: FormData) => {
+  try {
+    if (!auth?.user?.schoolId) {
       setSnackbar({
         open: true,
-        message: result.message || 'Fee bill raised successfully!',
-        severity: 'success',
-      });
-
-      await fetchAllFees();
-      resetForm();
-    } catch (error) {
-      console.error('Error raising fee:', error);
-      setSnackbar({
-        open: true,
-        message:
-          error instanceof Error ? error.message : 'Failed to raise fee bill',
+        message: 'School information not available',
         severity: 'error',
       });
+      return;
     }
-  };
 
-  // Update existing fee bill
-  const updateFeeBill = async (billId: string, feeData: FormData) => {
-    try {
-      const token = getAuthToken();
-      if (!token) {
-        setSnackbar({
-          open: true,
-          message: 'Authentication required',
-          severity: 'error',
-        });
-        return;
-      }
+    const payload = {
+      ...feeData,
+      schoolId: auth.user.schoolId,
+    };
 
-      const response = await fetch(`${API_BASE_URL}/api/fee/update/${billId}`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(feeData),
-      });
+    const result = await raiseFeeBill(payload);
 
-      const result = await response.json();
+    setSnackbar({
+      open: true,
+      message: result.message || 'Fee bill raised successfully!',
+      severity: 'success',
+    });
 
-      if (!response.ok) {
-        throw new Error(result.message || 'Failed to update fee bill');
-      }
+    await fetchAllFees();
+    resetForm();
+  } catch (error: any) {
+    console.error('Error raising fee:', error);
+    
+    const errorMessage = error.response?.data?.message || 
+                         error.message || 
+                         'Failed to raise fee bill';
+    
+    setSnackbar({
+      open: true,
+      message: errorMessage,
+      severity: 'error',
+    });
+  }
+};
+ // Update existing fee bill
+const updateFeeBill = async (billId: string, feeData: FormData) => {
+  try {
+    const result = await updateFee(billId, feeData);
 
-      setSnackbar({
-        open: true,
-        message: result.message || 'Fee bill updated successfully!',
-        severity: 'success',
-      });
+    setSnackbar({
+      open: true,
+      message: result.message || 'Fee bill updated successfully!',
+      severity: 'success',
+    });
 
-      await fetchAllFees();
-      resetForm();
-      setEditMode(false);
-      setSelectedBill(null);
-    } catch (error) {
-      console.error('Error updating fee:', error);
-      setSnackbar({
-        open: true,
-        message:
-          error instanceof Error ? error.message : 'Failed to update fee bill',
-        severity: 'error',
-      });
-    }
-  };
+    await fetchAllFees();
+    resetForm();
+    setEditMode(false);
+    setSelectedBill(null);
+  } catch (error: any) {
+    console.error('Error updating fee:', error);
+    
+    const errorMessage = error.response?.data?.message || 
+                         error.message || 
+                         'Failed to update fee bill';
+    
+    setSnackbar({
+      open: true,
+      message: errorMessage,
+      severity: 'error',
+    });
+  }
+};
 
   // Reset form to initial state
   const resetForm = () => {
@@ -376,45 +269,26 @@ const SchoolFeesModule: React.FC = () => {
   if (!selectedBill) return;
 
   try {
-    const token = getAuthToken();
-    if (!token) {
-      setSnackbar({
-        open: true,
-        message: 'Authentication required',
-        severity: 'error',
-      });
-      return;
-    }
-
-    const response = await fetch(
-      `${API_BASE_URL}/api/fee/delete/${selectedBill._id}`,
-      {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    if (!response.ok) {
-      const result = await response.json();
-      throw new Error(result.message || 'Failed to delete fee bill');
-    }
+    await deleteFeeBill(selectedBill._id);
 
     // Remove the deleted bill from the local state
     setBills(bills.filter((bill) => bill._id !== selectedBill._id));
+    
     setSnackbar({
       open: true,
       message: 'Fee bill deleted successfully',
       severity: 'success',
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error deleting fee bill:', error);
+    
+    const errorMessage = error.response?.data?.message || 
+                         error.message || 
+                         'Error deleting fee bill';
+    
     setSnackbar({
       open: true,
-      message:
-        error instanceof Error ? error.message : 'Error deleting fee bill',
+      message: errorMessage,
       severity: 'error',
     });
   } finally {
@@ -423,11 +297,11 @@ const SchoolFeesModule: React.FC = () => {
   }
 };
 
-  const cancelEdit = () => {
-    setEditMode(false);
-    setSelectedBill(null);
-    resetForm();
-  };
+const cancelEdit = () => {
+  setEditMode(false);
+  setSelectedBill(null);
+  resetForm();
+};
 
   // Render the component
   return (

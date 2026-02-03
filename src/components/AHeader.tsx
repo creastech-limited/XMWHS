@@ -11,32 +11,17 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { useAuth } from "../context/AuthContext";
+import { getmarkNotification, getNotifications, getUserDetails } from '../services';
+import type { Notification, NotificationsResponse, User, UserResponse } from '../types';
 
-interface User {
-  _id: string;
-  name: string;
-  email: string;
-  walletBalance?: number;
-  role: string;
-  [key: string]: unknown;
-}
 
-interface Notification {
-  _id: string;
-  userId: string;
-  title: string;
-  message: string;
-  type?: string;
-  read: boolean;
-  createdAt: string;
-}
+
 
 interface AgentData {
   name: string;
   walletBalance: number;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const AHeader = () => {
   const [agentData, setAgentData] = useState<AgentData | null>(null);
@@ -52,23 +37,11 @@ const AHeader = () => {
   const notifRef = useRef<HTMLDivElement>(null);
 
   // Fetch user details from API
-  const fetchUserDetails = async (authToken: string): Promise<User> => {
+  const fetchUserDetails = async (): Promise<User> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      const data: UserResponse = await getUserDetails();
+      console.log("Raw API response:", data); // Debug log
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch user details: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log('User API Response:', data); // Debug log
-      
       // Fixed: Extract user data based on the actual response structure
       const userData = data.user?.data || data.data || data.user || data;
       const walletBalance = data.user?.wallet?.balance || 0; // Fixed: Get balance from the correct path
@@ -77,16 +50,19 @@ const AHeader = () => {
         throw new Error('Invalid user data received');
       }
 
+      // Type assertion to tell TypeScript this is a User object
+      const userDataAsUser = userData as User;
+
       return {
-        ...userData,
+        ...userDataAsUser,
         walletBalance,
-        role: userData.role || '',
+        role: userDataAsUser.role || '', // Now TypeScript knows role exists
       };
     } catch (error) {
       console.error('Error fetching user details:', error);
       throw error;
     }
-  };
+  }
 
   const handleLogout = () => {
     if (logout) {
@@ -98,23 +74,11 @@ const AHeader = () => {
   };
 
   // Fetch notifications from API
-  const fetchNotifications = async (authToken: string): Promise<Notification[]> => {
+  const fetchNotifications = async (): Promise<Notification[]> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/notification/get`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      const data: NotificationsResponse = await getNotifications();
+      console.log('Notifications API response:', data);
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch notifications: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log('Notifications API Response:', data); // Debug log
-      
       // Fixed: Handle the actual response structure - data is directly an array
       let notificationsList: Notification[] = [];
       if (Array.isArray(data)) {
@@ -133,38 +97,30 @@ const AHeader = () => {
   };
 
   // Mark notification as read
-  const markNotificationAsRead = async (notificationId: string) => {
-    try {
-      const authToken = auth?.token || localStorage.getItem('token');
-      if (!authToken) return;
+ const markNotificationAsRead = async (notificationId: string) => {
+  try {
+    await getmarkNotification(notificationId);
 
-      const response = await fetch(`${API_BASE_URL}/api/notification/read/${notificationId}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
+    // Update local state
+    setNotifications(prev =>
+      prev.map(notif =>
+        notif._id === notificationId
+          ? { ...notif, read: true }
+          : notif
+      )
+    );
 
-      if (!response.ok) {
-        throw new Error(`Failed to mark notification as read: ${response.status}`);
-      }
-
-      // Update local state
-      setNotifications(prev => 
-        prev.map(notif => 
-          notif._id === notificationId 
-            ? { ...notif, read: true }
-            : notif
-        )
-      );
-
-      // Update unread count
-      setUnreadCount(prev => prev > 0 ? prev - 1 : 0);
-    } catch (error) {
-      console.error('Error marking notification as read:', error);
+    // Update unread count
+    setUnreadCount(prev => prev > 0 ? prev - 1 : 0);
+  } catch (error: any) {
+    console.error('Error marking notification as read:', error);
+    
+    // Optional: Show error message
+    if (error.response?.status === 401) {
+      console.error('Unauthorized - token may be invalid');
     }
-  };
+  }
+};
 
   // Handle authentication errors
   const handleAuthError = (message: string) => {
@@ -216,7 +172,7 @@ const AHeader = () => {
     const initializeAuth = async () => {
       try {
         setLoading(true);
-        
+
         let authToken: string | null = null;
         let userProfile: User | null = null;
 
@@ -231,7 +187,7 @@ const AHeader = () => {
           }
 
           authToken = storedToken;
-          userProfile = await fetchUserDetails(authToken);
+          userProfile = await fetchUserDetails();
           setUser(userProfile);
           auth?.login?.(userProfile, authToken);
         }
@@ -244,9 +200,9 @@ const AHeader = () => {
           });
 
           if (authToken) {
-            const userNotifications = await fetchNotifications(authToken);
+            const userNotifications = await fetchNotifications();
             setNotifications(userNotifications);
-            
+
             const unread = userNotifications.filter(notif => !notif.read).length;
             setUnreadCount(unread);
           }
@@ -263,7 +219,7 @@ const AHeader = () => {
     initializeAuth();
   }, [auth]);
 
-  
+
 
   // Close notifications when clicking outside
   useEffect(() => {
@@ -290,7 +246,7 @@ const AHeader = () => {
   if (loading) {
     return (
       <div className="flex m-2 flex-col bg-[#f8faff]">
-        <div 
+        <div
           className="text-white p-4 flex justify-between items-center"
           style={{ background: colors.headerGradient }}
         >
@@ -310,7 +266,7 @@ const AHeader = () => {
               </h2>
               <p className="opacity-80 text-xs">Wallet Balance</p>
             </div>
-            <button 
+            <button
               className="text-white p-2 rounded-full hover:text-blue-600 hover:bg-blue-600 hover:bg-opacity-10"
               aria-label="notifications"
             >
@@ -324,7 +280,7 @@ const AHeader = () => {
 
   return (
     <div className="flex m-2 flex-col bg-[#f8faff]">
-      <div 
+      <div
         className="text-white p-4 flex justify-between items-center"
         style={{ background: colors.headerGradient }}
       >
@@ -348,77 +304,77 @@ const AHeader = () => {
             </h2>
             <p className="opacity-80 text-xs hidden sm:block">Wallet Balance</p>
           </div>
-          
-         {/* Notifications dropdown */}
-<div className="relative" ref={notifRef}>
-  <button 
-    className="text-white p-2 rounded-full hover:text-blue-600 hover:bg-blue-600 hover:bg-opacity-10 relative flex-shrink-0"
-    aria-label="notifications"
-    onClick={() => setIsNotifOpen(!isNotifOpen)}
-  >
-    <Bell className="w-5 h-5" />
-    {unreadCount > 0 && (
-      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full min-w-[18px] h-4 flex items-center justify-center px-1">
-        {unreadCount > 99 ? '99+' : unreadCount}
-      </span>
-    )}
-  </button>
-  
-  {isNotifOpen && (
-    <div className="fixed sm:absolute right-2 left-2 sm:right-0 sm:left-auto top-20 sm:top-full sm:mt-2 w-auto sm:w-96 bg-white rounded-md shadow-lg z-50 max-h-[70vh] overflow-y-auto border border-gray-200">
-      <div className="p-3 border-b border-gray-200 flex justify-between items-center">
-        <h3 className="font-semibold text-gray-800">Notifications</h3>
-        <button 
-          onClick={() => setIsNotifOpen(false)}
-          className="text-gray-500 hover:text-gray-700"
-        >
-          <X className="w-5 h-5" />
-        </button>
-      </div>
-      
-      {notifications.length === 0 ? (
-        <div className="p-4 text-center text-gray-500">
-          No notifications available
-        </div>
-      ) : (
-        <ul>
-          {notifications.map((notification) => (
-            <li 
-              key={notification._id}
-              className={`border-b border-gray-100 last:border-0 ${!notification.read ? 'bg-blue-50' : ''}`}
+
+          {/* Notifications dropdown */}
+          <div className="relative" ref={notifRef}>
+            <button
+              className="text-white p-2 rounded-full hover:text-blue-600 hover:bg-blue-600 hover:bg-opacity-10 relative flex-shrink-0"
+              aria-label="notifications"
+              onClick={() => setIsNotifOpen(!isNotifOpen)}
             >
-              <div 
-                className={`p-3 hover:bg-gray-50 cursor-pointer border-l-4 ${getNotificationTypeColor(notification.type)}`}
-                onClick={() => {
-                  if (!notification.read) {
-                    markNotificationAsRead(notification._id);
-                  }
-                }}
-              >
-                <div className="flex items-start gap-2">
-                  <div className="mt-1 flex-shrink-0">
-                    {getNotificationIcon(notification.type)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800 truncate">{notification.title}</p>
-                    <p className="text-xs text-gray-600 mt-1 line-clamp-2">{notification.message}</p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {formatDate(notification.createdAt)}
-                    </p>
-                  </div>
-                  {!notification.read && (
-                    <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0 mt-2"></span>
-                  )}
+              <Bell className="w-5 h-5" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full min-w-[18px] h-4 flex items-center justify-center px-1">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </button>
+
+            {isNotifOpen && (
+              <div className="fixed sm:absolute right-2 left-2 sm:right-0 sm:left-auto top-20 sm:top-full sm:mt-2 w-auto sm:w-96 bg-white rounded-md shadow-lg z-50 max-h-[70vh] overflow-y-auto border border-gray-200">
+                <div className="p-3 border-b border-gray-200 flex justify-between items-center">
+                  <h3 className="font-semibold text-gray-800">Notifications</h3>
+                  <button
+                    onClick={() => setIsNotifOpen(false)}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
+
+                {notifications.length === 0 ? (
+                  <div className="p-4 text-center text-gray-500">
+                    No notifications available
+                  </div>
+                ) : (
+                  <ul>
+                    {notifications.map((notification) => (
+                      <li
+                        key={notification._id}
+                        className={`border-b border-gray-100 last:border-0 ${!notification.read ? 'bg-blue-50' : ''}`}
+                      >
+                        <div
+                          className={`p-3 hover:bg-gray-50 cursor-pointer border-l-4 ${getNotificationTypeColor(notification.type)}`}
+                          onClick={() => {
+                            if (!notification.read) {
+                              markNotificationAsRead(notification._id);
+                            }
+                          }}
+                        >
+                          <div className="flex items-start gap-2">
+                            <div className="mt-1 flex-shrink-0">
+                              {getNotificationIcon(notification.type)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-800 truncate">{notification.title}</p>
+                              <p className="text-xs text-gray-600 mt-1 line-clamp-2">{notification.message}</p>
+                              <p className="text-xs text-gray-500 mt-1">
+                                {formatDate(notification.createdAt)}
+                              </p>
+                            </div>
+                            {!notification.read && (
+                              <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0 mt-2"></span>
+                            )}
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  )}
-</div>
-          
+            )}
+          </div>
+
           {/* Logout Button - Icon only on mobile, text + icon on larger screens */}
           <button
             onClick={handleLogout}

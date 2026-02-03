@@ -10,6 +10,7 @@ import Footer from '../../components/Footer';
 import { Header } from '../../components/Header';
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
+import { getUserDetails, getUserWallet } from '../../services';
 
 interface Transaction {
   id: string;
@@ -66,93 +67,74 @@ const FundWalletPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [transactionFee, setTransactionFee] = useState<number>(0);
 
-  // Fetch wallet balance
-  const fetchWalletBalance = async () => {
+// Fetch wallet balance
+const fetchWalletBalance = async () => {
   if (!authToken) {
     navigate('/login'); 
     return;
   }
+  
+  try {
+    const data = await getUserWallet();
     
-    try {
-      const response = await axios.get(`${API_BASE_URL}/api/wallet/getuserwallet`, {
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (response.data?.data?.balance) {
-        setUserData(prev => ({
-          ...prev,
-          balance: response.data.data.balance
-        }));
-      }
-    } catch (error: unknown) {
-      console.error('Error fetching wallet balance:', error);
-      if (axios.isAxiosError(error) && error.response?.data?.message) {
-        setSnackbar({
-          open: true,
-          message: error.response.data.message,
-          severity: 'error'
-        });
-      } else {
-        setSnackbar({
-          open: true,
-          message: 'Failed to fetch wallet balance',
-          severity: 'error'
-        });
-      }
+   const walletData = data?.data;
+    
+    if (walletData?.balance !== undefined) {
+      setUserData(prev => ({
+        ...prev,
+        balance: walletData.balance
+      }));
     }
-  };
+  } catch (error: any) {
+    console.error('Error fetching wallet balance:', error);
+    
+    const errorMessage = error.response?.data?.message || 
+                         'Failed to fetch wallet balance';
+    
+    setSnackbar({
+      open: true,
+      message: errorMessage,
+      severity: 'error'
+    });
+  }
+};
 
   // Fetch user profile
- useEffect(() => {
+useEffect(() => {
   const fetchUserProfile = async () => {
-    if (!authToken) {
-      setIsLoading(false);
-      navigate('/login'); 
-      setSnackbar({
-        open: true,
-        message: 'You need to be logged in to access this page',
-        severity: 'error'
-      });
-      return;
-    }
-    
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/users/getuserone`, {
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      const data = await getUserDetails();
+      
+      // Extract user data safely
+      const userData = data.user?.data || data.data || data.user || data;
+      
+      if (userData && typeof userData === 'object') {
+        const id = (userData as any)._id;
+        if (id) setUserId(id);
         
-        if (response.data?.user) {
-          const profile = response.data.user;
-          const id = profile.data._id;
-          setUserId(id);
-          
-          setUserData({
-            username: profile.data.name || profile.data.username || "User",
-            balance: 0,
-            email: profile.data.email || "",
-            lastTransactions: profile.data.transactions || []
-          });
-          
-          setEmail(profile.data.email || "");
-          await fetchWalletBalance();
-        }
-      } catch (error: unknown) {
-      if (axios.isAxiosError(error) && error.response?.status === 401) {
-        // Handle 401 Unauthorized (token expired)
-        navigate('/login'); 
+        const email = (userData as any).email || "";
+        setEmail(email);
+        
+        setUserData({
+          username: (userData as any).name || (userData as any).username || "User",
+          balance: 0,
+          email: email,
+          lastTransactions: (userData as any).transactions || []
+        });
+        
+        await fetchWalletBalance();
       }
+    } catch (error: any) {
       console.error('Error fetching user profile:', error);
+      
+      if (error.response?.status === 401) {
+        navigate('/login');
+        return;
+      }
+      
       setSnackbar({
         open: true,
-        message: axios.isAxiosError(error) && error.response?.data?.message 
-          ? error.response.data.message 
-          : 'Failed to fetch user profile',
+        message: error.response?.data?.message || 'Failed to fetch user profile',
         severity: 'error'
       });
     } finally {
@@ -160,8 +142,8 @@ const FundWalletPage: React.FC = () => {
     }
   };
     
-   fetchUserProfile();
-}, [authToken, navigate]);
+  fetchUserProfile();
+}, [navigate, fetchWalletBalance]);
 
 // Quick amount selection
 const handleQuickAmountClick = async (value: number) => {

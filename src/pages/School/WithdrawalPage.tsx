@@ -12,6 +12,8 @@ import {
 import { Header } from '../../components/Header';
 import { Sidebar as Asidebar } from '../../components/Sidebar';
 import Footer from '../../components/Footer';
+import { getBanks } from '../../services';
+import type { Bank, WithdrawalValidation } from '../../types';
 
 // Define types
 interface User {
@@ -26,38 +28,9 @@ interface User {
   withdrawalAccountName?: string;
 }
 
-interface Bank {
-  id: string;
-  name: string;
-  code: string;
-}
-interface ApiBankData {
-  id: number;
-  name: string;
-  code: string;
-  slug: string;
-  longcode: string;
-  gateway: string | null;
-  pay_with_bank: boolean;
-  supports_transfer: boolean;
-  available_for_direct_debit: boolean;
-  active: boolean;
-  country: string;
-  currency: string;
-  type: string;
-  is_deleted: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
 
-interface WithdrawalValidation {
-  amount: number;
-  charge: number;
-  total: number;
-  account_name: string;
-  account_number: string;
-  bank_name: string;
-}
+
+
 interface SnackbarState {
   open: boolean;
   message: string;
@@ -110,42 +83,31 @@ const [withdrawalValidation, setWithdrawalValidation] = useState<WithdrawalValid
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   // Fetch banks from API
-  useEffect(() => {
+useEffect(() => {
   const fetchBanks = async () => {
     setBankLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/transaction/banks`);
+      const banksData = await getBanks();
+      console.log('Fetched banks:', banksData);
       
-      if (response.ok) {
-        const result = await response.json();
-        console.log('Fetched banks:', result);
-        
-        // Extract banks from the API response structure
-        const banksData = result.data || [];
-        
-        // Map the API response to match your Bank interface
-        const mappedBanks = banksData.map((bank: ApiBankData) => ({
-          id: bank.id.toString(),
-          name: bank.name,
-          code: bank.code,
-        }));
-        console.log('Mapped banks:', mappedBanks);
-        console.log('Mapped banks length:', mappedBanks.code);
-        setBanks(mappedBanks);
-      } else {
-        console.error('Failed to fetch banks');
-        setBanks([]); // Set empty array instead of fallback banks
-      }
+      const mappedBanks = banksData.map((bank) => ({
+        id: bank.id.toString(),
+        name: bank.name,
+        code: bank.code,
+      }));
+      
+      console.log('Mapped banks:', mappedBanks);
+      setBanks(mappedBanks);
     } catch (error) {
       console.error('Error fetching banks:', error);
-      setBanks([]); // Set empty array instead of fallback banks
+      setBanks([]);
     } finally {
       setBankLoading(false);
     }
   };
   
   fetchBanks();
-}, [API_BASE_URL]);
+}, []);
 
   // Fetch the logged-in user's profile on mount
   useEffect(() => {
@@ -896,7 +858,7 @@ const handleWithdrawalSubmit = async () => {
                 </label>
                 <input
                   type="text"
-                  className="block text-gray-700 mb-2 w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+                  className="block text-gray-700 w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
                   value={accountNumber}
                   onChange={(e) => setAccountNumber(e.target.value)}
                   placeholder="Enter 10-digit account number"
@@ -944,7 +906,7 @@ const handleWithdrawalSubmit = async () => {
                 <label className="block text-gray-700 mb-2">Enter OTP</label>
                 <input
                   type="text"
-                  className="block text-gray-700 mb-2 w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+                  className="block text-gray-700 w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
                   value={otp}
                   onChange={(e) => setOtp(e.target.value)}
                   placeholder="Enter OTP sent to your email"

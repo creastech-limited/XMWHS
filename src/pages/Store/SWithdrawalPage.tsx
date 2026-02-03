@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { 
+import {
   Landmark,
   Edit,
   Wallet,
@@ -12,6 +12,8 @@ import {
 import StoreHeader from '../../components/StoreHeader';
 import StoreSidebar from '../../components/StoreSidebar';
 import Footer from '../../components/Footer';
+import type { UserResponse, WithdrawalValidation } from '../../types';
+import { generateOtp, getBanks, getUserDetails, resolveAccount, submitWithdrawal, validateWithdrawal, verifyOtp } from '../../services';
 
 /// Define types
 interface User {
@@ -31,33 +33,7 @@ interface Bank {
   name: string;
   code: string;
 }
-interface ApiBankData {
-  id: number;
-  name: string;
-  code: string;
-  slug: string;
-  longcode: string;
-  gateway: string | null;
-  pay_with_bank: boolean;
-  supports_transfer: boolean;
-  available_for_direct_debit: boolean;
-  active: boolean;
-  country: string;
-  currency: string;
-  type: string;
-  is_deleted: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
 
-interface WithdrawalValidation {
-  amount: number;
-  charge: number;
-  total: number;
-  account_name: string;
-  account_number: string;
-  bank_name: string;
-}
 interface SnackbarState {
   open: boolean;
   message: string;
@@ -88,9 +64,9 @@ const SWithdrawalPage: React.FC = () => {
   const [withdrawalError, setWithdrawalError] = useState<string>('');
   const [withdrawalSuccess, setWithdrawalSuccess] = useState<boolean>(false);
   const [withdrawalPin, setWithdrawalPin] = useState<string>('');
-const [showPinModal, setShowPinModal] = useState<boolean>(false);
-const [userHasPin, setUserHasPin] = useState<boolean>(false);
-const [withdrawalValidation, setWithdrawalValidation] = useState<WithdrawalValidation | null>(null);
+  const [showPinModal, setShowPinModal] = useState<boolean>(false);
+  const [userHasPin, setUserHasPin] = useState<boolean>(false);
+  const [withdrawalValidation, setWithdrawalValidation] = useState<WithdrawalValidation | null>(null);
 
   // State for user profile (fetched from backend)
   const [user, setUser] = useState<User | null>(null);
@@ -106,110 +82,91 @@ const [withdrawalValidation, setWithdrawalValidation] = useState<WithdrawalValid
     severity: 'success',
   });
 
-  // API Base URL from environment variables
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   // Fetch banks from API
   useEffect(() => {
-  const fetchBanks = async () => {
-    setBankLoading(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/transaction/banks`);
-      
-      if (response.ok) {
-        const result = await response.json();
-        console.log('Fetched banks:', result);
-        
-        // Extract banks from the API response structure
-        const banksData = result.data || [];
-        
-        // Map the API response to match your Bank interface
-        const mappedBanks = banksData.map((bank: ApiBankData) => ({
+    const fetchBanks = async () => {
+      setBankLoading(true);
+      try {
+        const banksData = await getBanks();
+        console.log('Fetched banks:', banksData);
+
+        const mappedBanks = banksData.map((bank) => ({
           id: bank.id.toString(),
           name: bank.name,
           code: bank.code,
         }));
+
         console.log('Mapped banks:', mappedBanks);
-        console.log('Mapped banks length:', mappedBanks.code);
         setBanks(mappedBanks);
-      } else {
-        console.error('Failed to fetch banks');
-        setBanks([]); // Set empty array instead of fallback banks
+      } catch (error) {
+        console.error('Error fetching banks:', error);
+        setBanks([]);
+      } finally {
+        setBankLoading(false);
       }
-    } catch (error) {
-      console.error('Error fetching banks:', error);
-      setBanks([]); // Set empty array instead of fallback banks
-    } finally {
-      setBankLoading(false);
-    }
-  };
-  
-  fetchBanks();
-}, [API_BASE_URL]);
+    };
+
+    fetchBanks();
+  }, []);
 
   // Fetch the logged-in user's profile on mount
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-    
     const fetchUserProfile = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (response.ok) {
-          const data = await response.json();
-          
-          // Validate API response structure
-          if (!data || typeof data !== 'object') {
-            throw new Error('Invalid user profile response format');
-          }
+        // getUserDetails returns UserResponse, not User
+        const response: UserResponse = await getUserDetails();
+        console.log("Raw API response:", response);
 
-          // Create safe user data with null coalescing and optional chaining
-          const userInfo = data.user?.data || data.data || data;
-const walletInfo = data.user?.wallet || data.wallet;
-
-const userData: User = {
-  name: userInfo.name ?? `${userInfo.firstName ?? ''} ${userInfo.lastName ?? ''}`.trim(),
-  wallet: {
-    balance: walletInfo?.balance || 0,
-    currency: walletInfo?.currency || 'NGN',
-    walletId: walletInfo?.walletId || '',
-  },
-  withdrawalBank: userInfo.bankDetails?.bankName || userInfo.withdrawalBank,
-  withdrawalAccountNumber: userInfo.bankDetails?.accountNumber || userInfo.withdrawalAccountNumber,
-  withdrawalAccountName: userInfo.bankDetails?.accountName || userInfo.withdrawalAccountName,
-};
-          
-          setUser(userData);
-          setUserHasPin(!!userInfo.isPinSet);
-
-          // Pre-populate bank details if they exist
-        const bankName = userInfo.bankDetails?.bankName || userInfo.withdrawalBank;
-const accountNumber = userInfo.bankDetails?.accountNumber || userInfo.withdrawalAccountNumber;
-const accountName = userInfo.bankDetails?.accountName || userInfo.withdrawalAccountName;
-const bankCode = userInfo.bankDetails?.bankCode;
-
-if (bankName && accountNumber && accountName) {
-  setSelectedBank(bankName);
-  setAccountNumber(accountNumber);
-  setAccountName(accountName);
-  if (bankCode) {
-    setSelectedBankCode(bankCode);
-  }
-  setIsBankSet(true);
-}
-        } else {
+        if (!response) {
           console.error('Failed to fetch user profile');
+          return;
+        }
+
+        // Extract user data from UserResponse structure
+        // UserResponse can have: response.user?.data OR response.data OR response
+        const userInfo = response.user?.data || response.data || response;
+        const walletInfo = response.user?.wallet || response.wallet;
+
+        // Create User object from the extracted data
+        const userData: User = {
+          name: (userInfo as any).name ??
+            `${(userInfo as any).firstName ?? ''} ${(userInfo as any).lastName ?? ''}`.trim(),
+          wallet: {
+            balance: walletInfo?.balance || 0,
+            currency: walletInfo?.currency || 'NGN',
+            walletId: (walletInfo as any)?.walletId || '',
+          },
+          withdrawalBank: (userInfo as any).bankDetails?.bankName || (userInfo as any).withdrawalBank,
+          withdrawalAccountNumber: (userInfo as any).bankDetails?.accountNumber || (userInfo as any).withdrawalAccountNumber,
+          withdrawalAccountName: (userInfo as any).bankDetails?.accountName || (userInfo as any).withdrawalAccountName,
+        };
+
+        setUser(userData);
+        setUserHasPin(!!(userInfo as any).isPinSet);
+
+        // Pre-populate bank details if they exist
+        const bankName = (userInfo as any).bankDetails?.bankName || (userInfo as any).withdrawalBank;
+        const accountNumber = (userInfo as any).bankDetails?.accountNumber || (userInfo as any).withdrawalAccountNumber;
+        const accountName = (userInfo as any).bankDetails?.accountName || (userInfo as any).withdrawalAccountName;
+        const bankCode = (userInfo as any).bankDetails?.bankCode;
+
+        if (bankName && accountNumber && accountName) {
+          setSelectedBank(bankName);
+          setAccountNumber(accountNumber);
+          setAccountName(accountName);
+          if (bankCode) {
+            setSelectedBankCode(bankCode);
+          }
+          setIsBankSet(true);
         }
       } catch (error) {
         console.error('Error fetching user profile:', error);
       }
     };
-    
-    fetchUserProfile();
-  }, [API_BASE_URL]);
 
+    fetchUserProfile();
+  }, []);
 
   const availableBalance = user?.wallet?.balance || 0;
 
@@ -243,36 +200,28 @@ if (bankName && accountNumber && accountName) {
       setAccountName('');
       return;
     }
-    
+
     if (!selectedBankCode) {
       alert('Bank code not found. Please reselect your bank.');
       return;
     }
-    
+
     setLoading(true);
-    
+
     try {
-     const response = await fetch(`${API_BASE_URL}/api/transaction/resolveaccount?account_number=${accountNumber}&bank_code=${selectedBankCode}`, {
-  method: 'GET',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-      console.log (accountNumber, selectedBankCode);
-      if (response.ok) {
-        const data = await response.json();
-        // Assuming the API returns account_name in the response
-        setAccountName(data.account_name || data.data?.account_name);
-        setVerificationStatus('success');
-      } else {
-        const errorData = await response.json();
-        alert(errorData.message || 'Failed to verify account. Please check account number and try again.');
-        setVerificationStatus('error');
-        setAccountName('');
-      }
-    } catch (error) {
+      const data = await resolveAccount(accountNumber, selectedBankCode);
+      console.log(accountNumber, selectedBankCode);
+
+      // Assuming the API returns account_name in the response
+      setAccountName(data.account_name || data.data?.account_name || '');
+      setVerificationStatus('success');
+    } catch (error: any) {
       console.error('Error verifying account:', error);
-      alert('An error occurred while verifying account.');
+
+      const errorMessage = error.response?.data?.message ||
+        'Failed to verify account. Please check account number and try again.';
+
+      alert(errorMessage);
       setVerificationStatus('error');
       setAccountName('');
     } finally {
@@ -284,25 +233,16 @@ if (bankName && accountNumber && accountName) {
   const handleSendOtp = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/api/otp/generate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      
-      if (response.ok) {
-        setOtpSent(true);
-        alert('OTP sent to your registered email address.');
-      } else {
-        const errorData = await response.json();
-        alert(errorData.message || 'Failed to send OTP.');
-      }
-    } catch (error) {
+      await generateOtp();
+      setOtpSent(true);
+      alert('OTP sent to your registered email address.');
+    } catch (error: any) {
       console.error('Error sending OTP:', error);
-      alert('An error occurred while sending OTP.');
+
+      const errorMessage = error.response?.data?.message ||
+        'An error occurred while sending OTP.';
+
+      alert(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -314,112 +254,99 @@ if (bankName && accountNumber && accountName) {
       alert('Please fill in all fields and enter the OTP.');
       return;
     }
-    
+
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/api/otp/verify`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          otp,
-          accountName,
-          accountNumber,
-          bankName: selectedBank,
-          bankCode: selectedBankCode,
-        }),
+      await verifyOtp({
+        otp,
+        accountName,
+        accountNumber,
+        bankName: selectedBank,
+        bankCode: selectedBankCode || '', // Provide empty string as fallback
       });
-      
-      if (response.ok) {
-        await response.json();
-        setIsBankSet(true);
-        setOpenModal(false);
-        resetModalForm();
-        setSnackbar({
-          open: true,
-          message: 'Withdrawal bank details updated successfully!',
-          severity: 'success',
+
+      setIsBankSet(true);
+      setOpenModal(false);
+      resetModalForm();
+      setSnackbar({
+        open: true,
+        message: 'Withdrawal bank details updated successfully!',
+        severity: 'success',
+      });
+
+      // Update the user state to reflect the new bank details
+      if (user) {
+        setUser({
+          ...user,
+          withdrawalBank: selectedBank,
+          withdrawalAccountNumber: accountNumber,
+          withdrawalAccountName: accountName,
         });
-        
-        // Update the user state to reflect the new bank details
-        if (user) {
-          setUser({
-            ...user,
-            withdrawalBank: selectedBank,
-            withdrawalAccountNumber: accountNumber,
-            withdrawalAccountName: accountName,
-          });
-        }
-      } else {
-        const errorData = await response.json();
-        alert(errorData.message || 'Failed to verify OTP and set bank details.');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error verifying OTP:', error);
-      alert('An error occurred while verifying OTP.');
+
+      const errorMessage = error.response?.data?.message ||
+        'An error occurred while verifying OTP.';
+
+      alert(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-const handlePinConfirmation = async () => {
-  if (!withdrawalPin || withdrawalPin.length !== 4) {
-    setSnackbar({
-      open: true,
-      message: 'Please enter your 4-digit PIN.',
-      severity: 'warning',
-    });
-    return;
-  }
+  // Handle withdrawal submission with PIN confirmation
 
-  setLoading(true);
-  try {
-    const token = localStorage.getItem('token');
-    const amount = parseFloat(withdrawalAmount);
+  const handlePinConfirmation = async () => {
+    if (!withdrawalPin || withdrawalPin.length !== 4) {
+      setSnackbar({
+        open: true,
+        message: 'Please enter your 4-digit PIN.',
+        severity: 'warning',
+      });
+      return;
+    }
 
-    const response = await fetch(`${API_BASE_URL}/api/transaction/withdraw`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
+    setLoading(true);
+    try {
+      const amount = parseFloat(withdrawalAmount);
+
+      await submitWithdrawal({
         amount,
         description: withdrawalNote,
         pin: withdrawalPin,
-        account_name: accountName,
-        account_number: accountNumber,
-        bank_code : selectedBankCode,
-      }),
-    });
+        account_name: accountName || '',
+        account_number: accountNumber || '',
+        bank_code: selectedBankCode || '',
+      });
 
-    if (response.ok) {
-      await response.json();
+      // Success handling
       setWithdrawalSuccess(true);
       setWithdrawalAmount('');
       setWithdrawalNote('');
       setShowPinModal(false);
       setWithdrawalPin('');
-      setWithdrawalValidation(null); // Reset validation data
+      setWithdrawalValidation(null);
+
       setSnackbar({
         open: true,
         message: 'Withdrawal request submitted successfully! Your funds will be processed within 24 hours.',
         severity: 'success',
       });
-    } else {
-      const errorData = await response.json();
-      let errorMessage = 'Failed to submit withdrawal request.';
-      
-      if (errorData.message?.toLowerCase().includes('pin') || 
-          errorData.message?.toLowerCase().includes('invalid')) {
-        errorMessage = 'Invalid PIN. Please check your PIN and try again.';
-      } else {
-        errorMessage = errorData.message || 'Failed to submit withdrawal request.';
+    } catch (error: any) {
+      console.error('Withdrawal Error:', error);
+
+      let errorMessage = 'An error occurred while processing your request. Please try again.';
+
+      if (error.response?.data?.message) {
+        const apiMessage = error.response.data.message.toLowerCase();
+        if (apiMessage.includes('pin') || apiMessage.includes('invalid')) {
+          errorMessage = 'Invalid PIN. Please check your PIN and try again.';
+        } else {
+          errorMessage = error.response.data.message;
+        }
       }
-      
+
       setSnackbar({
         open: true,
         message: errorMessage,
@@ -427,101 +354,89 @@ const handlePinConfirmation = async () => {
       });
       setShowPinModal(false);
       setWithdrawalPin('');
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error('Withdrawal Error:', error);
-    setSnackbar({
-      open: true,
-      message: 'An error occurred while processing your request. Please try again.',
-      severity: 'error',
-    });
-    setShowPinModal(false);
-    setWithdrawalPin('');
-  } finally {
-    setLoading(false);
-  }
-};
-const validateWithdrawal = async (amount: number) => {
-  try {
-    const token = localStorage.getItem('token');
-    const response = await fetch(`${API_BASE_URL}/api/transaction/validateaccount`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ amount }),
-    });
+  };
 
-    if (response.ok) {
-      const data = await response.json();
-      return data.data; 
-        } else {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Failed to validate withdrawal');
+  // Validate withdrawal to get charges using new API
+  const validateWithdrawalAmount = async (amount: number): Promise<WithdrawalValidation> => {
+    try {
+      const validationData = await validateWithdrawal(amount);
+      return validationData;
+    } catch (error: any) {
+      console.error('Validation Error:', error);
+      throw new Error(error.response?.data?.message || 'Failed to validate withdrawal');
     }
-  } catch (error) {
-    console.error('Validation Error:', error);
-    throw error;
-  }
-};
-// Modify the handleWithdrawalSubmit function
-const handleWithdrawalSubmit = async () => {
-  setWithdrawalError('');
-  setWithdrawalSuccess(false);
-  setWithdrawalValidation(null); // Reset previous validation
-  
-  // Check if user has PIN set first
-  if (!userHasPin) {
-    alert('No PIN found. Please set your PIN in the settings page before making withdrawals.');
-    return;
-  }
-  
-  // Existing validation logic...
-  if (!withdrawalAmount) {
-    setWithdrawalError('Please enter an amount to withdraw.');
-    return;
-  }
-  const amount = parseFloat(withdrawalAmount);
-  if (isNaN(amount) || amount <= 0) {
-    setWithdrawalError('Please enter a valid amount.');
-    return;
-  }
-  if (amount > availableBalance) {
-    setWithdrawalError('Insufficient balance.');
-    return;
-  }
+  };
 
-  setLoading(true);
-  try {
-    // First validate the withdrawal to get charges
-    const validationData = await validateWithdrawal(amount);
-    
-    // Ensure we have all required fields
-    const validationResult = {
-      amount: validationData.amount || amount,
-      charge: validationData.charge || 0,
-      total: (validationData.amount || amount) + (validationData.charge || 0),
-      account_name: accountName || '',
-      account_number: accountNumber || '',
-      bank_name: selectedBank || '',
-    };
-    
-    setWithdrawalValidation(validationResult);
-    
-    // Only show PIN modal after successful validation
-    setShowPinModal(true);
-  } catch (error) {
-    setWithdrawalError(
-      error && typeof error === 'object' && 'message' in error
-        ? (error as { message?: string }).message || 'Failed to validate withdrawal'
-        : 'Failed to validate withdrawal'
-    );
-  } finally {
-    setLoading(false);
-  }
-};
+  const handleWithdrawalSubmit = async () => {
+    setWithdrawalError('');
+    setWithdrawalSuccess(false);
+    setWithdrawalValidation(null);
 
+    // Check if user has PIN set first
+    if (!userHasPin) {
+      setSnackbar({
+        open: true,
+        message: 'No PIN found. Please set your PIN in the settings page before making withdrawals.',
+        severity: 'warning',
+      });
+      return;
+    }
+
+    // Validate amount input
+    if (!withdrawalAmount) {
+      setWithdrawalError('Please enter an amount to withdraw.');
+      return;
+    }
+
+    const amount = parseFloat(withdrawalAmount);
+    if (isNaN(amount) || amount <= 0) {
+      setWithdrawalError('Please enter a valid amount.');
+      return;
+    }
+
+    if (amount > availableBalance) {
+      setWithdrawalError('Insufficient balance.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // First validate the withdrawal to get charges
+      const validationData = await validateWithdrawalAmount(amount);
+
+      // Create validation result with fallbacks
+      const validationResult: WithdrawalValidation = {
+        amount: validationData.amount || amount,
+        charge: validationData.charge || 0,
+        total: (validationData.amount || amount) + (validationData.charge || 0),
+        account_name: validationData.account_name || accountName || '',
+        account_number: validationData.account_number || accountNumber || '',
+        bank_name: validationData.bank_name || selectedBank || '',
+      };
+
+      setWithdrawalValidation(validationResult);
+
+      // Only show PIN modal after successful validation
+      setShowPinModal(true);
+    } catch (error: any) {
+      console.error('Withdrawal validation error:', error);
+
+      const errorMessage = error.message || 'Failed to validate withdrawal';
+      setWithdrawalError(errorMessage);
+
+      // Optionally show snackbar
+      setSnackbar({
+        open: true,
+        message: errorMessage,
+        severity: 'error',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
   return (
     <div className="flex flex-col min-h-screen bg-white">
       <StoreHeader />
@@ -646,9 +561,8 @@ const handleWithdrawalSubmit = async () => {
                       <input
                         id="withdrawalAmount"
                         type="number"
-                        className={`w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 ${
-                          withdrawalError ? 'border-red-500' : 'border-gray-300'
-                        }`}
+                        className={`w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 ${withdrawalError ? 'border-red-500' : 'border-gray-300'
+                          }`}
                         value={withdrawalAmount}
                         onChange={(e) => setWithdrawalAmount(e.target.value)}
                         placeholder="Enter amount"
@@ -664,7 +578,7 @@ const handleWithdrawalSubmit = async () => {
                       <input
                         id="withdrawalNote"
                         type="text"
-                       className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                        className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
                         value={withdrawalNote}
                         onChange={(e) => setWithdrawalNote(e.target.value)}
                         placeholder="Add a note for this withdrawal"
@@ -730,84 +644,84 @@ const handleWithdrawalSubmit = async () => {
             </div>
           </div>
        /* PIN Verification Modal */
-{showPinModal && (
-  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-    <div className="bg-white rounded-lg w-full max-w-sm p-6">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-bold text-gray-800">Confirm Withdrawal</h2>
-        <button
-          onClick={() => {
-            setShowPinModal(false);
-            setWithdrawalPin('');
-            setWithdrawalValidation(null); // Reset validation data
-          }}
-          className="text-gray-500 hover:text-gray-700"
-        >
-          <X size={20} />
-        </button>
-      </div>
-      
-      {/* Withdrawal Details - Only show if validation data exists */}
-      {withdrawalValidation ? (
-        <div className="mb-6 space-y-3">
-          <div className="flex justify-between">
-            <span className="text-gray-600">Bank:</span>
-            <span className="font-medium text-black">{withdrawalValidation.bank_name}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">Account Number:</span>
-            <span className="font-medium text-black">{withdrawalValidation.account_number}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">Account Name:</span>
-            <span className="font-medium text-black">{withdrawalValidation.account_name}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">Amount:</span>
-            <span className="font-medium text-black">₦{withdrawalValidation.amount.toLocaleString()}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">Fee:</span>
-            <span className="font-medium text-black">₦{withdrawalValidation.charge.toLocaleString()}</span>
-          </div>
-          <div className="flex justify-between border-t pt-2">
-            <span className="text-gray-600 font-semibold">Total:</span>
-            <span className="font-bold text-black">₦{withdrawalValidation.total.toLocaleString()}</span>
-          </div>
-        </div>
-      ) : (
-        <div className="mb-6 p-4 bg-gray-100 rounded-md">
-          <p className="text-gray-600">Loading withdrawal details...</p>
-        </div>
-      )}
-      
-      <div className="mb-4">
-        <label className="block text-gray-700 mb-2">Enter your 4-digit PIN</label>
-        <input
-          type="password"
-          maxLength={4}
-          className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-center text-lg tracking-widest text-black"
-          value={withdrawalPin}
-          onChange={(e) => setWithdrawalPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-          placeholder="••••"
-        />
-      </div>
-      
-      <button
-        onClick={handlePinConfirmation}
-        disabled={loading || withdrawalPin.length !== 4 || !withdrawalValidation}
-        className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md transition disabled:bg-blue-400"
-      >
-        {loading ? (
-          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-        ) : (
-          <Lock size={18} />
-        )}
-        Confirm Withdrawal
-      </button>
-    </div>
-  </div>
-)}
+          {showPinModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg w-full max-w-sm p-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-xl font-bold text-gray-800">Confirm Withdrawal</h2>
+                  <button
+                    onClick={() => {
+                      setShowPinModal(false);
+                      setWithdrawalPin('');
+                      setWithdrawalValidation(null); // Reset validation data
+                    }}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+
+                {/* Withdrawal Details - Only show if validation data exists */}
+                {withdrawalValidation ? (
+                  <div className="mb-6 space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Bank:</span>
+                      <span className="font-medium text-black">{withdrawalValidation.bank_name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Account Number:</span>
+                      <span className="font-medium text-black">{withdrawalValidation.account_number}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Account Name:</span>
+                      <span className="font-medium text-black">{withdrawalValidation.account_name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Amount:</span>
+                      <span className="font-medium text-black">₦{withdrawalValidation.amount.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Fee:</span>
+                      <span className="font-medium text-black">₦{withdrawalValidation.charge.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between border-t pt-2">
+                      <span className="text-gray-600 font-semibold">Total:</span>
+                      <span className="font-bold text-black">₦{withdrawalValidation.total.toLocaleString()}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mb-6 p-4 bg-gray-100 rounded-md">
+                    <p className="text-gray-600">Loading withdrawal details...</p>
+                  </div>
+                )}
+
+                <div className="mb-4">
+                  <label className="block text-gray-700 mb-2">Enter your 4-digit PIN</label>
+                  <input
+                    type="password"
+                    maxLength={4}
+                    className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-center text-lg tracking-widest text-black"
+                    value={withdrawalPin}
+                    onChange={(e) => setWithdrawalPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                    placeholder="••••"
+                  />
+                </div>
+
+                <button
+                  onClick={handlePinConfirmation}
+                  disabled={loading || withdrawalPin.length !== 4 || !withdrawalValidation}
+                  className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md transition disabled:bg-blue-400"
+                >
+                  {loading ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Lock size={18} />
+                  )}
+                  Confirm Withdrawal
+                </button>
+              </div>
+            </div>
+          )}
         </main>
       </div>
       <Footer />
@@ -834,11 +748,10 @@ const handleWithdrawalSubmit = async () => {
               {steps.map((step, index) => (
                 <div key={step} className="flex flex-col items-center">
                   <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center mb-2 ${
-                      activeStep >= index
+                    className={`w-8 h-8 rounded-full flex items-center justify-center mb-2 ${activeStep >= index
                         ? 'bg-blue-600 text-white'
                         : 'bg-gray-200 text-gray-600'
-                    }`}
+                      }`}
                   >
                     {index + 1}
                   </div>
@@ -866,14 +779,14 @@ const handleWithdrawalSubmit = async () => {
                     id="withdrawal-bank-select"
                     className="block text-gray-700 mb-2 w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={selectedBank}
-                   onChange={(e) => {
-  const selectedBankName = e.target.value;
-  const selectedBankObj = banks.find(bank => bank.name === selectedBankName);
-  
-  setSelectedBank(selectedBankName);
-  setSelectedBankCode(selectedBankObj?.code || '');
-  setActiveStep(1);
-}}
+                    onChange={(e) => {
+                      const selectedBankName = e.target.value;
+                      const selectedBankObj = banks.find(bank => bank.name === selectedBankName);
+
+                      setSelectedBank(selectedBankName);
+                      setSelectedBankCode(selectedBankObj?.code || '');
+                      setActiveStep(1);
+                    }}
                   >
                     <option value="" className="block text-gray-700 mb-2">
                       Select your bank
@@ -896,7 +809,7 @@ const handleWithdrawalSubmit = async () => {
                 </label>
                 <input
                   type="text"
-                  className="block text-gray-700 mb-2 w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+                  className="block text-gray-700 w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
                   value={accountNumber}
                   onChange={(e) => setAccountNumber(e.target.value)}
                   placeholder="Enter 10-digit account number"
@@ -944,7 +857,7 @@ const handleWithdrawalSubmit = async () => {
                 <label className="block text-gray-700 mb-2">Enter OTP</label>
                 <input
                   type="text"
-                  className="block text-gray-700 mb-2 w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+                  className="block text-gray-700 w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
                   value={otp}
                   onChange={(e) => setOtp(e.target.value)}
                   placeholder="Enter OTP sent to your email"
@@ -988,13 +901,12 @@ const handleWithdrawalSubmit = async () => {
       {snackbar.open && (
         <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 bg-white shadow-lg rounded-lg overflow-hidden">
           <div
-            className={`px-4 py-3 flex items-center gap-2 ${
-              snackbar.severity === 'success'
+            className={`px-4 py-3 flex items-center gap-2 ${snackbar.severity === 'success'
                 ? 'bg-green-600 text-white'
                 : snackbar.severity === 'error'
                   ? 'bg-red-600 text-white'
                   : 'bg-blue-600 text-white'
-            }`}
+              }`}
           >
             {snackbar.severity === 'success' ? (
               <CheckCircle size={18} />

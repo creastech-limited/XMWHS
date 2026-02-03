@@ -17,12 +17,9 @@ import { getStudentById, getFeesForStudent } from '../../services';
 
 // Import types
 import type { Student, SchoolFee, Bill, TransactionSummary } from '../../types/student';
+import type { SnackbarState } from '../../types';
 
-interface SnackbarState {
-  open: boolean;
-  message: string;
-  severity: 'success' | 'error' | 'info' | 'warning';
-}
+
 
 const ViewStudentTransactions: React.FC = () => {
   const { _id: studentIdFromUrl } = useParams();

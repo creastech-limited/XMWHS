@@ -3,7 +3,6 @@ import {
   TrendingUp,
   MoreVertical,
   RefreshCw,
-  Wallet,
   Users,
   DollarSign,
   Bell,
@@ -14,76 +13,10 @@ import StoreSidebar from '../../components/StoreSidebar';
 import StoreHeader from '../../components/StoreHeader';
 import Footer from '../../components/Footer';
 import { useAuth } from '../../context/AuthContext';
+import type { Agent, DashboardData, Notification, NotificationsResponse, Transaction, TransactionsResponse, User, UserResponse, Wallet } from '../../types';
+import { getAgentCount, getmarkNotification, getNotifications, getUserDetails, getUserTransactions } from '../../services';
+import { FaWallet } from 'react-icons/fa';
 
-// API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-
-// Define TypeScript interfaces
-interface User {
-  _id: string;
-  name: string;
-  email: string;
-  role: string;
-  balance?: number;
-  firstName?: string;
-  lastName?: string;
-  phone?: string;
-  storeName?: string;
-  storeType?: string;
-  schoolName?: string;
-  [key: string]: unknown;
-}
-
-interface WalletData {
-  id: string;
-  balance: number;
-  currency: string;
-  type: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  phone: string;
-}
-
-interface Transaction {
-  id: string;
-  date: string;
-  createdAt: string;
-  amount: number;
-  status: 'Completed' | 'Pending' | 'Failed';
-  customer: string;
-}
-
-interface Agent {
-  name: string;
-  sales: number;
-  performance: number;
-  revenue: number;
-}
-
-interface Notification {
-  _id: string;
-  userId: string;
-  type: string;
-  title: string;
-  message: string;
-  read: boolean;
-  createdAt: string;
-  __v: number;
-}
-
-interface DashboardData {
-  balance: number;
-  dailyRevenue: number;
-  numberOfAgents: number;
-  growth: {
-    revenue: number;
-    agents: number;
-  };
-  recentTransactions: Transaction[];
-  topAgents: Agent[];
-  notifications: Notification[];
-}
 
 const StoreDashboard: React.FC = () => {
   const auth = useAuth() as {
@@ -126,25 +59,13 @@ const StoreDashboard: React.FC = () => {
 
   // Fetch user details from API
   const fetchUserDetails = useCallback(
-    async (authToken: string): Promise<User> => {
+    async (): Promise<User> => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${authToken}`,
-            'Content-Type': 'application/json',
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        console.log('Raw API response:', data);
+        const data: UserResponse = await getUserDetails();
+        console.log("Raw API response:", data);
 
         let profile: User | undefined;
-        let walletData: WalletData | undefined;
+        let walletData: Partial<Wallet> | undefined;
 
         if (data.user?.data) {
           profile = data.user.data;
@@ -153,46 +74,45 @@ const StoreDashboard: React.FC = () => {
           profile = data.data;
           walletData = data.wallet;
         } else {
-          profile = data;
-          walletData = data.wallet;
+          throw new Error("Unexpected API structure: missing user data");
         }
 
         if (!profile) {
-          throw new Error('Invalid user data received from API');
+          throw new Error("Invalid user data received from API");
         }
 
         const transformedUser: User = {
           ...profile,
           _id:
-            typeof profile['*id'] === 'string'
-              ? profile['*id']
-              : typeof profile._id === 'string'
+            typeof profile["*id"] === "string"
+              ? profile["*id"]
+              : typeof profile._id === "string"
                 ? profile._id
-                : typeof profile.id === 'string'
+                : typeof profile.id === "string"
                   ? profile.id
-                  : '',
+                  : "",
           name:
             profile.name ||
-            `${profile.firstName || ''} ${profile.lastName || ''}`.trim(),
-          role: profile.role || 'store',
-          firstName: profile.firstName || '',
-          lastName: profile.lastName || '',
-          phone: profile.phone || '',
-          storeName: profile.storeName || '',
-          storeType: profile.storeType || '',
-          schoolName: profile.schoolName || '',
+            `${profile.firstName || ""} ${profile.lastName || ""}`.trim(),
+          role: profile.role || "store",
+          firstName: profile.firstName || "",
+          lastName: profile.lastName || "",
+          phone: profile.phone || "",
+          storeName: profile.storeName || "",
+          storeType: profile.storeType || "",
+          schoolName: profile.schoolName || "",
           balance: walletData?.balance || 0,
         };
 
-        console.log('Transformed user:', transformedUser);
+        console.log("Transformed user:", transformedUser);
 
         if (!transformedUser._id) {
-          throw new Error('Invalid user ID received from API');
+          throw new Error("Invalid user ID received from API");
         }
 
         return transformedUser;
       } catch (error) {
-        console.error('Failed to fetch user details:', error);
+        console.error("Failed to fetch user details:", error);
         throw error;
       }
     },
@@ -201,110 +121,67 @@ const StoreDashboard: React.FC = () => {
 
   // Fetch user transactions
   const fetchUserTransactions = useCallback(
-    async (authToken: string): Promise<Transaction[]> => {
+    async (): Promise<Transaction[]> => {
       try {
-        const response = await fetch(
-          `${API_BASE_URL}/api/transaction/getusertransaction`,
-          {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${authToken}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
+        const response: TransactionsResponse = await getUserTransactions();
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        console.log('Transactions API Response:', JSON.stringify(response, null, 2));
 
-        const data = await response.json();
-        console.log('Transaction API response:', data);
+        const transactionsArray = response.data || [];
 
-        const transactionsArray = data.data || data.transactions || data || [];
+        const transactions: Transaction[] = transactionsArray.map((tx: any) => ({
+          // Required properties
+          _id: tx._id || tx.id || "",
+          date: new Date(tx.createdAt || tx.date).toLocaleDateString(),
+          createdAt: tx.createdAt || tx.date || "",
+          description: tx.description || "Transaction",
+          amount: Number(tx.amount) || 0,
+          category: tx.category || "General",
+          status:
+            tx.status === "success"
+              ? "Completed"
+              : tx.status === "pending"
+                ? "Pending"
+                : "Failed",
+          customer:
+            tx?.metadata?.senderEmail ||
+            tx?.senderWalletId?.email ||
+            "Unknown Sender",
+        }));
 
-        const transactions: Transaction[] = transactionsArray.map(
-          (tx: Record<string, unknown>) => ({
-            id: (tx._id || tx.id || '').toString().slice(-8),
-            date: new Date(
-              String(tx.createdAt || tx.date || '')
-            ).toLocaleDateString(),
-            createdAt: tx.createdAt || tx.date || '',
-            amount: Number(tx.amount) || 0,
-            status:
-              tx.status === 'success'
-                ? 'Completed'
-                : tx.status === 'pending'
-                  ? 'Pending'
-                  : 'Failed',
-            customer:
-              tx.metadata &&
-              typeof tx.metadata === 'object' &&
-              'senderEmail' in tx.metadata
-                ? ((tx.metadata as Record<string, unknown>)
-                    .senderEmail as string)
-                : tx.senderWalletId &&
-                    typeof tx.senderWalletId === 'object' &&
-                    'email' in tx.senderWalletId
-                  ? ((tx.senderWalletId as Record<string, unknown>)
-                      .email as string)
-                  : 'Unknown Sender',
-          })
-        );
-
-        console.log('Processed transactions:', transactions);
         return transactions;
       } catch (error) {
-        console.error('Failed to fetch transactions:', error);
+        console.error("Failed to fetch transactions:", error);
         return [];
       }
     },
     []
   );
-
   // Fetch notifications
   const fetchNotifications = useCallback(
-    async (authToken: string): Promise<Notification[]> => {
+    async (): Promise<Notification[]> => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/notification/get`, {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${authToken}`,
-            'Content-Type': 'application/json',
-          },
-        });
+        const response: NotificationsResponse = await getNotifications();
+        console.log('Notifications API response:', response);
 
-        if (response.status === 401) {
-          handleAuthError('Session expired. Please login again.');
-          return [];
+        // Extract notifications from different possible response structures
+        let notificationsList: any[] = [];
+
+        if (Array.isArray(response)) {
+          notificationsList = response;
+        } else if (Array.isArray(response.data)) {
+          notificationsList = response.data;
+        } else if (Array.isArray(response.notifications)) {
+          notificationsList = response.notifications;
+        } else if (response && typeof response === 'object') {
+          // Try to find any array in the response
+          const foundArray = Object.values(response).find(Array.isArray);
+          notificationsList = foundArray || [];
         }
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        console.log('Notifications API response:', data);
-
-        const notificationsList = Array.isArray(data)
-          ? data
-          : data.notifications || data.data || [];
-
-        type NotificationResponse = {
-          _id?: string;
-          id?: string;
-          userId?: string;
-          type?: string;
-          title?: string;
-          message?: string;
-          read?: boolean;
-          createdAt?: string;
-          __v?: number;
-        };
 
         const notifications: Notification[] = notificationsList.map(
-          (notif: NotificationResponse) => ({
-            _id: notif._id || notif.id || Math.random().toString(),
+          (notif: any) => ({
+            _id: notif._id || notif.id || Math.random().toString(36).substring(2, 9),
             userId: notif.userId || '',
             type: notif.type || 'info',
             title: notif.title || 'Notification',
@@ -325,44 +202,12 @@ const StoreDashboard: React.FC = () => {
     [handleAuthError]
   );
 
-  // Mark notification as read
-  const markNotificationAsRead = useCallback(
-    async (notificationId: string) => {
-      if (!token) return;
-
-      try {
-        const response = await fetch(
-          `${API_BASE_URL}/api/notification/read/${notificationId}`,
-          {
-            method: 'PUT',
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-
-        if (response.ok) {
-          setDashboardData((prev) => ({
-            ...prev,
-            notifications: prev.notifications.map((notif) =>
-              notif._id === notificationId ? { ...notif, read: true } : notif
-            ),
-          }));
-        }
-      } catch (error) {
-        console.error('Error marking notification as read:', error);
-      }
-    },
-    [token]
-  );
-
   // Refresh notifications
   const refreshNotifications = useCallback(async () => {
     if (!token) return;
 
     try {
-      const notifications = await fetchNotifications(token);
+      const notifications = await fetchNotifications();
       setDashboardData((prev) => ({
         ...prev,
         notifications: notifications.slice(0, 3),
@@ -374,25 +219,10 @@ const StoreDashboard: React.FC = () => {
 
   // Fetch agent count
   const fetchAgentCount = useCallback(
-    async (authToken: string): Promise<number> => {
+    async (): Promise<number> => {
       try {
-        const response = await fetch(
-          `${API_BASE_URL}/api/users/getagentbyidcount`,
-          {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${authToken}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        return data.data || 0;
+        const count = await getAgentCount();
+        return count;
       } catch (error) {
         console.error('Failed to fetch agent count:', error);
         return 0;
@@ -402,80 +232,80 @@ const StoreDashboard: React.FC = () => {
   );
 
   // Fetch agent performance based on transaction frequency
- const fetchAgentPerformance = useCallback(
-  async (transactions: Transaction[]): Promise<Agent[]> => {
-    try {
-      if (transactions.length === 0) return [];
+  const fetchAgentPerformance = useCallback(
+    async (transactions: Transaction[]): Promise<Agent[]> => {
+      try {
+        if (transactions.length === 0) return [];
 
-      // Count transactions per sender email
-      const senderCounts = transactions.reduce(
-        (acc, tx) => {
-          const senderEmail = tx.customer;
-          if (senderEmail && senderEmail !== 'Unknown Sender') {
-            acc[senderEmail] = (acc[senderEmail] || 0) + 1;
-          }
-          return acc;
-        },
-        {} as Record<string, number>
-      );
+        // Count transactions per sender email
+        const senderCounts = transactions.reduce(
+          (acc, tx) => {
+            const senderEmail = tx.customer;
+            if (senderEmail && senderEmail !== 'Unknown Sender') {
+              acc[senderEmail] = (acc[senderEmail] || 0) + 1;
+            }
+            return acc;
+          },
+          {} as Record<string, number>
+        );
 
-      // Calculate revenue per sender
-      const senderRevenue = transactions.reduce(
-        (acc, tx) => {
-          const senderEmail = tx.customer;
-          if (
-            senderEmail &&
-            senderEmail !== 'Unknown Sender' &&
-            tx.status === 'Completed'
-          ) {
-            acc[senderEmail] = (acc[senderEmail] || 0) + tx.amount;
-          }
-          return acc;
-        },
-        {} as Record<string, number>
-      );
+        // Calculate revenue per sender
+        const senderRevenue = transactions.reduce(
+          (acc, tx) => {
+            const senderEmail = tx.customer;
+            if (
+              senderEmail &&
+              senderEmail !== 'Unknown Sender' &&
+              tx.status === 'Completed'
+            ) {
+              acc[senderEmail] = (acc[senderEmail] || 0) + tx.amount;
+            }
+            return acc;
+          },
+          {} as Record<string, number>
+        );
 
-      // Create agent performance array
-      const agents: Agent[] = Object.entries(senderCounts)
-        .map(([email, count]) => {
-          const revenue = senderRevenue[email] || 0;
-          // Performance based on transaction frequency (max 100%)
-          const maxTransactions = Math.max(...Object.values(senderCounts));
-          const performance =
-            maxTransactions > 0
-              ? Math.round((count / maxTransactions) * 100)
-              : 0;
+        // Create agent performance array
+        const agents: Agent[] = Object.entries(senderCounts)
+          .map(([email, count]) => {
+            const revenue = senderRevenue[email] || 0;
+            // Performance based on transaction frequency (max 100%)
+            const maxTransactions = Math.max(...Object.values(senderCounts));
+            const performance =
+              maxTransactions > 0
+                ? Math.round((count / maxTransactions) * 100)
+                : 0;
 
-          return {
-            name: email.split('@')[0], // Use email prefix as name
-            sales: count,
-            performance,
-            revenue,
-          };
-        })
-        .sort((a, b) => b.sales - a.sales) // Sort by highest sales
-        .slice(0, 5); // Get top 5 agents
+            return {
+              name: email.split('@')[0], // Use email prefix as name
+              sales: count,
+              performance,
+              revenue,
+            };
+          })
+          .sort((a, b) => b.sales - a.sales) // Sort by highest sales
+          .slice(0, 5); // Get top 5 agents
 
-      console.log('Agent performance calculated:', agents);
-      return agents;
-    } catch (error) {
-      console.error('Failed to calculate agent performance:', error);
-      return [];
-    }
-  },
-  []
-);
+        console.log('Agent performance calculated:', agents);
+        return agents;
+      } catch (error) {
+        console.error('Failed to calculate agent performance:', error);
+        return [];
+      }
+    },
+    []
+  );
 
   // Fetch dashboard data
   const fetchDashboardData = useCallback(
-    async (authToken: string, userData?: User) => {
+    async (userData?: User) => {
       try {
         console.log('Fetching dashboard data...');
 
         const [transactions, notifications, agentCount] = await Promise.all([
-          fetchUserTransactions(authToken),
-          fetchNotifications(authToken),
-          fetchAgentCount(authToken),
+          fetchUserTransactions(),
+          fetchNotifications(),
+          fetchAgentCount(),
         ]);
 
         console.log('Fetched transactions:', transactions);
@@ -532,7 +362,7 @@ const StoreDashboard: React.FC = () => {
         if (auth?.user?._id && auth?.token) {
           console.log('Found user in auth context:', auth.user);
           setUser(auth.user);
-          await fetchDashboardData(auth.token, auth.user);
+          await fetchDashboardData(auth.user);
           setLoading(false);
           return;
         }
@@ -545,7 +375,7 @@ const StoreDashboard: React.FC = () => {
 
         console.log('Found token in localStorage');
         console.log('Fetching user from API...');
-        const profile = await fetchUserDetails(storedToken);
+        const profile = await fetchUserDetails();
         console.log('Successfully fetched user profile:', profile);
 
         setUser(profile);
@@ -554,7 +384,7 @@ const StoreDashboard: React.FC = () => {
           auth.login(profile, storedToken);
         }
 
-        await fetchDashboardData(storedToken, profile);
+        await fetchDashboardData(profile);
       } catch (error) {
         console.error('Auth initialization error:', error);
         handleAuthError('Authentication error. Please login again.');
@@ -668,7 +498,7 @@ const StoreDashboard: React.FC = () => {
                 </p>
               </div>
               <div className="bg-white/20 p-3 rounded-lg">
-                <Wallet className="w-6 h-6" />
+                <FaWallet className="w-6 h-6" />
               </div>
             </div>
           </div>
@@ -735,7 +565,7 @@ const StoreDashboard: React.FC = () => {
                       aria-label="Refresh Transactions"
                       title="Refresh Transactions"
                       onClick={() =>
-                        auth && auth.token && fetchDashboardData(auth.token)
+                       auth?.user && fetchDashboardData(auth.user)
                       }
                     >
                       <RefreshCw className="w-4 h-4" />
@@ -775,9 +605,9 @@ const StoreDashboard: React.FC = () => {
                   <tbody className="bg-white divide-y divide-gray-200">
                     {dashboardData.recentTransactions.length > 0 ? (
                       dashboardData.recentTransactions.map((transaction) => (
-                        <tr key={transaction.id}>
+                        <tr key={String(transaction.id)}>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            {transaction.id}
+                            {String(transaction.id)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             {transaction.customer}
@@ -854,16 +684,15 @@ const StoreDashboard: React.FC = () => {
                   dashboardData.notifications.map((notification) => (
                     <div
                       key={notification._id}
-                      className={`flex items-start space-x-3 p-3 rounded-lg cursor-pointer transition-colors ${
-                        notification.type === 'warning'
-                          ? 'bg-orange-50 hover:bg-orange-100'
-                          : notification.type === 'success'
-                            ? 'bg-green-50 hover:bg-green-100'
-                            : 'bg-blue-50 hover:bg-blue-100'
-                      } ${!notification.read ? 'border-l-4 border-blue-500' : ''}`}
+                      className={`flex items-start space-x-3 p-3 rounded-lg cursor-pointer transition-colors ${notification.type === 'warning'
+                        ? 'bg-orange-50 hover:bg-orange-100'
+                        : notification.type === 'success'
+                          ? 'bg-green-50 hover:bg-green-100'
+                          : 'bg-blue-50 hover:bg-blue-100'
+                        } ${!notification.read ? 'border-l-4 border-blue-500' : ''}`}
                       onClick={() =>
                         !notification.read &&
-                        markNotificationAsRead(notification._id)
+                        getmarkNotification(notification._id)
                       }
                     >
                       <div className="flex-shrink-0">
@@ -922,21 +751,19 @@ const StoreDashboard: React.FC = () => {
               <nav className="flex space-x-8 px-6">
                 <button
                   onClick={() => setActiveTab(0)}
-                  className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                    activeTab === 0
-                      ? 'border-blue-600 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
+                  className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 0
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
                 >
                   Top Agents
                 </button>
                 <button
                   onClick={() => setActiveTab(1)}
-                  className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                    activeTab === 1
-                      ? 'border-blue-600 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
+                  className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 1
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
                 >
                   Pending Transactions
                 </button>
@@ -966,40 +793,40 @@ const StoreDashboard: React.FC = () => {
                     <tbody className="divide-y divide-gray-200">
                       {dashboardData.topAgents.length > 0
                         ? dashboardData.topAgents.map((agent) => (
-                            <tr
-                              key={agent.name}
-                              className="hover:bg-gray-50 transition-colors"
-                            >
-                              <td className="py-4">
-                                <span className="font-medium text-gray-900">
-                                  {agent.name}
-                                </span>
-                              </td>
-                              <td className="py-4 text-center">
-                                <span className="text-gray-700">
-                                  {agent.sales}
-                                </span>
-                              </td>
-                              <td className="py-4">
-                                <div className="flex items-center justify-center space-x-3">
-                                  <div className="flex-1 bg-gray-200 rounded-full h-2 max-w-20">
-                                    <div
-                                      className={`h-2 rounded-full ${getPerformanceColor(agent.performance)}`}
-                                      style={{ width: `${agent.performance}%` }}
-                                    ></div>
-                                  </div>
-                                  <span className="text-sm text-gray-700 min-w-12">
-                                    {agent.performance}%
-                                  </span>
+                          <tr
+                            key={agent.name}
+                            className="hover:bg-gray-50 transition-colors"
+                          >
+                            <td className="py-4">
+                              <span className="font-medium text-gray-900">
+                                {agent.name}
+                              </span>
+                            </td>
+                            <td className="py-4 text-center">
+                              <span className="text-gray-700">
+                                {agent.sales}
+                              </span>
+                            </td>
+                            <td className="py-4">
+                              <div className="flex items-center justify-center space-x-3">
+                                <div className="flex-1 bg-gray-200 rounded-full h-2 max-w-20">
+                                  <div
+                                    className={`h-2 rounded-full ${getPerformanceColor(agent.performance)}`}
+                                    style={{ width: `${agent.performance}%` }}
+                                  ></div>
                                 </div>
-                              </td>
-                              <td className="py-4 text-right">
-                                <span className="font-medium text-gray-900">
-                                  ₦{agent.revenue.toLocaleString()}
+                                <span className="text-sm text-gray-700 min-w-12">
+                                  {agent.performance}%
                                 </span>
-                              </td>
-                            </tr>
-                          ))
+                              </div>
+                            </td>
+                            <td className="py-4 text-right">
+                              <span className="font-medium text-gray-900">
+                                ₦{agent.revenue.toLocaleString()}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
                         : null}
                     </tbody>
                   </table>
@@ -1043,12 +870,12 @@ const StoreDashboard: React.FC = () => {
                         )
                         .map((transaction) => (
                           <tr
-                            key={transaction.id}
+                            key={String(transaction.id)}
                             className="hover:bg-gray-50 transition-colors"
                           >
                             <td className="py-4">
                               <span className="font-medium text-gray-900">
-                                {transaction.id}
+                                {String(transaction.id)}
                               </span>
                             </td>
                             <td className="py-4">
@@ -1081,10 +908,10 @@ const StoreDashboard: React.FC = () => {
                   {dashboardData.recentTransactions.filter(
                     (tx) => tx.status === 'Pending'
                   ).length === 0 && (
-                    <div className="text-center py-8 text-gray-500">
-                      No pending transactions
-                    </div>
-                  )}
+                      <div className="text-center py-8 text-gray-500">
+                        No pending transactions
+                      </div>
+                    )}
                 </div>
               )}
 

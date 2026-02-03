@@ -12,47 +12,11 @@ import StoreSidebar from '../../components/StoreSidebar';
 import Footer from '../../components/Footer';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-
-interface Agent {
-  id: string;
-  firstName: string;
-  lastName: string;
-  fullName?: string;
-  email?: string;
-  phone?: string;
-  role: string;
-  avatarColor?: string;
-  avatarInitial?: string;
-  schoolId: string; 
-}
-
-interface StoreInfo {
-  id: string;
-  name: string;
-  type: string;
-  store_id: string;
-  schoolId?: string;
-}
-
-interface ApiResponse {
-  message: string;
-  data: {
-    schoolId: string;
-    agent: Agent[];
-    store: StoreInfo;
-  };
-}
-
-interface FormErrors {
-  firstName?: string;
-  lastName?: string;
-  email?: string;
-  phone?: string;
-  password?: string;
-}
+import type { FormErrors, GetAgentsResponse, StoreAgent, StoreDetails, UserResponse } from '../../types';
+import { deleteAgent, getAgentsById, getUserDetails, registerAgent } from '../../services';
 
 const ManageAgentsPage: React.FC = () => {
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
   
   // Form state for new agent account
   const [agentData, setAgentData] = useState({
@@ -74,13 +38,13 @@ const ManageAgentsPage: React.FC = () => {
   const [showForm, setShowForm] = useState(false);
   
   // List of agents
-  const [agents, setAgents] = useState<Agent[]>([]);
+  const [agents, setAgents] = useState<StoreAgent[]>([]);
   
   // Agent count
   const [agentCount, setAgentCount] = useState<number>(0);
   
   // Store info
-  const [storeInfo, setStoreInfo] = useState<StoreInfo | null>(null);
+  const [storeInfo, setStoreInfo] = useState<StoreDetails| null>(null);
   
   // Loading states
   const [isLoading, setIsLoading] = useState(false);
@@ -92,101 +56,78 @@ const ManageAgentsPage: React.FC = () => {
   const token = authContext?.token;
   const authToken = token || localStorage.getItem('token');
   
-  // Function to fetch store information from user profile
-  const fetchStoreInfoFromProfile = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json'
-        }
-      });
+ // Function to fetch store information from user profile
+const fetchStoreInfoFromProfile = async () => {
+  try {
+    const UserData: UserResponse = await getUserDetails();
 
-      if (!response.ok) throw new Error('Failed to fetch user profile');
+    console.log('User Profile Response:', UserData);
 
-      const userData = await response.json();
-      console.log('User Profile Response:', userData);
-      
-      // Extract store information from user profile based on actual API structure
-      if (userData.user?.data) {
-        const storeData = userData.user.data;
-        const userStoreInfo = {
-          id: storeData.id || '',
-          name: storeData.storeName || 'Store',
-          type: storeData.storeType || 'Store',
-          store_id: storeData.store_id || '',
-          schoolId: storeData.schoolId || ''
-        };
-        
-        console.log('✅ Store info extracted from user profile:', userStoreInfo);
-        
-        // Only set store info if we have a valid store_id
-        if (userStoreInfo.store_id) {
-          setStoreInfo(userStoreInfo);
-          console.log('✅ Store info successfully set:', userStoreInfo);
-        } else {
-          console.warn('❌ No valid store_id found in user profile');
-        }
+    if (UserData.user?.data) {
+      const storeData = UserData.user.data;
+
+      const userStoreInfo: StoreDetails = {
+        _id: String(storeData.id ?? ''),
+        name: String(storeData.storeName ?? 'Store'),
+        type: String(storeData.storeType ?? 'Store'),
+        store_id: String(storeData.store_id ?? ''),
+        schoolId: String(storeData.schoolId ?? '')
+      };
+
+      console.log(' Store info extracted from user profile:', userStoreInfo);
+
+      if (userStoreInfo.store_id) {
+        setStoreInfo(userStoreInfo);
+        console.log(' Store info successfully set:', userStoreInfo);
       } else {
-        console.warn('❌ No user.data found in profile response');
+        console.warn(' No valid store_id found in user profile');
       }
-    } catch (error) {
-      console.error('❌ Error fetching store info from profile:', error);
-      // Don't show error toast here as we'll try fetching from agents endpoint
-    } finally {
-      setIsLoadingStoreInfo(false);
+    } else {
+      console.warn(' No user.data found in profile response');
     }
-  };
+  } catch (error) {
+    console.error(' Error fetching store info from profile:', error);
+  } finally {
+    setIsLoadingStoreInfo(false);
+  }
+};
 
   // Function to fetch agents
-  const fetchAgents = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/users/getagentbyid`, {
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        // If it's a 404 or similar, it might just mean no agents exist yet
-        if (response.status === 404 || response.status === 400) {
-          console.log('No agents found for this store');
-          setAgents([]);
-          setAgentCount(0);
-          return; // Don't throw error for no agents
-        }
-        throw new Error('Failed to fetch agents');
-      }
-
-      const apiResponse: ApiResponse = await response.json();
-      console.log('Agents API Response:', apiResponse);
-      
-      const agentsData = apiResponse.data?.agent || [];
-      const storeData = apiResponse.data?.store || null;
-      
-      // Only update store info if we don't already have it from user profile
-      if (storeData && !storeInfo) {
-        if (storeData.store_id) {
-          storeData.schoolId = storeData.schoolId || (storeData.store_id ? storeData.store_id.split('/')[0] : '');
-          setStoreInfo(storeData);
-          console.log('Store info from agents endpoint:', storeData);
-        }
-      }
-      
-      setAgents(Array.isArray(agentsData) ? agentsData : []);
-      setAgentCount(agentsData.length);
-      
-    } catch (error) {
-      console.error('Error fetching agents:', error);
-      setAgents([]);
-      setAgentCount(0);
-      // Only show error toast if we also don't have store info
-      if (!storeInfo) {
-        toast.error('Failed to fetch store information');
+ const fetchAgents = async () => {
+  try {
+    const apiResponse: GetAgentsResponse = await getAgentsById();
+    console.log('Agents API Response:', apiResponse);
+    
+    // Extract agents data
+    const agentsData = apiResponse.data?.agent || [];
+    
+    // Extract store data
+    const storeData = apiResponse.data?.store || null;
+    
+    // Only update store info if we don't already have it from user profile
+    if (storeData && !storeInfo) {
+      if (storeData.store_id) {
+        storeData.schoolId = storeData.schoolId || 
+          (storeData.store_id ? storeData.store_id.split('/')[0] : '');
+        setStoreInfo(storeData);
+        console.log('Store info from agents endpoint:', storeData);
       }
     }
-  };
+    
+    setAgents(Array.isArray(agentsData) ? agentsData : []);
+    setAgentCount(agentsData.length);
+    
+  } catch (error) {
+    console.error('Error fetching agents:', error);
+    setAgents([]);
+    setAgentCount(0);
+    
+    // Only show error toast if we also don't have store info
+    if (!storeInfo) {
+      toast.error('Failed to fetch store information');
+    }
+  }
+};
 
   // Main initialization function
   const initializePage = async () => {
@@ -213,7 +154,7 @@ const ManageAgentsPage: React.FC = () => {
   // Fetch user profile and store ID on component mount
   useEffect(() => {
     initializePage();
-  }, [authToken, API_BASE_URL]);
+  }, [authToken]);
   
   const handleChange = (field: keyof FormErrors) => (event: React.ChangeEvent<HTMLInputElement>) => {
     setAgentData({ ...agentData, [field]: event.target.value });
@@ -275,23 +216,8 @@ const ManageAgentsPage: React.FC = () => {
       console.log('Registration data:', registrationData);
         
       // Register the agent
-      const registerResponse = await fetch(`${API_BASE_URL}/api/users/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`
-        },
-        body: JSON.stringify(registrationData)
-      });
-      
-      const responseData = await registerResponse.json();
-      
-      if (!registerResponse.ok) {
-        const errorMessage = responseData.message || responseData.error || 'Failed to register agent';
-        toast.error(errorMessage);
-        throw new Error(errorMessage);
-      }
-      
+    const AgentRegistrationResponse = await registerAgent(registrationData);
+      console.log('Agent registration response:', AgentRegistrationResponse);
       toast.success('🎉 Agent created successfully!', {
         position: "top-right",
         autoClose: 3000,
@@ -321,7 +247,7 @@ const ManageAgentsPage: React.FC = () => {
     } catch (error) {
       console.error('Error creating agent:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to create agent. Please try again.';
-      toast.error(`❌ ${errorMessage}`, {
+      toast.error(` ${errorMessage}`, {
         position: "top-right",
         autoClose: 5000,
         hideProgressBar: false,
@@ -333,38 +259,33 @@ const ManageAgentsPage: React.FC = () => {
       setIsLoading(false);
     }
   };
+
+  // Handle agent deletion
+const handleDelete = async (id: string) => {
+  if (!window.confirm('Are you sure you want to delete this agent?')) return;
   
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this agent?')) return;
+  try {
+    await deleteAgent(id);
     
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/users/delete/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to delete agent');
-      }
-      
-      setAgents(agents.filter(agent => agent.id !== id));
-      setAgentCount(prev => Math.max(0, prev - 1));
-      
-      toast.success('Agent deleted successfully', {
-        position: "top-right",
-        autoClose: 3000,
-      });
-    } catch (error) {
-      console.error('Error deleting agent:', error);
-      toast.error('Failed to delete agent', {
-        position: "top-right",
-        autoClose: 3000,
-      });
-    }
-  };
+    setAgents(agents.filter(agent => agent.id !== id));
+    setAgentCount(prev => Math.max(0, prev - 1));
+    
+    toast.success('Agent deleted successfully', {
+      position: "top-right",
+      autoClose: 3000,
+    });
+  } catch (error: any) {
+    console.error('Error deleting agent:', error);
+    
+    const errorMessage = error.response?.data?.message || 
+                         'Failed to delete agent';
+    
+    toast.error(errorMessage, {
+      position: "top-right",
+      autoClose: 3000,
+    });
+  }
+};
 
   // Filter agents based on search term
   const filteredAgents = agents.filter(agent => 

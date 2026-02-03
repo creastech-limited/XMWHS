@@ -52,26 +52,15 @@ import type {
   UserResponse,
   ClassesResponse,
   ClassItem,
-  User
+  User,
+  SnackbarState,
+  Class
 } from '../../types/user';
 
-interface SnackbarState {
-  open: boolean;
-  message: string;
-  severity: 'success' | 'error' | 'warning' | 'info';
-}
+
 
 // Define local Class interface that matches ClassItem from types
-interface Class {
-  _id: string;
-  className: string;
-  section: string;
-  schoolId: string;
-  students: string[] | Student[];
-  createdAt: string;
-  updatedAt: string;
-  [key: string]: unknown;
-}
+
 
 const StudentPage: React.FC = () => {
   const authContext = useAuth();
