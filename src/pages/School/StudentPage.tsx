@@ -1282,9 +1282,9 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
           <div
             className="fixed z-20 bg-white rounded-lg shadow-lg py-2 w-56 border border-gray-200"
             style={{
-              top: `${Math.min(menuPosition.top, window.innerHeight - 200)}px`,
-              left: `${Math.min(menuPosition.left - 100, window.innerWidth - 224)}px`,
-            }}
+              top: Math.min(menuPosition.top, window.innerHeight - 200),
+              left: Math.min(menuPosition.left - 100, window.innerWidth - 224),
+            } as React.CSSProperties}
           >
             <button
               className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
@@ -1530,6 +1530,8 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
                   value={guardianEmail}
                   onChange={(e) => setGuardianEmail(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-black"
+                  title="Select a guardian from the list"
+                  aria-label="Guardian selection"
                 >
                   <option value="">Select a guardian...</option>
                   {availableParents.map((parent) => (

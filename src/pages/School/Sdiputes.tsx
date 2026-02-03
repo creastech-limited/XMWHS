@@ -490,6 +490,8 @@ const DisputePage = () => {
                 <button
                   onClick={() => setShowCreateForm(true)}
                   className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition-colors shadow-sm"
+                  title="Create a new dispute"
+                  aria-label="Create a new dispute"
                 >
                   <Plus className="w-5 h-5" />
                   Create Dispute
@@ -559,6 +561,7 @@ const DisputePage = () => {
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
+                    aria-label="Filter disputes by status"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                   >
                     <option value="">All Statuses</option>
@@ -570,6 +573,7 @@ const DisputePage = () => {
                   <select
                     value={typeFilter}
                     onChange={(e) => setTypeFilter(e.target.value)}
+                    aria-label="Filter disputes by type"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                   >
                     <option value="">All Types</option>
@@ -585,6 +589,8 @@ const DisputePage = () => {
                       setTypeFilter('');
                     }}
                     className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 flex items-center justify-center gap-2 transition-colors"
+                    title="Clear all filters"
+                    aria-label="Clear all filters"
                   >
                     <Filter className="w-4 h-4" />
                     Clear Filters
@@ -680,11 +686,13 @@ const DisputePage = () => {
                         </td>
                         <td className="px-6 py-4">
                           <button
+                            type="button"
                             onClick={() => {
                               setSelectedDispute(dispute);
                               setShowDetails(true);
                             }}
                             className="text-blue-600 hover:text-blue-900 flex items-center gap-1 transition-colors"
+                            title="View dispute details"
                           >
                             <Eye className="w-4 h-4" />
                             View
@@ -713,6 +721,8 @@ const DisputePage = () => {
                         setTypeFilter('');
                       }}
                       className="mt-4 text-blue-600 hover:text-blue-800 text-sm font-medium"
+                      title="Clear all filters"
+                      aria-label="Clear all filters"
                     >
                       Clear all filters
                     </button>
@@ -734,6 +744,8 @@ const DisputePage = () => {
                 <button
                   onClick={() => setShowCreateForm(false)}
                   className="text-gray-400 hover:text-gray-600 transition-colors"
+                  title="Close create dispute form"
+                  aria-label="Close create dispute form"
                 >
                   <XCircle className="w-6 h-6" />
                 </button>
@@ -747,6 +759,7 @@ const DisputePage = () => {
                   <select
                     value={formData.disputeType}
                     onChange={(e) => setFormData(prev => ({...prev, disputeType: e.target.value}))}
+                    aria-label="Select dispute type"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                     required
                   >
@@ -797,6 +810,7 @@ const DisputePage = () => {
                   <select
                     value={formData.paymentCategory}
                     onChange={(e) => setFormData(prev => ({...prev, paymentCategory: e.target.value}))}
+                    aria-label="Select payment category"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                     required
                   >
@@ -849,8 +863,10 @@ const DisputePage = () => {
                           }}
                           className="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                           title="Remove document"
+                          aria-label="Remove document"
                         >
-                          <Trash2 className="w-5 h-5" />
+                          <Trash2 className="w-5 h-5" aria-hidden="true" />
+                          <span className="sr-only">Remove document</span>
                         </button>
                       </div>
                     ))}
@@ -863,6 +879,8 @@ const DisputePage = () => {
                         }));
                       }}
                       className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1 font-medium"
+                      title="Add a new document URL"
+                      aria-label="Add a new document URL"
                     >
                       <Plus className="w-4 h-4" />
                       Add Document URL
@@ -888,6 +906,8 @@ const DisputePage = () => {
                       });
                     }}
                     className="px-6 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                    title="Cancel creating a new dispute"
+                    aria-label="Cancel creating a new dispute"
                   >
                     Cancel
                   </button>
@@ -923,10 +943,14 @@ const DisputePage = () => {
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-bold text-gray-900">Dispute Details</h3>
                 <button
+                  type="button"
                   onClick={() => setShowDetails(false)}
                   className="text-gray-400 hover:text-gray-600 transition-colors"
+                  title="Close dispute details"
+                  aria-label="Close dispute details"
                 >
-                  <XCircle className="w-6 h-6" />
+                  <XCircle className="w-6 h-6" aria-hidden="true" />
+                  <span className="sr-only">Close</span>
                 </button>
               </div>
 
@@ -1059,6 +1083,8 @@ const DisputePage = () => {
                 <button
                   onClick={() => setShowDetails(false)}
                   className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                  title="Close dispute details"
+                  aria-label="Close dispute details"
                 >
                   Close
                 </button>
