@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Header } from '../../components/Header';
 import { Sidebar as Asidebar } from '../../components/Sidebar';
@@ -31,12 +31,12 @@ const SchoolFeesModule: React.FC = () => {
   });
 
   // Get authentication token - prioritize context, fallback to localStorage
-  const getAuthToken = () => {
+  const getAuthToken = useCallback(() => {
     return auth?.token || localStorage.getItem('token');
-  };
+  }, [auth?.token]);
 
   // Fetch classes for the school
-  const fetchClasses = async () => {
+  const fetchClasses = useCallback(async () => {
   try {
     const token = getAuthToken();
     if (!token) {
@@ -89,11 +89,11 @@ const SchoolFeesModule: React.FC = () => {
   } finally {
     setLoading(false);
   }
-};
+}, [getAuthToken]);
 
 
   // Fetch all fees for the school
-const fetchAllFees = async () => {
+const fetchAllFees = useCallback(async () => {
   try {
     // Only fetch fees if we have a school ID
     if (!auth?.user?.schoolId) {
@@ -122,7 +122,7 @@ const fetchAllFees = async () => {
   } finally {
     setLoading(false);
   }
-};
+}, [auth?.user?.schoolId]);
 
   // Raise/Create a new fee bill
 const raiseFee = async (feeData: FormData) => {
@@ -248,7 +248,7 @@ const updateFeeBill = async (billId: string, feeData: FormData) => {
     };
 
     initializeComponent();
-  }, [auth?.user?.schoolId]); // Re-run when schoolId changes
+  }, [auth?.user?.schoolId, fetchClasses, fetchAllFees, getAuthToken]);
 
   const handleEdit = (bill: FeeBill) => {
     setSelectedBill(bill);

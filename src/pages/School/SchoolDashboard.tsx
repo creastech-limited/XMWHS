@@ -242,7 +242,7 @@ const Dashboard: React.FC = () => {
         throw error;
       }
     },
-    [auth]
+    []
   );
 
   // Fetch store count data
@@ -462,7 +462,7 @@ const Dashboard: React.FC = () => {
     };
 
     initializeAuth();
-  }, [auth?.token, fetchUserDetails, fetchStudentsData, fetchTransactionsData, fetchStoreCount, handleAuthError]);
+  }, [auth?.token, auth?.user, fetchUserDetails, fetchStudentsData, fetchTransactionsData, fetchStoreCount, handleAuthError]);
 
   // Debug effect to monitor stats changes
   useEffect(() => {

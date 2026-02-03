@@ -227,7 +227,7 @@ const StoreDashboard: React.FC = () => {
         return [];
       }
     },
-    [handleAuthError]
+    []
   );
 
   // Refresh notifications

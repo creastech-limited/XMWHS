@@ -3,7 +3,7 @@ import { Header } from '../../components/Header';
 import { Sidebar } from '../../components/Sidebar';
 import Footer from '../../components/Footer';
 import { UsersIcon } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useParams } from 'react-router-dom';
 
@@ -32,13 +32,36 @@ const EditStudentDetails = () => {
     address: '',
   });
 
+  // Handle fetch errors
+  const handleFetchError = useCallback((error: unknown) => {
+    if (error instanceof Error) {
+      const errorMessage = error.message;
+      
+      if (errorMessage.includes('401') || errorMessage.includes('unauthorized')) {
+        setError('Session expired. Please login again.');
+        auth?.logout?.();
+        localStorage.removeItem('token');
+      } else if (errorMessage.includes('404')) {
+        setError('Student not found. The student may have been deleted or the ID is invalid.');
+      } else if (errorMessage.includes('403')) {
+        setError('Access denied. You do not have permission to view this student.');
+      } else if (errorMessage.includes('Invalid response structure')) {
+        setError('Server returned an unexpected response format.');
+      } else {
+        setError(errorMessage || 'Failed to fetch student data');
+      }
+    } else {
+      setError('An unexpected error occurred while fetching student data');
+    }
+  }, [auth]);
+
   // Get token from auth context or localStorage
-  const getAuthToken = () => {
+  const getAuthToken = useCallback(() => {
     return auth?.token || localStorage.getItem('token');
-  };
+  }, [auth?.token]);
 
   // Fetch student data
-  const fetchStudentData = async () => {
+  const fetchStudentData = useCallback(async () => {
     if (!_id) {
       setError('Student ID is missing from URL parameters');
       setFetchLoading(false);
@@ -72,35 +95,12 @@ const EditStudentDetails = () => {
     } finally {
       setFetchLoading(false);
     }
-  };
-
-  // Handle fetch errors
-  const handleFetchError = (error: unknown) => {
-    if (error instanceof Error) {
-      const errorMessage = error.message;
-      
-      if (errorMessage.includes('401') || errorMessage.includes('unauthorized')) {
-        setError('Session expired. Please login again.');
-        auth?.logout?.();
-        localStorage.removeItem('token');
-      } else if (errorMessage.includes('404')) {
-        setError('Student not found. The student may have been deleted or the ID is invalid.');
-      } else if (errorMessage.includes('403')) {
-        setError('Access denied. You do not have permission to view this student.');
-      } else if (errorMessage.includes('Invalid response structure')) {
-        setError('Server returned an unexpected response format.');
-      } else {
-        setError(errorMessage || 'Failed to fetch student data');
-      }
-    } else {
-      setError('An unexpected error occurred while fetching student data');
-    }
-  };
+  }, [_id, getAuthToken, handleFetchError]);
 
   // Main initialization effect
   useEffect(() => {
     fetchStudentData();
-  }, [_id]);
+  }, [fetchStudentData]);
 
   // Profile Update Handler
   const handleProfileUpdate = async (e: React.FormEvent) => {
