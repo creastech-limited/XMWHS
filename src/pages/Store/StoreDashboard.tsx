@@ -129,10 +129,23 @@ const StoreDashboard: React.FC = () => {
 
         const transactionsArray = response.data || [];
 
-        const transactions: Transaction[] = transactionsArray.map((tx: any) => ({
+        interface TransactionResponse {
+          _id?: string;
+          id?: string;
+          createdAt?: string;
+          date?: string;
+          description?: string;
+          amount?: number | string;
+          category?: string;
+          status?: string;
+          metadata?: { senderEmail?: string };
+          senderWalletId?: { email?: string };
+        }
+
+        const transactions: Transaction[] = transactionsArray.map((tx: TransactionResponse) => ({
           // Required properties
           _id: tx._id || tx.id || "",
-          date: new Date(tx.createdAt || tx.date).toLocaleDateString(),
+          date: new Date(tx.createdAt || tx.date || "").toLocaleDateString(),
           createdAt: tx.createdAt || tx.date || "",
           description: tx.description || "Transaction",
           amount: Number(tx.amount) || 0,
@@ -161,11 +174,11 @@ const StoreDashboard: React.FC = () => {
   const fetchNotifications = useCallback(
     async (): Promise<Notification[]> => {
       try {
-        const response: NotificationsResponse = await getNotifications();
+        const response = (await getNotifications()) as unknown as NotificationsResponse;
         console.log('Notifications API response:', response);
 
         // Extract notifications from different possible response structures
-        let notificationsList: any[] = [];
+        let notificationsList: unknown[] = [];
 
         if (Array.isArray(response)) {
           notificationsList = response;
@@ -179,17 +192,32 @@ const StoreDashboard: React.FC = () => {
           notificationsList = foundArray || [];
         }
 
+        interface NotificationData {
+          _id?: string;
+          id?: string;
+          userId?: string;
+          type?: string;
+          title?: string;
+          message?: string;
+          read?: boolean;
+          createdAt?: string;
+          __v?: number;
+        }
+
         const notifications: Notification[] = notificationsList.map(
-          (notif: any) => ({
-            _id: notif._id || notif.id || Math.random().toString(36).substring(2, 9),
-            userId: notif.userId || '',
-            type: notif.type || 'info',
-            title: notif.title || 'Notification',
-            message: notif.message || 'New notification',
-            read: Boolean(notif.read),
-            createdAt: notif.createdAt || new Date().toISOString(),
-            __v: notif.__v || 0,
-          })
+          (notif: unknown) => {
+            const data = notif as NotificationData;
+            return {
+              _id: data._id || data.id || Math.random().toString(36).substring(2, 9),
+              userId: data.userId || '',
+              type: data.type || 'info',
+              title: data.title || 'Notification',
+              message: data.message || 'New notification',
+              read: Boolean(data.read),
+              createdAt: data.createdAt || new Date().toISOString(),
+              __v: data.__v || 0,
+            };
+          }
         );
 
         console.log('Processed notifications:', notifications);

@@ -141,8 +141,8 @@ export const updateStoreProfile = async (
 
 // Fecth notifications
 
-export const getNotifications = async (): Promise<{ data: any[]; message?: string }> => {
-  const response = await apiClient.get<{ data: any[]; message?: string }>('/api//api/notification/get');
+export const getNotifications = async (): Promise<{ data: Record<string, unknown>[]; message?: string }> => {
+  const response = await apiClient.get<{ data: Record<string, unknown>[]; message?: string }>('api/notification/get');
   return response.data;
 };
 
@@ -252,13 +252,13 @@ export const submitWithdrawal = async (payload: {
 
 // Get school fees
 export const getSchoolFees = async (): Promise<{
-  fees?: any[];
-  data?: any[];
+  fees?: Record<string, unknown>[];
+  data?: Record<string, unknown>[];
   message?: string;
 }> => {
   const response = await apiClient.get<{
-    fees?: any[];
-    data?: any[];
+    fees?: Record<string, unknown>[];
+    data?: Record<string, unknown>[];
     message?: string;
   }>('/api/fee/getchoolFees');
   return response.data;
@@ -266,13 +266,13 @@ export const getSchoolFees = async (): Promise<{
 
 
 // Raise fee bill
-export const raiseFeeBill = async (payload: any): Promise<{ message: string }> => {
+export const raiseFeeBill = async (payload: Record<string, unknown>): Promise<{ message: string }> => {
   const response = await apiClient.post<{ message: string }>('/api/fee/raise', payload);
   return response.data;
 };
 
 // Update fee bill
-export const updateFee = async (billId: string, feeData: any): Promise<{ message: string }> => {
+export const updateFee = async (billId: string, feeData: Record<string, unknown>): Promise<{ message: string }> => {
   const response = await apiClient.put<{ message: string }>(
     `/api/fee/update/${billId}`,
     feeData

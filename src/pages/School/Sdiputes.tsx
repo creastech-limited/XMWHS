@@ -136,19 +136,22 @@ const DisputePage = () => {
       console.log('📡 Dispute Response Body:', JSON.stringify(responseData));
 
       return responseData;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(' API Error in createDispute:', error);
 
       // Extract detailed error message
       let errorMessage = 'Failed to create dispute';
 
-      if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error.response?.data?.error) {
-        errorMessage = error.response.data.error;
-      } else if (error.response?.data?.details) {
-        errorMessage = String(error.response.data.details);
-      } else if (error.message) {
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { data?: { message?: string; error?: string; details?: unknown } } };
+        if (axiosError.response?.data?.message) {
+          errorMessage = axiosError.response.data.message;
+        } else if (axiosError.response?.data?.error) {
+          errorMessage = axiosError.response.data.error;
+        } else if (axiosError.response?.data?.details) {
+          errorMessage = String(axiosError.response.data.details);
+        }
+      } else if (error instanceof Error) {
         errorMessage = error.message;
       }
 
@@ -164,7 +167,6 @@ const DisputePage = () => {
         setLoading(true);
 
         if (auth?.user?._id && auth?.token) {
-          (auth.token);
           const disputesData = await fetchDisputes();
           setDisputes(disputesData);
           setFilteredDisputes(disputesData);
@@ -178,7 +180,6 @@ const DisputePage = () => {
         }
 
         const profile = await fetchUserDetails();
-        (storedToken);
 
         const mergedUser = {
           _id: profile._id || '',

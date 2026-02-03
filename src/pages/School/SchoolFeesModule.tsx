@@ -93,7 +93,6 @@ const SchoolFeesModule: React.FC = () => {
 
 
   // Fetch all fees for the school
-// Fetch all fees for the school
 const fetchAllFees = async () => {
   try {
     // Only fetch fees if we have a school ID
@@ -108,11 +107,11 @@ const fetchAllFees = async () => {
 
     setLoading(true);
     const data = await getSchoolFees();
-    setBills(data.fees || data.data || []);
-  } catch (error: any) {
+    setBills(((data.fees || data.data || []) as unknown) as FeeBill[]);
+  } catch (error: unknown) {
     console.error('Error fetching fees:', error);
     
-    const errorMessage = error.response?.data?.message || 
+    const errorMessage = (error as { response?: { data?: { message?: string } } }).response?.data?.message || 
                          'Failed to fetch fee bills';
     
     setSnackbar({
@@ -152,11 +151,11 @@ const raiseFee = async (feeData: FormData) => {
 
     await fetchAllFees();
     resetForm();
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error raising fee:', error);
     
-    const errorMessage = error.response?.data?.message || 
-                         error.message || 
+    const errorMessage = (error as { response?: { data?: { message?: string } }; message?: string }).response?.data?.message || 
+                         (error as { message?: string }).message || 
                          'Failed to raise fee bill';
     
     setSnackbar({
@@ -169,7 +168,7 @@ const raiseFee = async (feeData: FormData) => {
  // Update existing fee bill
 const updateFeeBill = async (billId: string, feeData: FormData) => {
   try {
-    const result = await updateFee(billId, feeData);
+    const result = await updateFee(billId, feeData as unknown as Record<string, unknown>);
 
     setSnackbar({
       open: true,
@@ -181,11 +180,11 @@ const updateFeeBill = async (billId: string, feeData: FormData) => {
     resetForm();
     setEditMode(false);
     setSelectedBill(null);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error updating fee:', error);
     
-    const errorMessage = error.response?.data?.message || 
-                         error.message || 
+    const errorMessage = (error as { response?: { data?: { message?: string } }; message?: string }).response?.data?.message || 
+                         (error as { message?: string }).message || 
                          'Failed to update fee bill';
     
     setSnackbar({
@@ -279,11 +278,11 @@ const updateFeeBill = async (billId: string, feeData: FormData) => {
       message: 'Fee bill deleted successfully',
       severity: 'success',
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error deleting fee bill:', error);
     
-    const errorMessage = error.response?.data?.message || 
-                         error.message || 
+    const errorMessage = (error as { response?: { data?: { message?: string } }; message?: string }).response?.data?.message || 
+                         (error as { message?: string }).message || 
                          'Error deleting fee bill';
     
     setSnackbar({

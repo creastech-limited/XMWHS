@@ -183,11 +183,16 @@ const fetchSchoolUsers = useCallback(async () => {
 
     setSchoolUsers(filteredUsers);
     setFilteredUsers(filteredUsers);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error fetching school users:', error);
     
-    const errorMessage = error.response?.data?.message || 
-                         'Failed to load school users. Please try again.';
+    let errorMessage = 'Failed to load school users. Please try again.';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    } else if (typeof error === 'object' && error !== null && 'response' in error) {
+      const err = error as { response?: { data?: { message?: string } } };
+      errorMessage = err.response?.data?.message || errorMessage;
+    }
     
     setSnackbarMessage(errorMessage);
     setSnackbarSeverity('error');
@@ -297,11 +302,18 @@ const handleSubmitTransfer = async () => {
     } else {
       throw new Error(data.message || 'Transfer failed');
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Transfer error:', error);
     
     let errorMessage = 'Transfer failed. Please try again.';
-    const message = error.message?.toLowerCase() || error.response?.data?.message?.toLowerCase() || '';
+    let message = '';
+    
+    if (error instanceof Error) {
+      message = error.message?.toLowerCase() || '';
+    } else if (typeof error === 'object' && error !== null && 'response' in error) {
+      const err = error as { response?: { data?: { message?: string } } };
+      message = err.response?.data?.message?.toLowerCase() || '';
+    }
 
     if (message.includes('pin')) {
       errorMessage = 'Invalid PIN. Please check your PIN and try again.';
@@ -309,9 +321,12 @@ const handleSubmitTransfer = async () => {
       errorMessage = 'Insufficient balance. Please fund your wallet first.';
     } else if (message.includes('user') || message.includes('recipient')) {
       errorMessage = 'Recipient not found. Please verify the recipient details.';
-    } else if (error.response?.data?.message) {
-      errorMessage = error.response.data.message;
-    } else if (error.message) {
+    } else if (typeof error === 'object' && error !== null && 'response' in error) {
+      const err = error as { response?: { data?: { message?: string } } };
+      if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      }
+    } else if (error instanceof Error && error.message) {
       errorMessage = error.message;
     }
 
