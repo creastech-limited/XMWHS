@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { 
-  Users, 
-  DollarSign, 
-  CreditCard, 
+import {
+  Users,
+  DollarSign,
+  CreditCard,
   ArrowUpRight,
   ArrowDownRight,
   Calendar
@@ -11,10 +11,11 @@ import {
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import AdminSidebar from '../../components/Adminsidebar';
 import AdminHeader from '../../components/AdminHeader';
+import { getAdminDashboardData, getUserDetails } from '../../services';
+import type { User, UserResponse } from '../../types';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-interface WalletData { 
+interface WalletData {
   balance: number;
   currency: string;
   walletName: string;
@@ -35,15 +36,7 @@ interface ChargeData {
   updatedAt: string;
 }
 
-interface User {
-  _id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  createdAt: string;
-  role?: string;
-  status?: string;
-}
+
 
 const Overview = () => {
   const { user } = useAuth() ?? {};
@@ -54,24 +47,14 @@ const Overview = () => {
   const [chargesData, setChargesData] = useState<ChargeData[]>([]);
   const [adminProfile, setAdminProfile] = useState<User | null>(null);
   const [totalUsers, setTotalUsers] = useState(0);
-  const [usersByRole, setUsersByRole] = useState<Array<{role: string; count: number; color: string}>>([]);
- 
+  const [usersByRole, setUsersByRole] = useState<Array<{ role: string; count: number; color: string }>>([]);
 
-  const fetchUserDetails = useCallback(async (authToken: string): Promise<User> => {
+
+  const fetchUserDetails = useCallback(async (): Promise<User> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      const data: UserResponse = await getUserDetails();
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
 
-      const data = await response.json();
-      
       // Handle different response structures
       let profile: User | undefined;
       if (data.user?.data) {
@@ -96,120 +79,103 @@ const Overview = () => {
   }, []);
 
 
-useEffect(() => {
-  const initializeAuth = async () => {
-    try {
-      setLoading(true);
-      console.log('Starting auth initialization...');
-      
-      let currentToken: string | null = null;
-      
-      // Check auth context first
-      if (user?.token && typeof user.token === 'string') {
-        console.log('Found token in auth context');
-        currentToken = user.token;
-      } else {
-        // Fallback to localStorage
-        const storedToken = localStorage.getItem('token');
-        if (!storedToken) {
-          console.log('No token found');
+  useEffect(() => {
+    const initializeAuth = async () => {
+      try {
+        setLoading(true);
+        console.log('Starting auth initialization...');
+
+        let currentToken: string | null = null;
+
+        // Check auth context first
+        if (user?.token && typeof user.token === 'string') {
+          console.log('Found token in auth context');
+          currentToken = user.token;
+        } else {
+          // Fallback to localStorage
+          const storedToken = localStorage.getItem('token');
+          if (!storedToken) {
+            console.log('No token found');
+            setLoading(false);
+            return;
+          }
+          console.log('Found token in localStorage');
+          currentToken = storedToken;
+        }
+
+        if (!currentToken) {
           setLoading(false);
           return;
         }
-        console.log('Found token in localStorage');
-        currentToken = storedToken;
-      }
 
-      if (!currentToken) {
-        setLoading(false);
-        return;
-      }
+        const profile = await fetchUserDetails();
+        setAdminProfile(profile);
 
-      const profile = await fetchUserDetails(currentToken);
-      setAdminProfile(profile);
 
-      const [walletRes, chargesRes, usersRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/wallet/getChargesWallets`, {
-          headers: { 'Authorization': `Bearer ${currentToken}` }
-        }),
-        fetch(`${API_BASE_URL}/api/charge/getAllCharges`, {
-          headers: { 'Authorization': `Bearer ${currentToken}` }
-        }),
-        fetch(`${API_BASE_URL}/api/users/getallUsers`, {
-          headers: { 'Authorization': `Bearer ${currentToken}` }
-        }),
-      ]);
+        // Fetch dashboard data after confirming we have a valid token and profile
 
-      if (!walletRes.ok || !chargesRes.ok || !usersRes.ok) {
-        throw new Error('One or more API requests failed');
-      }
+        const { wallets: walletJson, charges: chargesJson, users: usersJson } = await getAdminDashboardData();
 
-      const [walletJson, chargesJson, usersJson] = await Promise.all([
-        walletRes.json(),
-        chargesRes.json(),
-        usersRes.json()
-      ]);
+        // Handle the users response to get total count
+        if (usersJson && usersJson.message) {
+          const numberMatch = usersJson.message.split(' ')[0];
+          const userCount = parseInt(numberMatch, 10);
 
-      // Handle the users response to get total count
-      if (usersJson && usersJson.message) {
-        const numberMatch = usersJson.message.split(' ')[0];
-        const userCount = parseInt(numberMatch, 10);
-        
-        if (!isNaN(userCount)) {
-          setTotalUsers(userCount);
-        } else if (usersJson.data && Array.isArray(usersJson.data)) {
+          if (!isNaN(userCount)) {
+            setTotalUsers(userCount);
+          } else if (usersJson.data && Array.isArray(usersJson.data)) {
+            setTotalUsers(usersJson.data.length);
+          } else {
+            setTotalUsers(0);
+          }
+        } else if (usersJson && usersJson.data && Array.isArray(usersJson.data)) {
           setTotalUsers(usersJson.data.length);
         } else {
           setTotalUsers(0);
         }
-      } else if (usersJson && usersJson.data && Array.isArray(usersJson.data)) {
-        setTotalUsers(usersJson.data.length);
-      } else {
-        setTotalUsers(0);
+
+        // Process users by role for pie chart - MOVED INSIDE useEffect
+        if (usersJson && usersJson.data && Array.isArray(usersJson.data)) {
+          const roleColors = {
+            student: '#3B82F6',
+            parent: '#10B981',
+            school: '#F59E0B',
+            admin: '#EF4444',
+            store: '#8B5CF6',
+            agent: '#06B6D4'
+          };
+
+          const roleCounts = usersJson.data.reduce((acc: Record<string, number>, userData: { user?: { role?: string } }) => {
+            const role = userData.user?.role || 'unknown';
+            acc[role] = (acc[role] || 0) + 1;
+            return acc;
+          }, {} as Record<string, number>);
+
+          const roleData = Object.entries(roleCounts).map(([role, count]) => ({
+            role: role.charAt(0).toUpperCase() + role.slice(1),
+            count: count as number,
+            color: roleColors[role as keyof typeof roleColors] || '#6B7280'
+          }));
+
+          setUsersByRole(roleData);
+        }
+
+        setWalletData(Array.isArray(walletJson) ? walletJson : []);
+        setChargesData(Array.isArray(chargesJson) ? chargesJson : []);
+
+      } catch (error) {
+        console.error('Auth initialization error:', error);
+        if (error instanceof Error && (error.message.includes('Authentication') || error.message.includes('token'))) {
+          localStorage.removeItem('token');
+          window.location.href = '/login';
+        }
+      } finally {
+        setLoading(false);
       }
+    };
 
-      // Process users by role for pie chart - MOVED INSIDE useEffect
-      if (usersJson && usersJson.data && Array.isArray(usersJson.data)) {
-        const roleColors = {
-          student: '#3B82F6',
-          parent: '#10B981',  
-          school: '#F59E0B',
-          admin: '#EF4444',
-          store: '#8B5CF6',
-          agent: '#06B6D4'
-        };
-
-        const roleCounts = usersJson.data.reduce((acc: Record<string, number>, userData: { user?: { role?: string } }) => {
-  const role = userData.user?.role || 'unknown';
-  acc[role] = (acc[role] || 0) + 1;
-  return acc;
-}, {} as Record<string, number>);
-
-        const roleData = Object.entries(roleCounts).map(([role, count]) => ({
-          role: role.charAt(0).toUpperCase() + role.slice(1),
-          count: count as number,
-          color: roleColors[role as keyof typeof roleColors] || '#6B7280'
-        }));
-
-        setUsersByRole(roleData);
-      }
-
-      setWalletData(Array.isArray(walletJson) ? walletJson : []);
-      setChargesData(Array.isArray(chargesJson) ? chargesJson : []);
-
-    } catch (error) {
-      console.error('Auth initialization error:', error);
-      if (error instanceof Error && (error.message.includes('Authentication') || error.message.includes('token'))) {
-        localStorage.removeItem('token');
-        window.location.href = '/login';
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  initializeAuth();
-}, [user?.token, fetchUserDetails]);
+    initializeAuth();
+  }, [user?.token, fetchUserDetails]);
 
 
   // Calculate stats from real data
@@ -244,7 +210,7 @@ useEffect(() => {
 
   return (
     <div className="flex h-screen bg-gray-100">
-      <AdminSidebar 
+      <AdminSidebar
         sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}
         activeMenu={activeMenu}
@@ -252,7 +218,7 @@ useEffect(() => {
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <AdminHeader 
+        <AdminHeader
           sidebarOpen={sidebarOpen}
           setSidebarOpen={setSidebarOpen}
           activeMenu={activeMenu}
@@ -317,52 +283,52 @@ useEffect(() => {
                 <p className="text-gray-500 text-xs">Combined wallet balances</p>
               </div>
 
-           {/* Charges Card */}
-<div className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow duration-300 p-6 border border-gray-100">
-  <div className="flex items-center justify-between mb-4">
-    <div className="bg-purple-500 rounded-lg p-3">
-      <CreditCard className="h-6 w-6 text-white" />
-    </div>
-    <div className="flex items-center text-sm font-medium text-green-600">
-      <ArrowUpRight className="h-4 w-4 mr-1" />
-      Active
-    </div>
-  </div>
-  
-  <h3 className="text-lg font-semibold text-gray-900 mb-4">Charges</h3>
-  
-  {/* Topup Charge */}
-  <div className="flex items-center justify-between mb-3">
-    <div className="flex items-center">
-      <div className="w-3 h-3 bg-purple-400 rounded-full mr-2"></div>
-      <span className="text-sm text-gray-600">Topup Charge:</span>
-    </div>
-    <span className="text-sm font-medium text-gray-900">
-      {chargesData.find(charge => charge.name.includes('Topup'))?.amount.toLocaleString('en-NG', { 
-        style: 'currency', 
-        currency: 'NGN' 
-      }) || '₦0'}
-    </span>
-  </div>
-  
-  {/* Withdrawal Charge */}
-  <div className="flex items-center justify-between">
-    <div className="flex items-center">
-      <div className="w-3 h-3 bg-blue-400 rounded-full mr-2"></div>
-      <span className="text-sm text-gray-600">Withdrawal Charge:</span>
-    </div>
-    <span className="text-sm font-medium text-gray-900">
-      {chargesData.find(charge => charge.name.includes('Withdrawal'))?.amount.toLocaleString('en-NG', { 
-        style: 'currency', 
-        currency: 'NGN' 
-      }) || '₦0'}
-    </span>
-  </div>
-  
-  <div className="mt-4 pt-3 border-t border-gray-100">
-    <p className="text-xs text-gray-500">System fee charges</p>
-  </div>
-</div>
+              {/* Charges Card */}
+              <div className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow duration-300 p-6 border border-gray-100">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="bg-purple-500 rounded-lg p-3">
+                    <CreditCard className="h-6 w-6 text-white" />
+                  </div>
+                  <div className="flex items-center text-sm font-medium text-green-600">
+                    <ArrowUpRight className="h-4 w-4 mr-1" />
+                    Active
+                  </div>
+                </div>
+
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Charges</h3>
+
+                {/* Topup Charge */}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center">
+                    <div className="w-3 h-3 bg-purple-400 rounded-full mr-2"></div>
+                    <span className="text-sm text-gray-600">Topup Charge:</span>
+                  </div>
+                  <span className="text-sm font-medium text-gray-900">
+                    {chargesData.find(charge => charge.name.includes('Topup'))?.amount.toLocaleString('en-NG', {
+                      style: 'currency',
+                      currency: 'NGN'
+                    }) || '₦0'}
+                  </span>
+                </div>
+
+                {/* Withdrawal Charge */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <div className="w-3 h-3 bg-blue-400 rounded-full mr-2"></div>
+                    <span className="text-sm text-gray-600">Withdrawal Charge:</span>
+                  </div>
+                  <span className="text-sm font-medium text-gray-900">
+                    {chargesData.find(charge => charge.name.includes('Withdrawal'))?.amount.toLocaleString('en-NG', {
+                      style: 'currency',
+                      currency: 'NGN'
+                    }) || '₦0'}
+                  </span>
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-gray-100">
+                  <p className="text-xs text-gray-500">System fee charges</p>
+                </div>
+              </div>
             </div>
 
             {/* Charts Section */}
@@ -381,28 +347,28 @@ useEffect(() => {
                       <AreaChart data={revenueData}>
                         <defs>
                           <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3}/>
-                            <stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/>
+                            <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3} />
+                            <stop offset="95%" stopColor="#3B82F6" stopOpacity={0} />
                           </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                         <XAxis dataKey="name" stroke="#6b7280" fontSize={12} />
                         <YAxis stroke="#6b7280" fontSize={12} />
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: '#fff', 
-                            border: '1px solid #e5e7eb', 
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: '#fff',
+                            border: '1px solid #e5e7eb',
                             borderRadius: '8px',
                             boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                          }} 
+                          }}
                         />
-                        <Area 
-                          type="monotone" 
-                          dataKey="revenue" 
-                          stroke="#3B82F6" 
+                        <Area
+                          type="monotone"
+                          dataKey="revenue"
+                          stroke="#3B82F6"
                           strokeWidth={2}
-                          fillOpacity={1} 
-                          fill="url(#colorRevenue)" 
+                          fillOpacity={1}
+                          fill="url(#colorRevenue)"
                         />
                       </AreaChart>
                     </ResponsiveContainer>
@@ -429,13 +395,13 @@ useEffect(() => {
                         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                         <XAxis dataKey="name" stroke="#6b7280" fontSize={12} />
                         <YAxis stroke="#6b7280" fontSize={12} />
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: '#fff', 
-                            border: '1px solid #e5e7eb', 
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: '#fff',
+                            border: '1px solid #e5e7eb',
                             borderRadius: '8px',
                             boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                          }} 
+                          }}
                         />
                         <Bar dataKey="amount" fill="#10B981" radius={[2, 2, 0, 0]} />
                       </BarChart>
@@ -448,53 +414,53 @@ useEffect(() => {
                 </div>
               </div>
               {/* User Distribution Pie Chart */}
-<div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
-  <div className="flex items-center justify-between mb-6">
-    <div>
-      <h3 className="text-lg font-semibold text-gray-900">User Distribution</h3>
-      <p className="text-gray-600 text-sm">Users by role percentage</p>
-    </div>
-  </div>
-  <div className="h-64">
-    {usersByRole.length > 0 ? (
-      <ResponsiveContainer width="100%" height="100%">
-        <PieChart>
-          <Pie
-            data={usersByRole}
-            cx="50%"
-            cy="50%"
-            innerRadius={40}
-            outerRadius={80}
-            dataKey="count"
-            label={({role, percent}) => `${role} ${(percent * 100).toFixed(1)}%`}
-          >
-            {usersByRole.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={entry.color} />
-            ))}
-          </Pie>
-          <Tooltip 
-            formatter={(value: number) => [value, 'Users']}
-            contentStyle={{ 
-              backgroundColor: '#fff', 
-              border: '1px solid #e5e7eb', 
-              borderRadius: '8px',
-              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-            }} 
-          />
-          <Legend 
-            verticalAlign="bottom" 
-            height={36}
-            formatter={(value) => <span style={{fontSize: '12px'}}>{value}</span>}
-          />
-        </PieChart>
-      </ResponsiveContainer>
-    ) : (
-      <div className="h-full flex items-center justify-center text-gray-500">
-        No user distribution data available
-      </div>
-    )}
-  </div>
-</div>
+              <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">User Distribution</h3>
+                    <p className="text-gray-600 text-sm">Users by role percentage</p>
+                  </div>
+                </div>
+                <div className="h-64">
+                  {usersByRole.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={usersByRole}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={40}
+                          outerRadius={80}
+                          dataKey="count"
+                          label={({ role, percent }) => `${role} ${(percent * 100).toFixed(1)}%`}
+                        >
+                          {usersByRole.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={(value: number) => [value, 'Users']}
+                          contentStyle={{
+                            backgroundColor: '#fff',
+                            border: '1px solid #e5e7eb',
+                            borderRadius: '8px',
+                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                          }}
+                        />
+                        <Legend
+                          verticalAlign="bottom"
+                          height={36}
+                          formatter={(value) => <span style={{ fontSize: '12px' }}>{value}</span>}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-gray-500">
+                      No user distribution data available
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Recent Transactions */}
@@ -508,11 +474,10 @@ useEffect(() => {
                   recentTransactions.map((transaction, index) => (
                     <div key={index} className="p-4 hover:bg-gray-50 transition-colors">
                       <div className="flex items-center space-x-4">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                          transaction.lastTransactionType === 'credit' 
-                            ? 'bg-green-100 text-green-600' 
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${transaction.lastTransactionType === 'credit'
+                            ? 'bg-green-100 text-green-600'
                             : 'bg-red-100 text-red-600'
-                        }`}>
+                          }`}>
                           {transaction.lastTransactionType === 'credit' ? (
                             <ArrowUpRight className="h-5 w-5" />
                           ) : (
@@ -524,9 +489,9 @@ useEffect(() => {
                             {transaction.walletName}
                           </p>
                           <p className="text-sm text-gray-600">
-                            {transaction.lastTransactionAmount.toLocaleString('en-NG', { 
-                              style: 'currency', 
-                              currency: 'NGN' 
+                            {transaction.lastTransactionAmount.toLocaleString('en-NG', {
+                              style: 'currency',
+                              currency: 'NGN'
                             })}
                           </p>
                         </div>

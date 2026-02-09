@@ -1,7 +1,9 @@
 import { useNavigate } from 'react-router-dom';
 import { Bell, LogOut, Wallet, User, X, Clock, AlertCircle, CheckCircle, Info, DollarSign } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { getmarkNotification, getNotifications, getUserDetails } from '../services';
+import type { AxiosError } from 'axios';
 
 interface User {
   _id: string;
@@ -62,94 +64,100 @@ const KidsHeader = ({ profile, wallet }: KidsHeaderProps) => {
   const token = authToken || localStorage.getItem('token');
 
   // Fetch notifications from API
-  const fetchNotifications = async () => {
-    if (!token) return;
-    
-    try {
-      setNotificationsLoading(true);
-      const response = await fetch(`${API_URL}/api/notification/get`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
+ const fetchNotifications = useCallback(async () => {
+  if (!token) return;
 
-      if (response.status === 401) {
-        logout?.();
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        navigate('/login');
-        return;
-      }
+  try {
+    setNotificationsLoading(true);
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch notifications: ${response.status}`);
-      }
+    const data = await getNotifications();
 
-      const data = await response.json();
-      const notificationsList = Array.isArray(data) ? data : data.notifications || data.data || [];
-      setNotifications(notificationsList);
-    } catch (error) {
-      console.error('Error fetching notifications:', error);
-    } finally {
-      setNotificationsLoading(false);
+  
+    const notificationsList = Array.isArray(data)
+      ? data
+      : data.notifications || data.data || [];
+
+    setNotifications(notificationsList as Notification[]);
+  } catch (err) {
+   
+    const error = err as AxiosError;
+    if (error.response?.status === 401) {
+      logout?.();
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      navigate('/login');
+      return;
     }
-  };
+
+    console.error('Error fetching notifications:', error);
+  } finally {
+    setNotificationsLoading(false);
+  }
+}, [token, navigate, logout]);
 
   // Mark notification as read
-  const markAsRead = async (notificationId: string) => {
-    if (!token) return;
+ const markAsRead = async (notificationId: string) => {
+  if (!token) return;
 
-    try {
-      const response = await fetch(`${API_URL}/api/notification/read/${notificationId}`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
+  try {
+    
+    await getmarkNotification(notificationId);
 
-      if (response.ok) {
-        setNotifications(prev => 
-          prev.map(notif => 
-            notif._id === notificationId 
-              ? { ...notif, read: true }
-              : notif
-          )
-        );
-      }
-    } catch (error) {
-      console.error('Error marking notification as read:', error);
+ 
+    setNotifications((prev: Notification[]) => 
+      prev.map((notif) => 
+        notif._id === notificationId 
+          ? { ...notif, read: true } 
+          : notif
+      )
+    );
+  } catch (err) {
+    
+    const error = err as AxiosError;
+    
+    // Check for auth failure
+    if (error.response?.status === 401) {
+      logout?.();
+      navigate('/login');
+      return;
     }
-  };
+    
+    console.error('Error marking notification as read:', error);
+  }
+};
 
   // Mark all notifications as read
-  const markAllAsRead = async () => {
-    if (!token) return;
+const markAllAsRead = async () => {
+  if (!token) return;
 
-    try {
-      const unreadNotifications = notifications.filter(n => !n.read);
-      
-      await Promise.all(
-        unreadNotifications.map(notif => 
-          fetch(`${API_URL}/api/notification/read/${notif._id}`, {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          })
-        )
-      );
+  try {
+    // 1. Identify unread notifications
+    const unreadNotifications = notifications.filter((n: Notification) => !n.read);
+    
+    if (unreadNotifications.length === 0) return;
 
-      setNotifications(prev => 
-        prev.map(notif => ({ ...notif, read: true }))
-      );
-    } catch (error) {
-      console.error('Error marking all notifications as read:', error);
+    // 2. Execute all API calls in parallel using your decoupled service
+    await Promise.all(
+      unreadNotifications.map((notif) => getmarkNotification(notif._id))
+    );
+
+    // 3. Update the local UI state all at once
+    setNotifications((prev: Notification[]) =>
+      prev.map((notif) => ({ ...notif, read: true }))
+    );
+  } catch (err) {
+    // 4. Handle errors without 'any'
+    const error = err as AxiosError;
+    
+    if (error.response?.status === 401) {
+      logout?.();
+      navigate('/login');
+      return;
     }
-  };
-
+    
+    console.error('Error marking all notifications as read:', error);
+  }
+};
   // Handle notification click - Show modal without closing panel
   const handleNotificationClick = async (notification: Notification) => {
     // Mark as read if not already read
@@ -198,78 +206,82 @@ const KidsHeader = ({ profile, wallet }: KidsHeaderProps) => {
 
   // Load user data
   useEffect(() => {
-    const loadUserData = async () => {
-      try {
-        setLoading(true);
+  const loadUserData = async () => {
+    try {
+      setLoading(true);
 
-        if (authUser) {
-          setUser(authUser);
-          return;
-        }
-
-        const stored = localStorage.getItem('user');
-        if (stored) {
-          const parsed = JSON.parse(stored) as User;
-          const fullName = parsed.name
-            ?? ((parsed.firstName && parsed.lastName) ? `${parsed.firstName} ${parsed.lastName}` : (parsed.firstName ?? parsed.lastName ?? ''));
-          setUser({ ...parsed, name: fullName.trim() || 'User' });
-          return;
-        }
-
-        if (token) {
-          const res = await fetch(`${API_URL}/api/users/getuserone`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          });
-
-          if (res.status === 401) {
-            logout?.();
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            navigate('/login');
-            return;
-          }
-
-          if (!res.ok) throw new Error(`Failed to fetch user: ${res.status}`);
-
-          const json = await res.json();
-          const payload = json.user?.data ?? json.data ?? json.user ?? json;
-
-          const fullName = payload.name
-            ?? (payload.firstName && payload.lastName ? `${payload.firstName} ${payload.lastName}` : payload.firstName ?? payload.lastName ?? '');
-
-          const formatted: User = {
-            _id: payload._id,
-            name: fullName.trim() || 'User',
-            firstName: payload.firstName,
-            lastName: payload.lastName,
-            email: payload.email,
-            role: payload.role,
-            profilePicture: payload.profilePicture,
-          };
-
-          setUser(formatted);
-          localStorage.setItem('user', JSON.stringify(formatted));
-        }
-      } catch (err) {
-        console.error('Error loading user:', err);
-        const fallback = localStorage.getItem('user');
-        if (fallback) {
-          try {
-            setUser(JSON.parse(fallback));
-          } catch {
-            // ignore parse errors
-          }
-        }
-      } finally {
-        setLoading(false);
+      // 1. Check if user is already in Auth context
+      if (authUser) {
+        setUser(authUser);
+        return;
       }
-    };
 
-    loadUserData();
-  }, [API_URL, authUser, token, logout, navigate]);
+      // 2. Check local storage fallback
+      const stored = localStorage.getItem('user');
+      if (stored) {
+        const parsed = JSON.parse(stored) as User;
+        const fullName = parsed.name
+          ?? ((parsed.firstName && parsed.lastName) ? `${parsed.firstName} ${parsed.lastName}` : (parsed.firstName ?? parsed.lastName ?? ''));
+        setUser({ ...parsed, name: fullName.trim() || 'User' });
+        return;
+      }
+
+      // 3. API Logic (Decoupled)
+      if (token) {
+        // payload is now typed correctly from your service
+        const payload = await getUserDetails(); 
+
+        // Strictly typing fields to avoid "unknown" errors
+        const pName = (payload.name as string) || '';
+        const pFirst = (payload.firstName as string) || '';
+        const pLast = (payload.lastName as string) || '';
+
+        const fullName = pName
+          ?? (pFirst && pLast ? `${pFirst} ${pLast}` : pFirst ?? pLast ?? '');
+
+        const formatted: User = {
+          _id: payload._id as string,
+          name: fullName.trim() || 'User',
+          firstName: payload.firstName as string | undefined,
+          lastName: payload.lastName as string | undefined,
+          email: payload.email as string,
+          role: payload.role as string,
+          profilePic: payload.profilePic as string | undefined,
+        };
+
+        setUser(formatted);
+        localStorage.setItem('user', JSON.stringify(formatted));
+      }
+    } catch (err) {
+      const error = err as AxiosError;
+
+      // Handle specific 401 logout
+      if (error.response?.status === 401) {
+        logout?.();
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        navigate('/login');
+        return;
+      }
+
+      console.error('Error loading user:', error);
+      
+      // Attempt final fallback from storage on network error
+      const fallback = localStorage.getItem('user');
+      if (fallback) {
+        try {
+          setUser(JSON.parse(fallback));
+        } catch {
+          // ignore parse errors
+        }
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  loadUserData();
+}, [authUser, token, logout, navigate]);
 
   // Fetch notifications when component mounts and when user is loaded
   useEffect(() => {

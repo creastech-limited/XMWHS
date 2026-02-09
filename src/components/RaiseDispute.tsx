@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { AlertCircle, FileText, DollarSign, User, ChevronDown, CheckCircle, XCircle, Calendar, School, Plus, Trash2, RefreshCw } from 'lucide-react';
+import { getUserDetails } from '../services';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -129,22 +130,12 @@ const RaiseDispute: React.FC = () => {
     { value: 'Other', label: 'Other' }
   ];
 
-  const fetchUserDetails = async (authToken: string): Promise<User> => {
+  const fetchUserDetails = async (): Promise<User> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      const data =  await getUserDetails()
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+    
 
-      const data = await response.json();
-      
       let profile: User | undefined;
       if (data.user?.data) {
         profile = data.user.data;
@@ -327,7 +318,7 @@ const RaiseDispute: React.FC = () => {
         console.log('✅ Found token in localStorage');
         
         console.log('📤 Fetching user from API...');
-        const profile = await fetchUserDetails(storedToken);
+        const profile = await fetchUserDetails();
         console.log('✅ Successfully fetched user profile:', profile);
         
         setUser(profile);
@@ -357,7 +348,7 @@ const RaiseDispute: React.FC = () => {
     if (token && activeTab === 'list') {
       loadUserDisputes();
     }
-  }, [token, activeTab]);
+  }, [activeTab]);
 
   useEffect(() => {
     if (token && user?.role === 'parent') {

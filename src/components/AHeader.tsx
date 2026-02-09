@@ -112,15 +112,21 @@ const AHeader = () => {
 
     // Update unread count
     setUnreadCount(prev => prev > 0 ? prev - 1 : 0);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error marking notification as read:', error);
     
-    // Optional: Show error message
-    if (error.response?.status === 401) {
+    // Check for 401 error without using 'any'
+    if (error instanceof Error) {
+      console.error('Error details:', error.message);
+    }
+    
+    // If it's an axios error with response
+    const axiosError = error as { response?: { status?: number } };
+    if (axiosError.response?.status === 401) {
       console.error('Unauthorized - token may be invalid');
     }
   }
-};
+};;
 
   // Handle authentication errors
   const handleAuthError = (message: string) => {

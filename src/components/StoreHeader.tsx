@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   Bell,
   User,
@@ -9,8 +9,10 @@ import {
   X
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import { useAuth } from '../context/AuthContext';
+import type { NotificationsResponse } from '../types';
+import { getmarkNotification, getNotifications } from '../services';
 
 // TypeScript interfaces
 interface User {
@@ -167,56 +169,67 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
     setAvatarError(true);
   };
 
-  const fetchNotifications = async (): Promise<void> => {
-    if (!token) return;
+ const fetchNotifications = useCallback(async (): Promise<void> => {
+  if (!token) return;
 
-    try {
-      setNotificationsLoading(true);
-      const response = await axios.get(`${API_URL}/api/notification/get`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+  try {
+    setNotificationsLoading(true);
+    const data: NotificationsResponse = await getNotifications();
 
-      let notificationData: Notification[] = [];
-      
-      // Handle multiple response structures
-      if (Array.isArray(response.data)) {
-        notificationData = response.data;
-      } else if (Array.isArray(response.data.data)) {
-        notificationData = response.data.data;
-      } else if (response.data.notifications) {
-        notificationData = response.data.notifications;
-      }
+    let notificationData: Notification[] = [];
 
-      setNotifications(notificationData);
-    } catch (error) {
-      console.error('Failed to fetch notifications:', error);
-      if (axios.isAxiosError(error) && error.response?.status === 401) {
-        if (logout) logout();
-      }
-    } finally {
-      setNotificationsLoading(false);
+    if (Array.isArray(data)) {
+      notificationData = data;
+    } else if (data.data && Array.isArray(data.data)) {
+      notificationData = data.data;
+    } else if (data.notifications && Array.isArray(data.notifications)) {
+      notificationData = data.notifications;
     }
-  };
 
-  const markNotificationAsRead = async (notificationId: string): Promise<void> => {
-    if (!token) return;
+    setNotifications(notificationData);
+  } catch (error) {
+    console.error('Failed to fetch notifications:', error);
 
-    try {
-      await axios.put(`${API_URL}/api/notification/read/${notificationId}`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      setNotifications(prev => 
-        prev.map(notif => 
-          notif._id === notificationId 
-            ? { ...notif, read: true }
-            : notif
-        )
-      );
-    } catch (error) {
-      console.error('Failed to mark notification as read:', error);
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      if (logout) {
+        logout();
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        navigate('/login');
+      }
     }
-  };
+  } finally {
+    setNotificationsLoading(false);
+  }
+}, [token, logout, navigate]);
+
+ const markNotificationAsRead = async (notificationId: string): Promise<void> => {
+  if (!token) return;
+
+  try {
+  
+    await getmarkNotification(notificationId);
+
+
+    setNotifications((prev: Notification[]) => 
+      prev.map((notif) => 
+        notif._id === notificationId 
+          ? { ...notif, read: true } 
+          : notif
+      )
+    );
+  } catch (err) {
+    
+    const error = err as AxiosError;
+    console.error('Failed to mark notification as read:', error);
+    
+  
+    if (error.response?.status === 401 && logout) {
+      logout();
+      navigate('/login');
+    }
+  }
+};
 
   const handleLogout = async (): Promise<void> => {
     try {

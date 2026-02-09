@@ -18,17 +18,18 @@ import {
 } from 'lucide-react';
 import AdminSidebar from '../../components/Adminsidebar';
 import AdminHeader from '../../components/AdminHeader';
+import { getAllUsers } from '../../services';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
 
 interface UserData {
   user: {
     _id: string;
-    firstName: string;
-    lastName: string;
+    firstName?: string;
+    lastName?: string;
     name: string;
     email: string;
-    phone: string;
+    phone?: string;
     role: string;
     status: string;
     createdAt: string;
@@ -56,29 +57,17 @@ const AllUsers = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
 
-  const fetchAllUsers = useCallback(async (token: string) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/users/getallUsers`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      
-      if (data.data && Array.isArray(data.data)) {
-        setUsers(data.data);
-        setFilteredUsers(data.data);
-      }
-    } catch (error) {
-      console.error('Error fetching users:', error);
-    }
-  }, []);
+ const fetchAllUsers = useCallback(async () => {
+  try {
+    const data = await getAllUsers();
+    
+    // These calls will no longer throw Error 2345
+    setUsers(data);
+    setFilteredUsers(data);
+  } catch (error) {
+    console.error('Error fetching users:', error);
+  }
+}, []);
 
 useEffect(() => {
   const initializeData = async () => {
@@ -102,7 +91,7 @@ useEffect(() => {
         return;
       }
 
-      await fetchAllUsers(token);
+      await fetchAllUsers();
 
     } catch (error) {
       console.error('Error initializing data:', error);
@@ -126,7 +115,7 @@ useEffect(() => {
       result = result.filter(user => 
         user.user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.user.phone.includes(searchTerm) ||
+        user.user.phone?.includes(searchTerm) ||
         user.user.role.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
