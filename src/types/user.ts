@@ -195,9 +195,6 @@ export interface ClassesResponse {
   [key: string]: unknown;
 }
 
-/**
- * Normalized class structure used in your frontend
- */
 export interface SchoolClass {
   _id: string;
   className: string;

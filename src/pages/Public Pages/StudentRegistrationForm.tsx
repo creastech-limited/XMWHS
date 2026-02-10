@@ -18,6 +18,7 @@ import type {
   SchoolInfoResponse,
   RegistrationResponse 
 } from '../../types/auth';
+import type { SnackbarState } from '../../types';
 
 interface ClassInfo {
   className: string;
@@ -47,11 +48,7 @@ interface FormData {
   agreeToTerms: boolean;
 }
 
-interface SnackbarState {
-  open: boolean;
-  message: string;
-  severity: 'success' | 'error' | 'warning' | 'info';
-}
+
 
 const StudentRegistrationForm: React.FC = () => {
   const [searchParams] = useSearchParams();
