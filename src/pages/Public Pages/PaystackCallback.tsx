@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 
@@ -13,11 +13,11 @@ const PaystackCallback: React.FC = () => {
   const [verificationStatus, setVerificationStatus] = useState<VerificationStatus>('verifying');
   const [errorMessage, setErrorMessage] = useState<string>('');
 
-  const getReference = (): string | null => {
+  const getReference = useCallback((): string | null => {
     return searchParams.get('reference');
-  };
+  }, [searchParams]);
 
-  const verifyTransaction = async (reference: string | null): Promise<void> => {
+  const verifyTransaction = useCallback(async (reference: string | null): Promise<void> => {
     if (!reference) {
       setVerificationStatus('failed');
       setErrorMessage('No payment reference found');
@@ -58,7 +58,7 @@ const PaystackCallback: React.FC = () => {
       setVerificationStatus('failed');
       setErrorMessage(error instanceof Error ? error.message : 'An unexpected error occurred');
     }
-  };
+  }, [navigate]);
 
   const handleProceedToDashboard = (): void => {
     const token = localStorage.getItem('token');
@@ -90,7 +90,7 @@ const PaystackCallback: React.FC = () => {
   useEffect(() => {
     const reference = getReference();
     verifyTransaction(reference);
-  }, []);
+  }, [getReference, verifyTransaction]);
 
   // PENDING/VERIFYING STATE
   if (verificationStatus === 'verifying') {

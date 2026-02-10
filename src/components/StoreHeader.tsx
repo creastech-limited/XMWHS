@@ -107,6 +107,40 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
   // Use environment variable with fallback
   const API_URL = import.meta.env.VITE_API_BASE_URL;
 
+  const fetchNotifications = useCallback(async (): Promise<void> => {
+    if (!token) return;
+
+    try {
+      setNotificationsLoading(true);
+      const data: NotificationsResponse = await getNotifications();
+
+      let notificationData: Notification[] = [];
+
+      if (Array.isArray(data)) {
+        notificationData = data;
+      } else if (data.data && Array.isArray(data.data)) {
+        notificationData = data.data;
+      } else if (data.notifications && Array.isArray(data.notifications)) {
+        notificationData = data.notifications;
+      }
+
+      setNotifications(notificationData);
+    } catch (error) {
+      console.error('Failed to fetch notifications:', error);
+
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
+        if (logout) {
+          logout();
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          navigate('/login');
+        }
+      }
+    } finally {
+      setNotificationsLoading(false);
+    }
+  }, [token, logout, navigate]);
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -132,7 +166,7 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
     if (isAuthenticated && user && token) {
       fetchNotifications();
     }
-  }, [isAuthenticated, user, token, authLoading, navigate]);
+  }, [isAuthenticated, user, token, authLoading, navigate, fetchNotifications]);
 
   // IMPROVED: Better avatar handling with multiple fallbacks
   const getUserAvatar = (): string => {
@@ -169,66 +203,32 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
     setAvatarError(true);
   };
 
- const fetchNotifications = useCallback(async (): Promise<void> => {
-  if (!token) return;
+  const markNotificationAsRead = async (notificationId: string): Promise<void> => {
+    if (!token) return;
 
-  try {
-    setNotificationsLoading(true);
-    const data: NotificationsResponse = await getNotifications();
+    try {
+      
+      await getmarkNotification(notificationId);
 
-    let notificationData: Notification[] = [];
 
-    if (Array.isArray(data)) {
-      notificationData = data;
-    } else if (data.data && Array.isArray(data.data)) {
-      notificationData = data.data;
-    } else if (data.notifications && Array.isArray(data.notifications)) {
-      notificationData = data.notifications;
-    }
-
-    setNotifications(notificationData);
-  } catch (error) {
-    console.error('Failed to fetch notifications:', error);
-
-    if (axios.isAxiosError(error) && error.response?.status === 401) {
-      if (logout) {
+      setNotifications((prev: Notification[]) => 
+        prev.map((notif) => 
+          notif._id === notificationId 
+            ? { ...notif, read: true } 
+            : notif
+        )
+      );
+    } catch (err) {
+      
+      const error = err as AxiosError;
+      console.error('Failed to mark notification as read:', error);
+      
+    
+      if (error.response?.status === 401 && logout) {
         logout();
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
         navigate('/login');
       }
     }
-  } finally {
-    setNotificationsLoading(false);
-  }
-}, [token, logout, navigate]);
-
- const markNotificationAsRead = async (notificationId: string): Promise<void> => {
-  if (!token) return;
-
-  try {
-  
-    await getmarkNotification(notificationId);
-
-
-    setNotifications((prev: Notification[]) => 
-      prev.map((notif) => 
-        notif._id === notificationId 
-          ? { ...notif, read: true } 
-          : notif
-      )
-    );
-  } catch (err) {
-    
-    const error = err as AxiosError;
-    console.error('Failed to mark notification as read:', error);
-    
-  
-    if (error.response?.status === 401 && logout) {
-      logout();
-      navigate('/login');
-    }
-  }
 };
 
   const handleLogout = async (): Promise<void> => {

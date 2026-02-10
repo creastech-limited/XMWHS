@@ -288,7 +288,7 @@ const markAllAsRead = async () => {
     if (user && token) {
       fetchNotifications();
     }
-  }, [user, token]);
+  }, [user, token, fetchNotifications]);
 
   // Close notifications when clicking outside
   useEffect(() => {

@@ -240,7 +240,7 @@ useEffect(() => {
     if (user && token) {
       fetchNotifications();
     }
-  }, [user, token]);
+  }, [user, token, fetchNotifications]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
