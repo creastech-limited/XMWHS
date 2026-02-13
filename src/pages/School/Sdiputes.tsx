@@ -21,10 +21,6 @@ import {
 import { createDisputeApi, getUserDetails, getUserDisputes } from '../../services';
 import type { CreateDisputeData, CreateDisputeResponse, Dispute, FetchDisputesResponse, FetchUserDetailsResponse, UserProfile } from '../../types';
 
-
-// Interfaces
-
-
 interface StatusColorMap {
   [key: string]: string;
 }

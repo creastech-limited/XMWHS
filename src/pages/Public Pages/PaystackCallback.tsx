@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
-
-// Ensure this matches your Vite environment variable
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+import axios from 'axios';
 
 type VerificationStatus = 'verifying' | 'success' | 'failed';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const PaystackCallback: React.FC = () => {
   const navigate = useNavigate();
@@ -32,21 +32,29 @@ const PaystackCallback: React.FC = () => {
         return;
       }
 
-      setVerificationStatus('verifying');
-      
-      const response = await fetch(`${API_BASE_URL}/api/transaction/verifyTransaction/${reference}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+    setVerificationStatus('verifying');
+    console.log('Verifying transaction with reference:', reference);
+    
+       // Changed to GET request to match FundWalletPage
+      const response = await axios.post(
+        `${API_BASE_URL}/api/transaction/verifynomba/${reference}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
         }
-      });
+      );
 
-      const data = await response.json();
+      console.log('Verification response:', response.data);
 
-      // Check if transaction is successful based on the specific success message
-      const isSuccessful = (response.ok && data.success) || 
-                          (data.message && data.message.includes('Payment verified, wallet funded, and transaction updated'));
+      const data = response.data;
+
+      // Check if transaction is successful
+      const isSuccessful = (response.status >= 200 && response.status < 300) && 
+                          (data.status === 'success' || 
+                           data.success === true ||
+                           (data.message && data.message.includes('Payment verified')));
 
       if (isSuccessful) {
         setVerificationStatus('success');
@@ -55,31 +63,24 @@ const PaystackCallback: React.FC = () => {
         setErrorMessage(data.message || 'Verification failed');
       }
     } catch (error) {
+      console.error('Verification error:', error);
       setVerificationStatus('failed');
-      setErrorMessage(error instanceof Error ? error.message : 'An unexpected error occurred');
+      
+      if (axios.isAxiosError(error)) {
+        setErrorMessage(
+          error.response?.data?.message || 
+          error.message || 
+          'An unexpected error occurred'
+        );
+      } else {
+        setErrorMessage(error instanceof Error ? error.message : 'An unexpected error occurred');
+      }
     }
   };
 
+
   const handleProceedToDashboard = (): void => {
-    const token = localStorage.getItem('token');
-    
-    if (!token) {
-      navigate('/login');
-      return;
-    }
-    
-    try {
-      const tokenData = JSON.parse(atob(token.split('.')[1]));
-      const isExpired = tokenData.exp * 1000 < Date.now();
-      
-      if (isExpired) {
-        navigate('/login');
-      } else {
-        navigate('/parent');
-      }
-    } catch {
-      navigate('/login');
-    }
+    navigate('/parent');
   };
 
   const handleTryAgain = (): void => {
@@ -89,8 +90,24 @@ const PaystackCallback: React.FC = () => {
 
   useEffect(() => {
     const reference = getReference();
-    verifyTransaction(reference);
-  }, []);
+    console.log('Payment reference from URL:', reference);
+    
+    if (reference) {
+      verifyTransaction(reference);
+    } else {
+      // Check localStorage as fallback
+      const storedReference = localStorage.getItem('paymentReference');
+      console.log('Payment reference from localStorage:', storedReference);
+      
+      if (storedReference) {
+        verifyTransaction(storedReference);
+        localStorage.removeItem('paymentReference');
+      } else {
+        setVerificationStatus('failed');
+        setErrorMessage('No payment reference found');
+      }
+    }
+  }, [searchParams]);
 
   // PENDING/VERIFYING STATE
   if (verificationStatus === 'verifying') {

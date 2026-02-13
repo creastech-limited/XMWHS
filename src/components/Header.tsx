@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   BellIcon,
   Cog6ToothIcon,
@@ -56,7 +56,7 @@ const [notificationModalOpen, setNotificationModalOpen] = useState(false);
   const token = authToken || localStorage.getItem('token');
 
   // Fetch notifications from API
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     if (!token) return;
     
     try {
@@ -89,7 +89,7 @@ const [notificationModalOpen, setNotificationModalOpen] = useState(false);
     } finally {
       setNotificationsLoading(false);
     }
-  };
+  }, [token, API_URL, logout, navigate]);
 
   // Mark notification as read
   const markAsRead = async (notificationId: string) => {
@@ -231,16 +231,15 @@ const [notificationModalOpen, setNotificationModalOpen] = useState(false);
         setLoading(false);
       }
     };
-
     loadUserData();
   }, [API_URL, authUser, token, logout, navigate]);
 
-  // Fetch notifications when component mounts and when user is loaded
+  // Fetch notifications
   useEffect(() => {
     if (user && token) {
       fetchNotifications();
     }
-  }, [user, token]);
+  }, [user, token, fetchNotifications]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -287,7 +286,7 @@ const [notificationModalOpen, setNotificationModalOpen] = useState(false);
   if (user?.avatar) {
     return user.avatar;
   }
-  return null; // Return null when no avatar exists
+  return null; 
 };
 
   // Get unread notifications count
@@ -321,8 +320,6 @@ const [notificationModalOpen, setNotificationModalOpen] = useState(false);
             onClick={() => navigate('')}
           />
         </div>
-        
-        {/* Spacer to push content to the right */}
         <div className="flex-1"></div>
 
         {/* Right-aligned action buttons */}
@@ -438,9 +435,9 @@ const [notificationModalOpen, setNotificationModalOpen] = useState(false);
             >
               <div className="flex items-center space-x-3 px-2 py-1 rounded-full hover:bg-gray-100">
                 {loading ? (
-  <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse" />
-) : getUserAvatar() ? (
-  <img
+    <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse" />
+     ) : getUserAvatar() ? (
+    <img
     src={getUserAvatar()!}
     alt="User profile"
     className="h-8 w-8 rounded-full object-cover border-2 border-white shadow-sm"

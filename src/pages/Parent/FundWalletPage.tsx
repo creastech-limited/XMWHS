@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   CreditCardIcon,
@@ -67,8 +67,8 @@ const FundWalletPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [transactionFee, setTransactionFee] = useState<number>(0);
 
-// Fetch wallet balance
-const fetchWalletBalance = async () => {
+  // Fetch wallet balance
+const fetchWalletBalance = useCallback(async () => {
   if (!authToken) {
     navigate('/login'); 
     return;
@@ -85,11 +85,12 @@ const fetchWalletBalance = async () => {
         balance: walletData.balance
       }));
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error fetching wallet balance:', error);
     
-    const errorMessage = error.response?.data?.message || 
-                         'Failed to fetch wallet balance';
+    const errorMessage = axios.isAxiosError(error) && error.response?.data?.message 
+                         ? error.response.data.message 
+                         : 'Failed to fetch wallet balance';
     
     setSnackbar({
       open: true,
@@ -97,7 +98,7 @@ const fetchWalletBalance = async () => {
       severity: 'error'
     });
   }
-};
+}, [authToken, navigate]);
 
   // Fetch user profile
 useEffect(() => {
@@ -109,32 +110,36 @@ useEffect(() => {
       const userData = data.user?.data || data.data || data.user || data;
       
       if (userData && typeof userData === 'object') {
-        const id = (userData as any)._id;
+        const id = (userData as Record<string, unknown>)._id as string | undefined;
         if (id) setUserId(id);
         
-        const email = (userData as any).email || "";
+        const email = (userData as Record<string, unknown>).email as string || "";
         setEmail(email);
         
         setUserData({
-          username: (userData as any).name || (userData as any).username || "User",
+          username: (userData as Record<string, unknown>).name as string || (userData as Record<string, unknown>).username as string || "User",
           balance: 0,
           email: email,
-          lastTransactions: (userData as any).transactions || []
+          lastTransactions: (userData as Record<string, unknown>).transactions as Transaction[] || []
         });
         
         await fetchWalletBalance();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error fetching user profile:', error);
       
-      if (error.response?.status === 401) {
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
         navigate('/login');
         return;
       }
       
+      const errorMessage = axios.isAxiosError(error) && error.response?.data?.message 
+        ? error.response.data.message 
+        : 'Failed to fetch user profile';
+      
       setSnackbar({
         open: true,
-        message: error.response?.data?.message || 'Failed to fetch user profile',
+        message: errorMessage,
         severity: 'error'
       });
     } finally {
@@ -307,7 +312,7 @@ const calculateCharge = (transactionAmount: number | string, charge: Charge): nu
         {
           email,
           amount: Number(amount) ,
-          callback_url: callbackUrl
+          callBackUrl: callbackUrl
         },
         {
           headers: {

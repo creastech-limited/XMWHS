@@ -108,8 +108,6 @@ export interface FetchUserDetailsResponse {
   [key: string]: unknown;
 }
 /* ====================== TRANSACTION TYPES ====================== */
-
-/* ----------------------- TRANSACTIONS ----------------------- */
 export interface Transaction {
   _id: string;
   date: string;
@@ -130,8 +128,6 @@ export interface TransactionsResponse {
 }
 
 /* ====================== CLASS TYPES ====================== */
-
-/* ----------------------- CLASSES ----------------------- */
 export interface Class {
   _id: string;
   className: string;
@@ -162,7 +158,7 @@ export interface ClassesResponse {
   classes?: ClassItem[];
   status?: string;
   message?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 /**
@@ -228,8 +224,6 @@ export interface StoreCountResponse {
 }
 
 /* ====================== AGENT TYPES ====================== */
-
-/* ----------------------- AGENTS ----------------------- */
 export interface StoreAgent {
   id: string;
   firstName: string;
@@ -275,7 +269,7 @@ export interface AgentRegistrationData {
 
 export interface AgentRegistrationResponse {
   message: string;
-  data?: any;
+  data?: unknown;
 }
 
 export interface DeleteAgentResponse {
@@ -284,8 +278,6 @@ export interface DeleteAgentResponse {
 }
 
 /* ====================== NOTIFICATION TYPES ====================== */
-
-/* ----------------------- NOTIFICATIONS ----------------------- */
 export interface Notification {
   _id: string;
   userId: string;
@@ -305,8 +297,6 @@ export interface NotificationsResponse {
 }
 
 /* ====================== BANK & WITHDRAWAL TYPES ====================== */
-
-/* ----------------------- BANK ----------------------- */
 export interface Bank {
   id: string;
   name: string;
