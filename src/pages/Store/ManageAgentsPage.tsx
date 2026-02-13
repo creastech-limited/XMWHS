@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from "../../context/AuthContext";
 import { 
   Plus as AddIcon,
@@ -130,7 +130,7 @@ const fetchStoreInfoFromProfile = async () => {
 };
 
   // Main initialization function
-  const initializePage = async () => {
+  const initializePage = useCallback(async () => {
     if (!authToken) return;
     
     setIsLoadingAgents(true);
@@ -149,12 +149,12 @@ const fetchStoreInfoFromProfile = async () => {
       setIsLoadingAgents(false);
       setIsLoadingStoreInfo(false);
     }
-  };
+  }, [authToken]);
 
   // Fetch user profile and store ID on component mount
   useEffect(() => {
     initializePage();
-  }, [authToken]);
+  }, [initializePage]);
   
   const handleChange = (field: keyof FormErrors) => (event: React.ChangeEvent<HTMLInputElement>) => {
     setAgentData({ ...agentData, [field]: event.target.value });
@@ -274,10 +274,10 @@ const handleDelete = async (id: string) => {
       position: "top-right",
       autoClose: 3000,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error deleting agent:', error);
     
-    const errorMessage = error.response?.data?.message || 
+    const errorMessage = (error as { response?: { data?: { message?: string } } }).response?.data?.message || 
                          'Failed to delete agent';
     
     toast.error(errorMessage, {

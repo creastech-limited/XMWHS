@@ -10,6 +10,9 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import logo from './5.png';
+import { getmarkNotification, getNotifications, getUserDetails, markAllNotificationsAsRead } from '../services';
+import type { NotificationsResponse } from '../types';
+import type { AxiosError } from 'axios';
 
 interface User {
   _id: string;
@@ -38,7 +41,7 @@ interface HeaderProps {
   profilePath: string;
 }
 
-export const Header: React.FC<HeaderProps> = ({ profilePath }) =>  {
+export const Header: React.FC<HeaderProps> = ({ profilePath }) => {
   const { user: authUser, token: authToken, logout } = useAuth() || {};
   const [user, setUser] = useState<User | null>(authUser || null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -50,25 +53,34 @@ export const Header: React.FC<HeaderProps> = ({ profilePath }) =>  {
   const menuRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
-const [notificationModalOpen, setNotificationModalOpen] = useState(false);
+  const [notificationModalOpen, setNotificationModalOpen] = useState(false);
 
   const API_URL = import.meta.env.VITE_API_BASE_URL;
   const token = authToken || localStorage.getItem('token');
 
   // Fetch notifications from API
+
+
   const fetchNotifications = useCallback(async () => {
     if (!token) return;
-    
+
     try {
       setNotificationsLoading(true);
-      const response = await fetch(`${API_URL}/api/notification/get`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
 
-      if (response.status === 401) {
+      // 1. data is typed as NotificationsResponse
+      const data: NotificationsResponse = await getNotifications();
+
+      // 2. Extract without 'any' using type-safe fallbacks
+      const notificationsList = Array.isArray(data)
+        ? data
+        : data.notifications || data.data || [];
+
+      setNotifications(notificationsList);
+    } catch (err) {
+      // 3. Cast the error to AxiosError to access the status safely
+      const error = err as AxiosError;
+
+      if (error.response?.status === 401) {
         logout?.();
         localStorage.removeItem('token');
         localStorage.removeItem('user');
@@ -76,163 +88,152 @@ const [notificationModalOpen, setNotificationModalOpen] = useState(false);
         return;
       }
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch notifications: ${response.status}`);
-      }
-
-      const data = await response.json();
-      // Handle different response structures
-      const notificationsList = Array.isArray(data) ? data : data.notifications || data.data || [];
-      setNotifications(notificationsList);
-    } catch (error) {
       console.error('Error fetching notifications:', error);
     } finally {
       setNotificationsLoading(false);
     }
-  }, [token, API_URL, logout, navigate]);
-
+  }, [token, navigate, logout]);
   // Mark notification as read
-  const markAsRead = async (notificationId: string) => {
-    if (!token) return;
+const markAsRead = async (notificationId: string) => {
+  if (!token) return;
 
-    try {
-      const response = await fetch(`${API_URL}/api/notification/read/${notificationId}`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
+  try {
+  
+    await getmarkNotification(notificationId);
 
-      if (response.ok) {
-        setNotifications(prev => 
-          prev.map(notif => 
-            notif._id === notificationId 
-              ? { ...notif, read: true }
-              : notif
-          )
-        );
-      }
-    } catch (error) {
-      console.error('Error marking notification as read:', error);
+    
+    setNotifications((prev: Notification[]) => 
+      prev.map((notif) => 
+        notif._id === notificationId 
+          ? { ...notif, read: true } 
+          : notif
+      )
+    );
+  } catch (err) {
+    const error = err as AxiosError;
+    
+    // Optional: Handle 401s here if this component isn't 
+    // already covered by a global check
+    if (error.response?.status === 401) {
+      navigate('/login');
+      return;
     }
-  };
 
-  // Mark all notifications as read
-  const markAllAsRead = async () => {
-    if (!token) return;
-
-    try {
-      const unreadNotifications = notifications.filter(n => !n.read);
-      
-      // Update all unread notifications
-      await Promise.all(
-        unreadNotifications.map(notif => 
-          fetch(`${API_URL}/api/notification/read/${notif._id}`, {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          })
-        )
-      );
-
-      setNotifications(prev => 
-        prev.map(notif => ({ ...notif, read: true }))
-      );
-    } catch (error) {
-      console.error('Error marking all notifications as read:', error);
-    }
-  };
-
-  // Handle notification click
- const handleNotificationClick = async (notification: Notification) => {
-  // Mark as read if not already read
-  if (!notification.read) {
-    await markAsRead(notification._id);
+    console.error('Error marking notification as read:', error);
   }
-  
-  // Set the selected notification and open modal
-  setSelectedNotification(notification);
-  setNotificationModalOpen(true);
-  
-  // Close notifications dropdown
-  setNotifOpen(false);
 };
 
-  useEffect(() => {
-    const loadUserData = async () => {
-      try {
-        setLoading(true);
+  // Mark all notifications as read
+ const markAllAsRead = async () => {
+  if (!token) return;
 
-        if (authUser) {
-          setUser(authUser);
-          return;
-        }
+  try {
+    // 1. One clean API call
+    await markAllNotificationsAsRead();
 
-        const stored = localStorage.getItem('user');
-        if (stored) {
-          const parsed = JSON.parse(stored) as User;
-          const fullName = parsed.name
-            ?? ((parsed.firstName && parsed.lastName) ? `${parsed.firstName} ${parsed.lastName}` : (parsed.firstName ?? parsed.lastName ?? ''));
-          setUser({ ...parsed, name: fullName.trim() || 'User' });
-          return;
-        }
+    // 2. Update the UI state
+    setNotifications((prev: Notification[]) =>
+      prev.map(notif => ({ ...notif, read: true }))
+    );
+  } catch (error) {
+    console.error('Error marking all notifications as read:', error);
+  }
+};
 
-        if (token) {
-          const res = await fetch(`${API_URL}/api/users/getuserone`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          });
+  // Handle notification click
+  const handleNotificationClick = async (notification: Notification) => {
+    // Mark as read if not already read
+    if (!notification.read) {
+      await markAsRead(notification._id);
+    }
 
-          if (res.status === 401) {
-            logout?.();
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            navigate('/login');
-            return;
-          }
+    // Set the selected notification and open modal
+    setSelectedNotification(notification);
+    setNotificationModalOpen(true);
 
-          if (!res.ok) throw new Error(`Failed to fetch user: ${res.status}`);
+    // Close notifications dropdown
+    setNotifOpen(false);
+  };
 
-          const json = await res.json();
-          const payload = json.user?.data ?? json.data ?? json.user ?? json;
 
-          const fullName = payload.name
-            ?? (payload.firstName && payload.lastName ? `${payload.firstName} ${payload.lastName}` : payload.firstName ?? payload.lastName ?? '');
 
-          const formatted: User = {
-            _id: payload._id,
-            name: fullName.trim() || 'User',
-            firstName: payload.firstName,
-            lastName: payload.lastName,
-            email: payload.email,
-            role: payload.role,
-            profilePicture: payload.profilePicture,
-          };
+useEffect(() => {
+  const loadUserData = async () => {
+    try {
+      setLoading(true);
 
-          setUser(formatted);
-          localStorage.setItem('user', JSON.stringify(formatted));
-        }
-      } catch (err) {
-        console.error('Error loading user:', err);
-        const fallback = localStorage.getItem('user');
-        if (fallback) {
-          try {
-            setUser(JSON.parse(fallback));
-          } catch {
-            // ignore parse errors
-          }
-        }
-      } finally {
-        setLoading(false);
+      // 1. Priority: Context/State
+      if (authUser) {
+        setUser(authUser);
+        return;
       }
-    };
-    loadUserData();
-  }, [API_URL, authUser, token, logout, navigate]);
+
+      // 2. Secondary: Local Storage
+      const stored = localStorage.getItem('user');
+      if (stored) {
+        const parsed = JSON.parse(stored) as User;
+        const fullName = parsed.name
+          ?? ((parsed.firstName && parsed.lastName) ? `${parsed.firstName} ${parsed.lastName}` : (parsed.firstName ?? parsed.lastName ?? ''));
+        setUser({ ...parsed, name: fullName.trim() || 'User' });
+        return;
+      }
+
+      // 3. Final: API Fetch (Decoupled)
+      if (token) {
+        // Casting to 'User' tells TS that the properties aren't 'unknown'
+        const payload = await getUserDetails() as User;
+
+        // Ensure we treat the name as a string before calling .trim()
+        const rawName = (payload.name as string) || '';
+        const fullName = rawName.trim()
+          || (payload.firstName && payload.lastName ? `${payload.firstName} ${payload.lastName}` : payload.firstName ?? payload.lastName ?? '');
+
+        const formatted: User = {
+          _id: payload._id as string,
+          name: fullName.trim() || 'User',
+          firstName: payload.firstName as string | undefined,
+          lastName: payload.lastName as string | undefined,
+          email: payload.email as string,
+          role: payload.role as string,
+          profilePic: payload.profilePic as string | undefined,
+          // Add any other specific fields from your User interface here
+        };
+
+        setUser(formatted);
+        localStorage.setItem('user', JSON.stringify(formatted));
+      }
+    } catch (err) {
+      // Cast the error to AxiosError to access .response.status safely
+      const error = err as AxiosError;
+      
+      if (error.response?.status === 401) {
+        logout?.();
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        navigate('/login');
+        return;
+      }
+
+      console.error('Error loading user:', error);
+      
+      // Error Fallback: Try local storage one last time
+      const fallback = localStorage.getItem('user');
+      if (fallback) {
+        try {
+          setUser(JSON.parse(fallback));
+        } catch {
+          // ignore parse errors
+        }
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  loadUserData();
+  
+ 
+}, [authUser, token, logout, navigate, fetchNotifications]);
 
   // Fetch notifications
   useEffect(() => {
@@ -277,17 +278,17 @@ const [notificationModalOpen, setNotificationModalOpen] = useState(false);
   const getDisplayRole = () => user?.role ? `${user.role.charAt(0).toUpperCase()}${user.role.slice(1)}` : 'User';
 
   const getUserAvatar = () => {
-  if (user?.profilePicture) {
-    if (user.profilePicture.startsWith('/uploads/')) {
-      return `${API_URL}${user.profilePicture}`;
+    if (user?.profilePicture) {
+      if (user.profilePicture.startsWith('/uploads/')) {
+        return `${API_URL}${user.profilePicture}`;
+      }
+      return user.profilePicture;
     }
-    return user.profilePicture;
-  }
-  if (user?.avatar) {
-    return user.avatar;
-  }
-  return null; 
-};
+    if (user?.avatar) {
+      return user.avatar;
+    }
+    return null; // Return null when no avatar exists
+  };
 
   // Get unread notifications count
   const unreadCount = notifications.filter(n => !n.read).length;
@@ -313,115 +314,116 @@ const [notificationModalOpen, setNotificationModalOpen] = useState(false);
       <div className="flex items-center justify-between h-16 px-4 sm:px-6 lg:px-8">
         {/* Logo/Brand */}
         <div className="flex-shrink-0 flex items-center ml-20 sm:ml-70">
-          <img 
-            src={logo} 
-            alt="Logo" 
+          <img
+            src={logo}
+            alt="Logo"
             className="h-8 w-auto cursor-pointer"
             onClick={() => navigate('')}
           />
         </div>
+
+        {/* Spacer to push content to the right */}
         <div className="flex-1"></div>
 
         {/* Right-aligned action buttons */}
         <div className="flex items-center space-x-1 sm:space-x-3">
           {/* Notifications */}
-        <div className="relative" ref={notifRef}>
-  <button
-    onClick={() => {
-      setNotifOpen(!notifOpen);
-      setMenuOpen(false);
-      if (!notifOpen) {
-        fetchNotifications();
-      }
-    }}
-    className="p-2 rounded-full text-gray-500 hover:text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-200 relative"
-    aria-label="Notifications"
-  >
-    <BellIcon className="h-5 w-5" />
-    {unreadCount > 0 && (
-      <span className="absolute top-1 right-1 inline-flex items-center justify-center w-4 h-4 text-xs font-bold text-white bg-red-500 rounded-full">
-        {unreadCount > 9 ? '9+' : unreadCount}
-      </span>
-    )}
-  </button>
+          <div className="relative" ref={notifRef}>
+            <button
+              onClick={() => {
+                setNotifOpen(!notifOpen);
+                setMenuOpen(false);
+                if (!notifOpen) {
+                  fetchNotifications();
+                }
+              }}
+              className="p-2 rounded-full text-gray-500 hover:text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-200 relative"
+              aria-label="Notifications"
+            >
+              <BellIcon className="h-5 w-5" />
+              {unreadCount > 0 && (
+                <span className="absolute top-1 right-1 inline-flex items-center justify-center w-4 h-4 text-xs font-bold text-white bg-red-500 rounded-full">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
 
- {notifOpen && (
-    <div className="fixed inset-0 flex items-center justify-center sm:block sm:inset-auto sm:absolute sm:right-0 sm:top-full sm:mt-2 z-50">
-      <div className="w-full max-w-xs sm:w-80 mx-auto rounded-lg shadow-lg bg-white ring-1 ring-black ring-opacity-5 divide-y divide-gray-100 overflow-hidden">
-        <div className="px-4 py-3 bg-gray-50 flex justify-between items-center">
-          <p className="text-sm font-medium text-gray-900">Notifications</p>
-          {unreadCount > 0 && (
-            <span className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-              {unreadCount} new
-            </span>
-          )}
-        </div>
-        
-        <div className="py-1 max-h-96 overflow-y-auto">
-          {notificationsLoading ? (
-            <div className="px-4 py-6 text-center">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto"></div>
-              <p className="text-sm text-gray-500 mt-2">Loading notifications...</p>
-            </div>
-          ) : notifications.length > 0 ? (
-            notifications.map((notification) => (
-              <div 
-                key={notification._id} 
-                className={`px-4 py-3 hover:bg-gray-50 border-l-4 ${getNotificationTypeColor(notification.type)} ${
-                  !notification.read ? 'bg-blue-50' : 'border-transparent hover:border-blue-500'
-                } transition-all duration-200 cursor-pointer`}
-                onClick={() => handleNotificationClick(notification)}
-              >
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <div className="text-sm font-medium text-gray-900 mb-1">
-                      {notification.title}
-                    </div>
-                    <div className="text-sm text-gray-700">{notification.message}</div>
-                    <div className="text-xs text-gray-400 mt-1">
-                      {formatDate(notification.createdAt)}
-                    </div>
+            {notifOpen && (
+              <div className="fixed inset-0 flex items-center justify-center sm:block sm:inset-auto sm:absolute sm:right-0 sm:top-full sm:mt-2 z-50">
+                <div className="w-full max-w-xs sm:w-80 mx-auto rounded-lg shadow-lg bg-white ring-1 ring-black ring-opacity-5 divide-y divide-gray-100 overflow-hidden">
+                  <div className="px-4 py-3 bg-gray-50 flex justify-between items-center">
+                    <p className="text-sm font-medium text-gray-900">Notifications</p>
+                    {unreadCount > 0 && (
+                      <span className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                        {unreadCount} new
+                      </span>
+                    )}
                   </div>
-                  {!notification.read && (
-                    <div className="ml-2 mt-1">
-                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+
+                  <div className="py-1 max-h-96 overflow-y-auto">
+                    {notificationsLoading ? (
+                      <div className="px-4 py-6 text-center">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto"></div>
+                        <p className="text-sm text-gray-500 mt-2">Loading notifications...</p>
+                      </div>
+                    ) : notifications.length > 0 ? (
+                      notifications.map((notification) => (
+                        <div
+                          key={notification._id}
+                          className={`px-4 py-3 hover:bg-gray-50 border-l-4 ${getNotificationTypeColor(notification.type)} ${!notification.read ? 'bg-blue-50' : 'border-transparent hover:border-blue-500'
+                            } transition-all duration-200 cursor-pointer`}
+                          onClick={() => handleNotificationClick(notification)}
+                        >
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <div className="text-sm font-medium text-gray-900 mb-1">
+                                {notification.title}
+                              </div>
+                              <div className="text-sm text-gray-700">{notification.message}</div>
+                              <div className="text-xs text-gray-400 mt-1">
+                                {formatDate(notification.createdAt)}
+                              </div>
+                            </div>
+                            {!notification.read && (
+                              <div className="ml-2 mt-1">
+                                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="px-4 py-6 text-sm text-gray-500 text-center">
+                        <div className="flex justify-center mb-3">
+                          <BellIcon className="h-8 w-8 text-gray-300" />
+                        </div>
+                        <p>No notifications yet</p>
+                        <p className="text-xs mt-1">We'll notify you when something happens</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {notifications.length > 0 && (
+                    <div className="px-4 py-2 bg-gray-50 flex justify-between">
+                      <button
+                        onClick={markAllAsRead}
+                        className="text-xs text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50"
+                        disabled={unreadCount === 0}
+                      >
+                        Mark all as read
+                      </button>
+                      <button
+                        onClick={() => setNotifOpen(false)}
+                        className="text-xs text-gray-600 hover:text-gray-800 font-medium"
+                      >
+                        Close
+                      </button>
                     </div>
                   )}
                 </div>
               </div>
-            ))
-          ) : (
-            <div className="px-4 py-6 text-sm text-gray-500 text-center">
-              <div className="flex justify-center mb-3">
-                <BellIcon className="h-8 w-8 text-gray-300" />
-              </div>
-              <p>No notifications yet</p>
-              <p className="text-xs mt-1">We'll notify you when something happens</p>
-            </div>
-          )}
-        </div>
-        
-        {notifications.length > 0 && (
-          <div className="px-4 py-2 bg-gray-50 flex justify-between">
-            <button 
-              onClick={markAllAsRead}
-              className="text-xs text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50"
-              disabled={unreadCount === 0}
-            >
-              Mark all as read
-            </button>
-            <button 
-              onClick={() => setNotifOpen(false)}
-              className="text-xs text-gray-600 hover:text-gray-800 font-medium"
-            >
-              Close
-            </button>
+            )}
           </div>
-        )}
-      </div>
-    </div>
-)}
-</div>
 
           {/* User profile dropdown */}
           <div className="relative ml-2" ref={menuRef}>
@@ -435,20 +437,20 @@ const [notificationModalOpen, setNotificationModalOpen] = useState(false);
             >
               <div className="flex items-center space-x-3 px-2 py-1 rounded-full hover:bg-gray-100">
                 {loading ? (
-    <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse" />
-     ) : getUserAvatar() ? (
-    <img
-    src={getUserAvatar()!}
-    alt="User profile"
-    className="h-8 w-8 rounded-full object-cover border-2 border-white shadow-sm"
-  />
-) : (
-  <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center border-2 border-white shadow-sm">
-   <span className="text-sm font-medium text-gray-600">
-    {getDisplayName().charAt(0).toUpperCase()}
-  </span>
-  </div>
-)}
+                  <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse" />
+                ) : getUserAvatar() ? (
+                  <img
+                    src={getUserAvatar()!}
+                    alt="User profile"
+                    className="h-8 w-8 rounded-full object-cover border-2 border-white shadow-sm"
+                  />
+                ) : (
+                  <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center border-2 border-white shadow-sm">
+                    <span className="text-sm font-medium text-gray-600">
+                      {getDisplayName().charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                )}
                 <div className="hidden md:flex md:flex-col md:items-start">
                   {loading ? (
                     <>
@@ -476,19 +478,19 @@ const [notificationModalOpen, setNotificationModalOpen] = useState(false);
               <div className="origin-top-right absolute right-0 mt-2 w-56 rounded-lg shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50 overflow-hidden">
                 <div className="p-4 border-b border-gray-100">
                   <div className="flex items-center space-x-3">
-                   {getUserAvatar() ? (
-  <img
-    src={getUserAvatar() ?? undefined}
-    alt="User profile"
-    className="h-8 w-8 rounded-full object-cover border-2 border-white shadow-sm"
-  />
-) : (
-  <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center border-2 border-white shadow-sm">
-    <span className="text-xs font-medium text-gray-600">
-      {getDisplayName().charAt(0).toUpperCase()}
-    </span>
-  </div>
-)}
+                    {getUserAvatar() ? (
+                      <img
+                        src={getUserAvatar() ?? undefined}
+                        alt="User profile"
+                        className="h-8 w-8 rounded-full object-cover border-2 border-white shadow-sm"
+                      />
+                    ) : (
+                      <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center border-2 border-white shadow-sm">
+                        <span className="text-xs font-medium text-gray-600">
+                          {getDisplayName().charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900 truncate">
                         {getDisplayName()}
@@ -499,7 +501,7 @@ const [notificationModalOpen, setNotificationModalOpen] = useState(false);
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="py-1">
                   <button
                     onClick={() => {
@@ -526,79 +528,79 @@ const [notificationModalOpen, setNotificationModalOpen] = useState(false);
           </div>
         </div>
       </div>
-  {notificationModalOpen && selectedNotification && (
-  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-    {/* Backdrop click to close */}
-    <div 
-      className="absolute inset-0"
-      onClick={() => setNotificationModalOpen(false)}
-    />
-    
-    {/* Modal container with animation */}
-    <div className="relative bg-white rounded-lg shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto transform transition-all duration-300 ease-out animate-fadeInUp">
-      {/* Modal header */}
-      <div className="sticky top-0 bg-white z-10 p-6 border-b border-gray-200">
-        <div className="flex justify-between items-start">
-          <div>
-            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getNotificationTypeColor(selectedNotification.type)} mb-2`}>
-              {selectedNotification.type.charAt(0).toUpperCase() + selectedNotification.type.slice(1)}
-            </span>
-            <h3 className="text-xl font-semibold text-gray-900">
-              {selectedNotification.title}
-            </h3>
-          </div>
-          <button
+      {notificationModalOpen && selectedNotification && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          {/* Backdrop click to close */}
+          <div
+            className="absolute inset-0"
             onClick={() => setNotificationModalOpen(false)}
-            className="text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-full p-1"
-          >
-            <XMarkIcon className="h-6 w-6" />
-          </button>
-        </div>
-      </div>
-      
-      {/* Modal content */}
-      <div className="p-6">
-        <div className="mb-6">
-          <p className="text-gray-700 whitespace-pre-line">
-            {selectedNotification.message}
-          </p>
-        </div>
-        
-        <div className="flex items-center text-sm text-gray-500 space-x-4">
-          <div className="flex items-center">
-            <CalendarIcon className="h-4 w-4 mr-1.5" />
-            <span>{formatDate(selectedNotification.createdAt)}</span>
-          </div>
-          {selectedNotification.type && (
-            <div className="flex items-center">
-              <TagIcon className="h-4 w-4 mr-1.5" />
-              <span>{selectedNotification.type}</span>
+          />
+
+          {/* Modal container with animation */}
+          <div className="relative bg-white rounded-lg shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto transform transition-all duration-300 ease-out animate-fadeInUp">
+            {/* Modal header */}
+            <div className="sticky top-0 bg-white z-10 p-6 border-b border-gray-200">
+              <div className="flex justify-between items-start">
+                <div>
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getNotificationTypeColor(selectedNotification.type)} mb-2`}>
+                    {selectedNotification.type.charAt(0).toUpperCase() + selectedNotification.type.slice(1)}
+                  </span>
+                  <h3 className="text-xl font-semibold text-gray-900">
+                    {selectedNotification.title}
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setNotificationModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-full p-1"
+                >
+                  <XMarkIcon className="h-6 w-6" />
+                </button>
+              </div>
             </div>
-          )}
+
+            {/* Modal content */}
+            <div className="p-6">
+              <div className="mb-6">
+                <p className="text-gray-700 whitespace-pre-line">
+                  {selectedNotification.message}
+                </p>
+              </div>
+
+              <div className="flex items-center text-sm text-gray-500 space-x-4">
+                <div className="flex items-center">
+                  <CalendarIcon className="h-4 w-4 mr-1.5" />
+                  <span>{formatDate(selectedNotification.createdAt)}</span>
+                </div>
+                {selectedNotification.type && (
+                  <div className="flex items-center">
+                    <TagIcon className="h-4 w-4 mr-1.5" />
+                    <span>{selectedNotification.type}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal footer */}
+            <div className="sticky bottom-0 bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-between items-center">
+              <button
+                onClick={() => {
+                  markAllAsRead();
+                  setNotificationModalOpen(false);
+                }}
+                className="px-4 py-2 bg-white text-gray-700 text-sm font-medium rounded-md border border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                Mark as Read
+              </button>
+              <button
+                onClick={() => setNotificationModalOpen(false)}
+                className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                Close
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
-      
-      {/* Modal footer */}
-      <div className="sticky bottom-0 bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-between items-center">
-        <button
-          onClick={() => {
-            markAllAsRead();
-            setNotificationModalOpen(false);
-          }}
-          className="px-4 py-2 bg-white text-gray-700 text-sm font-medium rounded-md border border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-        >
-          Mark as Read
-        </button>
-        <button
-          onClick={() => setNotificationModalOpen(false)}
-          className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-        >
-          Close
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+      )}
     </header>
   );
 };

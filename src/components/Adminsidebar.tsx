@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getUserDetails } from '../services';
 
 interface MenuItem {
   id: string;
@@ -44,7 +45,6 @@ interface UserProfile {
   name?: string;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const AdminSidebar = ({ sidebarOpen, setSidebarOpen, activeMenu, setActiveMenu }: AdminSidebarProps) => {
   const [openSubMenus, setOpenSubMenus] = useState<Record<string, boolean>>({});
@@ -66,25 +66,9 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, activeMenu, setActiveMenu }
   useEffect(() => {
     const fetchUserProfile = async () => {
       try {
-        const token = localStorage.getItem('token');
-        
-        if (!token) {
-          return;
-        }
+          
 
-        const response = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
+        const data = await getUserDetails();
 
         // Extract user data from the API response
         if (data.user && data.user.data) {

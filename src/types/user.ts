@@ -9,11 +9,24 @@ export interface User {
   name: string;
   email: string;
   role: string;
+  class?: string;
+  profilePic?: string;
+
+  status: string;      
+  createdAt: string;  
+  updatedAt: string;
 
   // Personal details
   firstName?: string;
   lastName?: string;
   phone?: string;
+
+
+
+
+   // Banking details
+  accountNumber?: string;   
+  withdrawalBank?: string;  
 
   // Balance and wallet
   balance?: number;
@@ -61,6 +74,21 @@ export interface UserProfile {
   email?: string;
   role?: string;
   [key: string]: unknown;
+}
+
+export interface UpdateUserPayload {
+  name: string;
+  email: string;
+  phone: string;
+}
+
+export interface UpdatePasswordPayload {
+  currentPassword?: string; // Optional if using for multiple reset types
+  newPassword: string;
+}
+
+export interface UserData {
+  user: User;
 }
 /* ----------------------- WALLET ----------------------- */
 export interface Wallet {
@@ -127,6 +155,8 @@ export interface TransactionsResponse {
   transactions?: Transaction[];
 }
 
+
+
 /* ====================== CLASS TYPES ====================== */
 export interface Class {
   _id: string;
@@ -161,9 +191,6 @@ export interface ClassesResponse {
   [key: string]: unknown;
 }
 
-/**
- * Normalized class structure used in your frontend
- */
 export interface SchoolClass {
   _id: string;
   className: string;
@@ -269,7 +296,7 @@ export interface AgentRegistrationData {
 
 export interface AgentRegistrationResponse {
   message: string;
-  data?: unknown;
+  data?:unknown;
 }
 
 export interface DeleteAgentResponse {
@@ -294,6 +321,13 @@ export interface NotificationsResponse {
   message?: string;
   data?: Notification[];
   notifications?: Notification[];
+}
+
+export interface NotificationPreferences {
+  emailNotifications?: boolean;
+  smsNotifications?: boolean;
+  pushNotifications?: boolean;
+  [key: string]: unknown;
 }
 
 /* ====================== BANK & WITHDRAWAL TYPES ====================== */
@@ -569,4 +603,15 @@ export interface FormErrors {
   email?: string;
   phone?: string;
   password?: string;
+}
+
+
+
+export interface SetPinPayload {
+  pin: string;
+}
+
+export interface UpdatePinPayload {
+  currentPin: string;
+  newPin: string;
 }

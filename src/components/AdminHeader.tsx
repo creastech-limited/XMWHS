@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Menu, Bell, User, LogOut, Settings } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { getUserDetails } from '../services';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
 
 interface AdminHeaderProps {
   sidebarOpen: boolean;
@@ -32,28 +33,9 @@ const AdminHeader = ({ sidebarOpen, setSidebarOpen, activeMenu }: AdminHeaderPro
       try {
         setLoading(true);
         
-        // Get token
-        const token = user?.token || localStorage.getItem('token');
         
-        if (!token) {
-          console.log('No token found');
-          setLoading(false);
-          return;
-        }
 
-        const response = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
+        const data = await getUserDetails()
 
         // Extract user data from the specific response structure
         if (data.user && data.user.data) {

@@ -40,6 +40,9 @@ type User = {
     role: string;
     senderEmail?: string;
     senderWalletId?: string;
+    status?: string;
+    createdAt?: string;
+    updatedAt?: string;
     // Add other user properties as needed
 };
 
@@ -219,8 +222,19 @@ const STransactionHistoryPage = () => {
                 // Update local state
                 setUser(profile);
 
-                // Update auth context
-                auth?.login?.(profile, storedToken);
+                // Update auth context with ensured required fields
+                const userWithRequiredFields = {
+                    _id: profile._id,
+                    name: profile.name,
+                    email: profile.email,
+                    role: profile.role,
+                    status: profile.status || 'active',
+                    senderEmail: profile.senderEmail,
+                    senderWalletId: profile.senderWalletId,
+                    createdAt: profile.createdAt || new Date().toISOString(),
+                    updatedAt: profile.updatedAt || new Date().toISOString(),
+                } as const;
+                auth?.login?.(userWithRequiredFields, storedToken);
 
                 // Fetch transactions
                 console.log('Fetching transactions from API...');

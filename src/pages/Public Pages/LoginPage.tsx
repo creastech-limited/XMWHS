@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { login as apiLogin} from '../../services';
 import type { LoginRequest } from '../../types/auth';
+import type { User } from '../../types/user';
 import { useAuth } from '../../context/AuthContext';
 import { AlertCircle, Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import logo from '../5.png';
@@ -93,7 +94,7 @@ try {
   const data = await apiLogin(credentials);
   
   // Call the auth context login function (which handles navigation)
-  login(data.user, data.accessToken);
+  login(data.user as User, data.accessToken);
   // Note: No need for navigate() here - auth context login handles it
 } catch (error: Error | unknown) {
   console.error('Login error:', error);

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+
 import { useAuth } from '../context/AuthContext';
+import { getUserDetails, updateUserProfile } from '../services';
+import type { UserResponse } from '../types';
 
 
 interface UserData {
@@ -30,57 +32,74 @@ const DetailsPanel = () => {
     class: '',
   });
 
-  const API_BASE_URL =
-    import.meta.env.VITE_API_BASE_URL;
 
-  useEffect(() => {
-    const fetchUserData = async () => {
-      if (!token) return;
-      try {
-        const res = await axios.get(`${API_BASE_URL}/api/users/getuserone`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.data?.user?.data) {
-          setUser(res.data.user.data);
-          setProfile({
-            name: res.data.user.data.name,
-            class: res.data.user.data.class,
-            email: res.data.user.data.email,
-            phone: res.data.user.data.phone,
-            profilePic: res.data.user.data.profilePic,
-            createdAt: res.data.user.data.createdAt || '',
-          });
-        }
-      } catch (error) {
-        console.error('Error fetching user data:', error);
-      }
-    };
-    fetchUserData();
-  }, [token]);
 
-  // Profile Update Handler
-  const handleProfileUpdate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
+useEffect(() => {
+  const fetchUserData = async () => {
+    if (!token) return;
+
     try {
-      await axios.put(
-        `${API_BASE_URL}/api/users/update-user/${user?._id}`,
-        {
-          name: profile.name,
-          email: profile.email,
-          phone: profile.phone,
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-      setIsEditing(false);
+      const res: UserResponse = await getUserDetails(); 
+      const userData = res.user?.data;
+
+      if (userData) {
+        // 1. Resolve the setUser error by casting to UserData
+        // We ensure all optional fields are at least empty strings
+        const safeUserData = {
+          ...userData,
+          phone: userData.phone || '',
+          class: userData.class || '',
+          profilePic: userData.profilePic || '',
+        } as UserData;
+
+        setUser(safeUserData); 
+        
+        // 2. Resolve the setProfile error (Line 66)
+        // Every single property needs a fallback to satisfy the 'string' type
+        setProfile({
+          name: userData.name || '',      // Line 66 likely lives here
+          email: userData.email || '',    
+          class: userData.class || '',
+          phone: userData.phone || '',
+          profilePic: userData.profilePic || '',
+          createdAt: (userData.createdAt as string) || '',
+        });
+      }
     } catch (error) {
-      console.error('Profile update failed:', error);
-    } finally {
-      setIsLoading(false);
+      console.error('Error fetching user data:', error);
     }
   };
+
+  fetchUserData();
+}, [token]);
+  // Profile Update Handler
+const handleProfileUpdate = async (e: React.FormEvent) => {
+  e.preventDefault();
+  
+  // Safety check: ensure we have a user ID before calling the service
+  if (!user?._id) {
+    console.error('No user ID found');
+    return;
+  }
+
+  setIsLoading(true);
+  try {
+    // Call the new service function
+    await updateUserProfile(user._id, {
+      name: profile.name,
+      email: profile.email,
+      phone: profile.phone,
+    });
+
+    setIsEditing(false);
+    // Suggestion: You might want to refresh the user data here 
+    // to show the updated info across the app!
+  } catch (error) {
+    console.error('Profile update failed:', error);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
 
  

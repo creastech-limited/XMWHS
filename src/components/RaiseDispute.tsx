@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { AlertCircle, FileText, DollarSign, User, ChevronDown, CheckCircle, XCircle, Calendar, School, Plus, Trash2, RefreshCw } from 'lucide-react';
+import { getUserDetails } from '../services';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -12,6 +13,9 @@ interface User {
   email: string;
   role: string;
   schoolId?: string;
+  status: string;  // Remove the ? to make it required
+  createdAt?: string;
+  updatedAt?: string;
   data?: {
     schoolId?: string;
     academicDetails?: {
@@ -129,22 +133,12 @@ const RaiseDispute: React.FC = () => {
     { value: 'Other', label: 'Other' }
   ];
 
-  const fetchUserDetails = async (authToken: string): Promise<User> => {
+  const fetchUserDetails = async (): Promise<User> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      const data =  await getUserDetails()
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+    
 
-      const data = await response.json();
-      
       let profile: User | undefined;
       if (data.user?.data) {
         profile = data.user.data;
@@ -287,7 +281,7 @@ const RaiseDispute: React.FC = () => {
     }
   };
 
-  const loadUserDisputes = async () => {
+  const loadUserDisputes = useCallback(async () => {
     if (!token) return;
     
     setDisputesLoading(true);
@@ -302,7 +296,7 @@ const RaiseDispute: React.FC = () => {
     } finally {
       setDisputesLoading(false);
     }
-  };
+  }, [token]);
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -327,20 +321,23 @@ const RaiseDispute: React.FC = () => {
         console.log('✅ Found token in localStorage');
         
         console.log('📤 Fetching user from API...');
-        const profile = await fetchUserDetails(storedToken);
+        const profile = await fetchUserDetails();
         console.log('✅ Successfully fetched user profile:', profile);
         
         setUser(profile);
         setToken(storedToken);
         
         const mergedUser: User = {
-          _id: profile._id,
-          name: typeof profile.name === 'string' ? profile.name : '',
-          email: typeof profile.email === 'string' ? profile.email : '',
-          role: typeof profile.role === 'string' ? profile.role : '',
+          _id: profile._id || '',
+          name: profile.name || '',
+          email: profile.email || '',
+          role: profile.role || '',
           schoolId: profile.schoolId || profile.data?.schoolId || profile.data?.academicDetails?.schoolId || '',
+          status: profile.status || 'active',
+          createdAt: profile.createdAt !== undefined && profile.createdAt !== null ? String(profile.createdAt) : new Date().toISOString(),
+          updatedAt: profile.updatedAt !== undefined && profile.updatedAt !== null ? String(profile.updatedAt) : new Date().toISOString(),
         };
-        auth?.login?.(mergedUser, storedToken);
+        auth?.login?.(mergedUser as User & { createdAt: string; updatedAt: string }, storedToken);
         
       } catch (error) {
         console.error('❌ Auth initialization error:', error);
@@ -357,7 +354,7 @@ const RaiseDispute: React.FC = () => {
     if (token && activeTab === 'list') {
       loadUserDisputes();
     }
-  }, [token, activeTab]);
+  }, [activeTab, token, loadUserDisputes]);
 
   useEffect(() => {
     if (token && user?.role === 'parent') {

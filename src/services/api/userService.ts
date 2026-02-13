@@ -17,6 +17,14 @@ import type {
   CreateDisputeData,
   CreateDisputeResponse,
   DeleteAgentResponse,
+  NotificationsResponse,
+  UpdateUserPayload,
+  UpdatePasswordPayload,
+  UpdatePinPayload,
+  SetPinPayload,
+  NotificationPreferences,
+  User,
+  UserData,
 } from '../../types/user';
 
 // Get user details
@@ -139,10 +147,10 @@ export const updateStoreProfile = async (
   return response.data;
 };
 
-// Fecth notifications
+// get notifications
 
-export const getNotifications = async (): Promise<{ data: Record<string, unknown>[]; message?: string }> => {
-  const response = await apiClient.get<{ data: Record<string, unknown>[]; message?: string }>('api/notification/get');
+export const getNotifications = async (): Promise<NotificationsResponse> => {
+  const response = await apiClient.get<NotificationsResponse>('api/notification/get');
   return response.data;
 };
 
@@ -152,6 +160,15 @@ const response = await apiClient.put<{ message: string }>(
 `/api/notifications/markasread/${notificationId}`
 );
 return response.data;
+};
+
+// Mark all notifications as read
+export const markAllNotificationsAsRead = async (): Promise<{ message: string }> => {
+  
+  const response = await apiClient.put<{ message: string }>(
+    '/api/notifications/mark-all-read' 
+  );
+  return response.data;
 };
 
 // Get agent count
@@ -369,4 +386,91 @@ export const getUserWallet = async (): Promise<{
     message?: string;
   }>('/api/wallet/getuserwallet');
   return response.data;
+};
+
+export const updateUserProfile = async (userId: string, profileData: UpdateUserPayload): Promise<UserResponse> => {
+  // Assuming apiClient is your axios instance with the base URL already set
+  const response = await apiClient.put<UserResponse>(
+    `/api/users/update-user/${userId}`, 
+    profileData
+  );
+  return response.data;
+};
+
+export const updateUserPassword = async (payload: UpdatePasswordPayload): Promise<void> => {
+  await apiClient.post('/api/users/updatePassword', payload);
+};
+
+export const setAccountPin = async (payload: SetPinPayload): Promise<void> => {
+  await apiClient.post('/api/pin/set', payload);
+};
+
+// Update an existing PIN
+export const updateAccountPin = async (payload: UpdatePinPayload): Promise<void> => {
+  await apiClient.post('/api/pin/update', payload);
+};
+
+
+// Service to handle the actual file upload to the server
+
+export const uploadProfileImage = async (file: File) => {
+  const formData = new FormData();
+  formData.append('profile', file);
+
+  const response = await apiClient.post<{ profilePicture: string }>(
+    '/api/users/upload-profile', 
+    formData, 
+    {
+      headers: { 
+        'Content-Type': 'multipart/form-data' 
+      }
+    }
+  );
+  return response.data;
+};
+
+// Service to update user notification preferences
+ 
+
+
+export const updateNotificationPreferences = async (
+  userId: string,
+  preferences: NotificationPreferences
+) => {
+  const response = await apiClient.post(
+    `/api/users/update-notifications/${userId}`, 
+    preferences
+  );
+  return response.data;
+};
+
+//Service to fetch all users (Admin/Management)
+
+export const getAllUsers = async (): Promise<UserData[]> => {
+  const response = await apiClient.get('/api/users/getallUsers');
+  
+  // response.data.data is the raw User[] from backend
+  const rawUsers: User[] = response.data.data || [];
+
+  // Map to the structure required by AllUsers.tsx
+  return rawUsers.map((u: User) => ({
+    user: u
+  }));
+};
+
+
+// Service to fetch dashboard data for admin overview
+
+export const getAdminDashboardData = async () => {
+  const [walletRes, chargesRes, usersRes] = await Promise.all([
+    apiClient.get('/api/wallet/getChargesWallets'),
+    apiClient.get('/api/charge/getAllCharges'),
+    apiClient.get('/api/users/getallUsers')
+  ]);
+
+  return {
+    wallets: walletRes.data,
+    charges: chargesRes.data,
+    users: usersRes.data
+  };
 };
