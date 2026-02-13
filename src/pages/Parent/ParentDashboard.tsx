@@ -90,6 +90,7 @@ const ParentDashboard: React.FC = () => {
     totalCredit: { success: 0, pending: 0 },
     totalDebit: { success: 0, pending: 0 },
   });
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState<boolean>(false);
@@ -192,7 +193,7 @@ const ParentDashboard: React.FC = () => {
       // Based on your API response structure, the user data is directly in response.data.user
       // And the wallet is a separate property within that user object
       const userData = response.data.user;
-      
+
       console.log('User data:', userData); // Debug log
       console.log('Wallet data:', userData?.wallet); // Debug log
 
@@ -222,7 +223,7 @@ const ParentDashboard: React.FC = () => {
   // Enhanced wallet balance extraction with better error handling
   const getWalletBalance = (): number => {
     console.log('Getting wallet balance. Profile:', profile); // Debug log
-    
+
     if (!profile) {
       console.log('No profile data available');
       return 0;
@@ -323,23 +324,23 @@ const ParentDashboard: React.FC = () => {
     transactions.length > 0
       ? prepareTrendData()
       : [
-          { name: 'Jan', payment: 20000, transaction: 18000 },
-          { name: 'Feb', payment: 25000, transaction: 22000 },
-          { name: 'Mar', payment: 22000, transaction: 21000 },
-          { name: 'Apr', payment: 30000, transaction: 28000 },
-          { name: 'May', payment: 27000, transaction: 26000 },
-          { name: 'Jun', payment: 32000, transaction: 30000 },
-        ];
+        { name: 'Jan', payment: 20000, transaction: 18000 },
+        { name: 'Feb', payment: 25000, transaction: 22000 },
+        { name: 'Mar', payment: 22000, transaction: 21000 },
+        { name: 'Apr', payment: 30000, transaction: 28000 },
+        { name: 'May', payment: 27000, transaction: 26000 },
+        { name: 'Jun', payment: 32000, transaction: 30000 },
+      ];
 
   const spendingCategories =
     transactions.length > 0
       ? prepareSpendingCategories()
       : [
-          { name: 'School Fees', value: 45000, color: '#1a237e' },
-          { name: 'Pocket Money', value: 15000, color: '#f59e0b' },
-          { name: 'Books', value: 8000, color: '#10b981' },
-          { name: 'Transport', value: 7000, color: '#ec4899' },
-        ];
+        { name: 'School Fees', value: 45000, color: '#1a237e' },
+        { name: 'Pocket Money', value: 15000, color: '#f59e0b' },
+        { name: 'Books', value: 8000, color: '#10b981' },
+        { name: 'Transport', value: 7000, color: '#ec4899' },
+      ];
 
   const quickActions: QuickAction[] = [
     {
@@ -441,7 +442,7 @@ const ParentDashboard: React.FC = () => {
                   <p className="text-sm mt-2 opacity-90">
                     Available balance
                   </p>
-                
+
                 </div>
 
                 <div className="bg-gradient-to-r from-rose-600 to-rose-400 text-white rounded-xl shadow-md p-5">
@@ -542,28 +543,59 @@ const ParentDashboard: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="bg-white rounded-xl shadow-md p-5">
-                  <h3 className="text-lg font-medium text-gray-800 mb-4">
-                    Spending Categories
-                  </h3>
-                  <div className="h-64">
+                <div className="bg-white rounded-xl shadow-md p-5 flex flex-col">
+                  <h3 className="text-lg font-medium text-gray-800 mb-4">Spending Categories</h3>
+                  <div className="flex-grow flex items-center justify-center h-64 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
+                        <Tooltip cursor={{ fill: 'transparent' }} />
                         <Pie
                           data={spendingCategories}
                           dataKey="value"
                           nameKey="name"
                           cx="50%"
                           cy="50%"
-                          outerRadius={80}
-                          label
+                          innerRadius={0}
+                          outerRadius={100} // Made it slightly larger to fit text better
+                          stroke="#fff"
+                          strokeWidth={2}
+                          onMouseEnter={(_, index) => setHoveredIndex(index)}
+                          onMouseLeave={() => setHoveredIndex(null)}
+                          labelLine={false} // Hides the lines pointing to labels
+                          label={(props) => {
+                            const { cx, cy, midAngle, innerRadius, outerRadius, value, index } = props;
+
+                            // Show ONLY if this specific slice is hovered
+                            if (index !== hoveredIndex) return null;
+
+                            // Calculate position inside the slice
+                            const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+                            const RADIAN = Math.PI / 180;
+                            const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                            const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+                            // Calculate percentage
+                            const total = spendingCategories.reduce((acc, item) => acc + item.value, 0);
+                            const percent = ((value / total) * 100).toFixed(0);
+
+                            return (
+                              <text
+                                x={x}
+                                y={y}
+                                fill="white"
+                                textAnchor="middle"
+                                dominantBaseline="central"
+                                className="font-bold text-xs pointer-events-none"
+                              >
+                                {`${percent}%`}
+                              </text>
+                            );
+                          }}
                         >
                           {spendingCategories.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
+                            <Cell key={`cell-${index}`} fill={entry.color} className="outline-none" />
                           ))}
                         </Pie>
-                        <Tooltip />
-                        <Legend />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
@@ -581,11 +613,10 @@ const ParentDashboard: React.FC = () => {
                         <div className="flex justify-between items-center py-3">
                           <div className="flex items-center gap-3">
                             <div
-                              className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                                activity.category === 'credit'
-                                  ? 'bg-emerald-100 text-emerald-600'
-                                  : 'bg-rose-100 text-rose-600'
-                              }`}
+                              className={`w-10 h-10 rounded-full flex items-center justify-center ${activity.category === 'credit'
+                                ? 'bg-emerald-100 text-emerald-600'
+                                : 'bg-rose-100 text-rose-600'
+                                }`}
                             >
                               {activity.category === 'credit' ? (
                                 <ArrowUpIcon className="w-5 h-5" />
@@ -609,21 +640,19 @@ const ParentDashboard: React.FC = () => {
                           </div>
                           <div className="text-right">
                             <p
-                              className={`font-semibold ${
-                                activity.category === 'credit'
-                                  ? 'text-emerald-600'
-                                  : 'text-rose-600'
-                              }`}
+                              className={`font-semibold ${activity.category === 'credit'
+                                ? 'text-emerald-600'
+                                : 'text-rose-600'
+                                }`}
                             >
                               {activity.category === 'credit' ? '+' : '-'}₦
                               {activity.amount.toLocaleString()}
                             </p>
                             <span
-                              className={`text-xs px-2 py-1 rounded-full ${
-                                activity.status === 'success'
-                                  ? 'bg-emerald-50 text-emerald-600'
-                                  : 'bg-amber-50 text-amber-600'
-                              }`}
+                              className={`text-xs px-2 py-1 rounded-full ${activity.status === 'success'
+                                ? 'bg-emerald-50 text-emerald-600'
+                                : 'bg-amber-50 text-amber-600'
+                                }`}
                             >
                               {activity.status}
                             </span>
