@@ -35,16 +35,17 @@ const PaystackCallback: React.FC = () => {
     setVerificationStatus('verifying');
     console.log('Verifying transaction with reference:', reference);
     
-       // Changed to GET request to match FundWalletPage
-      const response = await axios.post(
-        `${API_BASE_URL}/api/transaction/verifynomba/${reference}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
+    // Changed to GET request to match FundWalletPage
+    const response = await axios.post(
+      `${API_BASE_URL}/api/transaction/verifynomba/${reference}`,
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
-      );
+      }
+    );
 
       console.log('Verification response:', response.data);
 
@@ -76,7 +77,7 @@ const PaystackCallback: React.FC = () => {
         setErrorMessage(error instanceof Error ? error.message : 'An unexpected error occurred');
       }
     }
-  };
+  }, [searchParams]);
 
 
   const handleProceedToDashboard = (): void => {
