@@ -136,7 +136,12 @@ const fetchTransactionCharges = useCallback(async () => {
         schoolCanTransfer: userData.schoolCanTransfer === true,
         role: userData.role ?? '',
         schoolId: userData.schoolId,
-        schoolName: userData.schoolName
+        schoolName: userData.schoolName,
+
+       
+        status: (userData.status as string) ?? 'active',
+        createdAt: (userData.createdAt as string) ?? new Date().toISOString(),
+        updatedAt: (userData.updatedAt as string) ?? new Date().toISOString(),
       };
 
       console.log('Processed user profile:', userProfile);
@@ -357,7 +362,7 @@ const handleSubmitTransfer = async () => {
   if (fetchingUserDetails) {
     return (
       <div className="flex flex-col min-h-screen bg-gray-50">
-        <Header profilePath="/settings" />
+        <Header PsettingsPage="/settings" />
         <div className="flex flex-grow">
           <div className=" hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-white shadow z-10">
             <Asidebar />
@@ -376,7 +381,7 @@ const handleSubmitTransfer = async () => {
   if (user?.role !== 'school') {
     return (
       <div className="flex flex-col min-h-screen bg-gray-50">
-        <Header profilePath="/settings" />
+        <Header PsettingsPage="/settings" />
         <div className="flex flex-grow">
           <div className=" hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-white shadow z-10">
             <Asidebar />
@@ -408,7 +413,7 @@ const handleSubmitTransfer = async () => {
   if (user?.role === 'school' && !user?.schoolCanTransfer) {
     return (
       <div className="flex flex-col min-h-screen bg-gray-50">
-        <Header profilePath="/settings" />
+        <Header PsettingsPage="/settings" />
         <div className="flex flex-grow">
           <div className=" hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-white shadow z-10">
             <Asidebar />
@@ -449,7 +454,7 @@ const handleSubmitTransfer = async () => {
   // Main page rendering
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
-      <Header profilePath="/settings" />
+      <Header PsettingsPage="/settings" />
       <div className="flex flex-grow">
         <div className=" hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-white shadow z-10">
           <Asidebar />

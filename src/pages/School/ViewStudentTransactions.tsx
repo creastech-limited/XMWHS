@@ -71,13 +71,19 @@ const ViewStudentTransactions: React.FC = () => {
 
   // Transform fees to bills format
   const transformFeesToBills = useCallback((fees: SchoolFee[]): Bill[] => {
-    return fees.map((fee) => ({
+  return fees.map((fee) => {
+    const amount = fee.amount || 0;
+    const amountPaid = fee.amountPaid || 0;
+
+    return {
       id: fee._id,
       _id: fee._id,
       feeId: fee.feeId,
       description: fee.feeType || 'School Fee',
-      amount: fee.amount || 0,
-      amountPaid: fee.amountPaid || 0,
+      amount: amount,
+      amountPaid: amountPaid,
+      // FIX: Calculate the required remainingAmount property
+      remainingAmount: amount - amountPaid,
       dueDate: fee.paymentDate
         ? new Date(fee.paymentDate).toLocaleDateString()
         : 'N/A',
@@ -85,8 +91,9 @@ const ViewStudentTransactions: React.FC = () => {
       term: fee.term || 'N/A',
       session: fee.session || 'N/A',
       transactionId: fee.transactionId || 'N/A',
-    }));
-  }, []);
+    };
+  });
+}, []);
 
   // Load fees for student
   const loadStudentFees = useCallback(
@@ -212,7 +219,7 @@ const ViewStudentTransactions: React.FC = () => {
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="min-h-screen bg-gray-50 flex flex-col">
-          <Header profilePath="/settings"/>
+          <Header PsettingsPage="/settings"/>
 
           <div className="flex flex-grow overflow-hidden">
             <Sidebar />
@@ -237,7 +244,7 @@ const ViewStudentTransactions: React.FC = () => {
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
-      <Header profilePath="/settings"/>
+      <Header PsettingsPage="/settings"/>
       <div className="flex flex-grow">
         <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-64 bg-none">
           <Sidebar />

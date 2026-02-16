@@ -4,6 +4,7 @@ import Footer from '../../components/Footer';
 import { QrCode, Send, History, SearchIcon } from 'lucide-react';
 import { useAuth } from "../../context/AuthContext";
 import AHeader from '../../components/AHeader';
+import type { AgentData, User } from '../../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -18,23 +19,9 @@ interface Transaction {
   reference?: string;
 }
 
-interface User {
-  _id: string;
-  name: string;
-  email: string;
-  phone?: string;
-  role: string;
-  walletBalance?: number;
-  [key: string]: unknown; 
-}
 
-interface AgentData {
-  monthlyTarget: number;
-  performance: number;
-  monthlySalesTrack: number;
-  monthlySalesAmount: number;
-  walletBalance: number;
-}
+
+
 
 const AgentDashboard = () => {
   const auth = useAuth();

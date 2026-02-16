@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import Footer from '../../components/Footer';
 import AHeader from '../../components/AHeader';
 import { useAuth } from '../../context/AuthContext';
+import type { User } from '../../types';
 
 // API Base URL Configuration
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
@@ -19,13 +20,7 @@ type Transaction = {
   status?: string;
 };
 
-type User = {
-  _id: string;
-  name: string;
-  email: string;
-  role: string;
-  // Add other user properties as needed
-};
+
 
 const AgentTransactionHistory = () => {
   const auth = useAuth();

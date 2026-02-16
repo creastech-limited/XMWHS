@@ -164,6 +164,7 @@ export interface Transaction {
   description: string;
   createdAt: string;
   date?: string; 
+   store?: string;
   customer?: string;
    reference?: string;
   [key: string]: unknown;
@@ -675,4 +676,12 @@ export interface TransferResponse {
     amount: number;
     [key: string]: unknown;
   };
+}
+
+export interface AgentData {
+  monthlyTarget: number;
+  performance: number;
+  monthlySalesTrack: number;
+  monthlySalesAmount: number;
+  walletBalance: number;
 }
