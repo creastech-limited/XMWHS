@@ -6,32 +6,15 @@ import Psidebar from '../../components/Psidebar';
 import Footer from '../../components/Footer';
 import { Header } from '../../components/Header';
 import { useAuth } from '../../context/AuthContext';
-import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import type { Kid } from '../../types';
+import { addBeneficiary, getAllStudents, getBeneficiaryEmails, getMyChildren, getTransferCharge, getUserDetails, getUserTransactions, removeBeneficiary, transferFunds } from '../../services';
+import type { Transfer } from '../../types/student';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-interface Kid {
-  id: string; 
-  student_id: string; 
-  name: string;
-  email: string;
-  isBeneficiary: boolean;
-  avatar: string;
-  _id?: string;  
-}
 
-interface Transfer {
-  id: number;
-  kidName: string;
-  amount: number;
-  date: string;
-  note: string;
-  _id: string;
-  recipient: string;
-  status: string;
-  createdAt: string;
-}
+
+
 
 interface UserData {
   username: string;
@@ -52,11 +35,7 @@ interface Student {
   role?: string;
   phone?: string;
 }
-interface Charge {
-  name: string;
-  amount: number;
-  status: string;
-}
+
 
 const TransferToKidsPage: React.FC = () => {
   const auth = useAuth();
@@ -97,169 +76,99 @@ const [transactionFee, setTransactionFee] = useState<number>(0);
   const [filteredKids, setFilteredKids] = useState<Kid[]>([]);
 
   // Fetch kids list
-  const fetchKids = async () => {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/api/users/getallsudent`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-      
-      // Transform the API response to match our Kid interface
-      type ApiKid = {
-        student_id: string;  
-        firstName?: string;
-        lastName?: string;
-        fullName?: string;
-        name?: string;
-        email: string;
-        phone?: string;
-        class?: string;
-        role?: string;
-      };
-
-      const kidsData = response.data.data.map((kid: ApiKid) => ({
-        id: kid.student_id,        // Use student_id as the main id
-        student_id: kid.student_id, // Keep the original field
-        name: kid.fullName || kid.name || `${kid.firstName ?? ''} ${kid.lastName ?? ''}`.trim(),
-        email: kid.email,
-        isBeneficiary: false, // Initially set to false, will update after fetching beneficiaries
-        avatar: (kid.fullName ?? kid.firstName ?? 'K').charAt(0).toUpperCase()
-      }));
-      
-      setAllKids(kidsData);
-    } catch (error) {
-      console.error('Error fetching kids:', error);
-      setSnackbarMessage('Failed to fetch kids list');
-      setSnackbarSeverity('error');
-      setShowSnackbar(true);
-    }
-  };
+ const fetchKids = async () => {
+  try {
+    const kidsData = await getAllStudents();
+    
+    setAllKids(kidsData);
+    
+  } catch (error) {
+    console.error('Error fetching kids:', error);
+    setSnackbarMessage('Failed to fetch kids list');
+    setSnackbarSeverity('error');
+    setShowSnackbar(true);
+  }
+};
 
   // Fetch recent transactions
-  const fetchRecentTransactions = async () => {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/api/transaction/getusertransaction`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-      
-      // Transform the API response to match our Transfer interface
-      type ApiTransaction = {
-        _id: string;
-        recipientName?: string;
-        amount: number;
-        createdAt: string;
-        note?: string;
-        status: string;
-      };
-
-      const transactions = response.data.data.map((txn: ApiTransaction, index: number) => ({
+const fetchRecentTransactions = async () => {
+  try {
+    const response = await getUserTransactions();
+    
+    if (response.success && Array.isArray(response.data)) {
+      // 1. Force the map to return the correct 'Transfer' type
+      const formattedTransfers: Transfer[] = response.data.map((txn, index) => ({
         id: index + 1,
         _id: txn._id,
-        kidName: txn.recipientName || 'Recipient',
-        amount: txn.amount,
+        // Explicitly cast to string to fix the Type '{}' is not assignable to 'string' error
+        recipient: String(txn.recipientName || 'Recipient'),
+        kidName: String(txn.recipientName || 'Recipient'),
+        amount: Number(txn.amount) || 0,
         date: new Date(txn.createdAt).toLocaleDateString('en-US', { 
           month: 'short', 
           day: 'numeric', 
           year: 'numeric' 
         }),
-        note: txn.note || 'Transfer',
-        status: txn.status,
-        createdAt: txn.createdAt
+        note: String(txn.note || 'Transfer'),
+        status: String(txn.status),
+        createdAt: String(txn.createdAt)
       }));
-      
-      setUserData(prev => ({
-        ...prev,
-        recentTransfers: transactions
+
+      // 2. Use the spread operator (...prev) to keep all existing UserData fields
+      setUserData((prev) => ({
+        ...prev, 
+        recentTransfers: formattedTransfers
       }));
-    } catch (error) {
-      console.error('Error fetching transactions:', error);
-      setSnackbarMessage('Failed to fetch recent transactions');
-      setSnackbarSeverity('error');
-      setShowSnackbar(true);
     }
-  };
+  } catch (error) {
+    console.error('Error fetching transactions:', error);
+  }
+};
 
   // Fetch user balance
-  const fetchUserBalance = async () => {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/api/users/getuserone`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-      
-      const userData = response.data.data || response.data.user;
+ const fetchUserBalance = async () => {
+  try {
+    const responseData = await getUserDetails();
+    const user = responseData.user?.data || responseData.user || responseData.data;
+
+    if (user) {
       setUserData(prev => ({
         ...prev,
-        balance: userData.wallet.balance || 0,
-        username: userData.name || "Parent"
+        balance: Number(user.wallet?.balance ?? 0),
+        username: String(user.name || user.firstName || "Parent")
       }));
-    } catch (error) {
-      console.error('Error fetching user balance:', error);
     }
-  };
+  } catch (error) {
+    console.error('Error fetching user balance:', error);
+  }
+};
 
   // Fetch beneficiaries and update allKids
   const fetchBeneficiaries = async () => {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/api/users/getBeneficiaries`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
+  try {
+    const beneficiaryEmails = await getBeneficiaryEmails();
 
-      console.log('Beneficiaries response:', response.data); 
+    setAllKids(prevKids => 
+      prevKids.map(kid => ({
+        ...kid,
+        isBeneficiary: beneficiaryEmails.includes(kid.email)
+      }))
+    );
 
-      // The API returns beneficiaries array directly
-      const beneficiaries = response.data.beneficiaries || [];
-      console.log('Beneficiaries array:', beneficiaries); 
-      
-      // Extract emails from beneficiaries for matching
-      interface Beneficiary {
-        email: string;
-        [key: string]: unknown;
-      }
-      
-      const beneficiaryEmails: string[] = (beneficiaries as Beneficiary[]).map((b: Beneficiary) => b.email);
-      console.log('Beneficiary emails:', beneficiaryEmails);
+    setBeneficiaries(allKids.filter(kid => beneficiaryEmails.includes(kid.email)));
+    
+  } catch (error) {
+    console.error('Error fetching beneficiaries:', error);
+  }
+};
 
-      // Update allKids to mark beneficiaries by email
-      setAllKids(prevKids => {
-        return prevKids.map(kid => ({
-          ...kid,
-          isBeneficiary: beneficiaryEmails.includes(kid.email)
-        }));
-      });
-
-      // Set beneficiaries list
-      setBeneficiaries(prevKids => {
-        return prevKids.filter(kid => beneficiaryEmails.includes(kid.email));
-      });
-    } catch (error) {
-      console.error('Error fetching beneficiaries:', error);
-    }
-  };
-
-  const fetchStudents = useCallback(async (authToken: string): Promise<Student[]> => {
+  const fetchStudents = useCallback(async (): Promise<Student[]> => {
   try {
     console.log('Fetching students...');
     
-    const response = await fetch(`${API_BASE_URL}/api/users/getmychildren`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${authToken}`,
-        'Content-Type': 'application/json',
-      },
-    });
+   
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
+    const data = await getMyChildren();
     console.log('Raw students API response:', data);
     
     let studentsData: Student[] = [];
@@ -310,33 +219,16 @@ const [transactionFee, setTransactionFee] = useState<number>(0);
   }
 }, []);
 
-const fetchTransactionCharges = async () => {
-  if (!token) return;
-  
+const fetchTransactionCharges = useCallback(async () => {
   try {
-    const response = await axios.get(`${API_BASE_URL}/api/charge/getallcharges`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    if (response.data && Array.isArray(response.data)) {
-      // Find the transfer charge (adjust the search term as needed)
-      const transferCharge = response.data.find((charge: Charge) => 
-        charge.name.toLowerCase().includes('transfer') && charge.status === 'Active'
-      );
-      
-      if (transferCharge) {
-        setTransactionFee(transferCharge.amount);
-      }
-    }
-  } catch (error: unknown) {
+    const fee = await getTransferCharge();
+    setTransactionFee(fee);
+  } catch (error) {
     console.error('Error fetching transaction charges:', error);
-    // Set default fee if API fails
+    // Fallback to a safe default
     setTransactionFee(0);
   }
-};
+}, []);
 
   // Effect to filter kids based on search and tab
 useEffect(() => {
@@ -377,65 +269,44 @@ useEffect(() => {
     fetchKids().then(() => {
       fetchBeneficiaries();
     });
-    fetchStudents(token); 
+    fetchStudents(); 
     fetchRecentTransactions();
     fetchUserBalance();
      fetchTransactionCharges();
   }
-}, [token, fetchStudents]);
+},);
 
   const handleTabChange = (newValue: number) => {
     setTabValue(newValue);
   };
 
   // Toggle beneficiary status
-  const handleToggleBeneficiary = async (kidId: string) => {
-    const kid = allKids.find(k => k.student_id === kidId);
-    if (!kid) return;
-    
-    try {
-      if (kid.isBeneficiary) {
-        // Remove beneficiary
-        await axios.delete(
-          `${API_BASE_URL}/api/users/removebeneficiary/${kid.student_id}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`
-            }
-          }
-        );
-        
-        setSnackbarMessage(`${kid.name} removed from beneficiaries!`);
-        setSnackbarSeverity('success');
-      } else {
-        // Add as beneficiary
-        await axios.post(
-          `${API_BASE_URL}/api/users/addbeneficiary/${kid.student_id}`,
-          {},
-          {
-            headers: {
-              Authorization: `Bearer ${token}`
-            }
-          }
-        );
-        
-        setSnackbarMessage(`${kid.name} added to beneficiaries!`);
-        setSnackbarSeverity('success');
-      }
-      
-      // Refresh beneficiaries list
-      await fetchBeneficiaries();
-      
-      setShowSnackbar(true);
-      setTimeout(() => setShowSnackbar(false), 3000);
-    } catch (error) {
-      console.error('Error toggling beneficiary:', error);
-      setSnackbarMessage('Failed to update beneficiary');
-      setSnackbarSeverity('error');
-      setShowSnackbar(true);
-      setTimeout(() => setShowSnackbar(false), 3000);
+const handleToggleBeneficiary = async (kidId: string) => {
+  const kid = allKids.find(k => k.student_id === kidId);
+  if (!kid) return;
+  
+  try {
+    if (kid.isBeneficiary) {
+      await removeBeneficiary(kid.student_id);
+      setSnackbarMessage(`${kid.name} removed from beneficiaries!`);
+    } else {
+      await addBeneficiary(kid.student_id);
+      setSnackbarMessage(`${kid.name} added to beneficiaries!`);
     }
-  };
+    
+    setSnackbarSeverity('success');
+    
+    // Refresh the list using our decoupled fetch function
+    await fetchBeneficiaries();
+    
+    setShowSnackbar(true);
+  } catch (error) {
+    console.error('Error toggling beneficiary:', error);
+    setSnackbarMessage('Failed to update beneficiary');
+    setSnackbarSeverity('error');
+    setShowSnackbar(true);
+  }
+};
 
   const handleConfirmTransfer = async () => {
     if (!validateForm()) return;
@@ -443,98 +314,61 @@ useEffect(() => {
     setPinDialogOpen(true);
   };
 
-  const handleSubmitTransfer = async () => {
-    if (!selectedKid || !pin) return;
-    
-    setLoading(true);
-    
-    try {
-      const response = await axios.post(
-        `${API_BASE_URL}/api/transaction/transfer`,
-        {
-          receiverEmail: selectedKid.email,
-          amount: Number(amount),
-          pin: pin
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        }
-      );
+  const handleSubmitTransfer = async (): Promise<void> => {
+  if (!selectedKid || !pin) return;
+  setLoading(true);
+
+  try {
+    const data = await transferFunds({
+      receiverEmail: selectedKid.email,
+      amount: Number(amount),
+      pin: pin
+    });
+
+    if (data.message === "Transfer successful") {
+      const newTransfer: Transfer = {
+        id: userData.recentTransfers.length + 1,
+        _id: data.transaction.senderTransactionRef,
+        kidName: selectedKid.name,
+        recipient: String(selectedKid._id ?? ''),
+        amount: Number(amount),
+        date: new Date().toLocaleDateString('en-US', { 
+          month: 'short', 
+          day: 'numeric', 
+          year: 'numeric' 
+        }),
+        note: note || "Transfer",
+        status: 'completed',
+        createdAt: new Date().toISOString(),
+      };
+
+      setUserData(prev => ({
+        ...prev,
+        balance: (prev.balance ?? 0) - (Number(amount) + transactionFee),
+        recentTransfers: [newTransfer, ...prev.recentTransfers]
+      }));
+
+      setSnackbarMessage(`₦${Number(amount).toLocaleString()} successfully transferred!`);
+      setSnackbarSeverity('success');
       
-      if (response.data.message === "Transfer successful") {
-        // Update local state
-        const newTransfer = {
-          id: userData.recentTransfers.length + 1,
-          _id: response.data.transaction.senderTransactionRef,
-          kidName: selectedKid.name,
-          amount: Number(amount),
-          date: new Date().toLocaleDateString('en-US', { 
-            month: 'short', 
-            day: 'numeric', 
-            year: 'numeric' 
-          }),
-          note: note || "Transfer",
-          status: 'completed',
-          createdAt: new Date().toISOString(),
-          recipient: selectedKid._id ?? ''
-        };
-        
-        setUserData({
-          ...userData,
-           balance: userData.balance - (Number(amount) + transactionFee), 
-          recentTransfers: [newTransfer, ...userData.recentTransfers]
-        });
-        
-        setSnackbarMessage(`₦${Number(amount).toLocaleString()} successfully transferred to ${selectedKid.name}!`);
-        setSnackbarSeverity('success');
-        setShowSnackbar(true);
-        
-        // Clear form
-        setSelectedKid(null);
-        setAmount('');
-        setNote('');
-        setPin('');
-      } else {
-        throw new Error(response.data.message || 'Transfer failed');
-      }
-    } catch (error) {
-      console.error('Transfer error:', error);
-      let errorMessage = 'Transfer failed. Please try again.';
-      
-      if (axios.isAxiosError(error) && error.response?.data) {
-        const errorData = error.response.data;
-        
-        // Use the specific error message from the API
-        if (errorData.message) {
-          errorMessage = errorData.message;
-        } else if (errorData.error) {
-          errorMessage = errorData.error;
-        }
-        
-        // Handle specific error cases
-        if (errorData.message?.toLowerCase().includes('pin')) {
-          errorMessage = 'Invalid PIN. Please check your PIN and try again.';
-        } else if (errorData.message?.toLowerCase().includes('balance') || errorData.message?.toLowerCase().includes('insufficient')) {
-          errorMessage = 'Insufficient balance. Please fund your wallet first.';
-        } else if (errorData.message?.toLowerCase().includes('user') || errorData.message?.toLowerCase().includes('recipient')) {
-          errorMessage = 'Recipient not found. Please verify the recipient details.';
-        }
-      }
-      
-      setSnackbarMessage(errorMessage);
-      setSnackbarSeverity('error');
-      setShowSnackbar(true);
-    } finally {
-      setLoading(false);
-      setPinDialogOpen(false);
-      
-      // Refresh data
-      fetchUserBalance();
-      fetchRecentTransactions();
+      setSelectedKid(null);
+      setAmount('');
+      setPin('');
     }
-  };
+  } catch (err: unknown) {
+    // Handling unknown error type strictly
+    const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+    setSnackbarMessage(errorMessage);
+    setSnackbarSeverity('error');
+  } finally {
+    setLoading(false);
+    setPinDialogOpen(false);
+    setShowSnackbar(true);
+    
+    fetchUserBalance();
+    fetchRecentTransactions();
+  }
+};
 
  const validateForm = () => {
   const totalAmount = Number(amount) + transactionFee;
@@ -558,7 +392,7 @@ useEffect(() => {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="min-h-screen bg-gray-50 flex flex-col">
-        <Header profilePath="/psettings"/>
+        <Header PsettingsPage="/psettings"/>
         
         <div className="z-[100] flex flex-grow gap-6">
           <Psidebar />

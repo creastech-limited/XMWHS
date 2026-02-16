@@ -38,10 +38,10 @@ interface Notification {
 }
 
 interface HeaderProps {
-  profilePath: string;
+  PsettingsPage: string;
 }
 
-export const Header: React.FC<HeaderProps> = ({ profilePath }) => {
+export const Header: React.FC<HeaderProps> = ({ PsettingsPage }) => {
   const { user: authUser, token: authToken, logout } = useAuth() || {};
   const [user, setUser] = useState<User | null>(authUser || null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -506,7 +506,7 @@ useEffect(() => {
                   <button
                     onClick={() => {
                       setMenuOpen(false);
-                      navigate(profilePath);
+                      navigate(PsettingsPage);
                     }}
                     className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                   >

@@ -5,39 +5,40 @@ import type { Student } from "./student";
 
 /* ----------------------- USER ----------------------- */
 export interface User {
+  // Core Identifiers (Required)
   _id: string;
-  name: string;
+  
+  // Basic Information (Merged)
+  name: string; // Keep required if your main app relies on it
+  firstName?: string;
+  lastName?: string;
   email: string;
   role: string;
-  class?: string;
+  phone?: string;
+  avatar?: string;
   profilePic?: string;
 
+  // Status and Metadata
   status: string;      
   createdAt: string;  
   updatedAt: string;
 
-  // Personal details
-  firstName?: string;
-  lastName?: string;
-  phone?: string;
+  // Parent/Guardian specific
+  children?: string[]; // Added from your second interface
 
-
-
-
-   // Banking details
+  // Banking & Wallet details
   accountNumber?: string;   
   withdrawalBank?: string;  
-
-  // Balance and wallet
   balance?: number;
+  walletBalance?: number;
   wallet?: {
     balance?: number | string;
     currency?: string;
     walletId?: string;
   };
-  walletBalance?: number;
 
-  // School information
+  // Education/School details
+  class?: string;
   schoolId?: string;
   schoolName?: string;
   schoolType?: string;
@@ -45,15 +46,14 @@ export interface User {
   ownership?: string;
   schoolCanTransfer?: boolean;
 
-  // Store information
+  // Vendor/Store details
   storeName?: string;
   storeType?: string;
 
-  // Other properties
-  avatar?: string;
+  // External Links
   Link?: string;
 
-  // Allow extra properties from API
+  // The "safety net" for dynamic API properties
   [key: string]: unknown;
 }
 
@@ -88,8 +88,14 @@ export interface UpdatePasswordPayload {
 }
 
 export interface UserData {
-  user: User;
-}
+  user?: User;
+  username?: string;
+  email?: string;
+  balance?: number;
+  lastTransactions?: Transaction[];
+  recentTransfers?: Transfer[];
+
+}     
 /* ----------------------- WALLET ----------------------- */
 export interface Wallet {
   id: string;
@@ -100,6 +106,18 @@ export interface Wallet {
   firstName: string;
   lastName: string;
   phone: string;
+}
+
+export interface WalletResponse {
+  success: boolean;
+  message?: string;
+  data: {
+    _id: string;
+    balance: number;
+    currency: string;
+    walletId: string;
+    [key: string]: unknown;
+  };
 }
 
 /* ----------------------- USER RESPONSE ----------------------- */
@@ -114,6 +132,8 @@ export interface UserResponse {
       currency?: string;
       walletId?: string;
     };
+    // Add this line to allow access to 'pin' or other dynamic fields
+    [key: string]: unknown; 
   };
 
   wallet?: {
@@ -138,13 +158,14 @@ export interface FetchUserDetailsResponse {
 /* ====================== TRANSACTION TYPES ====================== */
 export interface Transaction {
   _id: string;
-  date: string;
-  createdAt: string;
-  description: string;
   amount: number;
-  category: string;
-  status: string;
-  customer: string;
+  category: 'credit' | 'debit' | string; 
+  status: 'success' | 'pending' | 'failed' | string;
+  description: string;
+  createdAt: string;
+  date?: string; 
+  customer?: string;
+   reference?: string;
   [key: string]: unknown;
 }
 
@@ -153,6 +174,18 @@ export interface TransactionsResponse {
   message?: string;
   data?: Transaction[];
   transactions?: Transaction[];
+}
+
+export interface TransactionStats {
+  totalTransactions: number;
+  totalCredit: {
+    success: number;
+    pending: number;
+  };
+  totalDebit: {
+    success: number;
+    pending: number;
+  };
 }
 
 
@@ -614,4 +647,32 @@ export interface SetPinPayload {
 export interface UpdatePinPayload {
   currentPin: string;
   newPin: string;
+}
+
+export  interface Transfer {
+  id: number;
+  kidName: string;
+  amount: number;
+  date: string;
+  note: string;
+  _id: string;
+  recipient: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface TransferPayload {
+  receiverEmail: string;
+  amount: number;
+  pin: string;
+}
+
+export interface TransferResponse {
+  success: boolean;
+  message: string;
+  transaction: {
+    senderTransactionRef: string;
+    amount: number;
+    [key: string]: unknown;
+  };
 }

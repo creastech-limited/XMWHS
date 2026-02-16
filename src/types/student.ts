@@ -1,21 +1,39 @@
 // student.ts
 export interface Student {
+  // Common core fields
   _id: string;
   firstName: string;
   lastName: string;
-  name: string;
   email: string;
-  academicDetails: {
+  role?: string;
+  phone?: string;
+
+  // Aliased Names (Optional to avoid breaking different views)
+  fullName?: string; 
+  name?: string;   
+
+  // Academic Information
+  className?: string;
+  class?: string;     
+  academicDetails?: {  
     classAdmittedTo: string;
   };
-  status: string;
-  createdAt: string;
-  classAdmittedTo?: string;
+  classAdmittedTo?: string; 
+
+  // Identifiers & Relationships
+  student_id?: string;
+  schoolId?: string;
+  parentId?: string;
   guardian?: {
     fullName: string;
     relationship: string;
     email: string;
   };
+
+  // System Metadata
+  status?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface SchoolProfile {
@@ -114,10 +132,90 @@ export interface Bill {
   term: string;
   session: string;
   transactionId: string;
+   remainingAmount: number;
 }
 
 export interface TransactionSummary {
   total: number;
   paid: number;
   remaining: number;
+}
+
+export interface BillsData {
+  [studentId: string]: {
+    student: Student;
+    bills: Bill[];
+  };
+}
+
+export interface Profile {
+  name?: string;
+  fullName?: string;
+  avatar?: string;
+  _id?: string;
+  wallet?: {
+    balance: number;
+    [key: string]: number | undefined;
+  };
+}
+
+export interface QuickAction {
+  icon: React.ReactNode;
+  label: string;
+  color: string;
+  route: string;
+}
+
+export interface TrendData {
+  name: string;
+  payment: number;
+  transaction: number;
+}
+
+export interface SpendingCategory {
+  name: string;
+  value: number;
+  color: string;
+}
+
+export interface Kid {
+  id: string; 
+  student_id: string; 
+  name: string;
+  email: string;
+  isBeneficiary: boolean;
+  avatar: string;
+  _id?: string;  
+}
+
+export interface ApiKid {
+  student_id: string;
+  firstName?: string;
+  lastName?: string;
+  fullName?: string;
+  name?: string;
+  email: string;
+  phone?: string;
+  class?: string;
+  role?: string;
+}
+export interface ApiTransaction {
+  _id: string;
+  recipientName?: string;
+  amount: number;
+  createdAt: string;
+  note?: string;
+  status: string;
+}
+
+export interface Transfer {
+  id: number;
+  _id: string;
+  kidName: string;
+  amount: number;
+  date: string;
+  note: string;
+  status: string;
+  createdAt: string;
+  recipient: string;
 }
