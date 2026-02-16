@@ -25,7 +25,10 @@ import type {
   NotificationPreferences,
   User,
   UserData,
+  WalletResponse,
+  TransferResponse,
 } from '../../types/user';
+import axios from 'axios';
 
 // Get user details
 export const getUserDetails = async (): Promise<UserResponse> => {
@@ -329,12 +332,28 @@ export const transferFunds = async (payload: {
   receiverEmail: string;
   amount: number;
   pin: string;
-}): Promise<{ message: string }> => {
-  const response = await apiClient.post<{ message: string }>(
-    '/api/transaction/transfer',
-    payload
-  );
-  return response.data;
+}): Promise<TransferResponse> => {
+  try {
+    const response = await apiClient.post<TransferResponse>('/api/transaction/transfer', payload);
+    return response.data;
+  } catch (error: unknown) {
+    let errorMessage = 'Transfer failed';
+
+    if (axios.isAxiosError(error) && error.response?.data) {
+      const data = error.response.data as { message?: string; error?: string };
+      errorMessage = data.message || data.error || errorMessage;
+    } else if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+
+    const lowerMsg = errorMessage.toLowerCase();
+    if (lowerMsg.includes('pin')) errorMessage = 'Invalid PIN. Please try again.';
+    if (lowerMsg.includes('balance') || lowerMsg.includes('insufficient')) {
+      errorMessage = 'Insufficient balance. Please fund your wallet first.';
+    }
+
+    throw new Error(errorMessage);
+  }
 };
 
 // Get user disputes
@@ -369,22 +388,8 @@ export const deleteAgent = async (agentId: string): Promise<DeleteAgentResponse>
 };
 
 // Get user wallet
-export const getUserWallet = async (): Promise<{
-  data?: {
-    balance: number;
-    currency?: string;
-    walletId?: string;
-  };
-  message?: string;
-}> => {
-  const response = await apiClient.get<{
-    data?: {
-      balance: number;
-      currency?: string;
-      walletId?: string;
-    };
-    message?: string;
-  }>('/api/wallet/getuserwallet');
+export const getUserWallet = async (): Promise<WalletResponse> => {
+  const response = await apiClient.get<WalletResponse>('/api/wallet/getuserwallet');
   return response.data;
 };
 
@@ -449,10 +454,8 @@ export const updateNotificationPreferences = async (
 export const getAllUsers = async (): Promise<UserData[]> => {
   const response = await apiClient.get('/api/users/getallUsers');
   
-  // response.data.data is the raw User[] from backend
   const rawUsers: User[] = response.data.data || [];
 
-  // Map to the structure required by AllUsers.tsx
   return rawUsers.map((u: User) => ({
     user: u
   }));
@@ -474,3 +477,26 @@ export const getAdminDashboardData = async () => {
     users: usersRes.data
   };
 };
+
+// Get beneficiary emails for fund transfers
+
+export const getBeneficiaryEmails = async (): Promise<string[]> => {
+  const response = await apiClient.get<{ beneficiaries: { email: string }[] }>('/api/users/getBeneficiaries');
+  const beneficiaries = response.data.beneficiaries || [];
+  return beneficiaries.map(b => b.email);
+};
+
+
+// Add beneficiary (for parents to add their children as beneficiaries for fund transfers)
+export const addBeneficiary = async (studentId: string) => {
+  const response = await apiClient.post(`/api/users/addbeneficiary/${studentId}`);
+  return response.data;
+};
+
+
+// Remove beneficiary (for parents to remove their children as beneficiaries for fund transfers)
+export const removeBeneficiary = async (studentId: string) => {
+  const response = await apiClient.delete(`/api/users/removebeneficiary/${studentId}`);
+  return response.data;
+};
+

@@ -4,39 +4,13 @@ import Psidebar from '../../components/Psidebar';
 import Footer from '../../components/Footer';
 import { Header } from '../../components/Header';
 import { useAuth } from '../../context/AuthContext';
+import { getUserDetails } from '../../services';
+import type { User } from '../../types';
 
 // Define interfaces for type safety
-interface User {
-  [key: string]: unknown;
-  _id: string;
-  firstName: string;
-  lastName: string;
-  name: string;
-  email: string;
-  accountNumber: string;
-  role: string;
-  pin: string;
-  qrcode?: string;
-  wallet?: {
-    id: string;
-    balance: number;
-    currency: string;
-    type: string;
-    email: string;
-    firstName: string;
-    lastName: string;
-  };
-}
 
-interface ApiResponse {
-  message: string;
-  user: {
-    data: User;
-    pin: string;
-    Link: string;
-    wallet: User['wallet'];
-  };
-}
+
+
 
 const PayToAgentPage: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -50,9 +24,6 @@ const PayToAgentPage: React.FC = () => {
   // Get auth context
   const auth = useAuth();
 
-  // API Base URL
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-
   // Get token from auth context or localStorage
   const getAuthToken = (): string | null => {
     // First try to get from auth context
@@ -63,117 +34,107 @@ const PayToAgentPage: React.FC = () => {
   };
 
   // Fetch user details from API
-  const fetchUserDetails = async (token: string): Promise<User> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
+ const fetchUserDetails = async (): Promise<User> => {
+  try {
+    const data = await getUserDetails(); 
+    
+    console.log('API Response:', data);
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data: ApiResponse = await response.json();
-      console.log('API Response:', data);
-
-      // Handle different response structures as per your analysis
-      let profile: User;
-      if (data.user?.data) {
+    let profile: User;
+    if (data.user?.data) {
+      profile = {
+        ...data.user.data,
+        pin: data.user.pin,
+        wallet: data.user.wallet
+      } as User;
+    } else if (data.user) {
+      if ('data' in data.user && typeof data.user.data === 'object') {
         profile = {
           ...data.user.data,
-          pin: data.user.pin,
-          wallet: data.user.wallet
-        };
-      } else if (data.user) {
-        // Fallback: try to extract user data from data.user if possible
-        if ('data' in data.user && typeof data.user.data === 'object') {
-          profile = {
-            ...data.user.data,
-            pin: (data.user as { pin: string }).pin,
-            wallet: (data.user as { wallet: User['wallet'] }).wallet
-          };
-        } else {
-          throw new Error('Invalid response structure');
-        }
+          pin: (data.user as { pin?: string }).pin,
+          wallet: (data.user as { wallet?: User['wallet'] }).wallet
+        } as User;
       } else {
         throw new Error('Invalid response structure');
       }
-
-      return profile;
-    } catch (error) {
-      console.error('Error fetching user details:', error);
-      throw error;
+    } else {
+      throw new Error('Invalid response structure');
     }
-  };
+
+    return profile;
+  } catch (error) {
+    console.error('Error fetching user details:', error);
+    throw error;
+  }
+};
 
   // Generate QR code data with user payment information
-  const generateQRCodeData = (userData: User): string => {
-    const paymentData = {
-      userId: userData._id,
-      name: userData.name || `${userData.firstName} ${userData.lastName}`,
-      email: userData.email,
-      accountNumber: userData.accountNumber,
-      role: userData.role,
-      pin: userData.pin, // Include pin for transaction verification
-      wallet: {
-        id: userData.wallet?.id,
-        balance: userData.wallet?.balance,
-        currency: userData.wallet?.currency || 'NGN'
-      },
-      timestamp: new Date().toISOString(),
-      type: 'payment_request'
-    };
-
-    // Convert to JSON string for QR code
-    return JSON.stringify(paymentData);
+ const generateQRCodeData = (userData: User): string => {
+  const paymentData = {
+    userId: userData._id,
+    name: userData.name || `${userData.firstName} ${userData.lastName}`,
+    email: userData.email,
+    accountNumber: userData.accountNumber,
+    role: userData.role,
+    pin: userData.pin, // Include pin for transaction verification
+    wallet: {
+      // Changed .id to .walletId to match your User interface
+      id: userData.wallet?.walletId, 
+      balance: userData.wallet?.balance,
+      currency: userData.wallet?.currency || 'NGN'
+    },
+    timestamp: new Date().toISOString(),
+    type: 'payment_request'
   };
+
+  // Convert to JSON string for QR code
+  return JSON.stringify(paymentData);
+};
 
   // Initialize user data and QR code
   useEffect(() => {
-    const initializeUserData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
+  const initializeUserData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-        console.log('Starting auth initialization...');
+      console.log('Starting auth initialization...');
+      
+      if (auth?.user?._id && auth?.token) {
+        console.log('Found user in auth context:', auth.user);
         
-        // Check if user is already in auth context
-        if (auth?.user?._id && auth?.token) {
-          console.log('Found user in auth context:', auth.user);
-          // Ensure all required User fields are present
-          const mergedUser: User = {
-            _id: auth.user._id,
-            firstName: typeof auth.user.firstName === 'string' ? auth.user.firstName : '',
-            lastName: typeof auth.user.lastName === 'string' ? auth.user.lastName : '',
-            name: auth.user.name || `${auth.user.firstName || ''} ${auth.user.lastName || ''}`,
-            email: auth.user.email || '',
-            accountNumber: typeof auth.user.accountNumber === 'string' ? auth.user.accountNumber : '',
-            role: auth.user.role || '',
-            pin: typeof auth.user.pin === 'string' ? auth.user.pin : (auth.user.pin ? String(auth.user.pin) : ''),
-            qrcode: typeof auth.user.qrcode === 'string' ? auth.user.qrcode : undefined,
-            wallet: (typeof auth.user.wallet === 'object' && auth.user.wallet !== null
-              && 'id' in auth.user.wallet
-              && 'balance' in auth.user.wallet
-              && 'currency' in auth.user.wallet
-              && 'type' in auth.user.wallet
-              && 'email' in auth.user.wallet
-              && 'firstName' in auth.user.wallet
-              && 'lastName' in auth.user.wallet
-            )
-              ? auth.user.wallet as User['wallet']
-              : undefined
-          };
-          setUser(mergedUser);
-          // Generate QR code data with existing user data
-          const qrCodeData = generateQRCodeData(mergedUser);
-          setQrData(qrCodeData);
-          setLoading(false);
-          return;
-        }
+        const mergedUser: User = {
+          _id: auth.user._id,
+          firstName: typeof auth.user.firstName === 'string' ? auth.user.firstName : '',
+          lastName: typeof auth.user.lastName === 'string' ? auth.user.lastName : '',
+          name: auth.user.name || `${auth.user.firstName || ''} ${auth.user.lastName || ''}`,
+          email: auth.user.email || '',
+          accountNumber: typeof auth.user.accountNumber === 'string' ? auth.user.accountNumber : '',
+          role: auth.user.role || '',
+          pin: typeof auth.user.pin === 'string' ? auth.user.pin : (auth.user.pin ? String(auth.user.pin) : ''),
+          qrcode: typeof auth.user.qrcode === 'string' ? auth.user.qrcode : undefined,
+
+          // Add these three missing required fields
+          status: typeof auth.user.status === 'string' ? auth.user.status : 'active',
+          createdAt: typeof auth.user.createdAt === 'string' ? auth.user.createdAt : new Date().toISOString(),
+          updatedAt: typeof auth.user.updatedAt === 'string' ? auth.user.updatedAt : new Date().toISOString(),
+
+          wallet: (typeof auth.user.wallet === 'object' && auth.user.wallet !== null
+            && 'walletId' in auth.user.wallet // Changed 'id' to 'walletId' to match interface
+            && 'balance' in auth.user.wallet
+            && 'currency' in auth.user.wallet
+          )
+            ? auth.user.wallet as User['wallet']
+            : undefined
+        };
+
+        setUser(mergedUser);
+        const qrCodeData = generateQRCodeData(mergedUser);
+        setQrData(qrCodeData);
+        setLoading(false);
+        return;
+      }
+      // ... rest of logic
 
         // Try to get token
         const token = getAuthToken();
@@ -182,7 +143,7 @@ const PayToAgentPage: React.FC = () => {
         }
 
         console.log('Found token, fetching user details...');
-        const userData = await fetchUserDetails(token);
+        const userData = await fetchUserDetails();
         
         console.log('User data received:', userData);
         setUser(userData);
@@ -211,7 +172,7 @@ const PayToAgentPage: React.FC = () => {
     };
 
     initializeUserData();
-  }, [auth]); // Include auth in dependencies
+  },); // Include auth in dependencies
 
   // Function to download the QR Code image
   const handleDownload = () => {
@@ -240,7 +201,7 @@ const PayToAgentPage: React.FC = () => {
     return (
       <div className="min-h-screen bg-gray-50">
          <div className="min-h-screen bg-gray-50 flex flex-col">
-           <Header profilePath="/psettings"/>
+           <Header PsettingsPage="/psettings"/>
            
            <div className="z-[100] flex flex-grow gap-6">
              <Psidebar />
@@ -261,7 +222,7 @@ const PayToAgentPage: React.FC = () => {
     return (
       <div className="min-h-screen bg-gray-50">
          <div className="min-h-screen bg-gray-50 flex flex-col">
-           <Header profilePath="/psettings"/>
+           <Header PsettingsPage="/psettings"/>
            
            <div className="z-[100] flex flex-grow gap-6">
              <Psidebar />
@@ -292,7 +253,7 @@ const PayToAgentPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50">
          <div className="min-h-screen bg-gray-50 flex flex-col">
-           <Header profilePath="/psettings"/>
+           <Header PsettingsPage="/psettings"/>
            
            <div className="z-[100] flex flex-grow gap-6">
              <Psidebar />

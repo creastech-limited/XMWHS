@@ -10,94 +10,15 @@ import { Header } from '../../components/Header';
 import Psidebar from '../../components/Psidebar';
 import Footer from '../../components/Footer';
 import { useAuth } from '../../context/AuthContext';
+import type { Bill, BillsData, SchoolFee, SnackbarState, Student, TransactionSummary, User } from '../../types';
+import { getFeesForStudent, getMyChildren, getUserDetails, paySchoolFee } from '../../services';
 
-// API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-
-// Define TypeScript interfaces
-interface Student {
-  _id: string;
-  student_id?: string;
-  firstName: string;
-  lastName: string;
-  fullName: string;
-  email: string;
-  className: string;
-  class?: string;
-  schoolId?: string;
-  parentId?: string;
-  role?: string;
-  phone?: string;
-}
-
-interface SchoolFee {
-  _id: string;
-  studentId: string;
-  feeId: string;
-  amount: number;
-  feeType: string;
-  term: string;
-  session: string;
-  className: string;
-  schoolId: string;
-  amountPaid: number;
-  paymentMethod: string;
-  transactionId: string;
-  status: 'Paid' | 'Unpaid';
-  paymentDate: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface User {
-  _id: string;
-  firstName?: string;
-  lastName?: string;
-  name?: string;
-  email?: string;
-  role?: string;
-  children?: string[];
-}
-
-interface Bill {
-  id: string;
-  _id: string;
-  feeId: string;
-  description: string;
-  amount: number;
-  amountPaid: number;
-  dueDate: string;
-  status: 'paid' | 'unpaid';
-  term: string;
-  session: string;
-  transactionId: string;
-  remainingAmount: number; // Added remaining amount field
-}
-
-interface BillsData {
-  [studentId: string]: {
-    student: Student;
-    bills: Bill[];
-  };
-}
-
-interface Summary {
-  total: number;
-  paid: number;
-  remaining: number;
-}
-
-interface SnackbarState {
-  open: boolean;
-  message: string;
-  severity: 'success' | 'error' | 'info' | 'warning';
-}
 
 const PaySchoolBillsPage: React.FC = () => {
   const [selectedStudent, setSelectedStudent] = useState<string>('');
   const [students, setStudents] = useState<Student[]>([]);
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
-  
+
   const [bills, setBills] = useState<BillsData>({});
   const [loading, setLoading] = useState<boolean>(true);
   const [loadingFees, setLoadingFees] = useState<boolean>(false);
@@ -111,16 +32,16 @@ const PaySchoolBillsPage: React.FC = () => {
     message: string;
     success: boolean;
   } | null>(null);
-  const [snackbar, setSnackbar] = useState<SnackbarState>({ 
-    open: false, 
-    message: '', 
-    severity: 'success' 
+  const [snackbar, setSnackbar] = useState<SnackbarState>({
+    open: false,
+    message: '',
+    severity: 'success'
   });
 
   const auth = useAuth();
 
   // Filter students based on search term
- 
+
   // Show snackbar message
   const showSnackbar = useCallback((message: string, severity: SnackbarState['severity'] = 'info') => {
     setSnackbar({ open: true, message, severity });
@@ -135,12 +56,12 @@ const PaySchoolBillsPage: React.FC = () => {
       if (auth?.token) {
         return auth.token;
       }
-      
+
       const storedToken = localStorage.getItem('token');
       if (storedToken) {
         return storedToken;
       }
-      
+
       throw new Error('No authentication token found');
     } catch (error) {
       console.error('Token retrieval error:', error);
@@ -150,39 +71,34 @@ const PaySchoolBillsPage: React.FC = () => {
   }, [auth?.token, showSnackbar]);
 
   // Fetch user details
-  const fetchUserDetails = useCallback(async (authToken: string): Promise<User | null> => {
+  const fetchUserDetails = useCallback(async (): Promise<User | null> => {
     try {
       if (auth?.user?._id) {
         setUser(auth.user);
         return auth.user;
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      const data = await getUserDetails();
+      console.log('API Response:', data);
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      
       let profile: User | null = null;
+
       if (data?.user?.data) {
+        // Correctly accessing the nested User object
         profile = data.user.data;
       } else if (data?.data) {
+        // data.data is defined as User in your UserResponse
         profile = data.data;
       } else if (data?.user) {
-        profile = data.user;
+        // data.user is a wrapper, so we cast it to User to satisfy the check
+        profile = data.user as unknown as User;
       } else if (data) {
-        profile = data;
+        // data is UserResponse, so we cast it to User
+        profile = data as unknown as User;
       }
 
-      if (!profile?._id) {
+      // Final check to ensure we actually have a valid user ID
+      if (!profile || !profile._id) {
         throw new Error('Invalid user data structure received');
       }
 
@@ -196,27 +112,17 @@ const PaySchoolBillsPage: React.FC = () => {
   }, [auth, showSnackbar]);
 
   // Fetch all children/students of the parent
-  const fetchStudents = useCallback(async (authToken: string): Promise<Student[]> => {
+  const fetchStudents = useCallback(async (): Promise<Student[]> => {
     try {
       console.log('Fetching students...');
-      
-      const response = await fetch(`${API_BASE_URL}/api/users/getmychildren`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
 
-      const data = await response.json();
+      const data = await getMyChildren();
+
       console.log('Raw students API response:', data);
-      
+
       let studentsData: Student[] = [];
-      
+
       // Handle the actual response structure based on your API
       if (data?.success && Array.isArray(data.data)) {
         studentsData = data.data;
@@ -228,7 +134,7 @@ const PaySchoolBillsPage: React.FC = () => {
         console.log('Unexpected students response structure:', data);
         throw new Error('Invalid response structure');
       }
-      
+
       // Process each student to ensure consistent structure
       const processedStudents: Student[] = studentsData.map(student => ({
         _id: student.student_id || student._id || `student-${Date.now()}-${Math.random()}`,
@@ -244,15 +150,15 @@ const PaySchoolBillsPage: React.FC = () => {
         role: student.role,
         phone: student.phone
       }));
-      
+
       console.log('Processed students:', processedStudents);
-      
+
       if (processedStudents.length === 0) {
         showSnackbar('No students found', 'warning');
       } else {
         showSnackbar(`Loaded ${processedStudents.length} students`, 'success');
       }
-      
+
       setFilteredStudents(processedStudents);
       return processedStudents;
     } catch (error) {
@@ -263,46 +169,23 @@ const PaySchoolBillsPage: React.FC = () => {
   }, [showSnackbar]);
 
   // Fetch fees for a specific student using GET request with query parameters
-  const fetchFeesForStudent = useCallback(async (authToken: string, studentEmail: string): Promise<SchoolFee[]> => {
+  const fetchFeesForStudent = useCallback(async (studentEmail: string): Promise<SchoolFee[]> => {
     try {
       console.log(`Fetching fees for student email: ${studentEmail}`);
-      
-      // Encode the email to handle special characters in URLs
-      const encodedEmail = encodeURIComponent(studentEmail);
-      
-      const response = await fetch(`${API_BASE_URL}/api/fee/getFeeForStudent/${encodedEmail}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+
+
+      const feesData = await getFeesForStudent(studentEmail);
+
+      console.log('Processed fees for student:', feesData);
+
+      if (feesData.length === 0) {
+        console.log('No fees found for this student');
       }
 
-      const data = await response.json();
-      console.log('Raw fees API response:', data);
-      
-      let feesData: SchoolFee[] = [];
-      
-      // Handle the response structure based on the API response you provided
-      if (data?.data && Array.isArray(data.data)) {
-        feesData = data.data;
-      } else if (Array.isArray(data)) {
-        feesData = data;
-      } else if (data?.fees && Array.isArray(data.fees)) {
-        feesData = data.fees;
-      } else {
-        console.log('Unexpected fees response structure:', data);
-        return [];
-      }
-      
-      console.log('Processed fees for student:', feesData);
       return feesData;
     } catch (error) {
       console.error('Error fetching student fees:', error);
+      // Ensure this matches your showSnackbar signature (message, severity)
       showSnackbar('Failed to fetch student fees. Please try again.', 'error');
       return [];
     }
@@ -330,7 +213,7 @@ const PaySchoolBillsPage: React.FC = () => {
   const loadStudentFees = useCallback(async (studentId: string) => {
     try {
       console.log(`Loading fees for student: ${studentId}`);
-      
+
       const student = students.find(s => s._id === studentId || s.student_id === studentId);
       if (!student) {
         console.error('Student not found in students array');
@@ -353,9 +236,9 @@ const PaySchoolBillsPage: React.FC = () => {
       }
 
       // Fetch fees for this specific student using their email
-      const studentFees = await fetchFeesForStudent(authToken, student.email);
+      const studentFees = await fetchFeesForStudent(authToken);
       console.log('Fetched fees for student:', studentFees);
-      
+
       const transformedBills = transformFeesToBills(studentFees);
       console.log('Transformed bills:', transformedBills);
 
@@ -384,7 +267,7 @@ const PaySchoolBillsPage: React.FC = () => {
   // Handle student selection
   const handleStudentSelect = useCallback(async (studentId: string) => {
     setSelectedStudent(studentId);
-    
+
     if (studentId) {
       await loadStudentFees(studentId);
     }
@@ -396,24 +279,24 @@ const PaySchoolBillsPage: React.FC = () => {
       try {
         setLoading(true);
         console.log('Starting data initialization...');
-        
+
         const authToken = getAuthToken();
         if (!authToken) {
           throw new Error('No authentication token found');
         }
-        
+
         // Fetch user details and students
         const [, studentsData] = await Promise.all([
-          fetchUserDetails(authToken),
-          fetchStudents(authToken)
+          fetchUserDetails(),
+          fetchStudents()
         ]);
-        
+
         setStudents(studentsData);
-        
+
         console.log('Data initialization complete:', {
           students: studentsData.length
         });
-        
+
       } catch (error) {
         console.error('Data initialization error:', error);
         showSnackbar('Failed to load data. Please login again.', 'error');
@@ -460,31 +343,19 @@ const PaySchoolBillsPage: React.FC = () => {
       }
 
       const bill = selectedStudentData.bills.find(b => b._id === billId);
+
       if (!bill) {
         throw new Error('Bill not found');
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/fee/pay`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          studentEmail,
-          amount,
-          feeId: bill.feeId, 
-          pin
-        })
+      // Replaced the manual fetch with the service call
+      const data = await paySchoolFee({
+        studentEmail,
+        amount,
+        feeId: bill.feeId,
+        pin
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Payment failed');
-      }
-
-      const data = await response.json();
-      
       setPaymentStatus({
         loading: false,
         message: data.message || 'Payment successful',
@@ -507,7 +378,7 @@ const PaySchoolBillsPage: React.FC = () => {
 
     } catch (error) {
       console.error('Payment error:', error);
-      
+
       setPaymentStatus({
         loading: false,
         message: error instanceof Error ? error.message : 'Payment failed. Please try again.',
@@ -519,15 +390,15 @@ const PaySchoolBillsPage: React.FC = () => {
   };
 
   // Calculate summary for selected student
-  const calculateSummary = (): Summary => {
+  const calculateSummary = (): TransactionSummary => {
     if (!selectedStudent || !bills[selectedStudent]) {
       return { total: 0, paid: 0, remaining: 0 };
     }
-    
+
     const studentBills = bills[selectedStudent].bills;
     const total = studentBills.reduce((sum, bill) => sum + bill.amount, 0);
     const paid = studentBills.reduce((sum, bill) => sum + bill.amountPaid, 0);
-    
+
     return {
       total,
       paid,
@@ -538,7 +409,7 @@ const PaySchoolBillsPage: React.FC = () => {
   const summary = calculateSummary();
   const selectedStudentData = selectedStudent ? bills[selectedStudent] : null;
 
- if (loading) {
+  if (loading) {
     return (
       <div className="flex justify-center items-center h-screen">
         <div className="w-4/5 max-w-xl">
@@ -556,12 +427,12 @@ const PaySchoolBillsPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="min-h-screen bg-gray-50 flex flex-col">
-        <Header profilePath="/psettings"/>
-        
+        <Header PsettingsPage="/psettings" />
+
         <div className="z-[100] flex flex-grow gap-6">
           <Psidebar />
-        </div>    
-        
+        </div>
+
         <div className="flex-grow md:ml-64">
           <div className="bg-white rounded-2xl shadow-sm p-8 mb-8">
             <h1 className="text-3xl font-bold text-center mb-2 text-transparent bg-clip-text bg-gradient-to-r from-indigo-800 to-indigo-600">
@@ -668,8 +539,8 @@ const PaySchoolBillsPage: React.FC = () => {
                 {selectedStudentData.bills.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {selectedStudentData.bills.map((bill) => (
-                      <div 
-                        key={bill.id} 
+                      <div
+                        key={bill.id}
                         className={`bg-white rounded-xl shadow-sm p-6 transition-all duration-200 hover:shadow-md
                           ${bill.status === 'paid' ? 'border-2 border-green-500' : 'border border-gray-100'}`}
                       >
@@ -693,12 +564,12 @@ const PaySchoolBillsPage: React.FC = () => {
                           </div>
                           <span className={`
                             px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1
-                            ${bill.status === 'paid' 
-                              ? 'bg-green-100 text-green-800' 
+                            ${bill.status === 'paid'
+                              ? 'bg-green-100 text-green-800'
                               : 'bg-red-100 text-red-800'}
                           `}>
-                            {bill.status === 'paid' 
-                              ? <><CheckCircleIcon className="h-3 w-3" /> Paid</> 
+                            {bill.status === 'paid'
+                              ? <><CheckCircleIcon className="h-3 w-3" /> Paid</>
                               : <><ExclamationCircleIcon className="h-3 w-3" /> Unpaid</>
                             }
                           </span>
@@ -731,14 +602,14 @@ const PaySchoolBillsPage: React.FC = () => {
                             </p>
                           )}
                           {bill.status === 'unpaid' ? (
-                            <button 
+                            <button
                               onClick={() => handlePay(bill.id)}
                               className="bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-6 rounded-lg shadow-sm transition duration-150 font-medium"
                             >
                               Pay Now
                             </button>
                           ) : (
-                            <button 
+                            <button
                               disabled
                               className="border border-green-500 text-green-600 py-2 px-6 rounded-lg opacity-75 cursor-not-allowed font-medium"
                             >
@@ -770,7 +641,7 @@ const PaySchoolBillsPage: React.FC = () => {
                   Please select a student to view bills
                 </p>
                 <p className="text-sm text-gray-400 mt-2">
-                  {filteredStudents.length === 0 
+                  {filteredStudents.length === 0
                     ? 'No students found in your account'
                     : `Choose from ${filteredStudents.length} available students`
                   }
@@ -786,11 +657,10 @@ const PaySchoolBillsPage: React.FC = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4">
           <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
             <h3 className="text-lg font-semibold text-black mb-4">Confirm Payment</h3>
-            
+
             {paymentStatus ? (
-              <div className={`p-4 rounded-md mb-4 ${
-                paymentStatus.success ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-              }`}>
+              <div className={`p-4 rounded-md mb-4 ${paymentStatus.success ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                }`}>
                 <div className="flex items-center gap-2">
                   {paymentStatus.loading ? (
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-600"></div>
@@ -846,7 +716,7 @@ const PaySchoolBillsPage: React.FC = () => {
                     Maximum: ₦{(currentBill.amount - currentBill.amountPaid).toLocaleString()}
                   </p>
                 </div>
-                
+
                 <div className="mb-4">
                   <label htmlFor="payment-pin" className="block text-sm font-medium text-black mb-1">
                     Enter Payment PIN
@@ -861,7 +731,7 @@ const PaySchoolBillsPage: React.FC = () => {
                     maxLength={4}
                   />
                 </div>
-                
+
                 <div className="flex justify-end gap-3">
                   <button
                     onClick={() => {
@@ -882,19 +752,18 @@ const PaySchoolBillsPage: React.FC = () => {
                       }
                     }}
                     disabled={
-                      paymentPin.length !== 4 || 
-                      !paymentAmount || 
-                      parseFloat(paymentAmount) <= 0 || 
+                      paymentPin.length !== 4 ||
+                      !paymentAmount ||
+                      parseFloat(paymentAmount) <= 0 ||
                       parseFloat(paymentAmount) > (currentBill.amount - currentBill.amountPaid)
                     }
-                    className={`px-4 py-2 rounded-md text-white ${
-                      paymentPin.length === 4 && 
-                      paymentAmount && 
-                      parseFloat(paymentAmount) > 0 && 
-                      parseFloat(paymentAmount) <= (currentBill.amount - currentBill.amountPaid)
-                        ? 'bg-indigo-600 hover:bg-indigo-700' 
+                    className={`px-4 py-2 rounded-md text-white ${paymentPin.length === 4 &&
+                        paymentAmount &&
+                        parseFloat(paymentAmount) > 0 &&
+                        parseFloat(paymentAmount) <= (currentBill.amount - currentBill.amountPaid)
+                        ? 'bg-indigo-600 hover:bg-indigo-700'
                         : 'bg-indigo-300 cursor-not-allowed'
-                    }`}
+                      }`}
                   >
                     Pay ₦{paymentAmount ? parseFloat(paymentAmount).toLocaleString() : '0'}
                   </button>
@@ -906,13 +775,13 @@ const PaySchoolBillsPage: React.FC = () => {
       )}
 
       <Footer />
-      
+
       {/* Snackbar Notification */}
       {snackbar.open && (
         <div className={`fixed bottom-4 right-4 rounded-lg shadow-lg px-6 py-4 z-50 max-w-md
-          ${snackbar.severity === 'success' ? 'bg-green-500' : 
-            snackbar.severity === 'error' ? 'bg-red-500' : 
-            snackbar.severity === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'} 
+          ${snackbar.severity === 'success' ? 'bg-green-500' :
+            snackbar.severity === 'error' ? 'bg-red-500' :
+              snackbar.severity === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'} 
           text-white flex items-center gap-2 animate-slide-in`}
         >
           <div className="flex items-center gap-2 flex-1">
@@ -923,7 +792,7 @@ const PaySchoolBillsPage: React.FC = () => {
             )}
             <p className="text-sm">{snackbar.message}</p>
           </div>
-          <button 
+          <button
             onClick={() => setSnackbar({ ...snackbar, open: false })}
             className="ml-2 text-white hover:text-gray-200 flex-shrink-0 text-lg font-bold"
           >

@@ -28,6 +28,8 @@ import Psidebar from '../../components/Psidebar';
 import Footer from '../../components/Footer';
 import { Header } from '../../components/Header';
 import { useAuth } from '../../context/AuthContext';
+import type { QuickAction, SpendingCategory, Transaction, TransactionStats, TrendData } from '../../types';
+import { getUserDetails, getUserTransactions } from '../../services';
 
 interface Profile {
   name?: string;
@@ -40,45 +42,14 @@ interface Profile {
   };
 }
 
-interface Transaction {
-  _id?: string;
-  amount: number;
-  category: 'credit' | 'debit';
-  status: 'success' | 'pending' | 'failed';
-  description?: string;
-  createdAt: string;
-}
 
-interface TransactionStats {
-  totalTransactions: number;
-  totalCredit: {
-    success: number;
-    pending: number;
-  };
-  totalDebit: {
-    success: number;
-    pending: number;
-  };
-}
 
-interface TrendData {
-  name: string;
-  payment: number;
-  transaction: number;
-}
 
-interface SpendingCategory {
-  name: string;
-  value: number;
-  color: string;
-}
 
-interface QuickAction {
-  icon: React.ReactNode;
-  label: string;
-  color: string;
-  route: string;
-}
+
+
+
+
 
 const ParentDashboard: React.FC = () => {
   const auth = useAuth();
@@ -90,128 +61,111 @@ const ParentDashboard: React.FC = () => {
     totalCredit: { success: 0, pending: 0 },
     totalDebit: { success: 0, pending: 0 },
   });
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState<boolean>(false);
   const [selectedPeriod, setSelectedPeriod] = useState<string>('This Month');
 
-  const API_BASE_URL =
-    import.meta.env.VITE_API_BASE_URL;
+  
 
   const handleUnauthorized = () => {
-    auth?.logout(); // Clear any existing auth state
+    auth?.logout();
     navigate('/login');
   };
 
-  const fetchTransactions = async () => {
-    if (!auth?.token) {
-      handleUnauthorized();
-      return;
-    }
+  const fetchTransactions = async (): Promise<void> => {
+  if (!auth?.token) {
+    handleUnauthorized();
+    return;
+  }
 
-    try {
-      const response = await axios.get(
-        `${API_BASE_URL}/api/transaction/getusertransaction`,
-        {
-          headers: {
-            Authorization: `Bearer ${auth.token}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
+  try {
+    
+    const data = await getUserTransactions();
+    
 
-      const data = response.data;
-
-      if (data.success && data.data) {
-        setTransactions(data.data);
-
-        setTransactionStats({
-          totalTransactions: data.data.length,
-          totalCredit: {
-            success: data.data
-              .filter(
-                (t: Transaction) =>
-                  t.category === 'credit' && t.status === 'success'
-              )
-              .reduce((sum: number, t: Transaction) => sum + t.amount, 0),
-            pending: data.data
-              .filter(
-                (t: Transaction) =>
-                  t.category === 'credit' && t.status === 'pending'
-              )
-              .reduce((sum: number, t: Transaction) => sum + t.amount, 0),
-          },
-          totalDebit: {
-            success: data.data
-              .filter(
-                (t: Transaction) =>
-                  t.category === 'debit' && t.status === 'success'
-              )
-              .reduce((sum: number, t: Transaction) => sum + t.amount, 0),
-            pending: data.data
-              .filter(
-                (t: Transaction) =>
-                  t.category === 'debit' && t.status === 'pending'
-              )
-              .reduce((sum: number, t: Transaction) => sum + t.amount, 0),
-          },
-        });
-      }
-
-      setIsLoading(false);
-    } catch (err) {
-      if (axios.isAxiosError(err)) {
-        if (err.response?.status === 401) {
-          handleUnauthorized();
-          return;
-        }
-      }
-      console.error('Error fetching transactions:', err);
-      setError('Failed to load transactions. Please try again.');
-      setIsLoading(false);
-    }
-  };
-
-  const fetchUserProfile = async () => {
-    if (!auth?.token) {
-      handleUnauthorized();
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      const response = await axios.get(`${API_BASE_URL}/api/users/getuserone`, {
-        headers: {
-          Authorization: `Bearer ${auth.token}`,
-          'Content-Type': 'application/json',
+    if (data.success && data.data) {
+      setTransactions(data.data);
+      setTransactionStats({
+        totalTransactions: data.data.length,
+        totalCredit: {
+          success: data.data
+            .filter(
+              (t: Transaction) =>
+                t.category === 'credit' && t.status === 'success'
+            )
+            .reduce((sum: number, t: Transaction) => sum + t.amount, 0),
+          pending: data.data
+            .filter(
+              (t: Transaction) =>
+                t.category === 'credit' && t.status === 'pending'
+            )
+            .reduce((sum: number, t: Transaction) => sum + t.amount, 0),
+        },
+        totalDebit: {
+          success: data.data
+            .filter(
+              (t: Transaction) =>
+                t.category === 'debit' && t.status === 'success'
+            )
+            .reduce((sum: number, t: Transaction) => sum + t.amount, 0),
+          pending: data.data
+            .filter(
+              (t: Transaction) =>
+                t.category === 'debit' && t.status === 'pending'
+            )
+            .reduce((sum: number, t: Transaction) => sum + t.amount, 0),
         },
       });
-
-      console.log('Full API Response:', response.data); // Debug log
-
-      // Based on your API response structure, the user data is directly in response.data.user
-      // And the wallet is a separate property within that user object
-      const userData = response.data.user;
-
-      console.log('User data:', userData); // Debug log
-      console.log('Wallet data:', userData?.wallet); // Debug log
-
-      setProfile(userData);
-      await fetchTransactions();
-    } catch (error) {
-      if (axios.isAxiosError(error)) {
-        if (error.response?.status === 401) {
-          handleUnauthorized();
-          return;
-        }
-      }
-      console.error('Error fetching user profile:', error);
-      setError('Failed to load user profile. Please try again.');
-      setIsLoading(false);
     }
-  };
 
+    setIsLoading(false);
+  } catch (err: unknown) {
+
+    if (axios.isAxiosError(err) && err.response?.status === 401) {
+      handleUnauthorized();
+      return;
+    }
+    
+    console.error('Error fetching transactions:', err);
+    setError('Failed to load transactions. Please try again.');
+    setIsLoading(false);
+  }
+};
+
+ const fetchUserProfile = async (): Promise<void> => {
+  if (!auth?.token) {
+    handleUnauthorized();
+    return;
+  }
+
+  try {
+    setIsLoading(true);
+    
+    // 1. Fetch data from decoupled service
+    const response = await getUserDetails();
+
+    // 2. Fix the error by checking if response and response.user exist
+    if (response && response.user) {
+      // Cast it to Profile if you're sure the shapes match, 
+      // or map the fields manually if they differ.
+      setProfile(response.user as unknown as Profile);
+      
+      console.log('User data loaded:', response.user);
+    } else {
+      // If the API succeeded but returned no user, set to null
+      setProfile(null);
+    }
+
+    await fetchTransactions();
+  } catch (error: unknown) {
+    // ... your existing error handling
+    console.error('Error fetching user profile:', error);
+    setError('Failed to load user profile.');
+  } finally {
+    setIsLoading(false);
+  }
+};
   useEffect(() => {
     if (!auth?.token) {
       handleUnauthorized();
@@ -405,7 +359,7 @@ const ParentDashboard: React.FC = () => {
 
   return (
     <div className="bg-gray-50 min-h-screen">
-      <Header profilePath="/psettings" />
+      <Header PsettingsPage="/psettings" />
 
       <div className="container mx-auto px-4 py-6">
         <div className="flex flex-col min-h-screen">
@@ -544,56 +498,48 @@ const ParentDashboard: React.FC = () => {
                 </div>
 
                 <div className="bg-white rounded-xl shadow-md p-5 flex flex-col">
-                  <h3 className="text-lg font-medium text-gray-800 mb-4">Spending Categories</h3>
+                  <h3 className="text-lg font-medium text-gray-800 mb-4">
+                    Spending Categories
+                  </h3>
                   <div className="flex-grow flex items-center justify-center h-64 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
-                        <Tooltip cursor={{ fill: 'transparent' }} />
+                        <Tooltip
+                          formatter={(value: number, name: string) => {
+                            // Cast to number to resolve the "left-hand side" arithmetic error
+                            const numericValue = Number(value);
+
+                            const total = spendingCategories.reduce((acc, item) => acc + item.value, 0);
+
+                          
+                            const percentage = total > 0 ? ((numericValue / total) * 100).toFixed(1) : '0';
+
+                            return [`₦${numericValue.toLocaleString()} (${percentage}%)`, name];
+                          }}
+                          contentStyle={{
+                            borderRadius: '10px',
+                            border: 'none',
+                            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
+                          }}
+                        />
                         <Pie
                           data={spendingCategories}
                           dataKey="value"
                           nameKey="name"
                           cx="50%"
                           cy="50%"
-                          innerRadius={0}
-                          outerRadius={100} // Made it slightly larger to fit text better
+                          innerRadius={0} // Full pie circle
+                          outerRadius={80}
+                          paddingAngle={0}
                           stroke="#fff"
                           strokeWidth={2}
-                          onMouseEnter={(_, index) => setHoveredIndex(index)}
-                          onMouseLeave={() => setHoveredIndex(null)}
-                          labelLine={false} // Hides the lines pointing to labels
-                          label={(props) => {
-                            const { cx, cy, midAngle, innerRadius, outerRadius, value, index } = props;
-
-                            // Show ONLY if this specific slice is hovered
-                            if (index !== hoveredIndex) return null;
-
-                            // Calculate position inside the slice
-                            const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-                            const RADIAN = Math.PI / 180;
-                            const x = cx + radius * Math.cos(-midAngle * RADIAN);
-                            const y = cy + radius * Math.sin(-midAngle * RADIAN);
-
-                            // Calculate percentage
-                            const total = spendingCategories.reduce((acc, item) => acc + item.value, 0);
-                            const percent = ((value / total) * 100).toFixed(0);
-
-                            return (
-                              <text
-                                x={x}
-                                y={y}
-                                fill="white"
-                                textAnchor="middle"
-                                dominantBaseline="central"
-                                className="font-bold text-xs pointer-events-none"
-                              >
-                                {`${percent}%`}
-                              </text>
-                            );
-                          }}
                         >
                           {spendingCategories.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} className="outline-none" />
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={entry.color}
+                              className="outline-none"
+                            />
                           ))}
                         </Pie>
                       </PieChart>

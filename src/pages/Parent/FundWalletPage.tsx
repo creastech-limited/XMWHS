@@ -397,14 +397,14 @@ const calculateCharge = (transactionAmount: number | string, charge: Charge): nu
       localStorage.removeItem('paymentReference');
       verifyTransaction(reference);
     }
-  }, [authToken]);
+  },);
   
   // Fetch transactions
   useEffect(() => {
     if (authToken && userId) {
       fetchTransactions();
     }
-  }, [authToken, userId]);
+  },);
 
   if (isLoading) {
     return (
@@ -441,7 +441,7 @@ const calculateCharge = (transactionAmount: number | string, charge: Charge): nu
   return (
    <div className="min-h-screen bg-gray-50">
          <div className="min-h-screen bg-gray-50 flex flex-col">
-           <Header profilePath="/psettings"/>
+           <Header PsettingsPage="/psettings"/>
            
            <div className="z-[100] flex flex-grow gap-6">
              <Psidebar />

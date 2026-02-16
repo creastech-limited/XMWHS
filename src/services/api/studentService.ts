@@ -6,7 +6,10 @@ import type {
   PinResponse,
   StudentDetails, StudentProfileFormData,
   SchoolFee,
+  Kid,
+  ApiKid,
 } from '../../types/student';
+import type { Charge } from '../../types';
 // Get students by school ID
 export const getStudentsBySchoolId = async (schoolId: string): Promise<StudentsResponse> => {
   const response = await apiClient.get<StudentsResponse>(`/api/users/getstudentbyid?id=${encodeURIComponent(schoolId)}`);
@@ -147,5 +150,57 @@ export const getFeesByStudentId = async (studentId: string): Promise<SchoolFee[]
   }
   
   return [];
+};
+
+// Get my children (for parents)
+export const getMyChildren = async () => {
+  const response = await apiClient.get('/api/users/getmychildren');
+  return response.data;
+};
+
+// Pay school fee
+export const paySchoolFee = async (payload: {
+  studentEmail: string;
+  amount: number;
+  feeId: string;
+  pin: string;
+}): Promise<{ message: string }> => {
+  const response = await apiClient.post<{ message: string }>(
+    '/api/fee/pay',
+    payload
+  );
+  return response.data;
+};
+
+// Get all students (for admin dashboard)
+
+export const getAllStudents = async (): Promise<Kid[]> => {
+  const response = await apiClient.get<{ data: ApiKid[] }>('/api/users/getallsudent');
+  
+  // Transform the data right here in the service
+  return response.data.data.map((kid) => ({
+    id: kid.student_id,
+    student_id: kid.student_id,
+    name: kid.fullName || kid.name || `${kid.firstName ?? ''} ${kid.lastName ?? ''}`.trim() || "Unknown",
+    email: kid.email,
+    isBeneficiary: false,
+    avatar: (kid.fullName ?? kid.firstName ?? kid.name ?? 'K').charAt(0).toUpperCase()
+  }));
+
+};
+
+// Get transfer charge
+
+export const getTransferCharge = async (): Promise<number> => {
+  const response = await apiClient.get<Charge[]>('/api/charge/getallcharges');
+  
+  if (Array.isArray(response.data)) {
+    const transferCharge = response.data.find(
+      (charge) => charge.name.toLowerCase().includes('transfer') && charge.status === 'Active'
+    );
+    return transferCharge ? transferCharge.amount : 0;
+  }
+  
+  return 0;
 };
 
