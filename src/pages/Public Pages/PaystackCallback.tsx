@@ -32,33 +32,37 @@ const PaystackCallback: React.FC = () => {
         return;
       }
 
-    setVerificationStatus('verifying');
-    console.log('Verifying transaction with reference:', reference);
-    
-    // Changed to GET request to match FundWalletPage
-    const response = await axios.post(
-      `${API_BASE_URL}/api/transaction/verifynomba/${reference}`,
-      {},
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
+      setVerificationStatus('verifying');
+      console.log('Verifying transaction with reference:', reference);
+      
+      const response = await axios.post(
+        `${API_BASE_URL}/api/transaction/verifynomba/${reference}`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
         }
-      }
-    );
+      );
 
       console.log('Verification response:', response.data);
 
       const data = response.data;
 
-      // Check if transaction is successful
-      const isSuccessful = (response.status >= 200 && response.status < 300) && 
-                          (data.status === 'success' || 
-                           data.success === true ||
-                           (data.message && data.message.includes('Payment verified')));
+      // Updated success condition to match your API response structure
+      const isSuccessful = (
+        response.status >= 200 && 
+        response.status < 300 && 
+        data.status === true &&
+        (data.message === 'Transaction verified and wallet credited' ||
+         data.transaction?.status === 'success')
+      );
 
       if (isSuccessful) {
         setVerificationStatus('success');
+        // Clear any stored reference after successful verification
+        localStorage.removeItem('paymentReference');
       } else {
         setVerificationStatus('failed');
         setErrorMessage(data.message || 'Verification failed');
@@ -77,8 +81,7 @@ const PaystackCallback: React.FC = () => {
         setErrorMessage(error instanceof Error ? error.message : 'An unexpected error occurred');
       }
     }
-  }, [searchParams]);
-
+  }, [navigate]);
 
   const handleProceedToDashboard = (): void => {
     navigate('/parent');
@@ -102,13 +105,12 @@ const PaystackCallback: React.FC = () => {
       
       if (storedReference) {
         verifyTransaction(storedReference);
-        localStorage.removeItem('paymentReference');
       } else {
         setVerificationStatus('failed');
         setErrorMessage('No payment reference found');
       }
     }
-  }, [searchParams]);
+  }, [getReference, verifyTransaction]);
 
   // PENDING/VERIFYING STATE
   if (verificationStatus === 'verifying') {
@@ -146,33 +148,33 @@ const PaystackCallback: React.FC = () => {
       <div className="min-h-screen bg-green-50 flex items-center justify-center px-4">
         <div className="max-w-md w-full">
           <div className="bg-white shadow-lg rounded-lg overflow-hidden">
-            <div className="bg-blue-600 py-4 px-6">
+            <div className="bg-green-600 py-4 px-6">
               <h2 className="text-white text-center text-xl font-bold">Payment Successful</h2>
             </div>
             
             <div className="p-8 text-center">
               <div className="relative mb-6">
                 <div className="absolute inset-0 bg-green-100 rounded-full opacity-75 animate-ping"></div>
-                <div className="relative flex items-center justify-center h-20 w-20 bg-blue-100 rounded-full mx-auto">
-                  <CheckCircle className="h-12 w-12 text-blue-600" />
+                <div className="relative flex items-center justify-center h-20 w-20 bg-green-100 rounded-full mx-auto">
+                  <CheckCircle className="h-12 w-12 text-green-600" />
                 </div>
               </div>
               
-              <h3 className="text-2xl font-bold text-blue-600 mb-3">Payment Confirmed!</h3>
+              <h3 className="text-2xl font-bold text-green-600 mb-3">Payment Confirmed!</h3>
               <p className="text-gray-700 mb-6">
-                Your transaction has been successfully verified and processed.
+                Your transaction has been successfully verified and your wallet has been credited.
               </p>
               
               <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
                 <div className="flex items-center justify-center">
-                  <CheckCircle className="h-5 w-5 text-blue-600 mr-2" />
-                  <span className="text-blue-800 font-medium">Transaction Complete</span>
+                  <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
+                  <span className="text-green-800 font-medium">Transaction Complete</span>
                 </div>
               </div>
 
               <button
                 onClick={handleProceedToDashboard}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 shadow-lg"
+                className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 shadow-lg"
               >
                 Proceed to Dashboard
               </button>
