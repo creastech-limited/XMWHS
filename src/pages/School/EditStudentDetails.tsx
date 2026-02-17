@@ -12,6 +12,7 @@ import { getStudentById, updateStudentProfile } from '../../services';
 
 // Import types
 import type { StudentDetails, StudentProfileFormData } from '../../types/student';
+import type { User } from '../../types/user';
 
 const EditStudentDetails = () => {
   const auth = useAuth();
@@ -165,13 +166,24 @@ const EditStudentDetails = () => {
         
         // Update auth context if editing current user
         if (auth?.user?._id === _id) {
-          const userWithRole = { 
-            ...(result.data || { ...user, ...trimmedProfile }), 
-            _id: _id,
-            role: user?.role ?? 'student'
-          };
-          auth?.login?.(userWithRole, token);
-        }
+            const updatedUserData = result.data || { ...user, ...trimmedProfile };
+  
+           const userWithRole: User = {
+    ...auth.user,
+    _id: _id,
+    name: updatedUserData.name || '',
+    email: updatedUserData.email || '',
+    role: user?.role ?? 'student',
+    status: user?.status || 'Active',
+    createdAt: user?.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    firstName: user?.firstName,
+    lastName: user?.lastName,
+    phone: updatedUserData.phone,
+  };
+  
+  auth?.login?.(userWithRole, token);
+}
         
         alert('Profile updated successfully!');
       }
@@ -212,7 +224,7 @@ const EditStudentDetails = () => {
   if (fetchLoading) {
     return (
       <div className="overflow-hidden flex flex-col min-h-screen bg-gray-50">
-        <Header profilePath="/settings"/>
+    <Header PsettingsPage="/settings" />
         <div className="flex flex-grow">
           <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-64 bg-none">
             <Sidebar />
@@ -233,7 +245,7 @@ const EditStudentDetails = () => {
   if (error && !user) {
     return (
       <div className="flex flex-col min-h-screen bg-gray-50">
-        <Header profilePath="/settings"/>
+        <Header PsettingsPage="/settings" />
         <div className="flex flex-grow">
           <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-64 bg-none">
             <Sidebar />
@@ -269,7 +281,7 @@ const EditStudentDetails = () => {
 
   return (
     <div className="overflow-hidden flex flex-col min-h-screen bg-gray-50">
-      <Header profilePath="/settings"/>
+      <Header PsettingsPage="/settings" />
       <div className="flex flex-grow">
         <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-64 bg-none">
           <Sidebar />

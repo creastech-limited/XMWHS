@@ -19,11 +19,9 @@ import { getStudentById, getFeesForStudent } from '../../services';
 import type { Student, SchoolFee, Bill, TransactionSummary } from '../../types/student';
 import type { SnackbarState } from '../../types';
 
-
-
 const ViewStudentTransactions: React.FC = () => {
   const { _id: studentIdFromUrl } = useParams();
-  const [student, setStudent] = useState<Student | null>(null);
+  const [student, setStudent] = useState<(Student & { fullName?: string }) | null>(null);
   const [bills, setBills] = useState<Bill[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [loadingFees, setLoadingFees] = useState<boolean>(false);
@@ -85,6 +83,7 @@ const ViewStudentTransactions: React.FC = () => {
       term: fee.term || 'N/A',
       session: fee.session || 'N/A',
       transactionId: fee.transactionId || 'N/A',
+      remainingAmount: (fee.amount || 0) - (fee.amountPaid || 0), // Add missing field
     }));
   }, []);
 
@@ -129,60 +128,72 @@ const ViewStudentTransactions: React.FC = () => {
   );
 
   // Initialize data - Only run once when component mounts
-  useEffect(() => {
-    const initializeData = async () => {
-      try {
-        setLoading(true);
-        console.log('Starting data initialization...');
+ useEffect(() => {
+  const initializeData = async () => {
+    try {
+      setLoading(true);
+      console.log('Starting data initialization...');
 
-        const authToken = getAuthToken();
-        if (!authToken) {
-          throw new Error('No authentication token found');
-        }
-
-        // Only fetch if we have a student ID in the URL
-        if (studentIdFromUrl) {
-          // Using the getStudentById service function
-          const studentData = await getStudentById(studentIdFromUrl);
-          
-          // Process the student data for display
-          if (studentData) {
-            // Create processed student object with fullName
-            const processedStudent: Student & { fullName: string } = {
-              _id: studentData._id,
-              name: studentData.name || `${studentData.firstName || ''} ${studentData.lastName || ''}`.trim(),
-              firstName: studentData.firstName || '',
-              lastName: studentData.lastName || '',
-              fullName: studentData.name || `${studentData.firstName || ''} ${studentData.lastName || ''}`.trim(),
-              email: studentData.email || '',
-              academicDetails: studentData.academicDetails || { classAdmittedTo: '' },
-              classAdmittedTo: studentData.academicDetails?.classAdmittedTo || studentData.class || '',
-              status: studentData.status || '',
-              createdAt: studentData.createdAt || '',
-            };
-            
-            setStudent(processedStudent);
-            await loadStudentFees(processedStudent);
-          } else {
-            showSnackbar('Student not found', 'error');
-          }
-        } else {
-          showSnackbar('No student ID provided', 'error');
-        }
-      } catch (error) {
-        console.error('Data initialization error:', error);
-        showSnackbar('Failed to load data. Please login again.', 'error');
-      } finally {
-        setLoading(false);
+      const authToken = getAuthToken();
+      if (!authToken) {
+        throw new Error('No authentication token found');
       }
-    };
 
-    // Only initialize if we haven't already loaded the student
-    if (!student && studentIdFromUrl) {
-      initializeData();
+      // Only fetch if we have a student ID in the URL
+      if (studentIdFromUrl) {
+        // Using the getStudentById service function
+        const studentData = await getStudentById(studentIdFromUrl);
+        
+        // Process the student data for display
+        if (studentData) {
+          // Create processed student object with only available fields
+          const processedStudent: Student & { fullName: string } = {
+            _id: studentData._id,
+            name: studentData.name || `${studentData.firstName || ''} ${studentData.lastName || ''}`.trim(),
+            firstName: studentData.firstName || '',
+            lastName: studentData.lastName || '',
+            fullName: studentData.name || `${studentData.firstName || ''} ${studentData.lastName || ''}`.trim(),
+            email: studentData.email || '',
+            phone: studentData.phone || '',
+            status: (studentData.status as 'Active' | 'Inactive' | 'Pending') || 'Pending',
+            // Required Student fields with sensible defaults
+            student_id: studentData._id, // Use _id as student_id
+            schoolId: '', // Not available in StudentDetails
+            Class: studentData.class || '', // Use class field
+            classAdmittedTo: studentData.academicDetails?.classAdmittedTo || studentData.class || '',
+            academicDetails: studentData.academicDetails || { classAdmittedTo: '' },
+            createdAt: studentData.createdAt || '',
+            updatedAt: '', // Not available
+            registrationDate: '', // Not available
+            isPinSet: false, // Not available
+            isFirstLogin: false, // Not available
+            studentCanTopup: false, // Not available
+            studentCanTransfer: false, // Not available
+            studentCanWithdraw: false, // Not available
+            studentCanPayBill: false, // Not available
+          };
+          
+          setStudent(processedStudent);
+          await loadStudentFees(processedStudent);
+        } else {
+          showSnackbar('Student not found', 'error');
+        }
+      } else {
+        showSnackbar('No student ID provided', 'error');
+      }
+    } catch (error) {
+      console.error('Data initialization error:', error);
+      showSnackbar('Failed to load data. Please login again.', 'error');
+    } finally {
+      setLoading(false);
     }
-  }, [studentIdFromUrl]); // Only depend on studentIdFromUrl
+  };
 
+  // Only initialize if we haven't already loaded the student
+  if (!student && studentIdFromUrl) {
+    initializeData();
+  }
+}, [studentIdFromUrl, getAuthToken, loadStudentFees, showSnackbar, student]);
   // Calculate summary
   const calculateSummary = (): TransactionSummary => {
     const total = bills.reduce((sum, bill) => sum + bill.amount, 0);
@@ -212,7 +223,7 @@ const ViewStudentTransactions: React.FC = () => {
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="min-h-screen bg-gray-50 flex flex-col">
-          <Header profilePath="/settings"/>
+          <Header PsettingsPage="/settings" />
 
           <div className="flex flex-grow overflow-hidden">
             <Sidebar />
@@ -237,7 +248,7 @@ const ViewStudentTransactions: React.FC = () => {
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
-      <Header profilePath="/settings"/>
+      <Header PsettingsPage="/settings" />
       <div className="flex flex-grow">
         <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-64 bg-none">
           <Sidebar />
@@ -279,7 +290,7 @@ const ViewStudentTransactions: React.FC = () => {
                       )}
                       {student.status && (
                         <p className="text-xs text-indigo-400 mt-1">
-                          Status: <span className="capitalize">{student.status}</span>
+                          Status: <span className="capitalize">{student.status.toLowerCase()}</span>
                         </p>
                       )}
                     </div>
@@ -390,13 +401,9 @@ const ViewStudentTransactions: React.FC = () => {
                             </p>
                           </div>
                           <div>
-                            <p className="text-sm text-gray-500">Status</p>
-                            <p className="text-lg font-semibold">
-                              {bill.status === 'paid' ? (
-                                <span className="text-green-600">Paid</span>
-                              ) : (
-                                <span className="text-red-600">Unpaid</span>
-                              )}
+                            <p className="text-sm text-gray-500">Remaining</p>
+                            <p className="text-lg font-semibold text-orange-600">
+                              ₦{bill.remainingAmount.toLocaleString()}
                             </p>
                           </div>
                         </div>

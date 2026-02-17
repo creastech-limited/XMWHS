@@ -16,13 +16,6 @@ import {
 import type { Transaction, TransactionStats, User, UserData } from '../../types';
 import { getUserDetails, getUserTransactions, getUserWallet } from '../../services';
 
-
-
-
-
-
-
-
 const TransactionHistoryPage: React.FC = () => {
   const [userData, setUserData] = useState<UserData>({
     username: "User",

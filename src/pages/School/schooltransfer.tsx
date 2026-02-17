@@ -3,7 +3,7 @@ import {
   Search,
   Send,
   ArrowLeft,
-  User,
+   User as UserIcon,
   AlertCircle,
   Check,
   X,
@@ -16,26 +16,7 @@ import { Sidebar as Asidebar } from '../../components/Sidebar';
 import Footer from '../../components/Footer';
 import { useAuth } from '../../context/AuthContext';
 import { getAllCharges, getAllSchoolUsers, getUserDetails, transferFunds } from '../../services';
-import type { Charge, SchoolUser } from '../../types';
-
-
-interface User {
-  _id: string;
-  firstName: string;
-  lastName: string;
-  name: string;
-  email: string;
-  balance: number;
-  schoolCanTransfer: boolean;
-  role: string;
-  schoolId?: string;
-  schoolName?: string;
-  wallet?: {
-    balance?: number | string;
-  };
-  [key: string]: unknown;
-}
-
+import type { Charge, SchoolUser, User } from '../../types';
 
 const SchoolTransferPage: React.FC = () => {
   const { user: authUser, token, login } = useAuth();
@@ -62,161 +43,194 @@ const SchoolTransferPage: React.FC = () => {
   const hasPermission = user?.role === 'school' && user?.schoolCanTransfer === true;
 
   // Fetch transaction charges
-// Fetch transaction charges
-const fetchTransactionCharges = useCallback(async () => {
-  if (!token) return;
+  const fetchTransactionCharges = useCallback(async () => {
+    if (!token) return;
 
-  try {
-    const data = await getAllCharges();
-    
-    if (data && Array.isArray(data)) {
-      const transferCharge = data.find((charge: Charge) =>
-        charge.name.toLowerCase().includes('transfer') && charge.status === 'Active'
-      );
+    try {
+      const data = await getAllCharges();
+      
+      if (data && Array.isArray(data)) {
+        const transferCharge = data.find((charge: Charge) =>
+          charge.name.toLowerCase().includes('transfer') && charge.status === 'Active'
+        );
 
-      if (transferCharge) {
-        setTransactionFee(transferCharge.amount);
+        if (transferCharge) {
+          setTransactionFee(transferCharge.amount);
+        }
       }
+    } catch (error: unknown) {
+      console.error('Error fetching transaction charges:', error);
+      setTransactionFee(0);
     }
-  } catch (error: unknown) {
-    console.error('Error fetching transaction charges:', error);
-    setTransactionFee(0);
-  }
-}, [token]);
+  }, [token]);
 
   // Fetch user details from API
   const fetchUserDetails = useCallback(
-  async (authToken: string): Promise<User | null> => {
-    try {
-      const data = await getUserDetails();
-      console.log('User API Response:', data);
+    async (authToken: string): Promise<User | null> => {
+      try {
+        const data = await getUserDetails();
+        console.log('User API Response:', data);
 
-      // Extract user data from different possible response structures
-      let userData: Partial<User> | null = null;
-      let balance = 0;
+        // Extract user data from response structure
+        let userData: Partial<User> | null = null;
+        let walletBalance = 0;
 
-      if (data.user?.data) {
-        userData = data.user.data;
-      } else if (data.data) {
-        userData = data.data;
-      } else if (data.user) {
-        userData = data.user;
-      } else {
-        userData = data;
+        // The response has user.data containing the actual user
+        if (data.user?.data) {
+          userData = data.user.data;
+          
+          // Get wallet balance from the wallet object
+          if (data.user?.wallet?.balance !== undefined) {
+            walletBalance = data.user.wallet.balance;
+          }
+        } else if (data.data) {
+          userData = data.data;
+        } else if (data.user) {
+          userData = data.user;
+        } else {
+          userData = data;
+        }
+
+        if (!userData) {
+          throw new Error('User data is missing in response');
+        }
+        
+        // Create user object that matches the imported User type
+        const userProfile: User = {
+          // Core required fields (all present in API)
+          _id: userData._id ?? '',
+          name: userData.name ?? 
+                (userData.firstName && userData.lastName 
+                  ? `${userData.firstName} ${userData.lastName}`.trim() 
+                  : (userData.firstName ?? userData.lastName ?? 'User')),
+          email: userData.email ?? '',
+          role: userData.role ?? '',
+          status: userData.status || 'Active',
+          createdAt: userData.createdAt || new Date().toISOString(),
+          updatedAt: userData.updatedAt || new Date().toISOString(),
+          
+          // Personal info - ensure these are strings, not undefined
+          firstName: userData.firstName ?? '',
+          lastName: userData.lastName ?? '',
+          phone: userData.phone,
+          
+          // School info
+          schoolId: userData.schoolId,
+          schoolName: userData.schoolName,
+          schoolType: userData.schoolType,
+          schoolAddress: userData.schoolAddress,
+          ownership: userData.ownership,
+          schoolCanTransfer: userData.schoolCanTransfer === true,
+          
+          // Wallet & balance
+          balance: walletBalance,
+          wallet: {
+            balance: walletBalance,
+            // Remove currency and walletId as they're not in the User type's wallet interface
+          },
+          accountNumber: userData.accountNumber,
+          
+          // Other fields
+          isPinSet: userData.isPinSet,
+          profilePicture: userData.profilePicture,
+          qrcode: userData.qrcode,
+          
+          // Permission flags
+          agentCanTopup: userData.agentCanTopup,
+          agentCanTransfer: userData.agentCanTransfer,
+          agentCanWithdraw: userData.agentCanWithdraw,
+          schoolCanTopup: userData.schoolCanTopup,
+          storeCanTopup: userData.storeCanTopup,
+          storeCanTransfer: userData.storeCanTransfer,
+          storeCanWithdraw: userData.storeCanWithdraw,
+          studentCanTopup: userData.studentCanTopup,
+          studentCanTransfer: userData.studentCanTransfer,
+          studentCanWithdraw: userData.studentCanWithdraw,
+          studentCanPayBill: userData.studentCanPayBill,
+          
+          // Bank details
+          bankDetails: userData.bankDetails
+        };
+
+        console.log('Processed user profile:', userProfile);
+
+        // Update user state
+        setUser(userProfile);
+
+        // Update auth context if login function is available
+        if (login) {
+          login(userProfile, authToken);
+        }
+
+        return userProfile;
+      } catch (error) {
+        console.error('Error fetching user details:', error);
+        setSnackbarMessage('Failed to load user details. Please try again.');
+        setSnackbarSeverity('error');
+        setShowSnackbar(true);
+        return null;
       }
-
-      // Extract balance from different possible locations
-      if (data.user?.wallet?.balance !== undefined) {
-        balance = data.user.wallet.balance;
-      } else if (data.wallet?.balance !== undefined) {
-        balance = data.wallet.balance;
-      } else if (userData?.wallet?.balance !== undefined) {
-        balance = typeof userData.wallet.balance === 'string' ? parseFloat(userData.wallet.balance) || 0 : userData.wallet.balance;
-      } else if (userData?.balance !== undefined) {
-        balance = userData.balance;
-      }
-
-      // Convert balance to number if it's a string
-      if (typeof balance === 'string') {
-        balance = parseFloat(balance) || 0;
-      }
-
-      // Create the user object with all required properties
-      if (!userData) {
-        throw new Error('User data is missing in response');
-      }
-      
-      const userProfile: User = {
-        _id: userData._id ?? '',
-        firstName: userData.firstName ?? '',
-        lastName: userData.lastName ?? '',
-        name: userData?.name ?? `${userData?.firstName ?? ''} ${userData?.lastName ?? ''}`,
-        email: userData.email ?? '',
-        balance: balance,
-        schoolCanTransfer: userData.schoolCanTransfer === true,
-        role: userData.role ?? '',
-        schoolId: userData.schoolId,
-        schoolName: userData.schoolName
-      };
-
-      console.log('Processed user profile:', userProfile);
-
-      // Update user state
-      setUser(userProfile);
-
-      // Update auth context if login function is available
-      if (login) {
-        login(userProfile, authToken);
-      }
-
-      return userProfile;
-    } catch (error) {
-      console.error('Error fetching user details:', error);
-      setSnackbarMessage('Failed to load user details. Please try again.');
-      setSnackbarSeverity('error');
-      setShowSnackbar(true);
-      return null;
-    }
-  },
-  [login]
-);
-  // Fetch school users
-const fetchSchoolUsers = useCallback(async () => {
-  if (!token || !hasPermission) return;
-
-  try {
-    setFetchingUsers(true);
-    const data = await getAllSchoolUsers();
-
-    console.log('School users response:', data);
-
-    let users: SchoolUser[] = [];
-    if (data.users) {
-      users = data.users;
-    } else if (data.data) {
-      users = data.data;
-    } else if (Array.isArray(data)) {
-      users = data;
-    }
-
-    const filteredUsers = users.filter(u => u._id !== user?._id);
-
-    setSchoolUsers(filteredUsers);
-    setFilteredUsers(filteredUsers);
-  } catch (error: unknown) {
-    console.error('Error fetching school users:', error);
-    
-    let errorMessage = 'Failed to load school users. Please try again.';
-    if (error instanceof Error) {
-      errorMessage = error.message;
-    } else if (typeof error === 'object' && error !== null && 'response' in error) {
-      const err = error as { response?: { data?: { message?: string } } };
-      errorMessage = err.response?.data?.message || errorMessage;
-    }
-    
-    setSnackbarMessage(errorMessage);
-    setSnackbarSeverity('error');
-    setShowSnackbar(true);
-  } finally {
-    setFetchingUsers(false);
-  }
-}, [token, hasPermission, user?._id]);
-
-// Filter users based on search term
-useEffect(() => {
-  if (!searchTerm.trim()) {
-    setFilteredUsers(schoolUsers);
-    return;
-  }
-
-  const filtered = schoolUsers.filter(user =>
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.role.toLowerCase().includes(searchTerm.toLowerCase())
+    },
+    [login]
   );
 
-  setFilteredUsers(filtered);
-}, [searchTerm, schoolUsers]);
+  // Fetch school users
+  const fetchSchoolUsers = useCallback(async () => {
+    if (!token || !hasPermission) return;
+
+    try {
+      setFetchingUsers(true);
+      const data = await getAllSchoolUsers();
+
+      console.log('School users response:', data);
+
+      let users: SchoolUser[] = [];
+      if (data.users) {
+        users = data.users;
+      } else if (data.data) {
+        users = data.data;
+      } else if (Array.isArray(data)) {
+        users = data;
+      }
+
+      const filteredUsers = users.filter(u => u._id !== user?._id);
+
+      setSchoolUsers(filteredUsers);
+      setFilteredUsers(filteredUsers);
+    } catch (error: unknown) {
+      console.error('Error fetching school users:', error);
+      
+      let errorMessage = 'Failed to load school users. Please try again.';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'object' && error !== null && 'response' in error) {
+        const err = error as { response?: { data?: { message?: string } } };
+        errorMessage = err.response?.data?.message || errorMessage;
+      }
+      
+      setSnackbarMessage(errorMessage);
+      setSnackbarSeverity('error');
+      setShowSnackbar(true);
+    } finally {
+      setFetchingUsers(false);
+    }
+  }, [token, hasPermission, user?._id]);
+
+  // Filter users based on search term
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setFilteredUsers(schoolUsers);
+      return;
+    }
+
+    const filtered = schoolUsers.filter(user =>
+      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.role.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    setFilteredUsers(filtered);
+  }, [searchTerm, schoolUsers]);
 
   // Load user details and school users on component mount
   useEffect(() => {
@@ -233,22 +247,8 @@ useEffect(() => {
 
         // First check if we already have user data in auth context
         if (authUser && typeof authUser === 'object') {
-          // Try to extract the required properties from authUser
-          const authUserData = authUser as unknown as User;
-          const userProfile: User = {
-            _id: authUserData._id,
-            firstName: authUserData.firstName,
-            lastName: authUserData.lastName,
-            name: authUserData.name || `${authUserData.firstName} ${authUserData.lastName}`,
-            email: authUserData.email,
-            balance: typeof authUserData.balance === 'number' ? authUserData.balance : 0,
-            schoolCanTransfer: authUserData.schoolCanTransfer === true,
-            role: authUserData.role,
-            schoolId: authUserData.schoolId,
-            schoolName: authUserData.schoolName
-          };
-
-          setUser(userProfile);
+          // Use the user from auth context directly
+          setUser(authUser as User);
         } else {
           // Fetch user details from API if not available in auth context
           await fetchUserDetails(token);
@@ -276,68 +276,69 @@ useEffect(() => {
     }
   }, [hasPermission, fetchSchoolUsers, fetchingUserDetails]);
 
- // Handle transfer submission
-const handleSubmitTransfer = async () => {
-  if (!selectedUser || !pin) return;
+  // Handle transfer submission
+  const handleSubmitTransfer = async () => {
+    if (!selectedUser || !pin) return;
 
-  setTransferLoading(true);
+    setTransferLoading(true);
 
-  try {
-    const data = await transferFunds({
-      receiverEmail: selectedUser.email,
-      amount: Number(amount),
-      pin: pin
-    });
+    try {
+      const data = await transferFunds({
+        receiverEmail: selectedUser.email,
+        amount: Number(amount),
+        pin: pin
+      });
 
-    if (data.message === "Transfer successful") {
-      setSnackbarMessage(`₦${Number(amount).toLocaleString()} successfully transferred to ${selectedUser.email}!`);
-      setSnackbarSeverity('success');
-      setShowSnackbar(true);
+      if (data.message === "Transfer successful") {
+        setSnackbarMessage(`₦${Number(amount).toLocaleString()} successfully transferred to ${selectedUser.email}!`);
+        setSnackbarSeverity('success');
+        setShowSnackbar(true);
 
-      // Clear form
-      setSelectedUser(null);
-      setAmount('');
-      setNote('');
-      setPin('');
-    } else {
-      throw new Error(data.message || 'Transfer failed');
-    }
-  } catch (error: unknown) {
-    console.error('Transfer error:', error);
-    
-    let errorMessage = 'Transfer failed. Please try again.';
-    let message = '';
-    
-    if (error instanceof Error) {
-      message = error.message?.toLowerCase() || '';
-    } else if (typeof error === 'object' && error !== null && 'response' in error) {
-      const err = error as { response?: { data?: { message?: string } } };
-      message = err.response?.data?.message?.toLowerCase() || '';
-    }
-
-    if (message.includes('pin')) {
-      errorMessage = 'Invalid PIN. Please check your PIN and try again.';
-    } else if (message.includes('balance') || message.includes('insufficient')) {
-      errorMessage = 'Insufficient balance. Please fund your wallet first.';
-    } else if (message.includes('user') || message.includes('recipient')) {
-      errorMessage = 'Recipient not found. Please verify the recipient details.';
-    } else if (typeof error === 'object' && error !== null && 'response' in error) {
-      const err = error as { response?: { data?: { message?: string } } };
-      if (err.response?.data?.message) {
-        errorMessage = err.response.data.message;
+        // Clear form
+        setSelectedUser(null);
+        setAmount('');
+        setNote('');
+        setPin('');
+      } else {
+        throw new Error(data.message || 'Transfer failed');
       }
-    } else if (error instanceof Error && error.message) {
-      errorMessage = error.message;
-    }
+    } catch (error: unknown) {
+      console.error('Transfer error:', error);
+      
+      let errorMessage = 'Transfer failed. Please try again.';
+      let message = '';
+      
+      if (error instanceof Error) {
+        message = error.message?.toLowerCase() || '';
+      } else if (typeof error === 'object' && error !== null && 'response' in error) {
+        const err = error as { response?: { data?: { message?: string } } };
+        message = err.response?.data?.message?.toLowerCase() || '';
+      }
 
-    setSnackbarMessage(errorMessage);
-    setSnackbarSeverity('error');
-    setShowSnackbar(true);
-  } finally {
-    setTransferLoading(false);
-    setPinDialogOpen(false);
-  }
-};
+      if (message.includes('pin')) {
+        errorMessage = 'Invalid PIN. Please check your PIN and try again.';
+      } else if (message.includes('balance') || message.includes('insufficient')) {
+        errorMessage = 'Insufficient balance. Please fund your wallet first.';
+      } else if (message.includes('user') || message.includes('recipient')) {
+        errorMessage = 'Recipient not found. Please verify the recipient details.';
+      } else if (typeof error === 'object' && error !== null && 'response' in error) {
+        const err = error as { response?: { data?: { message?: string } } };
+        if (err.response?.data?.message) {
+          errorMessage = err.response.data.message;
+        }
+      } else if (error instanceof Error && error.message) {
+        errorMessage = error.message;
+      }
+
+      setSnackbarMessage(errorMessage);
+      setSnackbarSeverity('error');
+      setShowSnackbar(true);
+    } finally {
+      setTransferLoading(false);
+      setPinDialogOpen(false);
+    }
+  };
+
   const handleTransferClick = () => {
     if (!selectedUser || !amount || Number(amount) <= 0) return;
 
@@ -357,9 +358,9 @@ const handleSubmitTransfer = async () => {
   if (fetchingUserDetails) {
     return (
       <div className="flex flex-col min-h-screen bg-gray-50">
-        <Header profilePath="/settings" />
+        <Header PsettingsPage="/settings" />
         <div className="flex flex-grow">
-          <div className=" hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-white shadow z-10">
+          <div className="hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-white shadow z-10">
             <Asidebar />
           </div>
           <main className="flex-1 p-4 text-center">
@@ -376,9 +377,9 @@ const handleSubmitTransfer = async () => {
   if (user?.role !== 'school') {
     return (
       <div className="flex flex-col min-h-screen bg-gray-50">
-        <Header profilePath="/settings" />
+        <Header PsettingsPage="/settings" />
         <div className="flex flex-grow">
-          <div className=" hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-white shadow z-10">
+          <div className="hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-white shadow z-10">
             <Asidebar />
           </div>
           <main className="flex-1 p-4">
@@ -408,9 +409,9 @@ const handleSubmitTransfer = async () => {
   if (user?.role === 'school' && !user?.schoolCanTransfer) {
     return (
       <div className="flex flex-col min-h-screen bg-gray-50">
-        <Header profilePath="/settings" />
+        <Header PsettingsPage="/settings" />
         <div className="flex flex-grow">
-          <div className=" hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-white shadow z-10">
+          <div className="hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-white shadow z-10">
             <Asidebar />
           </div>
           <main className="flex-1 p-4">
@@ -449,9 +450,9 @@ const handleSubmitTransfer = async () => {
   // Main page rendering
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
-      <Header profilePath="/settings" />
+      <Header PsettingsPage="/settings" />
       <div className="flex flex-grow">
-        <div className=" hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-white shadow z-10">
+        <div className="hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-white shadow z-10">
           <Asidebar />
         </div>
         <main className="flex-1 p-4 md:ml-64">
@@ -465,7 +466,6 @@ const handleSubmitTransfer = async () => {
                   >
                     <ArrowLeft className="w-5 h-5" />
                   </button>
-
                 </div>
                 <div className="text-right">
                   <p className="text-sm text-gray-600">{user?.schoolName || 'School'}</p>
@@ -517,10 +517,11 @@ const handleSubmitTransfer = async () => {
                       <div
                         key={user._id}
                         onClick={() => setSelectedUser(user)}
-                        className={`p-3 rounded-lg border cursor-pointer transition-all ${selectedUser?._id === user._id
+                        className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                          selectedUser?._id === user._id
                             ? 'border-blue-500 bg-blue-50'
                             : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                          }`}
+                        }`}
                       >
                         <div className="flex items-center space-x-3">
                           <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
@@ -531,7 +532,7 @@ const handleSubmitTransfer = async () => {
                                 className="w-10 h-10 rounded-full object-cover"
                               />
                             ) : (
-                              <User className="w-5 h-5 text-gray-400" />
+                              <UserIcon  className="w-5 h-5 text-gray-400" />
                             )}
                           </div>
                           <div className="flex-1">
@@ -573,7 +574,7 @@ const handleSubmitTransfer = async () => {
                               className="w-12 h-12 rounded-full object-cover"
                             />
                           ) : (
-                            <User className="w-6 h-6 text-gray-400" />
+                            <UserIcon  className="w-6 h-6 text-gray-400" />
                           )}
                         </div>
                         <div>
@@ -644,7 +645,7 @@ const handleSubmitTransfer = async () => {
                   </div>
                 ) : (
                   <div className="text-center py-12">
-                    <User className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                    <UserIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                     <p className="text-gray-500">Select a recipient to start transfer</p>
                   </div>
                 )}
@@ -707,10 +708,11 @@ const handleSubmitTransfer = async () => {
           {/* Snackbar */}
           {showSnackbar && (
             <div className="fixed bottom-4 right-4 z-50">
-              <div className={`p-4 rounded-lg shadow-lg flex items-center space-x-3 ${snackbarSeverity === 'success'
+              <div className={`p-4 rounded-lg shadow-lg flex items-center space-x-3 ${
+                snackbarSeverity === 'success'
                   ? 'bg-green-600 text-white'
                   : 'bg-red-600 text-white'
-                }`}>
+              }`}>
                 {snackbarSeverity === 'success' ? (
                   <Check className="w-5 h-5" />
                 ) : (

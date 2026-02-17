@@ -1,39 +1,41 @@
 // student.ts
 export interface Student {
-  // Common core fields
   _id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  role?: string;
-  phone?: string;
-
-  // Aliased Names (Optional to avoid breaking different views)
-  fullName?: string; 
-  name?: string;   
-
-  // Academic Information
-  className?: string;
-  class?: string;     
-  academicDetails?: {  
+  firstName: string;        
+  lastName: string;        
+  name: string;            
+  email: string;            
+  phone: string;            
+  role?: string;            
+  status: 'Active' | 'Inactive' | 'Pending'; 
+  student_id: string;       
+  schoolId: string;         
+  Class: string;  
+  classAdmittedTo: string;           
+  academicDetails: {        
     classAdmittedTo: string;
   };
-  classAdmittedTo?: string; 
-
-  // Identifiers & Relationships
-  student_id?: string;
-  schoolId?: string;
-  parentId?: string;
-  guardian?: {
+  guardian?: {            
     fullName: string;
     relationship: string;
     email: string;
+    phone: string;
+    address?: string;
   };
-
-  // System Metadata
-  status?: string;
-  createdAt?: string;
-  updatedAt?: string;
+  registrationDate: string; 
+  createdAt: string;        
+  updatedAt: string;        
+  isPinSet: boolean;       
+  isFirstLogin: boolean;    
+  profilePicture?: string;  
+  qrcode?: string;          
+  accountNumber?: string;   
+  
+  // Permission flags 
+  studentCanTopup: boolean;
+  studentCanTransfer: boolean;
+  studentCanWithdraw: boolean;
+  studentCanPayBill: boolean;
 }
 
 export interface SchoolProfile {
@@ -189,6 +191,7 @@ export interface Kid {
 }
 
 export interface ApiKid {
+  _id: string;
   student_id: string;
   firstName?: string;
   lastName?: string;
@@ -208,14 +211,3 @@ export interface ApiTransaction {
   status: string;
 }
 
-export interface Transfer {
-  id: number;
-  _id: string;
-  kidName: string;
-  amount: number;
-  date: string;
-  note: string;
-  status: string;
-  createdAt: string;
-  recipient: string;
-}

@@ -7,7 +7,6 @@ import type {
   StudentDetails, StudentProfileFormData,
   SchoolFee,
   Kid,
-  ApiKid,
 } from '../../types/student';
 import type { Charge } from '../../types';
 // Get students by school ID
@@ -153,9 +152,15 @@ export const getFeesByStudentId = async (studentId: string): Promise<SchoolFee[]
 };
 
 // Get my children (for parents)
-export const getMyChildren = async () => {
-  const response = await apiClient.get('/api/users/getmychildren');
-  return response.data;
+export const getMyChildren = async (): Promise<{ data: Kid[] } | { data: [] }> => {
+  try {
+    const response = await apiClient.get<{ data: Kid[] }>('/api/users/getmychildren');
+    console.log('getMyChildren response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error in getMyChildren:', error);
+    return { data: [] };
+  }
 };
 
 // Pay school fee
@@ -175,18 +180,72 @@ export const paySchoolFee = async (payload: {
 // Get all students (for admin dashboard)
 
 export const getAllStudents = async (): Promise<Kid[]> => {
-  const response = await apiClient.get<{ data: ApiKid[] }>('/api/users/getallsudent');
-  
-  // Transform the data right here in the service
-  return response.data.data.map((kid) => ({
-    id: kid.student_id,
-    student_id: kid.student_id,
-    name: kid.fullName || kid.name || `${kid.firstName ?? ''} ${kid.lastName ?? ''}`.trim() || "Unknown",
-    email: kid.email,
-    isBeneficiary: false,
-    avatar: (kid.fullName ?? kid.firstName ?? kid.name ?? 'K').charAt(0).toUpperCase()
-  }));
-
+  try {
+    console.log('Fetching all students...');
+    const response = await apiClient.get('/api/users/getallsudent');
+    console.log('Raw API response:', response.data);
+    
+    // Extract the data array - handle different response structures
+    let studentsArray: Record<string, unknown>[] = [];
+    
+    if (response.data?.data && Array.isArray(response.data.data)) {
+      studentsArray = response.data.data;
+    } else if (Array.isArray(response.data)) {
+      studentsArray = response.data;
+    } else if (response.data?.students && Array.isArray(response.data.students)) {
+      studentsArray = response.data.students;
+    } else {
+      console.error('Unexpected API response structure:', response.data);
+      return [];
+    }
+    
+    console.log('Students array:', studentsArray);
+    
+    // Transform each student to match Kid interface
+    const transformedKids: Kid[] = studentsArray.map((student: Record<string, unknown>) => {
+      // Determine the ID - API uses student_id as primary
+      const studentId = (student.student_id as string) || (student._id as string) || '';
+      
+      // Create name from available fields
+      let name = 'Unknown Student';
+      if (student.fullName) {
+        name = student.fullName as string;
+      } else if (student.name) {
+        name = student.name as string;
+      } else if (student.firstName || student.lastName) {
+        name = `${student.firstName || ''} ${student.lastName || ''}`.trim();
+      }
+      
+      // Create avatar initial
+      let avatarChar = 'K';
+      if (student.fullName && typeof student.fullName === 'string' && student.fullName.length > 0) {
+        avatarChar = (student.fullName as string)[0];
+      } else if (student.firstName && typeof student.firstName === 'string' && student.firstName.length > 0) {
+        avatarChar = (student.firstName as string)[0];
+      } else if (student.name && typeof student.name === 'string' && student.name.length > 0) {
+        avatarChar = (student.name as string)[0];
+      } else if (student.email && typeof student.email === 'string' && student.email.length > 0) {
+        avatarChar = (student.email as string)[0];
+      }
+      
+      return {
+        id: studentId,                    // Use student_id as id
+        student_id: studentId,             // Keep student_id
+        _id: (student._id as string) || studentId,     // Keep _id if exists
+        name: name,
+        email: (student.email as string) || '',
+        isBeneficiary: false,
+        avatar: avatarChar.toUpperCase()
+      };
+    });
+    
+    console.log('Transformed kids:', transformedKids);
+    return transformedKids;
+    
+  } catch (error) {
+    console.error('Error in getAllStudents:', error);
+    return [];
+  }
 };
 
 // Get transfer charge
@@ -203,4 +262,5 @@ export const getTransferCharge = async (): Promise<number> => {
   
   return 0;
 };
+
 

@@ -97,10 +97,10 @@ const TransactionModule: React.FC = () => {
 
   // Get transaction display name
   const getTransactionName = (transaction: Transaction) => {
-    if (transaction.senderWalletId) {
+    if (transaction.senderWalletId && typeof transaction.senderWalletId === 'object') {
       return `${transaction.senderWalletId.firstName} ${transaction.senderWalletId.lastName}`;
     }
-    if (transaction.receiverWalletId) {
+    if (transaction.receiverWalletId && typeof transaction.receiverWalletId === 'object') {
       return `${transaction.receiverWalletId.firstName} ${transaction.receiverWalletId.lastName}`;
     }
     return 'System Transaction';
@@ -162,7 +162,7 @@ const TransactionModule: React.FC = () => {
    
   const getTransactionTypeColor = (transaction: Transaction) => {
     const isDebit = transaction.direction === 'debit' || 
-                    transaction.transactionType.toLowerCase().includes('debit') ||
+                    transaction.transactionType?.toLowerCase().includes('debit') ||
                     transaction.amount < 0;
     
     if (isDebit) {
@@ -174,7 +174,7 @@ const TransactionModule: React.FC = () => {
 
   return (
     <div className="flex flex-col min-h-screen bg-white">
-      <Header profilePath="/settings"/>
+     <Header PsettingsPage="/settings" />
       <div className="flex flex-grow">
         <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-none">
           <Asidebar />
@@ -295,7 +295,7 @@ const TransactionModule: React.FC = () => {
                                     </div>
                                   </td>
                                   <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    <span className="capitalize">{transaction.transactionType.replace(/_/g, ' ')}</span>
+                                    <span className="capitalize">{transaction.transactionType?.replace(/_/g, ' ') || 'N/A'}</span>
                                     <div className="text-xs text-gray-500">{transaction.category}</div>
                                   </td>
                                   <td className="px-3 py-4 whitespace-nowrap text-sm font-medium">

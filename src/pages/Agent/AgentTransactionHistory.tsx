@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import Footer from '../../components/Footer';
 import AHeader from '../../components/AHeader';
 import { useAuth } from '../../context/AuthContext';
+import type { User } from '../../types/user';
 
 // API Base URL Configuration
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
@@ -19,19 +20,10 @@ type Transaction = {
   status?: string;
 };
 
-type User = {
-  _id: string;
-  name: string;
-  email: string;
-  role: string;
-  // Add other user properties as needed
-};
-
 const AgentTransactionHistory = () => {
   const auth = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
-  // Removed unused 'user' state
   const [token, setToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,20 +55,35 @@ const AgentTransactionHistory = () => {
       const data = await response.json();
       
       // Handle different response structures
-      let profile: User | undefined;
-      if (data.user?.data) {
-        profile = data.user.data;
-      } else if (data.data) {
-        profile = data.data;
-      } else if (data.user) {
-        profile = data.user as User;
-      } else {
-        profile = data as User;
-      }
+      const userData = data.user?.data || data.data || data.user || data;
+      const walletData = data.user?.wallet || data.wallet || { balance: 0 };
 
-      if (!profile) {
-        throw new Error('Invalid user data received from API');
-      }
+      // Create a complete User object with all required fields
+      const profile: User = {
+        _id: userData._id || '',
+        name: userData.name || `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 'User',
+        email: userData.email || '',
+        role: userData.role || '',
+        status: userData.status || 'Active',
+        createdAt: userData.createdAt || new Date().toISOString(),
+        updatedAt: userData.updatedAt || new Date().toISOString(),
+        
+        // Add optional fields
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        phone: userData.phone,
+        avatar: userData.avatar,
+        profilePic: userData.profilePic,
+        walletBalance: walletData.balance || 0,
+        accountNumber: userData.accountNumber,
+        withdrawalBank: userData.withdrawalBank,
+        schoolId: userData.schoolId,
+        schoolName: userData.schoolName,
+        schoolCanTransfer: userData.schoolCanTransfer,
+        
+        // Include any other dynamic fields
+        ...userData
+      };
 
       return profile;
     } catch (error) {
@@ -86,81 +93,81 @@ const AgentTransactionHistory = () => {
   }, []);
 
   // Fetch transactions from API
- const fetchTransactions = useCallback(async (authToken: string): Promise<Transaction[]> => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/transaction/getusertransaction`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${authToken}`,
-        'Content-Type': 'application/json',
-      },
-    });
+  const fetchTransactions = useCallback(async (authToken: string): Promise<Transaction[]> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/transaction/getusertransaction`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    
-    // Handle different response structures for transactions
-    let transactionList: unknown[] = [];
-    if (data.transactions) {
-      transactionList = data.transactions;
-    } else if (data.data) {
-      transactionList = Array.isArray(data.data) ? data.data : [data.data];
-    } else if (Array.isArray(data)) {
-      transactionList = data;
-    }
-
-    // Transform API data to match our Transaction type
-    const transformedTransactions: Transaction[] = transactionList.map((txn, index: number) => {
-      const t = txn as Record<string, unknown>;
-      
-      // Determine transaction type more accurately
-      let transactionType: 'credit' | 'transfer' = 'credit';
-      if (t.type === 'debit' || 
-          t.transactionType === 'debit' || 
-          t.category === 'debit' ||
-          (typeof t.amount === 'number' && t.amount < 0)) {
-        transactionType = 'transfer';
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      // Generate dynamic description based on metadata
-      const getTransactionDescription = (): string => {
-        const metadata = t.metadata as { receiverEmail?: string; senderEmail?: string } | undefined;
+      const data = await response.json();
+      
+      // Handle different response structures for transactions
+      let transactionList: unknown[] = [];
+      if (data.transactions) {
+        transactionList = data.transactions;
+      } else if (data.data) {
+        transactionList = Array.isArray(data.data) ? data.data : [data.data];
+      } else if (Array.isArray(data)) {
+        transactionList = data;
+      }
+
+      // Transform API data to match our Transaction type
+      const transformedTransactions: Transaction[] = transactionList.map((txn, index: number) => {
+        const t = txn as Record<string, unknown>;
         
-        // For debit/transfer transactions
-        if (transactionType === 'transfer' && metadata?.receiverEmail) {
-          return `Transfer to ${metadata.receiverEmail}`;
+        // Determine transaction type more accurately
+        let transactionType: 'credit' | 'transfer' = 'credit';
+        if (t.type === 'debit' || 
+            t.transactionType === 'debit' || 
+            t.category === 'debit' ||
+            (typeof t.amount === 'number' && t.amount < 0)) {
+          transactionType = 'transfer';
         }
-        // For credit transactions
-        else if (transactionType === 'credit' && metadata?.senderEmail) {
-          return `Payment from ${metadata.senderEmail}`;
-        }
-        // Fallback to existing logic
-        else {
-          return (t.description as string) || (t.note as string) || 'Transaction';
-        }
-      };
 
-      return {
-        id: (t.id as number) || (t._id as number) || index + 1,
-        type: transactionType,
-        amount: Math.abs((t.amount as number) || 0),
-        description: getTransactionDescription(),
-        date: (t.date as string) || (t.createdAt as string) || new Date().toISOString().split('T')[0],
-        status: t.status as string | undefined,
-        createdAt: t.createdAt as string | undefined,
-        updatedAt: t.updatedAt as string | undefined,
-      };
-    });
+        // Generate dynamic description based on metadata
+        const getTransactionDescription = (): string => {
+          const metadata = t.metadata as { receiverEmail?: string; senderEmail?: string } | undefined;
+          
+          // For debit/transfer transactions
+          if (transactionType === 'transfer' && metadata?.receiverEmail) {
+            return `Transfer to ${metadata.receiverEmail}`;
+          }
+          // For credit transactions
+          else if (transactionType === 'credit' && metadata?.senderEmail) {
+            return `Payment from ${metadata.senderEmail}`;
+          }
+          // Fallback to existing logic
+          else {
+            return (t.description as string) || (t.note as string) || 'Transaction';
+          }
+        };
 
-    return transformedTransactions;
-  } catch (error) {
-    console.error('Error fetching transactions:', error);
-    throw error;
-  }
-}, []);
+        return {
+          id: (t.id as number) || (t._id as number) || index + 1,
+          type: transactionType,
+          amount: Math.abs((t.amount as number) || 0),
+          description: getTransactionDescription(),
+          date: (t.date as string) || (t.createdAt as string) || new Date().toISOString().split('T')[0],
+          status: t.status as string | undefined,
+          createdAt: t.createdAt as string | undefined,
+          updatedAt: t.updatedAt as string | undefined,
+        };
+      });
+
+      return transformedTransactions;
+    } catch (error) {
+      console.error('Error fetching transactions:', error);
+      throw error;
+    }
+  }, []);
 
   // Initialize authentication and fetch data
   useEffect(() => {
@@ -198,7 +205,6 @@ const AgentTransactionHistory = () => {
         console.log('Found token in localStorage:', storedToken);
 
         // Fetch user from API to ensure fresh data
-        // Fetch user from API to ensure fresh data
         console.log('Fetching user from API...');
         const profile = await fetchUserDetails(storedToken);
         console.log('Successfully fetched user profile:', profile);
@@ -208,6 +214,7 @@ const AgentTransactionHistory = () => {
 
         // Update auth context
         auth?.login?.(profile, storedToken);
+        
         // Fetch transactions
         console.log('Fetching transactions from API...');
         const transactionData = await fetchTransactions(storedToken);
@@ -284,70 +291,71 @@ const AgentTransactionHistory = () => {
                 </Link>
               </div>
               
-            {transactions.length === 0 ? (
-  <div className="text-center py-8 text-gray-500">
-    <p>No transactions found</p>
-  </div>
-) : (
-  <ul>
-    {transactions.map((txn, index) => {
-      // Determine color and icon based on transaction status and type
-      let iconColor = '';
-      let textColor = '';
-      let IconComponent = ArrowDown;
-      let sign = '+';
-      
-      // First check for failed status (highest priority)
-      if (txn.status === 'failed' || txn.status === 'rejected') {
-        iconColor = 'text-red-500';
-        textColor = 'text-red-600';
-        IconComponent = ArrowUp; 
-        sign = '*';      } 
-      // Then check for debit type
-      else if (txn.type === 'transfer') {
-        iconColor = 'text-yellow-500';
-        textColor = 'text-yellow-600';
-        IconComponent = ArrowUp;
-        sign = '-';
-      } 
-      // Default to credit
-      else {
-        iconColor = 'text-green-500';
-        textColor = 'text-green-600';
-        IconComponent = ArrowDown;
-        sign = '+';
-      }
+              {transactions.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <p>No transactions found</p>
+                </div>
+              ) : (
+                <ul>
+                  {transactions.map((txn, index) => {
+                    // Determine color and icon based on transaction status and type
+                    let iconColor = '';
+                    let textColor = '';
+                    let IconComponent = ArrowDown;
+                    let sign = '+';
+                    
+                    // First check for failed status (highest priority)
+                    if (txn.status === 'failed' || txn.status === 'rejected') {
+                      iconColor = 'text-red-500';
+                      textColor = 'text-red-600';
+                      IconComponent = ArrowUp; 
+                      sign = '*';
+                    } 
+                    // Then check for debit type
+                    else if (txn.type === 'transfer') {
+                      iconColor = 'text-yellow-500';
+                      textColor = 'text-yellow-600';
+                      IconComponent = ArrowUp;
+                      sign = '-';
+                    } 
+                    // Default to credit
+                    else {
+                      iconColor = 'text-green-500';
+                      textColor = 'text-green-600';
+                      IconComponent = ArrowDown;
+                      sign = '+';
+                    }
 
-      return (
-        <React.Fragment key={txn.id}>
-          <li className="flex items-center justify-between py-3">
-            <div className="flex items-center gap-3">
-              <IconComponent className={`${iconColor} w-5 h-5`} />
-              <div>
-                <p className="font-medium">{txn.description}</p>
-                <p className="text-sm text-gray-500">{txn.date}</p>
-                {/* Show status if it exists */}
-                {txn.status && (
-                  <p className="text-xs text-gray-400 capitalize">
-                    {txn.status}
-                  </p>
-                )}
-              </div>
-            </div>
-            <p className={`font-bold text-sm ${textColor}`}>
-              {sign}₦{txn.amount.toLocaleString()}
-            </p>
-          </li>
-          {index < transactions.length - 1 && (
-            <li aria-hidden="true" tabIndex={-1} className="p-0 m-0">
-              <hr className="ml-8 border-gray-200" />
-            </li>
-          )}
-        </React.Fragment>
-      );
-    })}
-  </ul>
-)}
+                    return (
+                      <React.Fragment key={txn.id}>
+                        <li className="flex items-center justify-between py-3">
+                          <div className="flex items-center gap-3">
+                            <IconComponent className={`${iconColor} w-5 h-5`} />
+                            <div>
+                              <p className="font-medium">{txn.description}</p>
+                              <p className="text-sm text-gray-500">{txn.date}</p>
+                              {/* Show status if it exists */}
+                              {txn.status && (
+                                <p className="text-xs text-gray-400 capitalize">
+                                  {txn.status}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <p className={`font-bold text-sm ${textColor}`}>
+                            {sign}₦{txn.amount.toLocaleString()}
+                          </p>
+                        </li>
+                        {index < transactions.length - 1 && (
+                          <li aria-hidden="true" tabIndex={-1} className="p-0 m-0">
+                            <hr className="ml-8 border-gray-200" />
+                          </li>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
           )}
 
@@ -363,9 +371,7 @@ const AgentTransactionHistory = () => {
         </div>
       </main>
 
-      
       <Footer />
-   
     </div>
   );
 };

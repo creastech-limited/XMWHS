@@ -8,8 +8,8 @@ export interface User {
   // Core Identifiers (Required)
   _id: string;
   
-  // Basic Information (Merged)
-  name: string; // Keep required if your main app relies on it
+  // Basic Information 
+  name: string; 
   firstName?: string;
   lastName?: string;
   email: string;
@@ -49,11 +49,7 @@ export interface User {
   // Vendor/Store details
   storeName?: string;
   storeType?: string;
-
-  // External Links
   Link?: string;
-
-  // The "safety net" for dynamic API properties
   [key: string]: unknown;
 }
 
@@ -156,16 +152,65 @@ export interface FetchUserDetailsResponse {
   [key: string]: unknown;
 }
 /* ====================== TRANSACTION TYPES ====================== */
+
+export interface WalletInfo {
+  _id: string;
+  userId: string;
+  balance: number;
+  currency: string;
+  type: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone?: string;
+  __v?: number;
+  createdAt?: string;
+  lastTransactionAmount?: number;
+  lastTransactionType?: string;
+  updatedAt?: string;
+  walletName?: string;
+}
+
+export interface TransactionMetadata {
+  studentId?: string;
+  schoolId?: string;
+  feeType?: string;
+  term?: string;
+  session?: string;
+  amountPaid?: number;
+  paymentMethod?: string;
+  feeId?: string;
+  [key: string]: unknown;
+}
+
 export interface Transaction {
   _id: string;
   amount: number;
-  category: 'credit' | 'debit' | string; 
+  category: 'credit' | 'debit' | string;
   status: 'success' | 'pending' | 'failed' | string;
   description: string;
   createdAt: string;
-  date?: string; 
+  updatedAt?: string;
+  date?: string;
   customer?: string;
-   reference?: string;
+  reference?: string;
+  
+  // Added fields from API response
+  transactionType?: string;
+  direction?: 'credit' | 'debit' | string;
+  balanceBefore?: number;
+  balanceAfter?: number;
+  errorCode?: string | null;
+  charges?: number;
+  
+  // Wallet references
+  senderWalletId?: WalletInfo | string;
+  receiverWalletId?: WalletInfo | string;
+  
+  // Metadata
+  metadata?: TransactionMetadata;
+  
+  // Additional dynamic fields
   [key: string]: unknown;
 }
 

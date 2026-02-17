@@ -4,6 +4,7 @@ import Footer from '../../components/Footer';
 import { QrCode, Send, History, SearchIcon } from 'lucide-react';
 import { useAuth } from "../../context/AuthContext";
 import AHeader from '../../components/AHeader';
+import type { User } from '../../types/user';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -18,14 +19,26 @@ interface Transaction {
   reference?: string;
 }
 
-interface User {
-  _id: string;
-  name: string;
-  email: string;
-  phone?: string;
-  role: string;
-  walletBalance?: number;
-  [key: string]: unknown; 
+interface RawTransaction {
+  _id?: string | number;
+  id?: string | number;
+  type?: string;
+  transactionType?: string;
+  category?: string;
+  amount?: number;
+  store?: string;
+  merchant?: string;
+  description?: string;
+  note?: string;
+  date?: string;
+  createdAt?: string;
+  status?: string;
+  reference?: string;
+  transactionId?: string;
+  metadata?: {
+    receiverEmail?: string;
+    senderEmail?: string;
+  };
 }
 
 interface AgentData {
@@ -40,7 +53,6 @@ const AgentDashboard = () => {
   const auth = useAuth();
   const [loading, setLoading] = useState<boolean>(true);
   const [user, setUser] = useState<User | null>(null);
-  // Removed unused token state
   const [agentData, setAgentData] = useState<AgentData | null>(null);
   const [walletBalance, setWalletBalance] = useState<number>(0);
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
@@ -48,126 +60,137 @@ const AgentDashboard = () => {
   const [error, setError] = useState<string>('');
 
   // Fetch user details from API
- const fetchUserDetails = async (authToken: string): Promise<User> => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${authToken}`,
-        'Content-Type': 'application/json',
-      },
-    });
+  const fetchUserDetails = async (authToken: string): Promise<User> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/getuserone`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    console.log('User API Response:', data);
-
-    // Extract user data from different possible response structures
-    const userData = data.user?.data || data.data || data.user || data;
-    const walletData = data.user?.wallet || data.wallet || { balance: 0 };
-
-    const profile: User = {
-      ...userData,
-      walletBalance: walletData.balance || 0
-    };
-
-    return profile;
-  } catch (error) {
-    console.error('Error fetching user details:', error);
-    throw error;
-  }
-};
-
-  // Fetch user transactions
- const fetchUserTransactions = async (authToken: string): Promise<Transaction[]> => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/transaction/getusertransaction`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${authToken}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    console.log('Transactions API Response:', data);
-
-    // Handle different response structures
-    let transactions: Transaction[] = [];
-    if (data.transactions) {
-      transactions = data.transactions;
-    } else if (data.data) {
-      transactions = Array.isArray(data.data) ? data.data : [data.data];
-    } else if (Array.isArray(data)) {
-      transactions = data;
-    }
-
-    // In fetchUserTransactions function, update the type mapping:
-    return transactions.map((txn: Transaction & {
-      _id?: string | number;
-      merchant?: string;
-      note?: string;
-      createdAt?: string;
-      transactionId?: string;
-      transactionType?: string;
-      category?: string;
-      metadata?: {
-        receiverEmail?: string;
-        senderEmail?: string;
-      };
-    }, index: number) => {
-      // More accurate type detection
-      const amount = txn.amount || 0;
-      let type: 'credit' | 'debit' = 'credit';
-      
-      // Check multiple possible indicators of debit
-      if (txn.type === 'debit' || 
-          txn.transactionType === 'debit' || 
-          txn.category === 'debit' ||
-          (typeof txn.amount === 'number' && txn.amount < 0)) {
-        type = 'debit';
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      return {
-        id: typeof txn._id === 'number'
-          ? txn._id
-          : typeof txn.id === 'number'
-            ? txn.id
-            : Number(typeof txn._id === 'string' ? txn._id : typeof txn.id === 'string' ? txn.id : index + 1) || index + 1,
-        type: type,
-        amount: Math.abs(amount),
-        store: (() => {
-          // For debit transactions (wallet_transfer_sent)
-          if (type === 'debit' && txn.metadata?.receiverEmail) {
-            return `Transfer to ${txn.metadata.receiverEmail}`;
-          }
-          // For credit transactions (wallet_transfer_received) 
-          else if (type === 'credit' && txn.metadata?.senderEmail) {
-            return `Payment from ${txn.metadata.senderEmail}`;
-          }
-          // Fallback to existing logic
-          else {
-            return txn.store || txn.merchant || txn.description || 'Transaction';
-          }
-        })(),
-        description: txn.description || txn.note,
-        date: txn.date || txn.createdAt || new Date().toISOString().split('T')[0],
-        status: txn.status,
-        reference: txn.reference || txn.transactionId,
+      const data = await response.json();
+      console.log('User API Response:', data);
+
+      // Extract user data from different possible response structures
+      const userData = data.user?.data || data.data || data.user || data;
+      const walletData = data.user?.wallet || data.wallet || { balance: 0 };
+
+      // Create a complete User object with all required fields
+      const profile: User = {
+        _id: userData._id || '',
+        name: userData.name || `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 'User',
+        email: userData.email || '',
+        phone: userData.phone || '',
+        role: userData.role || '',
+        status: userData.status || 'Active',
+        createdAt: userData.createdAt || new Date().toISOString(),
+        updatedAt: userData.updatedAt || new Date().toISOString(),
+        
+        // Add wallet balance separately
+        walletBalance: walletData.balance || 0,
+        
+        // Include all other optional fields
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        avatar: userData.avatar,
+        profilePic: userData.profilePic,
+        accountNumber: userData.accountNumber,
+        withdrawalBank: userData.withdrawalBank,
+        schoolId: userData.schoolId,
+        schoolName: userData.schoolName,
+        schoolCanTransfer: userData.schoolCanTransfer,
+        
+        // Include any other dynamic fields
+        ...userData
       };
-    });
-  } catch (error) {
-    console.error('Error fetching transactions:', error);
-    return [];
-  }
-};
+
+      return profile;
+    } catch (error) {
+      console.error('Error fetching user details:', error);
+      throw error;
+    }
+  };
+
+  // Fetch user transactions
+  const fetchUserTransactions = async (authToken: string): Promise<Transaction[]> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/transaction/getusertransaction`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Transactions API Response:', data);
+
+      // Handle different response structures
+      let transactions: Transaction[] = [];
+      if (data.transactions) {
+        transactions = data.transactions;
+      } else if (data.data) {
+        transactions = Array.isArray(data.data) ? data.data : [data.data];
+      } else if (Array.isArray(data)) {
+        transactions = data;
+      }
+
+      return transactions.map((txn: RawTransaction, index: number) => {
+        // More accurate type detection
+        const amount = txn.amount || 0;
+        let type: 'credit' | 'debit' = 'credit';
+        
+        // Check multiple possible indicators of debit
+        if (txn.type === 'debit' || 
+            txn.transactionType === 'debit' || 
+            txn.category === 'debit' ||
+            (typeof txn.amount === 'number' && txn.amount < 0)) {
+          type = 'debit';
+        }
+
+        return {
+          id: typeof txn._id === 'number'
+            ? txn._id
+            : typeof txn.id === 'number'
+              ? txn.id
+              : Number(typeof txn._id === 'string' ? txn._id : typeof txn.id === 'string' ? txn.id : index + 1) || index + 1,
+          type: type,
+          amount: Math.abs(amount),
+          store: (() => {
+            // For debit transactions (wallet_transfer_sent)
+            if (type === 'debit' && txn.metadata?.receiverEmail) {
+              return `Transfer to ${txn.metadata.receiverEmail}`;
+            }
+            // For credit transactions (wallet_transfer_received) 
+            else if (type === 'credit' && txn.metadata?.senderEmail) {
+              return `Payment from ${txn.metadata.senderEmail}`;
+            }
+            // Fallback to existing logic
+            else {
+              return txn.store || txn.merchant || txn.description || 'Transaction';
+            }
+          })(),
+          description: txn.description || txn.note,
+          date: txn.date || txn.createdAt || new Date().toISOString().split('T')[0],
+          status: txn.status,
+          reference: txn.reference || txn.transactionId,
+        };
+      });
+    } catch (error) {
+      console.error('Error fetching transactions:', error);
+      return [];
+    }
+  };
 
   // Calculate monthly sales track percentage and amount
   const calculateMonthlySalesData = (transactions: Transaction[]): { percentage: number; amount: number } => {
@@ -185,7 +208,6 @@ const AgentDashboard = () => {
     const totalSales = currentMonthTransactions
       .filter(txn => txn.type === 'credit')
       .reduce((sum, txn) => sum + txn.amount, 0);
-    
     
     const monthlyTarget = 100000;
     
@@ -230,88 +252,81 @@ const AgentDashboard = () => {
   // Handle authentication errors
   const handleAuthError = (message: string) => {
     setError(message);
-    // Optionally redirect to login
-    // navigate('/login');
   };
 
   // Initialize authentication and fetch data
-useEffect(() => {
-  const initializeAuth = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      console.log('Starting auth initialization...');
+  useEffect(() => {
+    const initializeAuth = async () => {
+      try {
+        setLoading(true);
+        setError('');
+        console.log('Starting auth initialization...');
 
-      let authToken = '';
-      let userProfile: User | null = null;
+        let authToken = '';
+        let userProfile: User | null = null;
 
-      // Check if already in context
-      if (auth?.user?._id && auth?.token) {
-        console.log('Found user in auth context:', auth.user);
-        authToken = auth.token;
-        userProfile = auth.user;
-        setUser(auth.user);
-        setWalletBalance(typeof auth.user.walletBalance === 'number' ? auth.user.walletBalance : 0);
-      } else {
-        // Try localStorage
-        const storedToken = localStorage.getItem('token');
-        if (!storedToken) {
-          console.log('No token in localStorage');
-          throw new Error('No authentication token found');
+        // Check if already in context
+        if (auth?.user?._id && auth?.token) {
+          console.log('Found user in auth context:', auth.user);
+          authToken = auth.token;
+          userProfile = auth.user;
+          setUser(auth.user);
+          setWalletBalance(typeof auth.user.walletBalance === 'number' ? auth.user.walletBalance : 0);
+        } else {
+          // Try localStorage
+          const storedToken = localStorage.getItem('token');
+          if (!storedToken) {
+            console.log('No token in localStorage');
+            throw new Error('No authentication token found');
+          }
+
+          console.log('Found token in localStorage');
+          authToken = storedToken;
+
+          // Fetch user from API to ensure fresh data
+          console.log('Fetching user from API...');
+          userProfile = await fetchUserDetails(storedToken);
+          console.log('Successfully fetched user profile:', userProfile);
+          
+          setUser(userProfile);
+          setWalletBalance(userProfile.walletBalance || 0);
+          auth?.login?.(userProfile, storedToken);
         }
 
-        console.log('Found token in localStorage');
-        authToken = storedToken;
+        // Fetch transactions
+        console.log('Fetching user transactions...');
+        const transactions = await fetchUserTransactions(authToken);
+        setAllTransactions(transactions);
+        setRecentTransactions(transactions.slice(0, 5));
 
-        // Fetch user from API to ensure fresh data
-        console.log('Fetching user from API...');
-        userProfile = await fetchUserDetails(storedToken);
-        console.log('Successfully fetched user profile:', userProfile);
-        
-        const mergedUser: User = {
-          ...userProfile,
-          role: userProfile.role || '',
-        };
-        
-        setUser(mergedUser);
-        setWalletBalance(mergedUser.walletBalance || 0);
-        auth?.login?.(mergedUser, storedToken);
+        // Calculate monthly sales track and performance
+        const monthlySalesData = calculateMonthlySalesData(transactions);
+        const performance = calculatePerformance(transactions);
+
+        // Set agent data with calculated values
+        setAgentData({
+          monthlyTarget: 100000,
+          performance: performance,
+          monthlySalesTrack: monthlySalesData.percentage,
+          monthlySalesAmount: monthlySalesData.amount,
+          walletBalance: userProfile?.walletBalance || 0,
+        });
+
+        console.log('Auth initialization completed successfully');
+        console.log('Monthly Sales Track:', monthlySalesData.percentage + '%');
+        console.log('Monthly Sales Amount:', '₦' + monthlySalesData.amount.toLocaleString());
+        console.log('Performance:', performance + '%');
+
+      } catch (error) {
+        console.error('Auth initialization error:', error);
+        handleAuthError('Authentication error. Please login again.');
+      } finally {
+        setLoading(false);
       }
+    };
 
-      // Fetch transactions
-      console.log('Fetching user transactions...');
-      const transactions = await fetchUserTransactions(authToken);
-      setAllTransactions(transactions);
-      setRecentTransactions(transactions.slice(0, 5));
-
-      // Calculate monthly sales track and performance
-      const monthlySalesData = calculateMonthlySalesData(transactions);
-      const performance = calculatePerformance(transactions);
-
-      // Set agent data with calculated values
-      setAgentData({
-        monthlyTarget: 100000,
-        performance: performance,
-        monthlySalesTrack: monthlySalesData.percentage,
-        monthlySalesAmount: monthlySalesData.amount,
-        walletBalance: userProfile?.walletBalance || 0,
-      });
-
-      console.log('Auth initialization completed successfully');
-      console.log('Monthly Sales Track:', monthlySalesData.percentage + '%');
-      console.log('Monthly Sales Amount:', '₦' + monthlySalesData.amount.toLocaleString());
-      console.log('Performance:', performance + '%');
-
-    } catch (error) {
-      console.error('Auth initialization error:', error);
-      handleAuthError('Authentication error. Please login again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  initializeAuth();
-}, [auth]);
+    initializeAuth();
+  }, [auth]);
 
   const colors = {
     primary: '#3f51b5',
@@ -378,12 +393,12 @@ useEffect(() => {
         <div className="container mx-auto">
           {/* Welcome Message */}
           {user && (
-           <div className="mb-6">
-  <h1 className="text-xl sm:text-2xl font-bold text-gray-800">
-    Welcome back, {user.name}!
-  </h1>
-  <p className="text-sm sm:text-base text-gray-600">Here's your dashboard overview</p>
-</div>
+            <div className="mb-6">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-800">
+                Welcome back, {user.name}!
+              </h1>
+              <p className="text-sm sm:text-base text-gray-600">Here's your dashboard overview</p>
+            </div>
           )}
 
           {/* Action Buttons */}
@@ -453,16 +468,16 @@ useEffect(() => {
             >
               <h3 className="text-lg">Monthly Sales Track</h3>
               <h2 className="text-2xl font-bold">
-                ₦{agentData?.monthlySalesAmount.toLocaleString()}
+                ₦{agentData?.monthlySalesAmount.toLocaleString() || '0'}
               </h2>
               <div className="mt-4 mb-2">
                 <p className="text-sm mb-1">
-                  Progress: {agentData?.monthlySalesTrack}% of ₦{agentData?.monthlyTarget.toLocaleString()}
+                  Progress: {agentData?.monthlySalesTrack || 0}% of ₦{agentData?.monthlyTarget.toLocaleString() || '100,000'}
                 </p>
                 <div className="w-full bg-white bg-opacity-30 rounded-full h-2.5">
                   <div
                     className="bg-white h-2.5 rounded-full transition-all duration-300"
-                    style={{ width: `${agentData?.monthlySalesTrack}%` }}
+                    style={{ width: `${agentData?.monthlySalesTrack || 0}%` }}
                   ></div>
                 </div>
               </div>
@@ -476,7 +491,7 @@ useEffect(() => {
               }}
             >
               <h3 className="text-lg">Performance</h3>
-              <h2 className="text-2xl font-bold">{agentData?.performance}%</h2>
+              <h2 className="text-2xl font-bold">{agentData?.performance || 0}%</h2>
               <div className="mt-4 mb-2">
                 <p className="text-sm mb-1">
                   Based on {allTransactions.length} transactions
@@ -484,7 +499,7 @@ useEffect(() => {
                 <div className="w-full bg-white bg-opacity-30 rounded-full h-2.5">
                   <div
                     className="bg-white h-2.5 rounded-full transition-all duration-300"
-                    style={{ width: `${agentData?.performance}%` }}
+                    style={{ width: `${agentData?.performance || 0}%` }}
                   ></div>
                 </div>
               </div>
@@ -514,56 +529,56 @@ useEffect(() => {
               {/* Transactions list */}
               <div className="text-gray-900 space-y-4">
                 {recentTransactions.length > 0 ? (
-  recentTransactions.map((transaction) => {
-    // Determine color and sign based on status and type
-    let colorClass = '';
-    let sign = '';
-    
-    if (transaction.status === 'failed' || transaction.status === 'rejected') {
-      colorClass = 'text-red-500'; // Red for failed transactions
-      sign = '*'; // No sign for failed transactions
-    } else if (transaction.type === 'debit') {
-      colorClass = 'text-yellow-500'; // Yellow for debit transactions
-      sign = '-'; // Minus sign for debits
-    } else {
-      colorClass = 'text-green-500'; // Green for successful credits
-      sign = '+'; // Plus sign for credits
-    }
+                  recentTransactions.map((transaction) => {
+                    // Determine color and sign based on status and type
+                    let colorClass = '';
+                    let sign = '';
+                    
+                    if (transaction.status === 'failed' || transaction.status === 'rejected') {
+                      colorClass = 'text-red-500';
+                      sign = '*';
+                    } else if (transaction.type === 'debit') {
+                      colorClass = 'text-yellow-500';
+                      sign = '-';
+                    } else {
+                      colorClass = 'text-green-500';
+                      sign = '+';
+                    }
 
-    return (
-      <div
-        key={transaction.id}
-        className="flex justify-between items-center p-3 border-b border-gray-100"
-      >
-        <div>
-          <p className="font-medium">{transaction.store}</p>
-          <p className="text-sm text-gray-500">
-            {new Date(transaction.date).toLocaleDateString()}
-          </p>
-          {transaction.reference && (
-            <p className="text-xs text-gray-400">
-              Ref: {transaction.reference}
-            </p>
-          )}
-        </div>
-        <div className="text-right">
-          <div className={`font-bold ${colorClass}`}>
-            {sign}₦{transaction.amount.toLocaleString()}
-          </div>
-          {transaction.status && (
-            <p className="text-xs text-gray-500 capitalize">
-              {transaction.status}
-            </p>
-          )}
-        </div>
-      </div>
-    );
-  })
-) : (
-  <div className="text-center py-8 text-gray-500">
-    <p>No recent transactions found</p>
-  </div>
-)}
+                    return (
+                      <div
+                        key={transaction.id}
+                        className="flex justify-between items-center p-3 border-b border-gray-100"
+                      >
+                        <div>
+                          <p className="font-medium">{transaction.store}</p>
+                          <p className="text-sm text-gray-500">
+                            {new Date(transaction.date).toLocaleDateString()}
+                          </p>
+                          {transaction.reference && (
+                            <p className="text-xs text-gray-400">
+                              Ref: {transaction.reference}
+                            </p>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <div className={`font-bold ${colorClass}`}>
+                            {sign}₦{transaction.amount.toLocaleString()}
+                          </div>
+                          {transaction.status && (
+                            <p className="text-xs text-gray-500 capitalize">
+                              {transaction.status}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <p>No recent transactions found</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -454,7 +454,7 @@ export const updateNotificationPreferences = async (
 export const getAllUsers = async (): Promise<UserData[]> => {
   const response = await apiClient.get('/api/users/getallUsers');
   
-  const rawUsers: User[] = response.data.data || [];
+ const rawUsers = (response.data.data || []) as User[];
 
   return rawUsers.map((u: User) => ({
     user: u

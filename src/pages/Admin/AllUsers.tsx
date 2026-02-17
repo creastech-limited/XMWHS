@@ -19,30 +19,7 @@ import {
 import AdminSidebar from '../../components/Adminsidebar';
 import AdminHeader from '../../components/AdminHeader';
 import { getAllUsers } from '../../services';
-
-
-
-interface UserData {
-  user: {
-    _id: string;
-    firstName?: string;
-    lastName?: string;
-    name: string;
-    email: string;
-    phone?: string;
-    role: string;
-    status: string;
-    createdAt: string;
-    updatedAt: string;
-    schoolName?: string;
-    schoolId?: string;
-    accountNumber?: string;
-    isFirstLogin?: boolean;
-    isPinSet?: boolean;
-  };
-  student_id?: string;
-  
-}
+import type { UserData } from '../../types'; // Use the imported type
 
 const AllUsers = () => {
   const { user: authUser } = useAuth() ?? {};
@@ -57,54 +34,52 @@ const AllUsers = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
 
- const fetchAllUsers = useCallback(async () => {
-  try {
-    const data = await getAllUsers();
-    
-    // These calls will no longer throw Error 2345
-    setUsers(data);
-    setFilteredUsers(data);
-  } catch (error) {
-    console.error('Error fetching users:', error);
-  }
-}, []);
-
-useEffect(() => {
-  const initializeData = async () => {
+  const fetchAllUsers = useCallback(async () => {
     try {
-      setLoading(true);
-      
-      // Get token from authUser or localStorage
-      const token = authUser?.token || localStorage.getItem('token');
-      
-      // Check if token exists and is a string
-      if (!token) {
-        console.log('No token found');
-        setLoading(false);
-        return;
-      }
-
-      // Ensure token is a string
-      if (typeof token !== 'string') {
-        console.log('Invalid token type');
-        setLoading(false);
-        return;
-      }
-
-      await fetchAllUsers();
-
+      const data = await getAllUsers();
+      setUsers(data);
+      setFilteredUsers(data);
     } catch (error) {
-      console.error('Error initializing data:', error);
-    } finally {
-      setLoading(false);
+      console.error('Error fetching users:', error);
     }
-  };
+  }, []);
 
-  // Only initialize if we have a valid auth context or token
-  if (authUser !== undefined) {
-    initializeData();
-  }
-}, [authUser?.token, fetchAllUsers, authUser]);
+  useEffect(() => {
+    const initializeData = async () => {
+      try {
+        setLoading(true);
+        
+        // Get token from authUser or localStorage
+        const token = authUser?.token || localStorage.getItem('token');
+        
+        // Check if token exists and is a string
+        if (!token) {
+          console.log('No token found');
+          setLoading(false);
+          return;
+        }
+
+        // Ensure token is a string
+        if (typeof token !== 'string') {
+          console.log('Invalid token type');
+          setLoading(false);
+          return;
+        }
+
+        await fetchAllUsers();
+
+      } catch (error) {
+        console.error('Error initializing data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // Only initialize if we have a valid auth context or token
+    if (authUser !== undefined) {
+      initializeData();
+    }
+  }, [authUser?.token, fetchAllUsers, authUser]);
 
   // Filter users based on search term and filters
   useEffect(() => {
@@ -112,22 +87,27 @@ useEffect(() => {
 
     // Apply search filter
     if (searchTerm) {
-      result = result.filter(user => 
-        user.user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.user.phone?.includes(searchTerm) ||
-        user.user.role.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      result = result.filter(userData => {
+        const user = userData.user;
+        if (!user) return false;
+        
+        return (
+          user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          user.phone?.includes(searchTerm) ||
+          user.role?.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+      });
     }
 
     // Apply status filter
     if (statusFilter !== 'all') {
-      result = result.filter(user => user.user.status === statusFilter);
+      result = result.filter(userData => userData.user?.status === statusFilter);
     }
 
     // Apply role filter
     if (roleFilter !== 'all') {
-      result = result.filter(user => user.user.role === roleFilter);
+      result = result.filter(userData => userData.user?.role === roleFilter);
     }
 
     setFilteredUsers(result);
@@ -141,7 +121,7 @@ useEffect(() => {
     currentPage * itemsPerPage
   );
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string = 'Inactive') => {
     const statusConfig = {
       Active: { color: 'bg-green-100 text-green-800', icon: CheckCircle },
       Inactive: { color: 'bg-gray-100 text-gray-800', icon: XCircle },
@@ -160,8 +140,8 @@ useEffect(() => {
     );
   };
 
-  const getRoleBadge = (role: string) => {
-    const roleColors = {
+  const getRoleBadge = (role: string = 'user') => {
+    const roleColors: Record<string, string> = {
       admin: 'bg-purple-100 text-purple-800',
       student: 'bg-blue-100 text-blue-800',
       teacher: 'bg-orange-100 text-orange-800',
@@ -170,18 +150,26 @@ useEffect(() => {
     };
 
     return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${roleColors[role as keyof typeof roleColors] || 'bg-gray-100 text-gray-800'}`}>
+      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${roleColors[role] || 'bg-gray-100 text-gray-800'}`}>
         {role}
       </span>
     );
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric'
     });
+  };
+
+  const getUserInitials = (user: UserData['user']) => {
+    if (!user) return '?';
+    const first = user.firstName?.charAt(0) || '';
+    const last = user.lastName?.charAt(0) || '';
+    return first + last || user.name?.charAt(0) || '?';
   };
 
   if (loading) {
@@ -248,7 +236,7 @@ useEffect(() => {
                   <div className="ml-4">
                     <p className="text-sm text-gray-600">Active Users</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {users.filter(u => u.user.status === 'Active').length}
+                      {users.filter(u => u.user?.status === 'Active').length}
                     </p>
                   </div>
                 </div>
@@ -262,7 +250,7 @@ useEffect(() => {
                   <div className="ml-4">
                     <p className="text-sm text-gray-600">Students</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {users.filter(u => u.user.role === 'student').length}
+                      {users.filter(u => u.user?.role === 'student').length}
                     </p>
                   </div>
                 </div>
@@ -276,7 +264,7 @@ useEffect(() => {
                   <div className="ml-4">
                     <p className="text-sm text-gray-600">Staff/Admin</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {users.filter(u => ['admin', 'staff'].includes(u.user.role)).length}
+                      {users.filter(u => u.user?.role && ['admin', 'staff'].includes(u.user.role)).length}
                     </p>
                   </div>
                 </div>
@@ -355,63 +343,65 @@ useEffect(() => {
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {currentUsers.length > 0 ? (
-                      currentUsers.map((userData) => (
-                        <tr key={userData.user._id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <div className="h-10 w-10 flex-shrink-0">
-                                <div className="h-10 w-10 rounded-full bg-blue-600 flex items-center justify-center">
-                                  <span className="text-white font-medium text-sm">
-                                    {userData.user.firstName?.charAt(0)}{userData.user.lastName?.charAt(0)}
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="ml-4">
-                                <div className="text-sm font-medium text-gray-900">
-                                  {userData.user.name}
-                                </div>
-                                {userData.student_id && (
-                                  <div className="text-sm text-gray-500">
-                                    {userData.student_id}
+                      currentUsers.map((userData) => {
+                        const user = userData.user;
+                        if (!user) return null;
+                        
+                        return (
+                          <tr key={user._id} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center">
+                                <div className="h-10 w-10 flex-shrink-0">
+                                  <div className="h-10 w-10 rounded-full bg-blue-600 flex items-center justify-center">
+                                    <span className="text-white font-medium text-sm">
+                                      {getUserInitials(user)}
+                                    </span>
                                   </div>
-                                )}
+                                </div>
+                                <div className="ml-4">
+                                  <div className="text-sm font-medium text-gray-900">
+                                    {user.name}
+                                  </div>
+                                </div>
                               </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">{userData.user.email}</div>
-                            <div className="text-sm text-gray-500 flex items-center">
-                              <Phone size={12} className="mr-1" />
-                              {userData.user.phone}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            {getRoleBadge(userData.user.role)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            {getStatusBadge(userData.user.status)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <div className="flex items-center">
-                              <Calendar size={12} className="mr-1" />
-                              {formatDate(userData.user.createdAt)}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <div className="flex items-center justify-end space-x-2">
-                              <button className="text-blue-600 hover:text-blue-900 p-1">
-                                <Eye size={16} />
-                              </button>
-                              <button className="text-gray-600 hover:text-gray-900 p-1">
-                                <Edit size={16} />
-                              </button>
-                              <button className="text-red-600 hover:text-red-900 p-1">
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">{user.email}</div>
+                              {user.phone && (
+                                <div className="text-sm text-gray-500 flex items-center">
+                                  <Phone size={12} className="mr-1" />
+                                  {user.phone}
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              {getRoleBadge(user.role)}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              {getStatusBadge(user.status)}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              <div className="flex items-center">
+                                <Calendar size={12} className="mr-1" />
+                                {formatDate(user.createdAt)}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                              <div className="flex items-center justify-end space-x-2">
+                                <button className="text-blue-600 hover:text-blue-900 p-1">
+                                  <Eye size={16} />
+                                </button>
+                                <button className="text-gray-600 hover:text-gray-900 p-1">
+                                  <Edit size={16} />
+                                </button>
+                                <button className="text-red-600 hover:text-red-900 p-1">
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
                     ) : (
                       <tr>
                         <td colSpan={6} className="px-6 py-8 text-center">
@@ -447,19 +437,30 @@ useEffect(() => {
                         <ChevronLeft size={16} />
                       </button>
                       
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                        <button
-                          key={page}
-                          onClick={() => setCurrentPage(page)}
-                          className={`px-3 py-1 border rounded-md text-sm ${
-                            currentPage === page
-                              ? 'bg-blue-600 text-white border-blue-600'
-                              : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                          }`}
-                        >
-                          {page}
-                        </button>
-                      ))}
+                      {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                        let pageNum = i + 1;
+                        if (totalPages > 5) {
+                          if (currentPage > 3) {
+                            pageNum = currentPage - 3 + i;
+                          }
+                          if (currentPage > totalPages - 2) {
+                            pageNum = totalPages - 4 + i;
+                          }
+                        }
+                        return pageNum <= totalPages ? (
+                          <button
+                            key={pageNum}
+                            onClick={() => setCurrentPage(pageNum)}
+                            className={`px-3 py-1 border rounded-md text-sm ${
+                              currentPage === pageNum
+                                ? 'bg-blue-600 text-white border-blue-600'
+                                : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        ) : null;
+                      })}
                       
                       <button
                         onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}

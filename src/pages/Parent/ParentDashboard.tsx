@@ -42,15 +42,6 @@ interface Profile {
   };
 }
 
-
-
-
-
-
-
-
-
-
 const ParentDashboard: React.FC = () => {
   const auth = useAuth();
   const navigate = useNavigate();
@@ -142,10 +133,10 @@ const ParentDashboard: React.FC = () => {
   try {
     setIsLoading(true);
     
-    // 1. Fetch data from decoupled service
+    // 1Fetch data from decoupled service
     const response = await getUserDetails();
 
-    // 2. Fix the error by checking if response and response.user exist
+    // Fix the error by checking if response and response.user exist
     if (response && response.user) {
       // Cast it to Profile if you're sure the shapes match, 
       // or map the fields manually if they differ.

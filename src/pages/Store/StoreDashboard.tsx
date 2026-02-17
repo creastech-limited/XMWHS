@@ -120,56 +120,76 @@ const StoreDashboard: React.FC = () => {
   );
 
   // Fetch user transactions
-  const fetchUserTransactions = useCallback(
-    async (): Promise<Transaction[]> => {
-      try {
-        const response: TransactionsResponse = await getUserTransactions();
+ const fetchUserTransactions = useCallback(
+  async (): Promise<Transaction[]> => {
+    try {
+      const response: TransactionsResponse = await getUserTransactions();
 
-        console.log('Transactions API Response:', JSON.stringify(response, null, 2));
+      console.log('Transactions API Response:', JSON.stringify(response, null, 2));
 
-        const transactionsArray = response.data || [];
+      interface TransactionResponse {
+        _id?: string;
+        id?: string;
+        createdAt?: string;
+        date?: string;
+        description?: string;
+        amount?: number | string;
+        category?: string;
+        status?: string;
+        metadata?: {
+          senderEmail?: string;
+          receiverEmail?: string;
+          [key: string]: unknown;
+        };
+        senderWalletId?: { 
+          email?: string;
+          [key: string]: unknown;
+        };
+      }
 
-        interface TransactionResponse {
-          _id?: string;
-          id?: string;
-          createdAt?: string;
-          date?: string;
-          description?: string;
-          amount?: number | string;
-          category?: string;
-          status?: string;
-          metadata?: { senderEmail?: string };
-          senderWalletId?: { email?: string };
+      const transactionsArray = (response.data || []) as TransactionResponse[];
+
+      const transactions: Transaction[] = transactionsArray.map((tx: TransactionResponse) => {
+        // Safely extract customer information
+        let customer = 'Unknown Sender';
+        if (tx.metadata?.senderEmail) {
+          customer = tx.metadata.senderEmail;
+        } else if (tx.senderWalletId?.email) {
+          customer = tx.senderWalletId.email;
         }
 
-        const transactions: Transaction[] = transactionsArray.map((tx: TransactionResponse) => ({
-          // Required properties
-          _id: tx._id || tx.id || "",
-          date: new Date(tx.createdAt || tx.date || "").toLocaleDateString(),
-          createdAt: tx.createdAt || tx.date || "",
-          description: tx.description || "Transaction",
-          amount: Number(tx.amount) || 0,
-          category: tx.category || "General",
-          status:
-            tx.status === "success"
-              ? "Completed"
-              : tx.status === "pending"
-                ? "Pending"
-                : "Failed",
-          customer:
-            tx?.metadata?.senderEmail ||
-            tx?.senderWalletId?.email ||
-            "Unknown Sender",
-        }));
+        // Determine status
+        let status: 'Completed' | 'Pending' | 'Failed' = 'Failed';
+        if (tx.status === 'success' || tx.status === 'completed') {
+          status = 'Completed';
+        } else if (tx.status === 'pending') {
+          status = 'Pending';
+        }
 
-        return transactions;
-      } catch (error) {
-        console.error("Failed to fetch transactions:", error);
-        return [];
-      }
-    },
-    []
-  );
+        return {
+          // Required properties
+          _id: tx._id || tx.id || Math.random().toString(36).substring(2, 9),
+          date: new Date(tx.createdAt || tx.date || '').toLocaleDateString(),
+          createdAt: tx.createdAt || tx.date || new Date().toISOString(),
+          description: tx.description || 'Transaction',
+          amount: Number(tx.amount) || 0,
+          category: tx.category || 'General',
+          status: status,
+          customer: customer,
+          // Include metadata if it exists with proper typing
+          metadata: tx.metadata || { senderEmail: '', receiverEmail: '' },
+          senderWalletId: undefined,
+        } as Transaction;
+      });
+
+      return transactions;
+    } catch (error) {
+      console.error("Failed to fetch transactions:", error);
+      return [];
+    }
+  },
+  []
+);
   // Fetch notifications
   const fetchNotifications = useCallback(
     async (): Promise<Notification[]> => {

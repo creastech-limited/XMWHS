@@ -57,11 +57,6 @@ import type {
   Class
 } from '../../types/user';
 
-
-
-// Define local Class interface that matches ClassItem from types
-
-
 const StudentPage: React.FC = () => {
   const authContext = useAuth();
   const token = authContext?.token || localStorage.getItem('token');
@@ -106,9 +101,11 @@ const StudentPage: React.FC = () => {
 
   const rowsPerPage = 10;
 
-  // Helper functions
-  const getStatusBadgeColor = useCallback((status: string): string => {
-    switch (status?.toLowerCase()) {
+  // ==================== HELPER FUNCTIONS ====================
+
+  const getStatusBadgeColor = useCallback((status: string = 'Pending'): string => {
+    const statusLower = (status || 'Pending').toLowerCase();
+    switch (statusLower) {
       case 'active':
         return 'bg-green-100 text-green-800';
       case 'pending':
@@ -120,8 +117,9 @@ const StudentPage: React.FC = () => {
     }
   }, []);
 
-  const getStatusIcon = useCallback((status: string) => {
-    switch (status?.toLowerCase()) {
+  const getStatusIcon = useCallback((status: string = 'Pending') => {
+    const statusLower = (status || 'Pending').toLowerCase();
+    switch (statusLower) {
       case 'active':
         return <CheckCircleIcon className="h-4 w-4" />;
       case 'pending':
@@ -133,8 +131,9 @@ const StudentPage: React.FC = () => {
     }
   }, []);
 
-  const getSchoolTypeIcon = useCallback((schoolType: string) => {
-    switch (schoolType?.toLowerCase()) {
+  const getSchoolTypeIcon = useCallback((schoolType: string = 'secondary') => {
+    const typeLower = (schoolType || 'secondary').toLowerCase();
+    switch (typeLower) {
       case 'primary':
         return <BookOpenIcon className="h-5 w-5 text-blue-600" />;
       case 'secondary':
@@ -146,252 +145,271 @@ const StudentPage: React.FC = () => {
     }
   }, []);
 
-  const formatDate = useCallback((dateString: string): string => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
+  const formatDate = useCallback((dateString?: string): string => {
+    if (!dateString) return 'N/A';
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
+    } catch {
+      return 'Invalid date';
+    }
   }, []);
 
-  // API call functions
- const fetchUserProfile = useCallback(async () => {
-  if (!authToken) return;
+  // ==================== API CALL FUNCTIONS ====================
 
-  try {
-    const data: UserResponse = await getUserDetails();
-    
-    // Extract user data safely - define proper type
-    let userProfile: User | { data?: User; wallet?: { balance: number } } | UserResponse;
-    
-    if (data.user?.data) {
-      userProfile = data.user.data;
-    } else if (data.user) {
-      userProfile = data.user;
-    } else if (data.data) {
-      userProfile = data.data;
-    } else {
-      userProfile = data;
-    }
+  const fetchUserProfile = useCallback(async () => {
+    if (!authToken) return;
 
-    // Type guard to safely access properties
-    const getId = () => {
-      if (userProfile && typeof userProfile === 'object') {
-        if ('schoolId' in userProfile) {
-          return (userProfile as User).schoolId || '';
-        } else if ('data' in userProfile && userProfile.data && typeof userProfile.data === 'object' && 'schoolId' in userProfile.data) {
-          return (userProfile.data as User).schoolId || '';
-        }
-      }
-      return '';
-    };
-
-    const getStringProp = (prop: keyof User, defaultValue: string = ''): string => {
-      if (userProfile && typeof userProfile === 'object') {
-        if (prop in userProfile) {
-          const value = (userProfile as User)[prop];
-          return typeof value === 'string' ? value : defaultValue;
-        } else if ('data' in userProfile && userProfile.data && typeof userProfile.data === 'object' && prop in userProfile.data) {
-          const value = (userProfile.data as User)[prop];
-          return typeof value === 'string' ? value : defaultValue;
-        }
-      }
-      return defaultValue;
-    };
-
-    const id = getId();
-    const schoolName = getStringProp('schoolName', 'School');
-    const schoolType = getStringProp('schoolType', 'secondary');
-    const schoolAddress = getStringProp('schoolAddress', '');
-    const ownership = getStringProp('ownership', 'private');
-    const link = getStringProp('Link', '');
-
-    setSchoolId(id);
-    setSchoolProfile({
-      schoolId: id,
-      schoolName,
-      schoolType,
-      ownership,
-      Link: link,
-    });
-
-    // Construct URL with all necessary parameters
-    const params = new URLSearchParams();
-    if (id) params.append('schoolId', id);
-    params.append('schoolName', encodeURIComponent(schoolName));
-    params.append('schoolType', encodeURIComponent(schoolType));
-    if (schoolAddress) params.append('schoolAddress', encodeURIComponent(schoolAddress));
-
-    const fullLink = `${window.location.origin}/students/new?${params.toString()}`;
-    setRegistrationLink(fullLink);
-  } catch (err) {
-    console.error('Profile fetch error:', err);
-    setSnackbar({
-      open: true,
-      message: err instanceof Error ? err.message : 'Failed to load school profile',
-      severity: 'error',
-    });
-  }
-}, [authToken]);
-
-const fetchClasses = useCallback(async () => {
-  if (!authToken) return;
-
-  setClassesLoading(true);
-  try {
-    const data: ClassesResponse = await getClasses();
-
-    if (data.status && Array.isArray(data.data)) {
-      // Get user profile to find the correct schoolId for class filtering
-      const userProfileData: UserResponse = await getUserDetails();
+    try {
+      const data: UserResponse = await getUserDetails();
       
-      // Extract user profile safely with proper type
+      // Extract user data safely
       let userProfile: User | { data?: User; wallet?: { balance: number } } | UserResponse;
       
-      if (userProfileData.user?.data) {
-        userProfile = userProfileData.user.data;
-      } else if (userProfileData.user) {
-        userProfile = userProfileData.user;
-      } else if (userProfileData.data) {
-        userProfile = userProfileData.data;
+      if (data.user?.data) {
+        userProfile = data.user.data;
+      } else if (data.user) {
+        userProfile = data.user;
+      } else if (data.data) {
+        userProfile = data.data;
       } else {
-        userProfile = userProfileData;
+        userProfile = data;
       }
 
-      // Type guard to safely access _id
-      const getUserObjectId = () => {
-        if (userProfile && typeof userProfile === 'object') {
-          if ('_id' in userProfile) {
-            return (userProfile as User)._id || '';
-          } else if ('data' in userProfile && userProfile.data && typeof userProfile.data === 'object' && '_id' in userProfile.data) {
-            return (userProfile.data as User)._id || '';
-          }
+      // Helper to safely get ID
+      const getId = (): string => {
+        if (!userProfile || typeof userProfile !== 'object') return '';
+        
+        if ('schoolId' in userProfile) {
+          return (userProfile as User).schoolId || '';
+        }
+        if ('data' in userProfile && userProfile.data && typeof userProfile.data === 'object' && 'schoolId' in userProfile.data) {
+          return (userProfile.data as User).schoolId || '';
         }
         return '';
       };
 
-      // Try to find matching classes using the user's _id (ObjectId format)
-      const userObjectId = getUserObjectId();
+      // Helper to safely get string props
+      const getStringProp = (prop: keyof User, defaultValue: string = ''): string => {
+        if (!userProfile || typeof userProfile !== 'object') return defaultValue;
+        
+        if (prop in userProfile) {
+          const value = (userProfile as User)[prop];
+          return typeof value === 'string' ? value : defaultValue;
+        }
+        if ('data' in userProfile && userProfile.data && typeof userProfile.data === 'object' && prop in userProfile.data) {
+          const value = (userProfile.data as User)[prop];
+          return typeof value === 'string' ? value : defaultValue;
+        }
+        return defaultValue;
+      };
 
-      let schoolClasses: Class[] = [];
+      const id = getId();
+      const schoolName = getStringProp('schoolName', 'School');
+      const schoolType = getStringProp('schoolType', 'secondary');
+      const schoolAddress = getStringProp('schoolAddress', '');
+      const ownership = getStringProp('ownership', 'private');
+      const link = getStringProp('Link', '');
 
-      if (userObjectId) {
-        // Filter classes by the ObjectId format schoolId
-        schoolClasses = (data.data as ClassItem[]).filter(
-          (cls: ClassItem) => cls.schoolId === userObjectId
-        ).map((item: ClassItem): Class => ({
-          _id: item._id,
-          className: item.className,
-          section: item.section,
-          schoolId: item.schoolId,
-          students: item.students,
-          createdAt: item.createdAt,
-          updatedAt: item.updatedAt,
-        }));
-      }
+      setSchoolId(id);
+      setSchoolProfile({
+        schoolId: id,
+        schoolName,
+        schoolType,
+        ownership,
+        Link: link,
+      });
 
-      // If no classes found with ObjectId, try with string schoolId as fallback
-      if (schoolClasses.length === 0 && schoolId) {
-        schoolClasses = (data.data as ClassItem[]).filter(
-          (cls: ClassItem) => cls.schoolId === schoolId
-        ).map((item: ClassItem): Class => ({
-          _id: item._id,
-          className: item.className,
-          section: item.section,
-          schoolId: item.schoolId,
-          students: item.students,
-          createdAt: item.createdAt,
-          updatedAt: item.updatedAt,
-        }));
-      }
+      // Construct registration URL
+      const params = new URLSearchParams();
+      if (id) params.append('schoolId', id);
+      params.append('schoolName', encodeURIComponent(schoolName));
+      params.append('schoolType', encodeURIComponent(schoolType));
+      if (schoolAddress) params.append('schoolAddress', encodeURIComponent(schoolAddress));
 
-      console.log('Filtered classes:', schoolClasses.length, 'out of', data.data?.length || 0);
-      console.log('User ObjectId:', userObjectId, 'Student schoolId:', schoolId);
-
-      setClasses(schoolClasses);
-    } else {
-      console.error('Unexpected classes data format:', data);
-      setClasses([]);
-    }
-  } catch (err) {
-    console.error('Classes fetch error:', err);
-    setSnackbar({
-      open: true,
-      message: 'Failed to load classes: ' + (err instanceof Error ? err.message : 'Unknown error'),
-      severity: 'error',
-    });
-  } finally {
-    setClassesLoading(false);
-  }
-}, [authToken, schoolId]);
-
-  const fetchStudents = useCallback(async () => {
-    if (!authToken || !schoolId) return;
-
-    setLoading(true);
-    try {
-      const data: StudentsResponse = await getStudentsBySchoolId(schoolId);
-
-      // Handle "No students found" without treating it as an error
-      if (data.message && data.message.includes('No students found')) {
-        setStudents([]);
-        setSnackbar({
-          open: true,
-          message: 'No students found',
-          severity: 'info',
-        });
-        return; // stop here and avoid throwing error
-      }
-
-      let studentArray: Student[] = [];
-
-      if (data && Array.isArray(data.data)) {
-        studentArray = data.data.map((student: Student) => ({
-          _id: student._id,
-          firstName: student.firstName,
-          lastName: student.lastName,
-          name: student.name || `${student.firstName} ${student.lastName}`,
-          email: student.email,
-          academicDetails: student.academicDetails || { classAdmittedTo: '' },
-          classAdmittedTo: student.academicDetails?.classAdmittedTo || 'Not Assigned',
-          status: student.status,
-          createdAt: student.createdAt,
-          guardian: student.guardian,
-        }));
-      } else {
-        console.error('Unexpected students data format:', data);
-      }
-
-      setStudents(studentArray);
+      const fullLink = `${window.location.origin}/students/new?${params.toString()}`;
+      setRegistrationLink(fullLink);
     } catch (err) {
-      console.error(err);
+      console.error('Profile fetch error:', err);
       setSnackbar({
         open: true,
-        message: 'Failed to load student data: ' + (err instanceof Error ? err.message : 'Unknown error'),
+        message: err instanceof Error ? err.message : 'Failed to load school profile',
+        severity: 'error',
+      });
+    }
+  }, [authToken]);
+
+  const fetchClasses = useCallback(async () => {
+    if (!authToken) return;
+
+    setClassesLoading(true);
+    try {
+      const data: ClassesResponse = await getClasses();
+
+      if (data.status && Array.isArray(data.data)) {
+        // Get user profile to find the correct schoolId
+        const userProfileData: UserResponse = await getUserDetails();
+        
+        // Extract user profile safely
+        let userProfile: User | { data?: User; wallet?: { balance: number } } | UserResponse;
+        
+        if (userProfileData.user?.data) {
+          userProfile = userProfileData.user.data;
+        } else if (userProfileData.user) {
+          userProfile = userProfileData.user;
+        } else if (userProfileData.data) {
+          userProfile = userProfileData.data;
+        } else {
+          userProfile = userProfileData;
+        }
+
+        // Get user ObjectId
+        const getUserObjectId = (): string => {
+          if (!userProfile || typeof userProfile !== 'object') return '';
+          
+          if ('_id' in userProfile) {
+            return (userProfile as User)._id || '';
+          }
+          if ('data' in userProfile && userProfile.data && typeof userProfile.data === 'object' && '_id' in userProfile.data) {
+            return (userProfile.data as User)._id || '';
+          }
+          return '';
+        };
+
+        const userObjectId = getUserObjectId();
+
+        let schoolClasses: Class[] = [];
+
+        if (userObjectId) {
+          schoolClasses = (data.data as ClassItem[])
+            .filter((cls: ClassItem) => cls.schoolId === userObjectId)
+            .map((item: ClassItem): Class => ({
+              _id: item._id,
+              className: item.className,
+              section: item.section,
+              schoolId: item.schoolId,
+              students: item.students,
+              createdAt: item.createdAt,
+              updatedAt: item.updatedAt,
+            }));
+        }
+
+        // Fallback to string schoolId
+        if (schoolClasses.length === 0 && schoolId) {
+          schoolClasses = (data.data as ClassItem[])
+            .filter((cls: ClassItem) => cls.schoolId === schoolId)
+            .map((item: ClassItem): Class => ({
+              _id: item._id,
+              className: item.className,
+              section: item.section,
+              schoolId: item.schoolId,
+              students: item.students,
+              createdAt: item.createdAt,
+              updatedAt: item.updatedAt,
+            }));
+        }
+
+        setClasses(schoolClasses);
+      } else {
+        console.error('Unexpected classes data format:', data);
+        setClasses([]);
+      }
+    } catch (err) {
+      console.error('Classes fetch error:', err);
+      setSnackbar({
+        open: true,
+        message: 'Failed to load classes: ' + (err instanceof Error ? err.message : 'Unknown error'),
         severity: 'error',
       });
     } finally {
-      setLoading(false);
+      setClassesLoading(false);
     }
   }, [authToken, schoolId]);
 
-  // Set and update pin 
-  const handleSetPin = useCallback(async () => {
-    if (!authToken || !menuStudent || !pinData.newPin) {
+ const fetchStudents = useCallback(async () => {
+  if (!authToken || !schoolId) return;
+
+  setLoading(true);
+  try {
+    const data: StudentsResponse = await getStudentsBySchoolId(schoolId);
+
+    if (data.message && data.message.includes('No students found')) {
+      setStudents([]);
       setSnackbar({
         open: true,
-        message: 'Student information or PIN is missing',
-        severity: 'error',
+        message: 'No students found',
+        severity: 'info',
       });
       return;
     }
 
-    if (pinData.newPin !== pinData.confirmPin) {
-      setSnackbar({
-        open: true,
-        message: 'PIN and confirmation do not match',
-        severity: 'error',
+    let studentArray: Student[] = [];
+
+    if (data && Array.isArray(data.data)) {
+      studentArray = data.data.map((student: Student) => {
+        // Get the class value from either location
+        const classValue = student.academicDetails?.classAdmittedTo || 'Not Assigned';
+        
+        return {
+          ...student,  // Spread all original properties
+          // Ensure required fields have defaults
+          firstName: student.firstName || '',
+          lastName: student.lastName || '',
+          name: student.name || `${student.firstName || ''} ${student.lastName || ''}`.trim() || 'Unknown',
+          email: student.email || '',
+          phone: student.phone || '',
+          status: student.status || 'Pending',
+          
+          // Set the direct property that components use
+          classAdmittedTo: classValue,
+          
+          // Ensure academicDetails exists
+          academicDetails: student.academicDetails || { classAdmittedTo: classValue },
+        };
       });
+    }
+
+    setStudents(studentArray);
+  } catch (err) {
+    console.error(err);
+    setSnackbar({
+      open: true,
+      message: 'Failed to load student data: ' + (err instanceof Error ? err.message : 'Unknown error'),
+      severity: 'error',
+    });
+  } finally {
+    setLoading(false);
+  }
+}, [authToken, schoolId]);
+
+  // ==================== PIN FUNCTIONS ====================
+
+  const handleSetPin = useCallback(async () => {
+    if (!authToken) {
+      setSnackbar({ open: true, message: 'Authentication required', severity: 'error' });
+      return;
+    }
+    
+    if (!menuStudent) {
+      setSnackbar({ open: true, message: 'No student selected', severity: 'error' });
+      return;
+    }
+
+    if (!menuStudent.email) {
+      setSnackbar({ open: true, message: 'Student email is missing', severity: 'error' });
+      return;
+    }
+
+    if (!pinData.newPin) {
+      setSnackbar({ open: true, message: 'PIN is required', severity: 'error' });
+      return;
+    }
+
+    if (pinData.newPin !== pinData.confirmPin) {
+      setSnackbar({ open: true, message: 'PIN and confirmation do not match', severity: 'error' });
       return;
     }
 
@@ -415,32 +433,40 @@ const fetchClasses = useCallback(async () => {
     } catch (error: unknown) {
       console.error('Error setting PIN:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to set PIN';
-      setSnackbar({
-        open: true,
-        message: errorMessage,
-        severity: 'error',
-      });
+      setSnackbar({ open: true, message: errorMessage, severity: 'error' });
     } finally {
       setPinLoading(false);
     }
   }, [authToken, menuStudent, pinData]);
 
   const handleUpdatePin = useCallback(async () => {
-    if (!authToken || !menuStudent || !pinData.newPin || !pinData.currentPin) {
-      setSnackbar({
-        open: true,
-        message: 'Required information is missing',
-        severity: 'error',
-      });
+    if (!authToken) {
+      setSnackbar({ open: true, message: 'Authentication required', severity: 'error' });
+      return;
+    }
+
+    if (!menuStudent) {
+      setSnackbar({ open: true, message: 'No student selected', severity: 'error' });
+      return;
+    }
+
+    if (!menuStudent.email) {
+      setSnackbar({ open: true, message: 'Student email is missing', severity: 'error' });
+      return;
+    }
+
+    if (!pinData.currentPin) {
+      setSnackbar({ open: true, message: 'Current PIN is required', severity: 'error' });
+      return;
+    }
+
+    if (!pinData.newPin) {
+      setSnackbar({ open: true, message: 'New PIN is required', severity: 'error' });
       return;
     }
 
     if (pinData.newPin !== pinData.confirmPin) {
-      setSnackbar({
-        open: true,
-        message: 'New PIN and confirmation do not match',
-        severity: 'error',
-      });
+      setSnackbar({ open: true, message: 'New PIN and confirmation do not match', severity: 'error' });
       return;
     }
 
@@ -464,17 +490,14 @@ const fetchClasses = useCallback(async () => {
     } catch (error: unknown) {
       console.error('Error updating PIN:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to update PIN';
-      setSnackbar({
-        open: true,
-        message: errorMessage,
-        severity: 'error',
-      });
+      setSnackbar({ open: true, message: errorMessage, severity: 'error' });
     } finally {
       setPinLoading(false);
     }
   }, [authToken, menuStudent, pinData]);
 
-  // Initial data fetching
+  // ==================== INITIAL DATA FETCHING ====================
+
   useEffect(() => {
     fetchUserProfile();
   }, [fetchUserProfile]);
@@ -486,9 +509,13 @@ const fetchClasses = useCallback(async () => {
     }
   }, [schoolId, fetchClasses, fetchStudents]);
 
-  // Event handlers
+  // ==================== EVENT HANDLERS ====================
+
   const handleCopyLink = useCallback(() => {
-    if (!registrationLink) return;
+    if (!registrationLink) {
+      setSnackbar({ open: true, message: 'No registration link available', severity: 'error' });
+      return;
+    }
 
     navigator.clipboard
       .writeText(registrationLink)
@@ -520,89 +547,90 @@ const fetchClasses = useCallback(async () => {
     setMenuStudent(null);
   }, []);
 
-  const handleActivateDeactivate = useCallback(async (student: Student) => {
-    if (!authToken) {
-      setSnackbar({
-        open: true,
-        message: 'Authentication token missing',
-        severity: 'error',
-      });
-      return;
-    }
+const handleActivateDeactivate = useCallback(async (student: Student) => {
+  if (!authToken) {
+    setSnackbar({ open: true, message: 'Authentication required', severity: 'error' });
+    return;
+  }
 
-    try {
-      const data = student.status.toLowerCase() === 'active' 
-        ? await deactivateStudent(student._id)
-        : await activateStudent(student._id);
+  const currentStatus = (student.status || 'Pending').toLowerCase();
+  const isActive = currentStatus === 'active';
 
-      // Update the student status in the local state
-      setStudents(prevStudents =>
-        prevStudents.map(s =>
-          s._id === student._id
-            ? { ...s, status: data.status || (student.status.toLowerCase() === 'active' ? 'inactive' : 'active') }
-            : s
-        )
-      );
+  try {
+    // Store the API response
+    const response = isActive 
+      ? await deactivateStudent(student._id)
+      : await activateStudent(student._id);
 
-      setSnackbar({
-        open: true,
-        message: `Student ${student.status.toLowerCase() === 'active' ? 'deactivated' : 'activated'} successfully`,
-        severity: 'success',
-      });
-    } catch (error: unknown) {
-      console.error('Error updating student status:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to update student status';
-      setSnackbar({
-        open: true,
-        message: errorMessage,
-        severity: 'error',
-      });
-    } finally {
-      handleMenuClose();
-    }
-  }, [authToken, handleMenuClose]);
+    // Determine the new status based on the action
+    const newStatus: 'Active' | 'Inactive' | 'Pending' = isActive ? 'Inactive' : 'Active';
+
+    // Update the student status in local state
+    setStudents(prevStudents =>
+      prevStudents.map(s =>
+        s._id === student._id
+          ? { ...s, status: newStatus }
+          : s
+      )
+    );
+
+    // Use the message from the API response
+    setSnackbar({
+      open: true,
+      message: response.message || `Student ${isActive ? 'deactivated' : 'activated'} successfully`,
+      severity: 'success',
+    });
+  } catch (error: unknown) {
+    console.error('Error updating student status:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to update student status';
+    setSnackbar({ open: true, message: errorMessage, severity: 'error' });
+  } finally {
+    handleMenuClose();
+  }
+}, [authToken, handleMenuClose]);
 
   const fetchParents = useCallback(async () => {
     try {
       const data: ParentsResponse = await getParents();
-      console.log('Parents API full response:', data);
-
-      // Extract parents based on the response structure you provided
+      
       let parentsArray: Parent[] = [];
 
       if (data.parent && Array.isArray(data.parent)) {
-        // If response has a parent array
         parentsArray = data.parent;
       } else if (data.data && Array.isArray(data.data)) {
-        // If response has a data array
         parentsArray = data.data;
       } else if (Array.isArray(data)) {
-        // If response is directly an array
         parentsArray = data;
       }
 
-      console.log('Processed parents:', parentsArray);
       setAvailableParents(parentsArray);
     } catch (error: unknown) {
       console.error('Error fetching parents:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to load available parents';
-      setSnackbar({
-        open: true,
-        message: errorMessage,
-        severity: 'error',
-      });
+      setSnackbar({ open: true, message: errorMessage, severity: 'error' });
     }
   }, []);
 
   const handleUpdateGuardian = useCallback(async () => {
-    if (!guardianEmail || !selectedStudent) return;
+    if (!guardianEmail) {
+      setSnackbar({ open: true, message: 'Please select a guardian', severity: 'error' });
+      return;
+    }
+    
+    if (!selectedStudent) {
+      setSnackbar({ open: true, message: 'No student selected', severity: 'error' });
+      return;
+    }
+
+    if (!selectedStudent.email) {
+      setSnackbar({ open: true, message: 'Student email is missing', severity: 'error' });
+      return;
+    }
 
     setGuardianLoading(true);
     try {
       const result = await updateGuardian(guardianEmail, selectedStudent.email);
       
-      console.log('Guardian update result:', result);
-
       setSnackbar({
         open: true,
         message: result.message || 'Guardian updated successfully!',
@@ -612,29 +640,25 @@ const fetchClasses = useCallback(async () => {
       setIsGuardianModalOpen(false);
       setGuardianEmail('');
       setSelectedStudent(null);
+      
+      // Refresh students to show updated guardian
+      await fetchStudents();
     } catch (error: unknown) {
       console.error('Error updating guardian:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to update guardian';
-      setSnackbar({
-        open: true,
-        message: errorMessage,
-        severity: 'error',
-      });
+      setSnackbar({ open: true, message: errorMessage, severity: 'error' });
     } finally {
       setGuardianLoading(false);
     }
-  }, [guardianEmail, selectedStudent]);
+  }, [guardianEmail, selectedStudent, fetchStudents]);
 
   const handleGuardianClick = useCallback(async (student: Student) => {
-    console.log('Guardian click for student:', student);
     setSelectedStudent(student);
     setGuardianEmail('');
 
-    // Fetch parents first, then open modal
     try {
       await fetchParents();
       setIsGuardianModalOpen(true);
-      console.log('Modal should be open now');
     } catch (error) {
       console.error('Error preparing guardian modal:', error);
     }
@@ -643,12 +667,13 @@ const fetchClasses = useCallback(async () => {
   }, [fetchParents, handleMenuClose]);
 
   const handleBulkUpload = useCallback(async () => {
-    if (!selectedFile || !authToken) {
-      setSnackbar({
-        open: true,
-        message: 'Please select a file first',
-        severity: 'error',
-      });
+    if (!selectedFile) {
+      setSnackbar({ open: true, message: 'Please select a file first', severity: 'error' });
+      return;
+    }
+    
+    if (!authToken) {
+      setSnackbar({ open: true, message: 'Authentication required', severity: 'error' });
       return;
     }
 
@@ -658,9 +683,7 @@ const fetchClasses = useCallback(async () => {
     try {
       const result = await bulkUploadStudents(selectedFile);
 
-      // Handle the bulk upload response format
       if (result.errors && result.errors.length > 0) {
-        // There were errors in some rows
         const errorMessages = result.errors
           .map((err) => `Row ${err.row}: ${err.error}`)
           .join(', ');
@@ -674,7 +697,6 @@ const fetchClasses = useCallback(async () => {
           severity: 'warning',
         });
       } else {
-        // All successful
         const successCount = Array.isArray(result.successes) ? result.successes.length : result.total || 0;
         setSnackbar({
           open: true,
@@ -691,11 +713,7 @@ const fetchClasses = useCallback(async () => {
     } catch (error: unknown) {
       console.error('Bulk upload error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to upload students';
-      setSnackbar({
-        open: true,
-        message: errorMessage,
-        severity: 'error',
-      });
+      setSnackbar({ open: true, message: errorMessage, severity: 'error' });
     } finally {
       setBulkUploadLoading(false);
       setUploadProgress(0);
@@ -703,7 +721,6 @@ const fetchClasses = useCallback(async () => {
   }, [selectedFile, authToken, fetchStudents]);
 
   const handleDownloadSample = useCallback(() => {
-    // Match the exact format your API expects
     const sampleCSV = `firstName,lastName,email,phone,classAdmittedTo
 John,Doe,john.doe@example.com,"+2348012345678",JSS 1
 Jane,Smith,jane.smith@example.com,"+2348023456789",JSS 2
@@ -726,24 +743,16 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
     });
   }, []);
 
-  const handleExport = () => {
+  const handleExport = useCallback(() => {
     if (!students || students.length === 0) {
-      setSnackbar({
-        open: true,
-        message: "No students available to export",
-        severity: "warning",
-      });
+      setSnackbar({ open: true, message: "No students available to export", severity: "warning" });
       return;
     }
 
-    setSnackbar({
-      open: true,
-      message: "Exporting students...",
-      severity: "info",
-    });
+    setSnackbar({ open: true, message: "Exporting students...", severity: "info" });
 
-    // --- Build CSV dynamically ---
-    const headers = Object.keys(students[0]).join(",") + "\n";
+    // Build CSV
+    const headers = Object.keys(students[0] || {}).join(",") + "\n";
 
     const rows = students
       .map((student) =>
@@ -761,7 +770,7 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
 
     const csvContent = headers + rows;
 
-    // --- Download CSV ---
+    // Download
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -772,26 +781,32 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
 
     URL.revokeObjectURL(url);
 
-    // --- Success message ---
-    setSnackbar({
-      open: true,
-      message: "Students exported successfully",
-      severity: "success",
-    });
-  };
+    setSnackbar({ open: true, message: "Students exported successfully", severity: "success" });
+  }, [students]);
 
-  // Data processing
+  // ==================== DATA PROCESSING ====================
+
   const filteredStudents = students.filter((s) => {
+    const studentName = (s.name || '').toLowerCase();
+    const studentEmail = (s.email || '').toLowerCase();
+    const studentStatus = (s.status || '').toLowerCase();
+    const studentClass = s.classAdmittedTo || '';
+    
+    const searchLower = searchQuery.toLowerCase();
+    
     const matchesSearch =
-      s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.email.toLowerCase().includes(searchQuery.toLowerCase());
+      studentName.includes(searchLower) ||
+      studentEmail.includes(searchLower);
+    
     const matchesStatus =
       statusFilter === 'all' ||
-      s.status.toLowerCase() === statusFilter.toLowerCase();
+      studentStatus === statusFilter.toLowerCase();
+    
     const matchesGrade =
       gradeFilter === 'all' ||
-      s.classAdmittedTo === gradeFilter ||
-      (gradeFilter === 'Not Assigned' && !s.classAdmittedTo);
+      studentClass === gradeFilter ||
+      (gradeFilter === 'Not Assigned' && !studentClass);
+    
     return matchesSearch && matchesStatus && matchesGrade;
   });
 
@@ -799,14 +814,14 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
     (page - 1) * rowsPerPage,
     page * rowsPerPage
   );
+  
   const pageCount = Math.ceil(filteredStudents.length / rowsPerPage);
 
-  // Get unique classes from both classes API and student records
   const availableClasses = [
     ...new Set(
       [
         ...classes.map((cls) => cls.className),
-        ...students.map((student) => student.classAdmittedTo),
+        ...students.map((student) => student.classAdmittedTo || ''),
       ].filter(
         (className) =>
           className && className.trim() !== '' && className !== 'Not Assigned'
@@ -814,13 +829,22 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
     ),
   ].sort();
 
+  // Stats calculations with safe defaults
+  const activeCount = students.filter(s => (s.status || '').toLowerCase() === 'active').length;
+  const inactiveCount = students.filter(s => (s.status || '').toLowerCase() === 'inactive').length;
+  const pendingCount = students.filter(s => (s.status || '').toLowerCase() === 'pending').length;
+
+  // ==================== RENDER ====================
+
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
-      <Header profilePath="/settings" />
+      <Header PsettingsPage="/settings" />
+      
       <div className="flex flex-grow">
         <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-none">
           <Sidebar />
         </aside>
+        
         <main className="flex-grow p-4 md:p-8 md:ml-64 overflow-x-auto">
           {/* Title & Add Button */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
@@ -872,11 +896,7 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
                     Active Students
                   </p>
                   <p className="text-2xl md:text-3xl font-bold text-green-600">
-                    {
-                      students.filter(
-                        (s) => s.status.toLowerCase() === 'active'
-                      ).length
-                    }
+                    {activeCount}
                   </p>
                 </div>
                 <div className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 bg-green-100 rounded-lg">
@@ -889,14 +909,14 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm md:text-base text-gray-600 font-medium mb-1">
-                    Total Classes
+                    Pending Students
                   </p>
-                  <p className="text-2xl md:text-3xl font-bold text-purple-600">
-                    {classes.length}
+                  <p className="text-2xl md:text-3xl font-bold text-yellow-600">
+                    {pendingCount}
                   </p>
                 </div>
-                <div className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 bg-purple-100 rounded-lg">
-                  <BookOpenIcon className="h-5 w-5 md:h-6 md:w-6 text-purple-600" />
+                <div className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 bg-yellow-100 rounded-lg">
+                  <ClockIcon className="h-5 w-5 md:h-6 md:w-6 text-yellow-600" />
                 </div>
               </div>
             </div>
@@ -908,11 +928,7 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
                     Inactive Students
                   </p>
                   <p className="text-2xl md:text-3xl font-bold text-red-600">
-                    {
-                      students.filter(
-                        (s) => s.status.toLowerCase() === 'inactive'
-                      ).length
-                    }
+                    {inactiveCount}
                   </p>
                 </div>
                 <div className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 bg-red-100 rounded-lg">
@@ -926,7 +942,7 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
           {!classesLoading && classes.length > 0 && (
             <div className="bg-white rounded-xl shadow-sm mb-6 md:mb-8 p-4 md:p-6 border border-gray-100">
               <div className="flex items-center gap-2 mb-3 md:mb-4">
-                {getSchoolTypeIcon(schoolProfile?.schoolType || 'secondary')}
+                {getSchoolTypeIcon(schoolProfile?.schoolType)}
                 <h2 className="text-base md:text-lg font-semibold text-gray-900">
                   Classes Overview
                 </h2>
@@ -959,7 +975,7 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
           )}
 
           {/* Registration Link Card */}
-          <div className="bg-white rounded-xl shadow-sm p-5 mb-6 border border-gray-100 ">
+          <div className="bg-white rounded-xl shadow-sm p-5 mb-6 border border-gray-100">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div className="flex items-center gap-2">
                 <MailIcon className="h-4 w-4 md:h-5 md:w-5 text-blue-600" />
@@ -1023,6 +1039,7 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
                   <option value="inactive">Inactive</option>
                 </select>
               </div>
+              
               <div>
                 <label htmlFor="gradeFilter" className="sr-only">
                   Filter by class
@@ -1044,6 +1061,7 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
                 </select>
               </div>
             </div>
+            
             <div className="mt-3 md:mt-4 flex justify-end gap-2">
               <button
                 onClick={handleDownloadSample}
@@ -1053,6 +1071,7 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
                 <DownloadIcon className="h-4 w-4 md:h-5 md:w-5" />
                 <span className="hidden sm:inline">Sample CSV</span>
               </button>
+              
               <button
                 onClick={() => setIsBulkUploadOpen(true)}
                 className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-medium px-4 py-2 md:px-6 md:py-3 rounded-lg flex items-center gap-2 transition-colors text-sm md:text-base"
@@ -1060,9 +1079,11 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
                 <PlusIcon className="h-4 w-4 md:h-5 md:w-5" />
                 <span className="hidden sm:inline">Bulk Upload</span>
               </button>
+              
               <button
                 onClick={handleExport}
-                className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-4 py-2 md:px-6 md:py-3 rounded-lg flex items-center gap-2 transition-colors text-sm md:text-base">
+                className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-4 py-2 md:px-6 md:py-3 rounded-lg flex items-center gap-2 transition-colors text-sm md:text-base"
+              >
                 <DownloadIcon className="h-4 w-4 md:h-5 md:w-5" />
                 <span className="hidden sm:inline">Export Data</span>
               </button>
@@ -1122,6 +1143,7 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
                             {student._id.slice(-8)}
                           </div>
                         </td>
+                        
                         <td className="px-4 py-3 md:px-6 md:py-4 whitespace-nowrap">
                           <div className="flex items-center min-w-[200px]">
                             <div className="flex-shrink-0 h-8 w-8 md:h-10 md:w-10">
@@ -1131,15 +1153,16 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
                             </div>
                             <div className="ml-3">
                               <div className="text-sm font-medium text-gray-900 truncate max-w-[120px] md:max-w-none">
-                                {student.name}
+                                {student.name || 'Unknown'}
                               </div>
                               <div className="text-xs text-gray-500 flex items-center gap-1 truncate max-w-[120px] md:max-w-none">
                                 <MailIcon className="h-3 w-3" />
-                                {student.email}
+                                {student.email || 'No email'}
                               </div>
                             </div>
                           </div>
                         </td>
+                        
                         <td className="px-4 py-3 md:px-6 md:py-4 whitespace-nowrap">
                           {student.guardian ? (
                             <div className="text-sm text-gray-900">
@@ -1152,6 +1175,7 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
                             <span className="text-xs text-gray-500 italic">No guardian assigned</span>
                           )}
                         </td>
+                        
                         <td className="px-4 py-3 md:px-6 md:py-4 whitespace-nowrap">
                           <div className="flex items-center gap-2">
                             <BookOpenIcon className="h-4 w-4 text-gray-400" />
@@ -1160,20 +1184,23 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
                             </span>
                           </div>
                         </td>
+                        
                         <td className="px-4 py-3 md:px-6 md:py-4 whitespace-nowrap">
                           <span
                             className={`inline-flex items-center gap-1 px-2 py-1 md:px-3 md:py-1 rounded-full text-xs font-medium ${getStatusBadgeColor(student.status)}`}
                           >
                             {getStatusIcon(student.status)}
-                            <span className="capitalize">{student.status}</span>
+                            <span className="capitalize">{student.status || 'Pending'}</span>
                           </span>
                         </td>
+                        
                         <td className="px-4 py-3 md:px-6 md:py-4 whitespace-nowrap">
                           <div className="flex items-center gap-1 text-xs md:text-sm text-gray-500">
                             <CalendarIcon className="h-3 w-3 md:h-4 md:w-4" />
                             {formatDate(student.createdAt)}
                           </div>
                         </td>
+                        
                         <td className="px-4 py-3 md:px-6 md:py-4 whitespace-nowrap text-center">
                           <button
                             onClick={(e) => handleMenuOpen(e, student)}
@@ -1197,13 +1224,12 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
             <div className="flex flex-col sm:flex-row justify-between items-center bg-white rounded-xl p-3 md:p-4 shadow-sm border border-gray-100">
               <div className="text-xs md:text-sm text-gray-600 mb-3 sm:mb-0">
                 Showing{' '}
-                <span className="font-semibold">
-                  {paginatedStudents.length}
-                </span>{' '}
+                <span className="font-semibold">{paginatedStudents.length}</span>{' '}
                 of{' '}
                 <span className="font-semibold">{filteredStudents.length}</span>{' '}
                 results
               </div>
+              
               <div className="flex justify-center">
                 <nav
                   className="inline-flex rounded-lg shadow-sm"
@@ -1212,13 +1238,15 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
                   <button
                     onClick={() => setPage(Math.max(1, page - 1))}
                     disabled={page === 1}
-                    className={`relative inline-flex items-center px-2 py-1 md:px-3 md:py-2 rounded-l-lg border text-xs md:text-sm font-medium ${page === 1
+                    className={`relative inline-flex items-center px-2 py-1 md:px-3 md:py-2 rounded-l-lg border text-xs md:text-sm font-medium ${
+                      page === 1
                         ? 'text-gray-300 bg-gray-100 border-gray-200 cursor-not-allowed'
                         : 'text-gray-500 bg-white border-gray-300 hover:bg-gray-50'
-                      }`}
+                    }`}
                   >
                     Previous
                   </button>
+                  
                   {Array.from({ length: Math.min(5, pageCount) }, (_, i) => {
                     let pageNum = i + 1;
                     if (pageCount > 5) {
@@ -1234,23 +1262,26 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
                         <button
                           key={i}
                           onClick={() => setPage(pageNum)}
-                          className={`relative inline-flex items-center px-3 py-1 md:px-4 md:py-2 border text-xs md:text-sm font-medium ${page === pageNum
+                          className={`relative inline-flex items-center px-3 py-1 md:px-4 md:py-2 border text-xs md:text-sm font-medium ${
+                            page === pageNum
                               ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
                               : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-                            }`}
+                          }`}
                         >
                           {pageNum}
                         </button>
                       )
                     );
                   })}
+                  
                   <button
                     onClick={() => setPage(Math.min(pageCount, page + 1))}
                     disabled={page === pageCount}
-                    className={`relative inline-flex items-center px-2 py-1 md:px-3 md:py-2 rounded-r-lg border text-xs md:text-sm font-medium ${page === pageCount
+                    className={`relative inline-flex items-center px-2 py-1 md:px-3 md:py-2 rounded-r-lg border text-xs md:text-sm font-medium ${
+                      page === pageCount
                         ? 'text-gray-300 bg-gray-100 border-gray-200 cursor-not-allowed'
                         : 'text-gray-500 bg-white border-gray-300 hover:bg-gray-50'
-                      }`}
+                    }`}
                   >
                     Next
                   </button>
@@ -1260,20 +1291,23 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
           )}
         </main>
       </div>
+      
       <Footer />
+
       {/* Context Menu */}
       {isMenuOpen && menuStudent && (
         <>
           <div
             className="fixed inset-0 z-10"
             onClick={handleMenuClose}
-          ></div>
+          />
+          
           <div
             className="fixed z-20 bg-white rounded-lg shadow-lg py-2 w-56 border border-gray-200"
             style={{
               top: Math.min(menuPosition.top, window.innerHeight - 200),
               left: Math.min(menuPosition.left - 100, window.innerWidth - 224),
-            } as React.CSSProperties}
+            }}
           >
             <button
               className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
@@ -1285,6 +1319,7 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
               <UserIcon className="h-4 w-4" />
               View Details
             </button>
+            
             <button
               className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
               onClick={() => {
@@ -1295,6 +1330,7 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
               <CalendarIcon className="h-4 w-4" />
               Transaction Info
             </button>
+            
             <button
               className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
               onClick={handleMenuClose}
@@ -1304,7 +1340,7 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
             </button>
 
             {/* PIN Management Options */}
-            <div className="border-t border-gray-100 my-1"></div>
+            <div className="border-t border-gray-100 my-1" />
 
             <button
               className="flex items-center gap-3 px-4 py-2 text-sm text-blue-600 hover:bg-gray-50 w-full text-left"
@@ -1336,16 +1372,17 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
               Assign Guardian
             </button>
 
-            <div className="border-t border-gray-100 my-1"></div>
+            <div className="border-t border-gray-100 my-1" />
 
             <button
-              className={`flex items-center gap-3 px-4 py-2 text-sm hover:bg-gray-50 w-full text-left ${menuStudent.status.toLowerCase() === 'active'
+              className={`flex items-center gap-3 px-4 py-2 text-sm hover:bg-gray-50 w-full text-left ${
+                (menuStudent.status || '').toLowerCase() === 'active'
                   ? 'text-red-600'
                   : 'text-green-600'
-                }`}
+              }`}
               onClick={() => handleActivateDeactivate(menuStudent)}
             >
-              {menuStudent.status.toLowerCase() === 'active' ? (
+              {(menuStudent.status || '').toLowerCase() === 'active' ? (
                 <>
                   <XCircleIcon className="h-4 w-4" />
                   Deactivate Student
@@ -1428,7 +1465,7 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
                     <div
                       className="bg-purple-600 h-2 rounded-full transition-all duration-300"
                       style={{ width: `${uploadProgress}%` }}
-                    ></div>
+                    />
                   </div>
                   <p className="text-sm text-gray-600 mt-1 text-center">
                     Uploading... {uploadProgress}%
@@ -1470,7 +1507,7 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
               >
                 {bulkUploadLoading ? (
                   <>
-                    <span className="inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1"></span>
+                    <span className="inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1" />
                     Uploading...
                   </>
                 ) : (
@@ -1481,6 +1518,7 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
           </div>
         </div>
       )}
+
       {/* Guardian Assignment Modal */}
       {isGuardianModalOpen && selectedStudent && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
@@ -1497,7 +1535,7 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
                   Assign Guardian
                 </h3>
                 <p className="text-sm text-gray-500">
-                  For student: <strong>{selectedStudent.name}</strong>
+                  For student: <strong>{selectedStudent.name || 'Unknown'}</strong>
                 </p>
               </div>
             </div>
@@ -1510,7 +1548,7 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
               {availableParents.length === 0 ? (
                 <div className="flex justify-center items-center py-4">
                   <div className="text-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2" />
                     <p className="text-sm text-gray-500">Loading available parents...</p>
                   </div>
                 </div>
@@ -1525,7 +1563,7 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
                   <option value="">Select a guardian...</option>
                   {availableParents.map((parent) => (
                     <option key={parent._id} value={parent.email}>
-                      {parent.name || `${parent.firstName} ${parent.lastName}`} ({parent.email})
+                      {parent.name || `${parent.firstName || ''} ${parent.lastName || ''}`.trim() || 'Unknown'} ({parent.email})
                     </option>
                   ))}
                 </select>
@@ -1536,7 +1574,7 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
                   <p className="text-xs text-blue-800">
                     Selected guardian: <strong>
                       {availableParents.find(p => p.email === guardianEmail)?.name ||
-                        `${availableParents.find(p => p.email === guardianEmail)?.firstName} ${availableParents.find(p => p.email === guardianEmail)?.lastName}`}
+                        `${availableParents.find(p => p.email === guardianEmail)?.firstName || ''} ${availableParents.find(p => p.email === guardianEmail)?.lastName || ''}`.trim() || 'Unknown'}
                     </strong>
                   </p>
                 </div>
@@ -1563,7 +1601,7 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
               >
                 {guardianLoading ? (
                   <>
-                    <span className="inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1"></span>
+                    <span className="inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1" />
                     Assigning...
                   </>
                 ) : (
@@ -1574,6 +1612,7 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
           </div>
         </div>
       )}
+
       {/* PIN Management Modal */}
       {isPinModalOpen && menuStudent && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
@@ -1590,7 +1629,7 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
                   {pinAction === 'set' ? 'Set PIN' : 'Update PIN'}
                 </h3>
                 <p className="text-sm text-gray-500">
-                  For student: <strong>{menuStudent.name}</strong>
+                  For student: <strong>{menuStudent.name || 'Unknown'}</strong>
                 </p>
               </div>
             </div>
@@ -1671,7 +1710,7 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
               >
                 {pinLoading ? (
                   <>
-                    <span className="inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1"></span>
+                    <span className="inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1" />
                     {pinAction === 'set' ? 'Setting...' : 'Updating...'}
                   </>
                 ) : (
@@ -1682,17 +1721,19 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
           </div>
         </div>
       )}
+
       {/* Snackbar */}
       {snackbar.open && (
         <div
-          className={`fixed bottom-4 right-4 z-50 py-2 px-4 md:py-3 md:px-6 rounded-lg shadow-lg ${snackbar.severity === 'success'
+          className={`fixed bottom-4 right-4 z-50 py-2 px-4 md:py-3 md:px-6 rounded-lg shadow-lg ${
+            snackbar.severity === 'success'
               ? 'bg-green-500'
               : snackbar.severity === 'error'
                 ? 'bg-red-500'
                 : snackbar.severity === 'warning'
                   ? 'bg-yellow-500'
                   : 'bg-blue-500'
-            } text-white transition-all duration-300 ease-in-out max-w-xs md:max-w-md`}
+          } text-white transition-all duration-300 ease-in-out max-w-xs md:max-w-md`}
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">

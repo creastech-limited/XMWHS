@@ -113,60 +113,105 @@ const PaySchoolBillsPage: React.FC = () => {
 
   // Fetch all children/students of the parent
   const fetchStudents = useCallback(async (): Promise<Student[]> => {
-    try {
-      console.log('Fetching students...');
+  try {
+    console.log('Fetching students...');
 
+    const data = await getMyChildren();
 
-      const data = await getMyChildren();
+    console.log('Raw students API response:', data);
 
-      console.log('Raw students API response:', data);
+    let studentsData: Array<{
+      student_id?: string;
+      _id?: string;
+      firstName?: string;
+      lastName?: string;
+      fullName?: string;
+      name?: string;
+      email?: string;
+      class?: string;
+      className?: string;
+      schoolId?: string;
+      parentId?: string;
+      role?: string;
+      phone?: string;
+      status?: string;
+      createdAt?: string;
+      updatedAt?: string;
+      registrationDate?: string;
+      isPinSet?: boolean;
+      isFirstLogin?: boolean;
+      studentCanTopup?: boolean;
+      studentCanTransfer?: boolean;
+      studentCanWithdraw?: boolean;
+      studentCanPayBill?: boolean;
+      academicDetails?: {
+        classAdmittedTo: string;
+      };
+    }> = [];
 
-      let studentsData: Student[] = [];
-
-      // Handle the actual response structure based on your API
-      if (data?.success && Array.isArray(data.data)) {
-        studentsData = data.data;
-      } else if (Array.isArray(data.data)) {
-        studentsData = data.data;
-      } else if (Array.isArray(data)) {
-        studentsData = data;
-      } else {
-        console.log('Unexpected students response structure:', data);
-        throw new Error('Invalid response structure');
-      }
-
-      // Process each student to ensure consistent structure
-      const processedStudents: Student[] = studentsData.map(student => ({
-        _id: student.student_id || student._id || `student-${Date.now()}-${Math.random()}`,
-        student_id: student.student_id,
-        firstName: student.firstName || 'Unknown',
-        lastName: student.lastName || '',
-        fullName: student.fullName || `${student.firstName || 'Unknown'} ${student.lastName || ''}`.trim(),
-        email: student.email || '',
-        className: student.class || student.className || 'No Class',
-        class: student.class,
-        schoolId: student.schoolId,
-        parentId: student.parentId,
-        role: student.role,
-        phone: student.phone
-      }));
-
-      console.log('Processed students:', processedStudents);
-
-      if (processedStudents.length === 0) {
-        showSnackbar('No students found', 'warning');
-      } else {
-        showSnackbar(`Loaded ${processedStudents.length} students`, 'success');
-      }
-
-      setFilteredStudents(processedStudents);
-      return processedStudents;
-    } catch (error) {
-      console.error('Error fetching students:', error);
-      showSnackbar('Failed to fetch students. Please try again.', 'error');
-      return [];
+    // Handle the actual response structure based on your API
+    if (Array.isArray(data.data)) {
+      studentsData = data.data;
+    } else if (Array.isArray(data)) {
+      studentsData = data;
+    } else {
+      console.log('Unexpected students response structure:', data);
+      throw new Error('Invalid response structure');
     }
-  }, [showSnackbar]);
+
+    // Process each student to ensure consistent structure matching Student interface
+    const processedStudents: Student[] = studentsData.map(student => {
+      const studentId = student.student_id || student._id || `student-${Date.now()}-${Math.random()}`;
+      const firstName = student.firstName || 'Unknown';
+      const lastName = student.lastName || '';
+      const fullName = student.fullName || student.name || `${firstName} ${lastName}`.trim();
+      const classValue = student.class || student.className || 'No Class';
+      
+      return {
+        _id: studentId,
+        student_id: student.student_id || studentId,
+        firstName: firstName,
+        lastName: lastName,
+        name: fullName, // Required by Student interface
+        fullName: fullName, // For display
+        email: student.email || '',
+        phone: student.phone || '',
+        status: (student.status as 'Active' | 'Inactive' | 'Pending') || 'Pending',
+        schoolId: student.schoolId || '',
+        Class: classValue, // Required by Student interface
+        classAdmittedTo: classValue, // Required by Student interface
+        academicDetails: student.academicDetails || { classAdmittedTo: classValue },
+        createdAt: student.createdAt || new Date().toISOString(),
+        updatedAt: student.updatedAt || new Date().toISOString(),
+        registrationDate: student.registrationDate || new Date().toISOString(),
+        isPinSet: student.isPinSet || false,
+        isFirstLogin: student.isFirstLogin || false,
+        studentCanTopup: student.studentCanTopup || false,
+        studentCanTransfer: student.studentCanTransfer || false,
+        studentCanWithdraw: student.studentCanWithdraw || false,
+        studentCanPayBill: student.studentCanPayBill || false,
+        // Optional fields
+        role: student.role,
+        parentId: student.parentId,
+      };
+    });
+
+    console.log('Processed students:', processedStudents);
+
+    if (processedStudents.length === 0) {
+      showSnackbar('No students found', 'warning');
+    } else {
+      showSnackbar(`Loaded ${processedStudents.length} students`, 'success');
+    }
+
+    setFilteredStudents(processedStudents);
+    return processedStudents;
+  } catch (error) {
+    console.error('Error fetching students:', error);
+    showSnackbar('Failed to fetch students. Please try again.', 'error');
+    return [];
+  }
+}, [showSnackbar]);
 
   // Fetch fees for a specific student using GET request with query parameters
   const fetchFeesForStudent = useCallback(async (studentEmail: string): Promise<SchoolFee[]> => {
@@ -251,9 +296,9 @@ const PaySchoolBillsPage: React.FC = () => {
       }));
 
       if (transformedBills.length === 0) {
-        showSnackbar(`No fees found for ${student.fullName}`, 'info');
+        showSnackbar(`No fees found for ${student.name}`, 'info');
       } else {
-        showSnackbar(`Loaded ${transformedBills.length} bills for ${student.fullName}`, 'success');
+        showSnackbar(`Loaded ${transformedBills.length} bills for ${student.name}`, 'success');
       }
 
     } catch (error) {
@@ -463,7 +508,7 @@ const PaySchoolBillsPage: React.FC = () => {
                   </option>
                   {filteredStudents.map((student) => (
                     <option key={student._id} value={student._id}>
-                      {student.fullName} - {student.className}
+                     {student.name || `${student.firstName} ${student.lastName}`.trim()}
                       {student.email && ` (${student.email})`}
                     </option>
                   ))}
@@ -487,10 +532,10 @@ const PaySchoolBillsPage: React.FC = () => {
                     </div>
                     <div>
                       <h3 className="text-lg font-semibold text-indigo-900">
-                        {selectedStudentData.student.fullName}
+                        {selectedStudentData.student.name}
                       </h3>
                       <p className="text-sm text-indigo-600">
-                        Class: {selectedStudentData.student.className}
+                        Class: {selectedStudentData.student.Class}
                       </p>
                       {selectedStudentData.student.email && (
                         <p className="text-xs text-indigo-500">
@@ -532,7 +577,7 @@ const PaySchoolBillsPage: React.FC = () => {
                 </div>
 
                 <h2 className="text-xl font-semibold text-gray-800 mb-2">
-                  {selectedStudentData.student.fullName}'s Bills
+                  {selectedStudentData.student.name}'s Bills
                 </h2>
                 <hr className="mb-6" />
 
@@ -624,7 +669,7 @@ const PaySchoolBillsPage: React.FC = () => {
                   <div className="flex flex-col items-center justify-center py-16">
                     <DocumentTextIcon className="h-16 w-16 text-gray-300 mb-4" />
                     <p className="text-gray-500 text-lg">
-                      No bills found for {selectedStudentData.student.fullName}
+                      No bills found for {selectedStudentData.student.name}
                     </p>
                     <p className="text-sm text-gray-400 mt-2">
                       Bills will appear here when they are created by the school
@@ -689,7 +734,7 @@ const PaySchoolBillsPage: React.FC = () => {
                   <p className="text-black mb-2">Bill Details:</p>
                   <div className="bg-gray-50 p-3 rounded-md">
                     <p className="font-bold text-black">{currentBill.description}</p>
-                    <p className="text-sm text-black mt-1">Student: {selectedStudentData?.student.fullName}</p>
+                    <p className="text-sm text-black mt-1">Student: {selectedStudentData?.student.name}</p>
                     <p className="text-sm text-black mt-1">Total Amount: ₦{currentBill.amount.toLocaleString()}</p>
                     <p className="text-sm text-black mt-1">Already Paid: ₦{currentBill.amountPaid.toLocaleString()}</p>
                     <p className="text-sm text-black font-medium mt-1">

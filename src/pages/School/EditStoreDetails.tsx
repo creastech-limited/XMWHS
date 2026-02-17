@@ -134,7 +134,7 @@ const EditStoreDetails = () => {
   if (isLoading && !user) {
     return (
       <div className="flex flex-col min-h-screen bg-gray-50">
-        <Header profilePath="/settings"/>
+        <Header PsettingsPage="/settings" />
         <div className="flex flex-grow">
           <aside className="hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-64 z-[100]">
             <Sidebar />
@@ -158,7 +158,7 @@ const EditStoreDetails = () => {
   if (fetchError) {
     return (
       <div className="flex flex-col min-h-screen bg-gray-50">
-        <Header profilePath="/settings"/>
+        <Header PsettingsPage="/settings" />
         <div className="flex flex-grow">
           <aside className="hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-64 z-[100]">
             <Sidebar />
@@ -194,7 +194,7 @@ const EditStoreDetails = () => {
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
-      <Header profilePath="/settings" />
+      <Header PsettingsPage="/settings" />
       <div className="flex flex-grow">
         <aside className="hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-64 z-[100]">
           <Sidebar />
