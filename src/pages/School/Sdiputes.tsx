@@ -19,7 +19,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { createDisputeApi, getUserDetails, getUserDisputes } from '../../services';
-import type { CreateDisputeData, CreateDisputeResponse, Dispute, FetchDisputesResponse, FetchUserDetailsResponse, User, UserProfile } from '../../types';
+import type { CreateDisputeData, CreateDisputeResponse, Dispute, FetchDisputesResponse, FetchUserDetailsResponse, UserProfile } from '../../types';
 
 interface StatusColorMap {
   [key: string]: string;

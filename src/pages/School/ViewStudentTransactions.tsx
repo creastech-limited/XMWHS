@@ -20,7 +20,7 @@ import type { Student, SchoolFee, Bill, TransactionSummary } from '../../types/s
 import type { SnackbarState } from '../../types';
 
 const ViewStudentTransactions: React.FC = () => {
-  const { _id: studentIdFromUrl } = useParams();
+  const { _id: studentIdFromUrl } = useParams<{ _id: string }>();
   const [student, setStudent] = useState<(Student & { fullName?: string }) | null>(null);
   const [bills, setBills] = useState<Bill[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -41,7 +41,7 @@ const ViewStudentTransactions: React.FC = () => {
         setSnackbar((prev) => ({ ...prev, open: false }));
       }, 5000);
     },
-    []
+    [] // Added missing dependency array
   );
 
   // Get authentication token
@@ -69,22 +69,28 @@ const ViewStudentTransactions: React.FC = () => {
 
   // Transform fees to bills format
   const transformFeesToBills = useCallback((fees: SchoolFee[]): Bill[] => {
-    return fees.map((fee) => ({
-      id: fee._id,
-      _id: fee._id,
-      feeId: fee.feeId,
-      description: fee.feeType || 'School Fee',
-      amount: fee.amount || 0,
-      amountPaid: fee.amountPaid || 0,
-      dueDate: fee.paymentDate
-        ? new Date(fee.paymentDate).toLocaleDateString()
-        : 'N/A',
-      status: fee.status?.toLowerCase() === 'paid' ? 'paid' : 'unpaid',
-      term: fee.term || 'N/A',
-      session: fee.session || 'N/A',
-      transactionId: fee.transactionId || 'N/A',
-      remainingAmount: (fee.amount || 0) - (fee.amountPaid || 0), // Add missing field
-    }));
+    return fees.map((fee) => {
+      const amount = fee.amount || 0;
+      const amountPaid = fee.amountPaid || 0;
+
+      return {
+        id: fee._id,
+        _id: fee._id,
+        feeId: fee.feeId,
+        description: fee.feeType || 'School Fee',
+        amount: amount,
+        amountPaid: amountPaid,
+        // Calculate remaining amount once
+        remainingAmount: amount - amountPaid,
+        dueDate: fee.paymentDate
+          ? new Date(fee.paymentDate).toLocaleDateString()
+          : 'N/A',
+        status: fee.status?.toLowerCase() === 'paid' ? 'paid' : 'unpaid',
+        term: fee.term || 'N/A',
+        session: fee.session || 'N/A',
+        transactionId: fee.transactionId || 'N/A',
+      };
+    });
   }, []);
 
   // Load fees for student
@@ -127,7 +133,7 @@ const ViewStudentTransactions: React.FC = () => {
     [transformFeesToBills, showSnackbar]
   );
 
-  // Initialize data - Only run once when component mounts
+  // Initialize data
  useEffect(() => {
   const initializeData = async () => {
     try {
@@ -146,7 +152,7 @@ const ViewStudentTransactions: React.FC = () => {
         
         // Process the student data for display
         if (studentData) {
-          // Create processed student object with only available fields
+          // Create processed student object with only fields that exist in StudentDetails
           const processedStudent: Student & { fullName: string } = {
             _id: studentData._id,
             name: studentData.name || `${studentData.firstName || ''} ${studentData.lastName || ''}`.trim(),
@@ -156,21 +162,21 @@ const ViewStudentTransactions: React.FC = () => {
             email: studentData.email || '',
             phone: studentData.phone || '',
             status: (studentData.status as 'Active' | 'Inactive' | 'Pending') || 'Pending',
-            // Required Student fields with sensible defaults
+            // Required Student fields - using available data or defaults
             student_id: studentData._id, // Use _id as student_id
             schoolId: '', // Not available in StudentDetails
             Class: studentData.class || '', // Use class field
             classAdmittedTo: studentData.academicDetails?.classAdmittedTo || studentData.class || '',
             academicDetails: studentData.academicDetails || { classAdmittedTo: '' },
             createdAt: studentData.createdAt || '',
-            updatedAt: '', // Not available
-            registrationDate: '', // Not available
-            isPinSet: false, // Not available
-            isFirstLogin: false, // Not available
-            studentCanTopup: false, // Not available
-            studentCanTransfer: false, // Not available
-            studentCanWithdraw: false, // Not available
-            studentCanPayBill: false, // Not available
+            updatedAt: '', 
+            registrationDate: '', // Not available in StudentDetails
+            isPinSet: false, // Not available in StudentDetails
+            isFirstLogin: false, // Not available in StudentDetails
+            studentCanTopup: false, // Not available in StudentDetails
+            studentCanTransfer: false, // Not available in StudentDetails
+            studentCanWithdraw: false, // Not available in StudentDetails
+            studentCanPayBill: false, // Not available in StudentDetails
           };
           
           setStudent(processedStudent);
