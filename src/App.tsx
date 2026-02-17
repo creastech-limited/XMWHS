@@ -41,104 +41,75 @@ import Pdispute from './pages/Parent/Pdispute.js';
 import Kdispute from './pages/Student/Kdispute.js'; 
 import DisputePage from './pages/School/Sdiputes.js';
 import Storedispute from './pages/Store/Storedispute.js';
-import Terms from './pages/Public Pages/TermsAndConditions.js';
 import Overview from './pages/Admin/overview';
 import AllUsers from './pages/Admin/AllUsers';
 import SchoolTransferPage from './pages/School/schooltransfer.js';
 import ForgotPasswordPage from './pages/Public Pages/ForgotPasswordPage.js';
 import ResetPasswordPage from './pages/Public Pages/ResetPasswordPage.js';
+import PrivacyAndPolicy from './pages/Public Pages/PrivacyAndPolicy.js';
 
 function App() {
   return (
     <Router>
-      <AuthProvider>
-        <Routes>
-          {/* Redirect root to login */}
-          <Route path="/" element={<Navigate to="/login" replace />} />
-
-          {/* Login page */}
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/terms" element={<Terms />} />
-
-          {/* Registration Pages */}
-          <Route path="/signup" element={<SignUpPage />} />
-          <Route path='/schoolsignup' element={<SchoolSignUpPage />} />
-          <Route path="/students/new" element={<StudentRegistrationForm />} />
-          <Route path="/stores/new" element={<StoreRegistrationForm />} />
-          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-          <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
-
-
-          {/* School dashboard */}
-          <Route path="/schools" element={<SchoolsPage />} />
-          <Route path="/students" element={<StudentPage />} />
-          <Route path="/stores" element={<StorePage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/schoolfees" element={<SchoolFeesModule />} />
-          <Route path="/schooltransfer" element={<SchoolTransferPage />} />
-          <Route path='/transactions' element={<TransactionModule />} />
-          <Route path="/withdrawal" element={<WithdrawalPage />} />
-          <Route path="/students/edit/:_id" element={<EditStudentDetails />} />
-          <Route path="/students/transactions/:_id" element={<ViewStudentTransactions />} />
-          <Route path="/Sdisputes" element={<DisputePage />} />
-
-
-          {/* Parent dashboard */}
-          <Route path="/parent" element={<ParentDashboard />} />
-          <Route path="/fundwallet" element={<FundWalletPage />} />
-          <Route path="/ptransactionhistory" element={<PTransactionHistoryPage />} />
-          <Route path="/psettings" element={<PsettingsPage />} />
-          <Route path="/transfertokids" element={<TransferToKidsPage />} />
-          <Route path="/payschoolbills" element={<PaySchoolBillsPage />} />
-          <Route path="/paytoagent" element={<PayToAgentPage />} />
-          <Route path="/pdispute" element={<Pdispute />} />
-
-
-          
-
-          {/* Kids dashboard */}
-          <Route path="/kidswallet" element={<KidsDashboard/>} />
-          <Route path="/ksettings" element={<KidsSettingsPage />} />
-          <Route path="/kidpayagent" element={<KidPayAgentPage />} />
-          <Route path="/kidpaymenthistory" element={<KidPaymentHistoryPage />} />
-          <Route path="/schoolbills" element={<SchoolBillsPage />} />
-          <Route path="/kdispute" element={<Kdispute />} />
-          
-
-          {/* Store dashboard */}
-          <Route path="/store" element={<StoreDashboard />} />
-          <Route path="/agents" element={<ManageAgentsPage />} />
-          <Route path="/stransactions" element={<STransactionHistoryPage />} />
-          <Route path='/swithdrawal' element={<SWithdrawalPage />} />
-          <Route path="/store/settings" element={<StoreSettingsPage />} />
-          <Route path="/stores/edit/:id" element={<EditStoreDetails />} />
-          <Route path="/Storedispute" element={<Storedispute />} />
-
-
-
-          {/* Agent dashboard */}
-          <Route path="/agent" element={<AgentDashboard />} />
-          <Route path="/agent/scanqr" element={<AgentScanQR />} />
-          <Route path="/agent/transfertostore" element={<AgentTransferToStore />} />
-          <Route path="/agent/transactions" element={<AgentTransactionHistory />} />
-          
-
-          {/* admin routes */}
-          <Route path="/admin" element={<Overview />} />
-          <Route path="/admin/management/all-users" element={<AllUsers />} />
-
+      <Routes>
+        <Route path="/privacyAndPolicy" element={<PrivacyAndPolicy />} />
         
-          {/* Paystack Page */}
-          <Route path="/payment/callback" element={<PaystackCallback />} />
-
-
-        </Routes>
-      </AuthProvider>
+        <Route path="*" element={
+          <AuthProvider>
+            <Routes>
+              <Route path="/" element={<Navigate to="/login" replace />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/signup" element={<SignUpPage />} />
+              <Route path='/schoolsignup' element={<SchoolSignUpPage />} />
+              <Route path="/students/new" element={<StudentRegistrationForm />} />
+              <Route path="/stores/new" element={<StoreRegistrationForm />} />
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
+              <Route path="/schools" element={<SchoolsPage />} />
+              <Route path="/students" element={<StudentPage />} />
+              <Route path="/stores" element={<StorePage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/schoolfees" element={<SchoolFeesModule />} />
+              <Route path="/schooltransfer" element={<SchoolTransferPage />} />
+              <Route path='/transactions' element={<TransactionModule />} />
+              <Route path="/withdrawal" element={<WithdrawalPage />} />
+              <Route path="/students/edit/:_id" element={<EditStudentDetails />} />
+              <Route path="/students/transactions/:_id" element={<ViewStudentTransactions />} />
+              <Route path="/Sdisputes" element={<DisputePage />} />
+              <Route path="/parent" element={<ParentDashboard />} />
+              <Route path="/fundwallet" element={<FundWalletPage />} />
+              <Route path="/ptransactionhistory" element={<PTransactionHistoryPage />} />
+              <Route path="/psettings" element={<PsettingsPage />} />
+              <Route path="/transfertokids" element={<TransferToKidsPage />} />
+              <Route path="/payschoolbills" element={<PaySchoolBillsPage />} />
+              <Route path="/paytoagent" element={<PayToAgentPage />} />
+              <Route path="/pdispute" element={<Pdispute />} />
+              <Route path="/kidswallet" element={<KidsDashboard/>} />
+              <Route path="/ksettings" element={<KidsSettingsPage />} />
+              <Route path="/kidpayagent" element={<KidPayAgentPage />} />
+              <Route path="/kidpaymenthistory" element={<KidPaymentHistoryPage />} />
+              <Route path="/schoolbills" element={<SchoolBillsPage />} />
+              <Route path="/kdispute" element={<Kdispute />} />
+              <Route path="/store" element={<StoreDashboard />} />
+              <Route path="/agents" element={<ManageAgentsPage />} />
+              <Route path="/stransactions" element={<STransactionHistoryPage />} />
+              <Route path='/swithdrawal' element={<SWithdrawalPage />} />
+              <Route path="/store/settings" element={<StoreSettingsPage />} />
+              <Route path="/stores/edit/:id" element={<EditStoreDetails />} />
+              <Route path="/Storedispute" element={<Storedispute />} />
+              <Route path="/agent" element={<AgentDashboard />} />
+              <Route path="/agent/scanqr" element={<AgentScanQR />} />
+              <Route path="/agent/transfertostore" element={<AgentTransferToStore />} />
+              <Route path="/agent/transactions" element={<AgentTransactionHistory />} />
+              <Route path="/admin" element={<Overview />} />
+              <Route path="/admin/management/all-users" element={<AllUsers />} />
+              <Route path="/payment/callback" element={<PaystackCallback />} />
+            </Routes>
+          </AuthProvider>
+        } />
+      </Routes>
     </Router>
   );
 }
 
 export default App;
-
-// https://nodes-1-ohur.onrender.com
-//https://nodes-mxxd.onrender.com

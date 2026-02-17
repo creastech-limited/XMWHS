@@ -4,7 +4,7 @@ import { Eye, EyeOff, User, Mail, Lock, AlertCircle, CheckCircle, School } from 
 import { registerParent } from '../../services';
 import type { ParentRegistrationRequest } from '../../types/auth';
 import bgImage from '../bg.jpeg';
-import logo from '../5.png'; 
+import logo from '../5.png';
 
 const SignUpPage: React.FC = () => {
   const [formValues, setFormValues] = useState({
@@ -16,7 +16,7 @@ const SignUpPage: React.FC = () => {
     confirmPassword: '',
     termsAccepted: false
   });
-  
+
   const [formErrors, setFormErrors] = useState({
     firstName: '',
     lastName: '',
@@ -26,23 +26,23 @@ const SignUpPage: React.FC = () => {
     confirmPassword: '',
     termsAccepted: ''
   });
-  
+
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
- 
+
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     const checked = type === 'checkbox' ? (e.target as HTMLInputElement).checked : undefined;
-    
+
     setFormValues({
       ...formValues,
       [name]: type === 'checkbox' ? checked : value
     });
-    
+
     // Clear error when user starts typing
     if (formErrors[name as keyof typeof formErrors]) {
       setFormErrors({
@@ -55,19 +55,19 @@ const SignUpPage: React.FC = () => {
   const validateForm = () => {
     let isValid = true;
     const errors = { ...formErrors };
-    
+
     // First name validation
     if (!formValues.firstName.trim()) {
       errors.firstName = 'First name is required';
       isValid = false;
     }
-    
+
     // Last name validation
     if (!formValues.lastName.trim()) {
       errors.lastName = 'Last name is required';
       isValid = false;
     }
-    
+
     // Email validation
     if (!formValues.email.trim()) {
       errors.email = 'Email is required';
@@ -76,13 +76,13 @@ const SignUpPage: React.FC = () => {
       errors.email = 'Please enter a valid email address';
       isValid = false;
     }
-    
+
     // Role validation
     if (!formValues.role) {
       errors.role = 'Please select a role';
       isValid = false;
     }
-    
+
     // Password validation
     if (!formValues.password) {
       errors.password = 'Password is required';
@@ -91,19 +91,19 @@ const SignUpPage: React.FC = () => {
       errors.password = 'Password must be at least 8 characters';
       isValid = false;
     }
-    
+
     // Confirm password validation
     if (formValues.password !== formValues.confirmPassword) {
       errors.confirmPassword = 'Passwords do not match';
       isValid = false;
     }
-    
+
     // Terms acceptance validation
     if (!formValues.termsAccepted) {
       errors.termsAccepted = 'You must accept the terms and conditions';
       isValid = false;
     }
-    
+
     setFormErrors(errors);
     return isValid;
   };
@@ -113,7 +113,7 @@ const SignUpPage: React.FC = () => {
     event.preventDefault();
     setErrorMessage('');
     setSuccessMessage('');
-    
+
     if (!validateForm()) {
       return;
     }
@@ -132,46 +132,46 @@ const SignUpPage: React.FC = () => {
       setLoading(false);
       return;
     }
-    
+
     setLoading(true);
 
     const { firstName, lastName, email, password, role } = formValues;
 
-  try {
-  const registrationData: ParentRegistrationRequest = {
-    firstName,
-    lastName,
-    email,
-    password,
-    role, // Should be 'parent'
-    termsAccepted: formValues.termsAccepted
-  };
+    try {
+      const registrationData: ParentRegistrationRequest = {
+        firstName,
+        lastName,
+        email,
+        password,
+        role, // Should be 'parent'
+        termsAccepted: formValues.termsAccepted
+      };
 
-  const result = await registerParent(registrationData);
+      const result = await registerParent(registrationData);
 
-  if (result.success) {
-    setSuccessMessage(result.message || 'Account created successfully! You can now sign in.');
-    
-    // Reset form after successful submission
-    setFormValues({
-      firstName: '',
-      lastName: '',
-      email: '',
-      role: 'parent',
-      password: '',
-      confirmPassword: '',
-      termsAccepted: false
-    });
-  } else {
-    setErrorMessage(result.message || 'Registration failed');
-  }
-} catch (error: unknown) {
-  console.error('Registration error:', error);
-  const errorMessage = error instanceof Error ? error.message : 'Something went wrong. Please try again.';
-  setErrorMessage(errorMessage);
-} finally {
-  setLoading(false);
-}
+      if (result.success) {
+        setSuccessMessage(result.message || 'Account created successfully! You can now sign in.');
+
+        // Reset form after successful submission
+        setFormValues({
+          firstName: '',
+          lastName: '',
+          email: '',
+          role: 'parent',
+          password: '',
+          confirmPassword: '',
+          termsAccepted: false
+        });
+      } else {
+        setErrorMessage(result.message || 'Registration failed');
+      }
+    } catch (error: unknown) {
+      console.error('Registration error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Something went wrong. Please try again.';
+      setErrorMessage(errorMessage);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -201,7 +201,7 @@ const SignUpPage: React.FC = () => {
             <span>{errorMessage}</span>
           </div>
         )}
-        
+
         {successMessage && (
           <div className="bg-green-50 text-green-700 px-4 py-3 rounded-lg mb-6 flex items-center gap-2 border border-green-200">
             <CheckCircle size={18} />
@@ -222,9 +222,8 @@ const SignUpPage: React.FC = () => {
                   value={formValues.firstName}
                   onChange={handleChange}
                   placeholder="First Name"
-                  className={`w-full px-4 py-3 pl-10 border ${
-                    formErrors.firstName ? 'border-red-500' : 'border-gray-300'
-                  } rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-200 text-black`}
+                  className={`w-full px-4 py-3 pl-10 border ${formErrors.firstName ? 'border-red-500' : 'border-gray-300'
+                    } rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-200 text-black`}
                   aria-describedby="firstName-error"
                 />
               </div>
@@ -232,7 +231,7 @@ const SignUpPage: React.FC = () => {
                 <p id="firstName-error" className="text-red-600 text-sm ml-1">{formErrors.firstName}</p>
               )}
             </div>
-            
+
             <div className="w-1/2 space-y-1">
               <div className="relative">
                 <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
@@ -244,9 +243,8 @@ const SignUpPage: React.FC = () => {
                   value={formValues.lastName}
                   onChange={handleChange}
                   placeholder="Last Name"
-                  className={`w-full px-4 py-3 pl-10 border ${
-                    formErrors.lastName ? 'border-red-500' : 'border-gray-300'
-                  } rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-200 text-black`}
+                  className={`w-full px-4 py-3 pl-10 border ${formErrors.lastName ? 'border-red-500' : 'border-gray-300'
+                    } rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-200 text-black`}
                   aria-describedby="lastName-error"
                 />
               </div>
@@ -255,7 +253,7 @@ const SignUpPage: React.FC = () => {
               )}
             </div>
           </div>
-          
+
           <div className="space-y-1">
             <div className="relative">
               <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
@@ -267,9 +265,8 @@ const SignUpPage: React.FC = () => {
                 value={formValues.email}
                 onChange={handleChange}
                 placeholder="Email Address"
-                className={`w-full px-4 py-3 pl-10 border ${
-                  formErrors.email ? 'border-red-500' : 'border-gray-300'
-                } rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-200 text-black`}
+                className={`w-full px-4 py-3 pl-10 border ${formErrors.email ? 'border-red-500' : 'border-gray-300'
+                  } rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-200 text-black`}
                 aria-describedby="email-error"
               />
             </div>
@@ -277,7 +274,7 @@ const SignUpPage: React.FC = () => {
               <p id="email-error" className="text-red-600 text-sm ml-1">{formErrors.email}</p>
             )}
           </div>
-          
+
           <div className="space-y-1">
             <div className="relative">
               <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
@@ -287,9 +284,8 @@ const SignUpPage: React.FC = () => {
                 name="role"
                 value={formValues.role}
                 onChange={handleChange}
-                className={`w-full px-4 py-3 pl-10 border ${
-                  formErrors.role ? 'border-red-500' : 'border-gray-300'
-                } rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-200 appearance-none text-black bg-white`}
+                className={`w-full px-4 py-3 pl-10 border ${formErrors.role ? 'border-red-500' : 'border-gray-300'
+                  } rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-200 appearance-none text-black bg-white`}
                 aria-describedby="role-error"
               >
                 <option value="" disabled>Select Role</option>
@@ -317,9 +313,8 @@ const SignUpPage: React.FC = () => {
                 value={formValues.password}
                 onChange={handleChange}
                 placeholder="Password"
-                className={`w-full px-4 py-3 pl-10 pr-12 border ${
-                  formErrors.password ? 'border-red-500' : 'border-gray-300'
-                } rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-200 text-black`}
+                className={`w-full px-4 py-3 pl-10 pr-12 border ${formErrors.password ? 'border-red-500' : 'border-gray-300'
+                  } rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-200 text-black`}
                 aria-describedby="password-error"
               />
               <button
@@ -347,9 +342,8 @@ const SignUpPage: React.FC = () => {
                 value={formValues.confirmPassword}
                 onChange={handleChange}
                 placeholder="Confirm Password"
-                className={`w-full px-4 py-3 pl-10 pr-12 border ${
-                  formErrors.confirmPassword ? 'border-red-500' : 'border-gray-300'
-                } rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-200 text-black`}
+                className={`w-full px-4 py-3 pl-10 pr-12 border ${formErrors.confirmPassword ? 'border-red-500' : 'border-gray-300'
+                  } rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-200 text-black`}
                 aria-describedby="confirmPassword-error"
               />
             </div>
@@ -360,20 +354,26 @@ const SignUpPage: React.FC = () => {
 
           <div className="space-y-1">
             <label className="flex items-center gap-2 cursor-pointer group">
-              <input 
-                type="checkbox" 
+              <input
+                type="checkbox"
                 name="termsAccepted"
                 checked={formValues.termsAccepted}
                 onChange={handleChange}
-                className={`w-4 h-4 ${
-                  formErrors.termsAccepted ? 'border-red-500' : 'border-gray-300'
-                } rounded focus:ring-indigo-500 text-indigo-600`}
+                className={`w-4 h-4 ${formErrors.termsAccepted ? 'border-red-500' : 'border-gray-300'
+                  } rounded focus:ring-indigo-500 text-indigo-600`}
                 aria-describedby="terms-error"
               />
               <span className="text-gray-700 text-sm group-hover:text-indigo-700 transition-colors duration-200">
                 I confirm that I have read and agree to the{' '}
-                <a href="/terms" target='_blank' className="text-indigo-700 underline hover:text-indigo-900">Terms and Conditions</a>.
-              </span>
+                <a
+                  href="/privacyAndPolicy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-indigo-700 underline hover:text-indigo-900"
+                >
+                  Privacy and Policy of Xpay
+                </a>              </span>
             </label>
             {formErrors.termsAccepted && (
               <p id="terms-error" className="text-red-600 text-sm ml-1">{formErrors.termsAccepted}</p>
@@ -398,7 +398,7 @@ const SignUpPage: React.FC = () => {
             )}
           </button>
         </form>
-{/*}
+        {/*}
         <div className="text-center mt-6">
           <p className="text-gray-600">
             Register as a{' '}
