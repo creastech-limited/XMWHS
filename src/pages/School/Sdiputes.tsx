@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { JSX } from 'react';
 import { Header } from '../../components/Header';
 import { Sidebar as Asidebar } from '../../components/Sidebar';
@@ -19,7 +19,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { createDisputeApi, getUserDetails, getUserDisputes } from '../../services';
-import type { CreateDisputeData, CreateDisputeResponse, Dispute, FetchDisputesResponse, FetchUserDetailsResponse, UserProfile } from '../../types';
+import type { CreateDisputeData, CreateDisputeResponse, Dispute, FetchDisputesResponse, FetchUserDetailsResponse, User, UserProfile } from '../../types';
 
 interface StatusColorMap {
   [key: string]: string;
@@ -75,53 +75,50 @@ const DisputePage = () => {
   const statuses = ['Pending', 'Under Investigation', 'Resolved', 'Closed'];
 
   // Fetch user details
-  const fetchUserDetails = async (): Promise<UserProfile> => {
-    try {
+  const fetchUserDetails = useCallback(async (): Promise<UserProfile> => {
+  try {
+    const data: FetchUserDetailsResponse = await getUserDetails();
 
-
-      const data: FetchUserDetailsResponse = await getUserDetails();
-
-      let profile: UserProfile;
-      if (data.user?.data) {
-        profile = data.user.data;
-      } else if (data.data) {
-        profile = data.data;
-      } else if (data.user) {
-        profile = data.user as UserProfile;
-      } else {
-        profile = data as UserProfile;
-      }
-
-      return profile;
-    } catch (error) {
-      console.error('Error fetching user details:', error);
-      throw error;
+    let profile: UserProfile;
+    if (data.user?.data) {
+      profile = data.user.data;
+    } else if (data.data) {
+      profile = data.data;
+    } else if (data.user) {
+      profile = data.user as UserProfile;
+    } else {
+      profile = data as unknown as UserProfile;
     }
-  };
+
+    return profile;
+  } catch (error) {
+    console.error('Error fetching user details:', error);
+    throw error;
+  }
+}, []); // Empty array keeps the function reference stable
 
   // Fetch disputes - Updated to use getuserdispute endpoint
-  const fetchDisputes = async (): Promise<Dispute[]> => {
-    try {
+const fetchDisputes = useCallback(async (): Promise<Dispute[]> => {
+  try {
+    const data: FetchDisputesResponse = await getUserDisputes();
 
-      const data: FetchDisputesResponse = await getUserDisputes();
-
-      // Handle different response structures (matching Flutter logic)
-      let disputesList: Dispute[] = [];
-      if (Array.isArray(data.disputes)) {
-        disputesList = data.disputes;
-      } else if (data.data && Array.isArray(data.data)) {
-        disputesList = data.data as Dispute[];
-      } else if (Array.isArray(data)) {
-        disputesList = data as Dispute[];
-      }
-
-      console.log(' Fetched disputes:', disputesList.length);
-      return disputesList;
-    } catch (error) {
-      console.error(' Error fetching disputes:', error);
-      return [];
+    // Handle different response structures (matching Flutter logic)
+    let disputesList: Dispute[] = [];
+    if (Array.isArray(data.disputes)) {
+      disputesList = data.disputes;
+    } else if (data.data && Array.isArray(data.data)) {
+      disputesList = data.data as Dispute[];
+    } else if (Array.isArray(data)) {
+      disputesList = data as unknown as Dispute[];
     }
-  };
+
+    console.log('Fetched disputes:', disputesList.length);
+    return disputesList;
+  } catch (error) {
+    console.error('Error fetching disputes:', error);
+    return [];
+  }
+}, []); // Empty dependency array means this function only creates once
 
   // Create new dispute - Updated with enhanced error handling
   const createDispute = async (disputeData: CreateDisputeData): Promise<CreateDisputeResponse> => {
@@ -157,25 +154,24 @@ const DisputePage = () => {
   };
 
   // Initialize auth and fetch data
-  useEffect(() => {
-    const initializeAuth = async () => {
-      try {
-        setLoading(true);
+useEffect(() => {
+  const initializeAuth = async () => {
+    try {
+      setLoading(true);
 
-        if (auth?.user?._id && auth?.token) {
-          const disputesData = await fetchDisputes();
-          setDisputes(disputesData);
-          setFilteredDisputes(disputesData);
-          setLoading(false);
-          return;
-        }
+      // 1. Check existing context
+      if (auth?.user?._id && auth?.token) {
+        const disputesData = await fetchDisputes();
+        setDisputes(disputesData);
+        setFilteredDisputes(disputesData);
+        return;
+      }
 
-        const storedToken = localStorage.getItem('token');
-        if (!storedToken) {
-          throw new Error('No authentication token found');
-        }
+      const storedToken = localStorage.getItem('token');
+      if (!storedToken) throw new Error('No token found');
 
-        const profile = await fetchUserDetails();
+      const profile = await fetchUserDetails();
+      if (!profile) return;
 
         const mergedUser = {
           _id: profile._id || '',
@@ -193,23 +189,23 @@ const DisputePage = () => {
           role: mergedUser.role ?? '',
         };
 
-        if (auth?.login) {
-          auth.login(userWithRole, storedToken);
-        }
-
-        const disputesData = await fetchDisputes();
-        setDisputes(disputesData);
-        setFilteredDisputes(disputesData);
-
-      } catch (error) {
-        console.error('Auth initialization error:', error);
-      } finally {
-        setLoading(false);
+      if (auth?.login) {
+        auth.login(userWithRole, storedToken);
       }
-    };
 
-    initializeAuth();
-  }, [auth]);
+      const disputesData = await fetchDisputes();
+      setDisputes(disputesData);
+      setFilteredDisputes(disputesData);
+
+    } catch (error) {
+      console.error('Auth initialization error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  initializeAuth();
+}, [auth, fetchUserDetails, fetchDisputes]);
 
   // Sort disputes
   const sortedDisputes = React.useMemo(() => {

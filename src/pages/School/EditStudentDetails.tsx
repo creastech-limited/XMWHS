@@ -17,7 +17,7 @@ import type { User } from '../../types/user';
 const EditStudentDetails = () => {
   const auth = useAuth();
   const { _id } = useParams<{ _id: string }>();
-  
+
   // State management
   const [user, setUser] = useState<StudentDetails | null>(null);
   const [fetchLoading, setFetchLoading] = useState(true);
@@ -37,7 +37,7 @@ const EditStudentDetails = () => {
   const handleFetchError = useCallback((error: unknown) => {
     if (error instanceof Error) {
       const errorMessage = error.message;
-      
+
       if (errorMessage.includes('401') || errorMessage.includes('unauthorized')) {
         setError('Session expired. Please login again.');
         auth?.logout?.();
@@ -79,7 +79,7 @@ const EditStudentDetails = () => {
     try {
       setFetchLoading(true);
       setError(null);
-      
+
       const studentData = await getStudentById(_id);
 
       setUser(studentData);
@@ -90,7 +90,7 @@ const EditStudentDetails = () => {
         phone: studentData.phone || '',
         address: studentData.address || '',
       });
-      
+
     } catch (error: unknown) {
       handleFetchError(error);
     } finally {
@@ -106,7 +106,7 @@ const EditStudentDetails = () => {
   // Profile Update Handler
   const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!_id) {
       setError('Missing student ID');
       return;
@@ -163,7 +163,7 @@ const EditStudentDetails = () => {
           setUser(updatedData);
         }
         setProfile(trimmedProfile);
-        
+
         // Update auth context if editing current user
         if (auth?.user?._id === _id) {
             const updatedUserData = result.data || { ...user, ...trimmedProfile };
@@ -198,7 +198,7 @@ const EditStudentDetails = () => {
   const handleUpdateError = (error: unknown) => {
     if (error instanceof Error) {
       const errorMessage = error.message;
-      
+
       if (errorMessage.includes('401') || errorMessage.includes('unauthorized')) {
         setError('Session expired. Please login again.');
         auth?.logout?.();
@@ -246,6 +246,7 @@ const EditStudentDetails = () => {
     return (
       <div className="flex flex-col min-h-screen bg-gray-50">
         <Header PsettingsPage="/settings" />
+        <Header PsettingsPage="/settings" />
         <div className="flex flex-grow">
           <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-64 bg-none">
             <Sidebar />
@@ -256,15 +257,15 @@ const EditStudentDetails = () => {
                 <p className="text-lg font-semibold mb-2">Error Loading Student Data</p>
                 <p className="text-sm mb-4">{error}</p>
                 {error.includes('Session expired') || error.includes('Authentication required') ? (
-                  <button 
+                  <button
                     onClick={() => window.location.href = '/login'}
                     className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
                   >
                     Go to Login
                   </button>
                 ) : (
-                  <button 
-                    onClick={handleRetry} 
+                  <button
+                    onClick={handleRetry}
                     className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
                   >
                     Retry
@@ -282,6 +283,7 @@ const EditStudentDetails = () => {
   return (
     <div className="overflow-hidden flex flex-col min-h-screen bg-gray-50">
       <Header PsettingsPage="/settings" />
+      <Header PsettingsPage="/settings" />
       <div className="flex flex-grow">
         <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-64 bg-none">
           <Sidebar />
@@ -298,7 +300,7 @@ const EditStudentDetails = () => {
                       {user ? `${user.name}'s Details` : 'Student Details'}
                     </h1>
                   </div>
-                  
+
                   {error && (
                     <div className="mx-5 mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
                       <p className="text-red-600 text-sm">{error}</p>
@@ -317,13 +319,12 @@ const EditStudentDetails = () => {
                           </div>
                           <div>
                             <p className="text-sm font-medium text-gray-600">Status:</p>
-                            <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
-                              user.status?.toLowerCase() === 'active' 
-                                ? 'bg-green-100 text-green-800' 
+                            <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${user.status?.toLowerCase() === 'active'
+                                ? 'bg-green-100 text-green-800'
                                 : user.status?.toLowerCase() === 'pending'
-                                ? 'bg-yellow-100 text-yellow-800'
-                                : 'bg-red-100 text-red-800'
-                            }`}>
+                                  ? 'bg-yellow-100 text-yellow-800'
+                                  : 'bg-red-100 text-red-800'
+                              }`}>
                               {user.status || 'Unknown'}
                             </span>
                           </div>
@@ -358,7 +359,7 @@ const EditStudentDetails = () => {
                               title="Enter the student's full name"
                             />
                           </div>
-                          
+
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                               Email Address *
@@ -374,7 +375,7 @@ const EditStudentDetails = () => {
                               title="Enter the student's email address"
                             />
                           </div>
-                          
+
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                               Phone Number
@@ -389,7 +390,7 @@ const EditStudentDetails = () => {
                               title="Enter the student's phone number"
                             />
                           </div>
-                          
+
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                               Class
@@ -405,7 +406,7 @@ const EditStudentDetails = () => {
                             />
                           </div>
                         </div>
-                        
+
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
                             Address
@@ -420,20 +421,19 @@ const EditStudentDetails = () => {
                             placeholder="Enter student address"
                           />
                         </div>
-                        
+
                         <div className="flex flex-col sm:flex-row gap-4">
                           <button
                             type="submit"
-                            className={`flex-1 py-3 px-4 rounded-lg text-white font-semibold transition-colors ${
-                              isLoading 
-                                ? 'bg-indigo-300 cursor-not-allowed' 
+                            className={`flex-1 py-3 px-4 rounded-lg text-white font-semibold transition-colors ${isLoading
+                                ? 'bg-indigo-300 cursor-not-allowed'
                                 : 'bg-indigo-600 hover:bg-indigo-700'
-                            }`}
+                              }`}
                             disabled={isLoading}
                           >
                             {isLoading ? 'Updating...' : 'Update Profile'}
                           </button>
-                          
+
                           <button
                             type="button"
                             onClick={() => window.history.back()}

@@ -190,8 +190,8 @@ export interface Transaction {
   status: 'success' | 'pending' | 'failed' | string;
   description: string;
   createdAt: string;
-  updatedAt?: string;
-  date?: string;
+  date?: string; 
+   store?: string;
   customer?: string;
   reference?: string;
   
@@ -720,4 +720,12 @@ export interface TransferResponse {
     amount: number;
     [key: string]: unknown;
   };
+}
+
+export interface AgentData {
+  monthlyTarget: number;
+  performance: number;
+  monthlySalesTrack: number;
+  monthlySalesAmount: number;
+  walletBalance: number;
 }

@@ -359,6 +359,7 @@ const SchoolTransferPage: React.FC = () => {
     return (
       <div className="flex flex-col min-h-screen bg-gray-50">
         <Header PsettingsPage="/settings" />
+        <Header PsettingsPage="/settings" />
         <div className="flex flex-grow">
           <div className="hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-white shadow z-10">
             <Asidebar />
@@ -377,6 +378,7 @@ const SchoolTransferPage: React.FC = () => {
   if (user?.role !== 'school') {
     return (
       <div className="flex flex-col min-h-screen bg-gray-50">
+        <Header PsettingsPage="/settings" />
         <Header PsettingsPage="/settings" />
         <div className="flex flex-grow">
           <div className="hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-white shadow z-10">
@@ -409,6 +411,7 @@ const SchoolTransferPage: React.FC = () => {
   if (user?.role === 'school' && !user?.schoolCanTransfer) {
     return (
       <div className="flex flex-col min-h-screen bg-gray-50">
+        <Header PsettingsPage="/settings" />
         <Header PsettingsPage="/settings" />
         <div className="flex flex-grow">
           <div className="hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-white shadow z-10">
@@ -450,6 +453,7 @@ const SchoolTransferPage: React.FC = () => {
   // Main page rendering
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
+      <Header PsettingsPage="/settings" />
       <Header PsettingsPage="/settings" />
       <div className="flex flex-grow">
         <div className="hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-white shadow z-10">
