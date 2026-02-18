@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { ArrowDown, ArrowUp, Search } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { ArrowDown, ArrowUp, Search, ChevronLeft, ChevronRight } from 'lucide-react'; // Added icons for pagination
 import { Link } from 'react-router-dom';
 import Footer from '../../components/Footer';
 import AHeader from '../../components/AHeader';
@@ -27,14 +27,15 @@ const AgentTransactionHistory = () => {
   const [token, setToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // --- PAGINATION STATE ---
+  const [currentPage, setCurrentPage] = useState(1);
+  const transactionsPerPage = 10;
+
   // Handle authentication errors
   const handleAuthError = useCallback((message: string) => {
     setError(message);
-    // Clear stored credentials
     localStorage.removeItem('token');
     auth?.logout?.();
-    // Redirect to login page if needed
-    // navigate('/login');
   }, [auth]);
 
   // Fetch user details from API
@@ -48,17 +49,11 @@ const AgentTransactionHistory = () => {
         },
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
-      
-      // Handle different response structures
       const userData = data.user?.data || data.data || data.user || data;
       const walletData = data.user?.wallet || data.wallet || { balance: 0 };
 
-      // Create a complete User object with all required fields
       const profile: User = {
         _id: userData._id || '',
         name: userData.name || `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 'User',
@@ -67,8 +62,6 @@ const AgentTransactionHistory = () => {
         status: userData.status || 'Active',
         createdAt: userData.createdAt || new Date().toISOString(),
         updatedAt: userData.updatedAt || new Date().toISOString(),
-        
-        // Add optional fields
         firstName: userData.firstName,
         lastName: userData.lastName,
         phone: userData.phone,
@@ -80,8 +73,6 @@ const AgentTransactionHistory = () => {
         schoolId: userData.schoolId,
         schoolName: userData.schoolName,
         schoolCanTransfer: userData.schoolCanTransfer,
-        
-        // Include any other dynamic fields
         ...userData
       };
 
@@ -103,51 +94,26 @@ const AgentTransactionHistory = () => {
         },
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
-      
-      // Handle different response structures for transactions
-      let transactionList: unknown[] = [];
-      if (data.transactions) {
-        transactionList = data.transactions;
-      } else if (data.data) {
-        transactionList = Array.isArray(data.data) ? data.data : [data.data];
-      } else if (Array.isArray(data)) {
-        transactionList = data;
-      }
 
-      // Transform API data to match our Transaction type
+      let transactionList: unknown[] = [];
+      if (data.transactions) transactionList = data.transactions;
+      else if (data.data) transactionList = Array.isArray(data.data) ? data.data : [data.data];
+      else if (Array.isArray(data)) transactionList = data;
+
       const transformedTransactions: Transaction[] = transactionList.map((txn, index: number) => {
         const t = txn as Record<string, unknown>;
-        
-        // Determine transaction type more accurately
         let transactionType: 'credit' | 'transfer' = 'credit';
-        if (t.type === 'debit' || 
-            t.transactionType === 'debit' || 
-            t.category === 'debit' ||
-            (typeof t.amount === 'number' && t.amount < 0)) {
+        if (t.type === 'debit' || t.transactionType === 'debit' || t.category === 'debit' || (typeof t.amount === 'number' && t.amount < 0)) {
           transactionType = 'transfer';
         }
 
-        // Generate dynamic description based on metadata
         const getTransactionDescription = (): string => {
           const metadata = t.metadata as { receiverEmail?: string; senderEmail?: string } | undefined;
-          
-          // For debit/transfer transactions
-          if (transactionType === 'transfer' && metadata?.receiverEmail) {
-            return `Transfer to ${metadata.receiverEmail}`;
-          }
-          // For credit transactions
-          else if (transactionType === 'credit' && metadata?.senderEmail) {
-            return `Payment from ${metadata.senderEmail}`;
-          }
-          // Fallback to existing logic
-          else {
-            return (t.description as string) || (t.note as string) || 'Transaction';
-          }
+          if (transactionType === 'transfer' && metadata?.receiverEmail) return `Transfer to ${metadata.receiverEmail}`;
+          else if (transactionType === 'credit' && metadata?.senderEmail) return `Payment from ${metadata.senderEmail}`;
+          else return (t.description as string) || (t.note as string) || 'Transaction';
         };
 
         return {
@@ -175,50 +141,22 @@ const AgentTransactionHistory = () => {
       try {
         setLoading(true);
         setError(null);
-        console.log('Starting auth initialization...');
 
-        // Check if already in context
         if (auth?.user?._id && auth?.token) {
-          console.log('Found user in auth context:', auth.user);
           setToken(auth.token);
-          
-          // Fetch transactions with existing token
-          try {
-            const transactionData = await fetchTransactions(auth.token);
-            setTransactions(transactionData);
-          } catch (transactionError) {
-            console.error('Error fetching transactions:', transactionError);
-            setError('Failed to load transactions');
-          }
-          
+          const transactionData = await fetchTransactions(auth.token);
+          setTransactions(transactionData);
           setLoading(false);
           return;
         }
 
-        // Try localStorage
         const storedToken = localStorage.getItem('token');
-        if (!storedToken) {
-          console.log('No token in localStorage');
-          throw new Error('No authentication token found');
-        }
+        if (!storedToken) throw new Error('No authentication token found');
 
-        console.log('Found token in localStorage:', storedToken);
-
-        // Fetch user from API to ensure fresh data
-        console.log('Fetching user from API...');
         const profile = await fetchUserDetails(storedToken);
-        console.log('Successfully fetched user profile:', profile);
-
-        // Update local state
         setToken(storedToken);
-
-        // Update auth context
         auth?.login?.(profile, storedToken);
-        
-        // Fetch transactions
-        console.log('Fetching transactions from API...');
         const transactionData = await fetchTransactions(storedToken);
-        console.log('Successfully fetched transactions:', transactionData);
         setTransactions(transactionData);
 
       } catch (error) {
@@ -232,7 +170,6 @@ const AgentTransactionHistory = () => {
     initializeAuth();
   }, [auth, fetchUserDetails, fetchTransactions, handleAuthError]);
 
-  // Retry function for failed requests
   const retryFetch = async () => {
     if (token) {
       setLoading(true);
@@ -240,6 +177,7 @@ const AgentTransactionHistory = () => {
       try {
         const transactionData = await fetchTransactions(token);
         setTransactions(transactionData);
+        setCurrentPage(1); // Reset to page 1 on retry
       } catch {
         setError('Failed to load transactions. Please try again.');
       } finally {
@@ -248,12 +186,21 @@ const AgentTransactionHistory = () => {
     }
   };
 
+  // --- PAGINATION LOGIC ---
+  const indexOfLastTransaction = currentPage * transactionsPerPage;
+  const indexOfFirstTransaction = indexOfLastTransaction - transactionsPerPage;
+  const currentTransactions = transactions.slice(indexOfFirstTransaction, indexOfLastTransaction);
+  const totalPages = Math.ceil(transactions.length / transactionsPerPage);
+
+  const paginate = (pageNumber: number) => {
+    setCurrentPage(pageNumber);
+    window.scrollTo({ top: 0, behavior: 'smooth' }); // Optional: scroll to top when changing page
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-[#f8faff]">
-      {/* Header */}
       <AHeader />
 
-      {/* Main content */}
       <main className="text-gray-600 flex-grow">
         <div className="max-w-3xl mx-auto py-8 px-4">
           {loading ? (
@@ -279,8 +226,8 @@ const AgentTransactionHistory = () => {
               </div>
             </div>
           ) : (
-            <div className="bg-white shadow-md rounded p-4">
-              <div className="flex justify-between items-center mb-4">
+            <div className="bg-white shadow-md rounded-xl p-4">
+              <div className="flex justify-between items-center mb-6">
                 <h2 className="text-lg font-bold">All Transactions</h2>
                 <Link
                   to="/agent/transactions"
@@ -290,53 +237,46 @@ const AgentTransactionHistory = () => {
                   <Search className="w-5 h-5 text-blue-600" />
                 </Link>
               </div>
-              
+
               {transactions.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <p>No transactions found</p>
                 </div>
               ) : (
-                <ul>
-                  {transactions.map((txn, index) => {
-                    // Determine color and icon based on transaction status and type
-                    let iconColor = '';
-                    let textColor = '';
-                    let IconComponent = ArrowDown;
-                    let sign = '+';
-                    
-                    // First check for failed status (highest priority)
-                    if (txn.status === 'failed' || txn.status === 'rejected') {
-                      iconColor = 'text-red-500';
-                      textColor = 'text-red-600';
-                      IconComponent = ArrowUp; 
-                      sign = '*';
-                    } 
-                    // Then check for debit type
-                    else if (txn.type === 'transfer') {
-                      iconColor = 'text-yellow-500';
-                      textColor = 'text-yellow-600';
-                      IconComponent = ArrowUp;
-                      sign = '-';
-                    } 
-                    // Default to credit
-                    else {
-                      iconColor = 'text-green-500';
-                      textColor = 'text-green-600';
-                      IconComponent = ArrowDown;
-                      sign = '+';
-                    }
+                <>
+                  <ul className="divide-y divide-gray-50">
+                    {currentTransactions.map((txn) => {
+                      let iconColor = '';
+                      let textColor = '';
+                      let IconComponent = ArrowDown;
+                      let sign = '+';
 
-                    return (
-                      <React.Fragment key={txn.id}>
-                        <li className="flex items-center justify-between py-3">
+                      if (txn.status === 'failed' || txn.status === 'rejected') {
+                        iconColor = 'text-red-500';
+                        textColor = 'text-red-600';
+                        IconComponent = ArrowUp;
+                        sign = '*';
+                      } else if (txn.type === 'transfer') {
+                        iconColor = 'text-yellow-500';
+                        textColor = 'text-yellow-600';
+                        IconComponent = ArrowUp;
+                        sign = '-';
+                      } else {
+                        iconColor = 'text-green-500';
+                        textColor = 'text-green-600';
+                        IconComponent = ArrowDown;
+                        sign = '+';
+                      }
+
+                      return (
+                        <li key={txn.id} className="flex items-center justify-between py-4 hover:bg-gray-50/50 transition-colors px-2">
                           <div className="flex items-center gap-3">
                             <IconComponent className={`${iconColor} w-5 h-5`} />
                             <div>
-                              <p className="font-medium">{txn.description}</p>
-                              <p className="text-sm text-gray-500">{txn.date}</p>
-                              {/* Show status if it exists */}
+                              <p className="font-medium text-gray-800">{txn.description}</p>
+                              <p className="text-xs text-gray-400">{txn.date}</p>
                               {txn.status && (
-                                <p className="text-xs text-gray-400 capitalize">
+                                <p className="text-[10px] font-bold text-gray-400 capitalize bg-gray-100 px-2 py-0.5 rounded-full w-fit mt-1">
                                   {txn.status}
                                 </p>
                               )}
@@ -346,15 +286,60 @@ const AgentTransactionHistory = () => {
                             {sign}₦{txn.amount.toLocaleString()}
                           </p>
                         </li>
-                        {index < transactions.length - 1 && (
-                          <li aria-hidden="true" tabIndex={-1} className="p-0 m-0">
-                            <hr className="ml-8 border-gray-200" />
-                          </li>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                </ul>
+                      );
+                    })}
+                  </ul>
+
+                  {/* --- PAGINATION CONTROLS --- */}
+                  {totalPages > 1 && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-8 pt-6 border-t border-gray-100">
+                      <div className="text-xs text-gray-500 font-medium">
+                        Showing {indexOfFirstTransaction + 1} to {Math.min(indexOfLastTransaction, transactions.length)} of {transactions.length}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => paginate(currentPage - 1)}
+                          disabled={currentPage === 1}
+                          className="p-2 rounded-lg border border-gray-200 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-50 transition-all"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+
+                        <div className="flex items-center gap-1">
+                          {[...Array(totalPages)].map((_, i) => {
+                            const pageNum = i + 1;
+                            // Show first, last, and current page surroundings for clean UI if total pages is high
+                            if (totalPages > 5 && pageNum !== 1 && pageNum !== totalPages && Math.abs(pageNum - currentPage) > 1) {
+                              if (pageNum === 2 || pageNum === totalPages - 1) return <span key={pageNum} className="px-1 text-gray-400">...</span>;
+                              return null;
+                            }
+                            return (
+                              <button
+                                key={pageNum}
+                                onClick={() => paginate(pageNum)}
+                                className={`w-8 h-8 text-xs font-bold rounded-lg transition-all ${currentPage === pageNum
+                                    ? 'bg-blue-600 text-white shadow-md'
+                                    : 'text-gray-500 hover:bg-gray-100'
+                                  }`}
+                              >
+                                {pageNum}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        <button
+                          onClick={() => paginate(currentPage + 1)}
+                          disabled={currentPage === totalPages}
+                          className="p-2 rounded-lg border border-gray-200 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-50 transition-all"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
