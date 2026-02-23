@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
+import type { AxiosError } from 'axios';
 import { Eye, EyeOff, User, Mail, Lock, AlertCircle, CheckCircle, School } from 'lucide-react';
 import { registerParent } from '../../services';
 import type { ParentRegistrationRequest } from '../../types/auth';
@@ -31,6 +32,17 @@ const SignUpPage: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [loading, setLoading] = useState(false);
+
+
+  function isAxiosError(
+    error: unknown
+  ): error is AxiosError<{ message: string }> {
+    return (
+      typeof error === "object" &&
+      error !== null &&
+      "isAxiosError" in error
+    );
+  }
 
 
 
@@ -100,7 +112,7 @@ const SignUpPage: React.FC = () => {
 
     // Terms acceptance validation
     if (!formValues.termsAccepted) {
-      errors.termsAccepted = 'You must accept the terms and conditions';
+      errors.termsAccepted = 'You must accept the privacy and policy to proceed';
       isValid = false;
     }
 
@@ -150,25 +162,34 @@ const SignUpPage: React.FC = () => {
       const result = await registerParent(registrationData);
 
       if (result.success) {
-        setSuccessMessage(result.message || 'Account created successfully! You can now sign in.');
+        setErrorMessage("");   // VERY IMPORTANT
+        setSuccessMessage(result.message || "Account created successfully!");
 
-        // Reset form after successful submission
         setFormValues({
-          firstName: '',
-          lastName: '',
-          email: '',
-          role: 'parent',
-          password: '',
-          confirmPassword: '',
-          termsAccepted: false
+          firstName: "",
+          lastName: "",
+          email: "",
+          role: "parent",
+          password: "",
+          confirmPassword: "",
+          termsAccepted: false,
         });
-      } else {
+      }
+      else {
         setErrorMessage(result.message || 'Registration failed');
       }
     } catch (error: unknown) {
-      console.error('Registration error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Something went wrong. Please try again.';
-      setErrorMessage(errorMessage);
+      console.error("Registration error:", error);
+
+      let userMessage = "Something went wrong. Please try again.";
+
+      if (isAxiosError(error) && error.response?.data?.message) {
+        userMessage = error.response.data.message;
+      } else if (error instanceof Error) {
+        userMessage = error.message;
+      }
+
+      setErrorMessage(userMessage);
     } finally {
       setLoading(false);
     }
@@ -194,23 +215,20 @@ const SignUpPage: React.FC = () => {
             </RouterLink>
           </p>
         </div>
-
-        {/* Error Alert */}
-        {errorMessage && !successMessage && (
+        {/* ALERTS */}
+        {errorMessage?.trim().length > 0 ? (
+          // ERROR ALERT
           <div className="bg-red-50 text-red-700 px-4 py-3 rounded-lg mb-6 flex items-center gap-2 border border-red-200">
             <AlertCircle size={18} />
             <span>{errorMessage}</span>
           </div>
-        )}
-
-        {/* Success Alert */}
-        {successMessage && (
+        ) : successMessage?.trim().length > 0 ? (
+          // SUCCESS ALERT
           <div className="bg-green-50 text-green-700 px-4 py-3 rounded-lg mb-6 flex items-center gap-2 border border-green-200">
             <CheckCircle size={18} />
             <span>{successMessage}</span>
           </div>
-        )}
-
+        ) : null}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="flex gap-4">
             <div className="w-1/2 space-y-1">
