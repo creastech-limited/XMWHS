@@ -288,7 +288,6 @@ const SignUpPage: React.FC = () => {
                   } rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-200 appearance-none text-black bg-white`}
                 aria-describedby="role-error"
               >
-                <option value="" disabled>Select Role</option>
                 <option value="parent">Parent</option>
               </select>
               <div className="absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none">
