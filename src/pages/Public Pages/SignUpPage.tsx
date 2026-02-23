@@ -195,13 +195,15 @@ const SignUpPage: React.FC = () => {
           </p>
         </div>
 
-        {errorMessage && (
+        {/* Error Alert */}
+        {errorMessage && !successMessage && (
           <div className="bg-red-50 text-red-700 px-4 py-3 rounded-lg mb-6 flex items-center gap-2 border border-red-200">
             <AlertCircle size={18} />
             <span>{errorMessage}</span>
           </div>
         )}
 
+        {/* Success Alert */}
         {successMessage && (
           <div className="bg-green-50 text-green-700 px-4 py-3 rounded-lg mb-6 flex items-center gap-2 border border-green-200">
             <CheckCircle size={18} />
