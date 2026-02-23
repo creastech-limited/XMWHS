@@ -284,6 +284,7 @@ const SignUpPage: React.FC = () => {
                 name="role"
                 value={formValues.role}
                 onChange={handleChange}
+                disabled
                 className={`w-full px-4 py-3 pl-10 border ${formErrors.role ? 'border-red-500' : 'border-gray-300'
                   } rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-200 appearance-none text-black bg-white`}
                 aria-describedby="role-error"
