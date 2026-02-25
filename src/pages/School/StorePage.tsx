@@ -25,6 +25,7 @@ import { getUserDetails, getStoresBySchoolId, getStoreCountBySchoolId, resetPass
 
 // Import types
 import type { Store as StoreType, UserResponse, SnackbarState } from '../../types/user';
+import axios from 'axios';
 
 export const StorePage: React.FC = () => {
   // Auth context for getting token
@@ -268,28 +269,40 @@ export const StorePage: React.FC = () => {
   };
 
   // Handle Reset Password
-  const handleResetPassword = async (store: StoreType) => {
-    try {
-      const tempPassword = Math.random().toString(36).slice(-8);
-      await resetPassword(store.email, tempPassword);
+ const handleResetPassword = async (store: StoreType) => {
+  try {
+    const tempPassword = Math.random().toString(36).slice(-8);
+    
 
-      setSnackbar({
-        open: true,
-        message: `Password reset email sent to ${store.email}`,
-        severity: 'success',
-      });
-    } catch (error) {
-      console.error('Error resetting password:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to reset password';
-      setSnackbar({
-        open: true,
-        message: errorMessage,
-        severity: 'error',
-      });
-    } finally {
-      handleMenuClose();
+    await resetPassword(store.email, tempPassword);
+
+    setSnackbar({
+      open: true,
+      message: `Password reset email sent to ${store.email}`,
+      severity: 'success',
+    });
+  } catch (error: unknown) {
+    console.error('Error resetting password:', error);
+    
+    let errorMessage = 'Failed to reset password';
+
+    if (axios.isAxiosError(error)) {
+      errorMessage = error.response?.data?.message || error.message;
+    } 
+   
+    else if (error instanceof Error) {
+      errorMessage = error.message;
     }
-  };
+
+    setSnackbar({
+      open: true,
+      message: errorMessage,
+      severity: 'error',
+    });
+  } finally {
+    handleMenuClose();
+  }
+};
 
   // Handle Activate/Deactivate Store
   const handleActivateDeactivate = async (store: StoreType) => {

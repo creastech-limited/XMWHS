@@ -15,7 +15,7 @@ import {
   Check,
   X,
 } from 'lucide-react';
-import { getUserDetails, setAccountPin, updateAccountPin, updateNotificationPreferences, updateUserPassword, updateUserProfile, uploadProfileImage } from '../services';
+import { generateOtp, getUserDetails, setAccountPin, updateAccountPin, updateNotificationPreferences, updateUserPassword, updateUserProfile, uploadProfileImage } from '../services';
 import type { UpdateUserPayload } from '../types';
 
 
@@ -88,6 +88,13 @@ const SettingsPanel = () => {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [showImageActions, setShowImageActions] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showSuccessMsg, setShowSuccessMsg] = useState(false);
+
+  const [otpValue, setOtpValue] = useState('');
+
+  // Helper to close modal and reset its internal state
+
 
   const [profile, setProfile] = useState({
     name: '',
@@ -277,7 +284,7 @@ const SettingsPanel = () => {
 
     try {
       if (user?.isPinSet) {
-    
+
         if (!pinData.currentPin || pinData.currentPin.length !== 4 || !/^\d{4}$/.test(pinData.currentPin)) {
           alert('Please enter your current 4-digit PIN.');
           setIsLoading(false);
@@ -291,7 +298,7 @@ const SettingsPanel = () => {
 
         alert('PIN updated successfully! Your new PIN is now active.');
       } else {
-        
+
         await setAccountPin({ pin: pinData.pin });
 
         alert('PIN set successfully! Your account is now more secure.');
@@ -316,91 +323,121 @@ const SettingsPanel = () => {
     }
   };
 
-  // Profile Picture Upload Handler
-const handleProfilePicUpload = async () => {
-  if (!selectedImage || !token) return;
-
-  setUploadingImage(true);
-  
-  try {
-    const data = await uploadProfileImage(selectedImage);
-    
-    if (data && data.profilePicture) {
-      const newProfilePic = `${API_BASE_URL}${data.profilePicture}`;
-      
-      setProfile(prev => ({
-        ...prev,
-        profilePicture: newProfilePic
-      }));
-      
-      setUser(prev => prev ? { 
-        ...prev, 
-        profilePicture: newProfilePic 
-      } : null);
-      
-      setSelectedImage(null);
-      setImagePreview(null);
-      setShowImageActions(false);
-      setAvatarError(false);
-      
-      alert('Profile picture updated successfully!');
-    } else {
-      throw new Error('Invalid response format');
-    }
-  } catch (error: unknown) {
-    console.error('Profile picture upload failed:', error);
-    
-    const status = axios.isAxiosError(error) ? error.response?.status : undefined;
-    if (status === 413) {
-      alert('Image file is too large. Please choose a smaller image.');
-    } else if (status === 400) {
-      alert('Invalid image format. Please choose a valid image file.');
-    } else {
-      alert('Failed to upload profile picture. Please try again.');
-    }
-  } finally {
-    setUploadingImage(false);
-  }
-};
-
-// Profile Picture Change Handler
-const handleProfilePicChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const file = e.target.files && e.target.files[0];
-  if (file) {
-    setSelectedImage(file);
-    setImagePreview(URL.createObjectURL(file));
-    setShowImageActions(true);
-    setAvatarError(false);
-  }
-};
-
-// Cancel Profile Picture Upload Handler
-const cancelProfilePicUpload = () => {
-  setSelectedImage(null);
-  setImagePreview(null);
-  setShowImageActions(false);
-  setAvatarError(false);
-};
-
-  // Notification Preferences Update Handler
-const handleNotificationUpdate = async (e: React.FormEvent) => {
-  e.preventDefault();
-  
-  if (!user?._id) return;
-
+const handleOpenResetModal = async () => {
   setIsLoading(true);
   try {
-   
-    await updateNotificationPreferences(user._id, notifications);
-    
-    alert('Notification preferences updated successfully');
-  } catch (error) {
-    console.error('Notification update failed:', error);
-    alert('Failed to update notification preferences');
+    await generateOtp(); 
+    setIsModalOpen(true);
+    setShowSuccessMsg(true); // Trigger the message
+    setTimeout(() => setShowSuccessMsg(false), 5000); // Hide after 5 seconds
+  } catch {
+    console.error("Failed to initiate reset");
   } finally {
     setIsLoading(false);
   }
 };
+
+  const handleResetSubmission = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pinData.pin !== pinData.newPin) return;
+
+    setIsLoading(true);
+    try {
+
+      setOtpValue('');
+    } catch {
+
+      console.error("Reset failed");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Profile Picture Upload Handler
+  const handleProfilePicUpload = async () => {
+    if (!selectedImage || !token) return;
+
+    setUploadingImage(true);
+
+    try {
+      const data = await uploadProfileImage(selectedImage);
+
+      if (data && data.profilePicture) {
+        const newProfilePic = `${API_BASE_URL}${data.profilePicture}`;
+
+        setProfile(prev => ({
+          ...prev,
+          profilePicture: newProfilePic
+        }));
+
+        setUser(prev => prev ? {
+          ...prev,
+          profilePicture: newProfilePic
+        } : null);
+
+        setSelectedImage(null);
+        setImagePreview(null);
+        setShowImageActions(false);
+        setAvatarError(false);
+
+        alert('Profile picture updated successfully!');
+      } else {
+        throw new Error('Invalid response format');
+      }
+    } catch (error: unknown) {
+      console.error('Profile picture upload failed:', error);
+
+      const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+      if (status === 413) {
+        alert('Image file is too large. Please choose a smaller image.');
+      } else if (status === 400) {
+        alert('Invalid image format. Please choose a valid image file.');
+      } else {
+        alert('Failed to upload profile picture. Please try again.');
+      }
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  // Profile Picture Change Handler
+  const handleProfilePicChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files && e.target.files[0];
+    if (file) {
+      setSelectedImage(file);
+      setImagePreview(URL.createObjectURL(file));
+      setShowImageActions(true);
+      setAvatarError(false);
+    }
+  };
+
+  // Cancel Profile Picture Upload Handler
+  const cancelProfilePicUpload = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+    setShowImageActions(false);
+    setAvatarError(false);
+  };
+
+  // Notification Preferences Update Handler
+  const handleNotificationUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!user?._id) return;
+
+    setIsLoading(true);
+    try {
+
+      await updateNotificationPreferences(user._id, notifications);
+
+      alert('Notification preferences updated successfully');
+    } catch (error) {
+      console.error('Notification update failed:', error);
+      alert('Failed to update notification preferences');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 py-6 sm:py-12 px-4 sm:px-6">
@@ -713,6 +750,15 @@ const handleNotificationUpdate = async (e: React.FormEvent) => {
                       </div>
 
                       <div className="flex justify-end">
+                        {user?.isPinSet && (
+                          <button
+                            type="button"
+                            onClick={handleOpenResetModal}
+                            className="text-sm text-indigo-600 hover:text-indigo-800 hover:bg-indigo-600 font-medium underline underline-offset-4 justify-end"
+                          >
+                            Forgot PIN? Reset via OTP
+                          </button>
+                        )}
                         <button
                           type="submit"
                           disabled={isLoading || pinData.currentPin.length !== 4 || pinData.pin.length !== 4 || pinData.newPin.length !== 4}
@@ -721,6 +767,7 @@ const handleNotificationUpdate = async (e: React.FormEvent) => {
                           {isLoading ? 'Updating PIN...' : 'Update PIN'}
                         </button>
                       </div>
+
                     </>
                   ) : (
                     // SET NEW PIN FORM (when user doesn't have PIN) - keep this as is
@@ -888,6 +935,110 @@ const handleNotificationUpdate = async (e: React.FormEvent) => {
           )}
         </div>
       </div>
+
+      {isModalOpen && (
+  <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+      
+      {/* Header */}
+      <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+        <div>
+          <h3 className="font-bold text-gray-900 text-lg">Reset Security PIN</h3>
+          <p className="text-xs text-gray-500">Verification code sent to {profile?.email}</p>
+        </div>
+        <button 
+          onClick={() => { setIsModalOpen(false); setOtpValue(''); }} 
+          className="text-gray-400 hover:text-gray-600 text-xl p-1"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div className="p-6">
+        {/* SUCCESS NOTIFICATION MESSAGE */}
+        {showSuccessMsg && (
+          <div className="mb-6 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-3 animate-in slide-in-from-top-2 duration-300">
+            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+            <p className="text-sm text-green-800 font-medium">OTP has been sent to your email!</p>
+          </div>
+        )}
+
+        <form onSubmit={handleResetSubmission} className="space-y-5">
+          
+          {/* OTP Section */}
+          <div className="space-y-2">
+            <label className="block text-sm font-semibold text-indigo-900">Enter 6-Digit OTP</label>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={otpValue}
+              onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              className="w-full px-4 py-3 text-center text-2xl tracking-[0.3em] font-bold border-2 border-indigo-100 rounded-lg focus:border-indigo-500 bg-indigo-50/30 text-black outline-none transition-all"
+              placeholder="000000"
+              required
+            />
+          </div>
+
+          <div className="relative py-2">
+            <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-gray-100"></span></div>
+            <div className="relative flex justify-center text-xs uppercase"><span className="bg-white px-2 text-gray-400">New PIN Setup</span></div>
+          </div>
+
+          {/* New PIN Section - All Visible */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">New PIN</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={4}
+                placeholder="0000"
+                onChange={(e) => setPinData({ ...pinData, pin: e.target.value.replace(/\D/g, '') })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-center text-xl tracking-widest text-black focus:ring-2 focus:ring-indigo-500 outline-none"
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Confirm</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={4}
+                placeholder="0000"
+                onChange={(e) => setPinData({ ...pinData, newPin: e.target.value.replace(/\D/g, '') })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-center text-xl tracking-widest text-black focus:ring-2 focus:ring-indigo-500 outline-none"
+                required
+              />
+            </div>
+          </div>
+
+          {/* PIN Match Validation Alert */}
+          {pinData.pin && pinData.newPin && pinData.pin !== pinData.newPin && (
+            <p className="text-[10px] text-red-500 font-bold text-center">PINs do not match yet</p>
+          )}
+
+          {/* Submit Action */}
+          <div className="pt-2">
+            <button
+              type="submit"
+              disabled={otpValue.length < 6 || pinData.pin.length !== 4 || pinData.pin !== pinData.newPin || isLoading}
+              className="w-full py-4 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all disabled:opacity-50"
+            >
+              {isLoading ? 'Processing Reset...' : 'Verify & Reset PIN'}
+            </button>
+            <button 
+              type="button"
+              onClick={handleOpenResetModal}
+              className="w-full mt-4 text-xs text-gray-400 hover:text-indigo-600 font-medium transition-colors"
+            >
+              Didn't get the code? Resend OTP
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 };
