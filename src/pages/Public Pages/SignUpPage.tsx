@@ -5,7 +5,7 @@ import { Eye, EyeOff, User, Mail, Lock, AlertCircle, CheckCircle, School } from 
 import { registerParent } from '../../services';
 import type { ParentRegistrationRequest } from '../../types/auth';
 import bgImage from '../bg.jpeg';
-import logo from '../5.png';
+import logo from '/5.png';
 
 const SignUpPage: React.FC = () => {
 
@@ -149,10 +149,9 @@ const SignUpPage: React.FC = () => {
 
       const result = await registerParent(registrationData);
 
-      if (result.success) {
+      if (result.user || result.message === "Registration successful") {
         setErrorMessage('');
         setSuccessMessage(result.message || 'Account created successfully!');
-
         setFormValues({
           firstName: '',
           lastName: '',
@@ -167,9 +166,11 @@ const SignUpPage: React.FC = () => {
           navigate('/login');
         }, 2000);
       } else {
+        setSuccessMessage('');
         setErrorMessage(result.message || 'Registration failed');
       }
     } catch (error: unknown) {
+      setSuccessMessage('');
       console.error('Registration error:', error);
 
       let userMessage = 'Something went wrong. Please try again.';
@@ -219,12 +220,11 @@ const SignUpPage: React.FC = () => {
         )}
 
         {successMessage && (
-          <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-6 flex items-center gap-2">
-            <CheckCircle size={18} />
-            <span>{successMessage}</span>
+          <div className="bg-green-100 border border-green-500 text-green-900 px-4 py-3 rounded-lg mb-6 flex items-center gap-2 shadow-sm">
+            <CheckCircle size={18} className="text-green-600" />
+            <span className="font-semibold">{successMessage}</span>
           </div>
         )}
-
         {/* FORM */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="flex gap-4">

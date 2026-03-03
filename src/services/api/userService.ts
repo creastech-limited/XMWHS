@@ -379,7 +379,7 @@ export const createDisputeApi = async (disputeData: CreateDisputeData): Promise<
   return response.data;
 };
 
-// Delete agent (already in your API service from earlier)
+// Delete agent 
 export const deleteAgent = async (agentId: string): Promise<DeleteAgentResponse> => {
   const response = await apiClient.delete<DeleteAgentResponse>(
     `/api/users/delete/${agentId}`
@@ -394,7 +394,7 @@ export const getUserWallet = async (): Promise<WalletResponse> => {
 };
 
 export const updateUserProfile = async (userId: string, profileData: UpdateUserPayload): Promise<UserResponse> => {
-  // Assuming apiClient is your axios instance with the base URL already set
+  
   const response = await apiClient.put<UserResponse>(
     `/api/users/update-user/${userId}`, 
     profileData
@@ -500,3 +500,11 @@ export const removeBeneficiary = async (studentId: string) => {
   return response.data;
 };
 
+export const verifyPinOtp = async (email: string, otp: string, newPin: string) => {
+  const response = await apiClient.post('/api/pin/verifyotp', { 
+    email, 
+    otp, 
+    newPin 
+  });
+  return response.data;
+};

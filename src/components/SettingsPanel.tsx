@@ -15,7 +15,7 @@ import {
   Check,
   X,
 } from 'lucide-react';
-import { generateOtp, getUserDetails, setAccountPin, updateAccountPin, updateNotificationPreferences, updateUserPassword, updateUserProfile, uploadProfileImage } from '../services';
+import { getUserDetails, requestPinReset, setAccountPin, updateAccountPin, updateNotificationPreferences, updateUserPassword, updateUserProfile, uploadProfileImage, verifyPinOtp, } from '../services';
 import type { UpdateUserPayload } from '../types';
 
 
@@ -89,11 +89,16 @@ const SettingsPanel = () => {
   const [showImageActions, setShowImageActions] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [showSuccessMsg, setShowSuccessMsg] = useState(false);
+  const [resetStep, setResetStep] = useState<'pin' | 'otp'>('pin');
+
 
   const [otpValue, setOtpValue] = useState('');
 
-  // Helper to close modal and reset its internal state
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'success' as 'success' | 'error'
+  });
 
 
   const [profile, setProfile] = useState({
@@ -323,36 +328,70 @@ const SettingsPanel = () => {
     }
   };
 
-const handleOpenResetModal = async () => {
-  setIsLoading(true);
-  try {
-    await generateOtp(); 
-    setIsModalOpen(true);
-    setShowSuccessMsg(true); // Trigger the message
-    setTimeout(() => setShowSuccessMsg(false), 5000); // Hide after 5 seconds
-  } catch {
-    console.error("Failed to initiate reset");
-  } finally {
-    setIsLoading(false);
-  }
-};
 
-  const handleResetSubmission = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (pinData.pin !== pinData.newPin) return;
+  const handleOpenResetModal = () => {
+    setPinData({ currentPin: '', pin: '', newPin: '' }); // Reset the input
+    setResetStep('pin');     // Ensure we start at the PIN step
+    setIsModalOpen(true);    // Open the modal
+  };
+
+  // STEP 1: Send New PIN and Email to get OTP
+  const handleRequestOtp = async () => {
+    if (pinData.pin.length < 4) {
+      setSnackbar({ open: true, message: "Please enter a 4-digit PIN", severity: 'error' });
+      return;
+    }
 
     setIsLoading(true);
     try {
+      // Calling the updated service with both values
+      await requestPinReset(profile?.email || '', pinData.pin);
 
-      setOtpValue('');
-    } catch {
+      setResetStep('otp');
+      setSnackbar({ open: true, message: "OTP sent to your email!", severity: 'success' });
+    } catch (error: unknown) {
+      let msg = "An error occurred";
 
-      console.error("Reset failed");
-    } finally {
-      setIsLoading(false);
+      // Use axios.isAxiosError to check the type safely
+      if (axios.isAxiosError(error)) {
+        msg = error.response?.data?.error || error.response?.data?.message || msg;
+      } else if (error instanceof Error) {
+        msg = error.message;
+      }
+
+      setSnackbar({ open: true, message: msg, severity: 'error' });
     }
   };
 
+  // STEP 2: Send Email, OTP, and the New PIN again to verify
+  const handleFinalReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    try {
+      // Calling the verify service you already have
+      await verifyPinOtp(
+        profile?.email || '',
+        otpValue,
+        pinData.pin
+      );
+
+      setSnackbar({ open: true, message: "PIN reset successful!", severity: 'success' });
+      setIsModalOpen(false);
+      setResetStep('pin');
+      setPinData({ ...pinData, pin: '' });
+      setOtpValue('');
+    } catch (error: unknown) {
+      let msg = "An error occurred";
+
+      // Import axios at the top of your file to use this check
+      if (axios.isAxiosError(error)) {
+        // Check for .error (your backend) or .message
+        msg = error.response?.data?.error || error.response?.data?.message || msg;
+      }
+
+      setSnackbar({ open: true, message: msg, severity: 'error' });
+    }
+  };
   // Profile Picture Upload Handler
   const handleProfilePicUpload = async () => {
     if (!selectedImage || !token) return;
@@ -937,108 +976,109 @@ const handleOpenResetModal = async () => {
       </div>
 
       {isModalOpen && (
-  <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-    <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-      
-      {/* Header */}
-      <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-        <div>
-          <h3 className="font-bold text-gray-900 text-lg">Reset Security PIN</h3>
-          <p className="text-xs text-gray-500">Verification code sent to {profile?.email}</p>
-        </div>
-        <button 
-          onClick={() => { setIsModalOpen(false); setOtpValue(''); }} 
-          className="text-gray-400 hover:text-gray-600 text-xl p-1"
-        >
-          ✕
-        </button>
-      </div>
+        <div className="fixed inset-0 bg-indigo-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 border border-white/20">
 
-      <div className="p-6">
-        {/* SUCCESS NOTIFICATION MESSAGE */}
-        {showSuccessMsg && (
-          <div className="mb-6 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-3 animate-in slide-in-from-top-2 duration-300">
-            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            <p className="text-sm text-green-800 font-medium">OTP has been sent to your email!</p>
-          </div>
-        )}
-
-        <form onSubmit={handleResetSubmission} className="space-y-5">
-          
-          {/* OTP Section */}
-          <div className="space-y-2">
-            <label className="block text-sm font-semibold text-indigo-900">Enter 6-Digit OTP</label>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={otpValue}
-              onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              className="w-full px-4 py-3 text-center text-2xl tracking-[0.3em] font-bold border-2 border-indigo-100 rounded-lg focus:border-indigo-500 bg-indigo-50/30 text-black outline-none transition-all"
-              placeholder="000000"
-              required
-            />
-          </div>
-
-          <div className="relative py-2">
-            <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-gray-100"></span></div>
-            <div className="relative flex justify-center text-xs uppercase"><span className="bg-white px-2 text-gray-400">New PIN Setup</span></div>
-          </div>
-
-          {/* New PIN Section - All Visible */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">New PIN</label>
-              <input
-                type="text"
-                inputMode="numeric"
-                maxLength={4}
-                placeholder="0000"
-                onChange={(e) => setPinData({ ...pinData, pin: e.target.value.replace(/\D/g, '') })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-center text-xl tracking-widest text-black focus:ring-2 focus:ring-indigo-500 outline-none"
-                required
-              />
+            <div className="text-center mb-8">
+              <h2 className="text-2xl font-extrabold text-slate-800">
+                {resetStep === 'pin' ? 'Set New PIN' : 'Verify OTP'}
+              </h2>
+              <p className="text-slate-500 text-sm mt-2">
+                {resetStep === 'pin'
+                  ? 'Enter 4 digits to secure your account'
+                  : `Enter the code sent to ${profile?.email}`}
+              </p>
             </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Confirm</label>
-              <input
-                type="text"
-                inputMode="numeric"
-                maxLength={4}
-                placeholder="0000"
-                onChange={(e) => setPinData({ ...pinData, newPin: e.target.value.replace(/\D/g, '') })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-center text-xl tracking-widest text-black focus:ring-2 focus:ring-indigo-500 outline-none"
-                required
-              />
-            </div>
-          </div>
 
-          {/* PIN Match Validation Alert */}
-          {pinData.pin && pinData.newPin && pinData.pin !== pinData.newPin && (
-            <p className="text-[10px] text-red-500 font-bold text-center">PINs do not match yet</p>
-          )}
+            {resetStep === 'pin' ? (
+              <div className="space-y-8">
+                {/* VISUAL PIN GRID */}
+                <div className="flex justify-between gap-3">
+                  {[0, 1, 2, 3].map((i) => (
+                    <div
+                      key={i}
+                      className={`w-16 h-20 rounded-2xl border-2 flex items-center justify-center text-3xl font-bold transition-all duration-150
+                  ${pinData.pin.length === i ? 'border-indigo-600 bg-indigo-50 shadow-[0_0_15px_rgba(79,70,229,0.2)] scale-105' : 'border-slate-100 bg-slate-50'}
+                  ${pinData.pin[i] ? 'border-slate-800 bg-white text-slate-800' : 'text-slate-300'}`}
+                    >
+                      {pinData.pin[i] || ''}
+                    </div>
+                  ))}
+                </div>
 
-          {/* Submit Action */}
-          <div className="pt-2">
+                {/* REAL HIDDEN INPUT FOR KEYBOARD TRIGGER */}
+                <input
+                  type="text"
+                  pattern="\d*"
+                  inputMode="numeric"
+                  maxLength={4}
+                  autoFocus
+                  className="absolute opacity-0 h-0 w-0" // Stays hidden but handles the typing
+                  value={pinData.pin}
+                  onChange={(e) => setPinData({ ...pinData, pin: e.target.value.replace(/\D/g, '').slice(0, 4) })}
+                />
+
+                <button
+                  onClick={handleRequestOtp}
+                  disabled={isLoading || pinData.pin.length < 4}
+                  className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold text-lg hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 transition-all shadow-lg active:translate-y-1"
+                >
+                  {isLoading ? 'Sending...' : 'Continue'}
+                </button>
+              </div>
+            ) : (
+              /* OTP STEP */
+              <div className="space-y-8">
+                <input
+                  type="text"
+                  placeholder="000000"
+                  maxLength={6}
+                  className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl text-center text-black text-4xl font-black tracking-widest focus:border-green-500 focus:bg-white outline-none transition-all"
+                  value={otpValue}
+                  onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, ''))}
+                />
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setResetStep('pin')}
+                    className="flex-1 py-4 font-bold text-slate-400 hover:text-slate-600"
+                  >
+                    Back
+                  </button>
+                  <button
+                    onClick={handleFinalReset}
+                    className="flex-[2] bg-green-600 text-white py-4 rounded-2xl font-bold text-lg hover:bg-green-700 shadow-lg shadow-green-100"
+                  >
+                    Verify & Reset
+                  </button>
+                </div>
+              </div>
+            )}
+
             <button
-              type="submit"
-              disabled={otpValue.length < 6 || pinData.pin.length !== 4 || pinData.pin !== pinData.newPin || isLoading}
-              className="w-full py-4 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all disabled:opacity-50"
+              onClick={() => {
+                setIsModalOpen(false);
+                setResetStep('pin');
+                setOtpValue('');
+                setPinData({ currentPin: '', pin: '', newPin: '' });
+              }}
+              className="mt-8 w-full text-slate-300 text-xs font-bold uppercase tracking-widest hover:text-red-400 transition-colors"
             >
-              {isLoading ? 'Processing Reset...' : 'Verify & Reset PIN'}
-            </button>
-            <button 
-              type="button"
-              onClick={handleOpenResetModal}
-              className="w-full mt-4 text-xs text-gray-400 hover:text-indigo-600 font-medium transition-colors"
-            >
-              Didn't get the code? Resend OTP
+              Cancel
             </button>
           </div>
-        </form>
-      </div>
-    </div>
-  </div>
-)}
+        </div>
+      )}
+      {/* CUSTOM SNACKBAR - THIS CLEARS THE "SNACKBAR NEVER READ" ERROR */}
+      {snackbar.open && (
+        <div className={`fixed bottom-5 right-5 z-[110] px-6 py-3 rounded-lg shadow-xl text-white ${snackbar.severity === 'success' ? 'bg-green-600' : 'bg-red-600'
+          }`}>
+          <div className="flex items-center gap-3">
+            <span>{snackbar.message}</span>
+            <button onClick={() => setSnackbar({ ...snackbar, open: false })}>✕</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

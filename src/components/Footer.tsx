@@ -1,6 +1,6 @@
 // src/components/Footer.tsx
 import React from 'react';
-import logo from './5.png';
+import logo from '/5.png';
 
 const Footer: React.FC = () => {
   const year = new Date().getFullYear();
