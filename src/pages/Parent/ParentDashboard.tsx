@@ -350,7 +350,7 @@ const ParentDashboard: React.FC = () => {
 
   return (
     <div className="bg-gray-50 min-h-screen">
-      <Header PsettingsPage="/psettings" />
+      <Header PsettingsPage="/Psettings" />
 
       <div className="container mx-auto px-4 py-6">
         <div className="flex flex-col min-h-screen">
@@ -519,8 +519,8 @@ const ParentDashboard: React.FC = () => {
                           nameKey="name"
                           cx="50%"
                           cy="50%"
-                          innerRadius={0} // Full pie circle
-                          outerRadius={80}
+                          innerRadius={70} // Full pie circle
+                          outerRadius={120}
                           paddingAngle={0}
                           stroke="#fff"
                           strokeWidth={2}

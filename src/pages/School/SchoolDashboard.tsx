@@ -21,15 +21,15 @@ import 'react-calendar/dist/Calendar.css';
 import { FaWallet, FaUsers, FaStore, FaCalendarAlt } from 'react-icons/fa';
 
 // Import services
-import { 
-  getUserDetails, 
-  getStoreCount, 
-  getClasses, 
-  getUserTransactions 
+import {
+  getUserDetails,
+  getStoreCount,
+  getClasses,
+  getUserTransactions
 } from '../../services';
 
 // Import types
-import type { 
+import type {
   User,
   UserResponse,
   StoreCountResponse,
@@ -222,20 +222,20 @@ const Dashboard: React.FC = () => {
 
         if (!profile?._id) throw new Error('Invalid user payload');
 
-        const updatedProfile = { 
-          ...profile, 
-          balance: userBalance 
+        const updatedProfile = {
+          ...profile,
+          balance: userBalance
         };
 
         // Update user state
         setUser(updatedProfile);
-        
+
         // Update stats with the balance
         setStats(prevStats => ({
           ...prevStats,
           balance: userBalance
         }));
-        
+
         return updatedProfile;
       } catch (error) {
         console.error('Error fetching user details:', error);
@@ -249,9 +249,9 @@ const Dashboard: React.FC = () => {
   const fetchStoreCount = useCallback(async () => {
     try {
       const data: StoreCountResponse = await getStoreCount();
-      
+
       console.log('Store Count API Response:', JSON.stringify(data, null, 2));
-      
+
       // Extract store count from response
       let storeCount = 0;
       if (typeof data.data === 'number') {
@@ -261,15 +261,15 @@ const Dashboard: React.FC = () => {
       } else if (data.totalStores !== undefined) {
         storeCount = data.totalStores;
       }
-      
+
       console.log('Extracted store count:', storeCount);
-      
+
       // Update stats with store count
       setStats(prev => ({
         ...prev,
         totalStores: storeCount
       }));
-      
+
     } catch (error) {
       console.error('Error fetching store count:', error);
       setSnackbar({
@@ -284,12 +284,12 @@ const Dashboard: React.FC = () => {
   const fetchStudentsData = useCallback(async () => {
     try {
       const classesData: ClassesResponse = await getClasses();
-      
+
       // Process classes data for pie chart (class distribution)
       if (classesData.data && Array.isArray(classesData.data)) {
         // Create data for pie chart
         const pieColors = ['#42a5f5', '#66bb6a', '#ffca28', '#ef5350', '#ab47bc', '#26c6da'];
-        
+
         const pieData: PieDataEntry[] = classesData.data
           .filter((classItem: ClassItem) => classItem.className) // ensure className exists
           .map((classItem: ClassItem, index: number): PieDataEntry => ({
@@ -297,16 +297,16 @@ const Dashboard: React.FC = () => {
             value: classItem.students?.length || 0,
             color: pieColors[index % pieColors.length]
           }));
-        
+
         // Calculate total students
         const totalStudents = classesData.data.reduce(
-          (sum: number, classItem: ClassItem) => sum + (classItem.students?.length || 0), 
+          (sum: number, classItem: ClassItem) => sum + (classItem.students?.length || 0),
           0
         );
-        
+
         setPieData(pieData);
         setStats(prev => ({
-          ...prev, 
+          ...prev,
           totalStudents
         }));
       }
@@ -324,9 +324,9 @@ const Dashboard: React.FC = () => {
   const fetchTransactionsData = useCallback(async () => {
     try {
       const data: TransactionsResponse = await getUserTransactions();
-      
+
       console.log('Transactions API Response:', JSON.stringify(data, null, 2));
-      
+
       if (data.data && Array.isArray(data.data)) {
         // Process recent transactions with proper credit/debit logic
         const recentTransactions = data.data
@@ -334,19 +334,19 @@ const Dashboard: React.FC = () => {
           .map((tx: TransactionType) => {
             // Determine transaction type based on direction field primarily
             let transactionType: 'credit' | 'debit' | 'pending' = 'debit';
-            
+
             // First check status for pending transactions
             if (tx.status === 'pending') {
               transactionType = 'pending';
-            } 
+            }
             // Then use direction field as primary indicator
             else if (tx.category === 'credit') {
               transactionType = 'credit';
-            } 
+            }
             else if (tx.category === 'debit') {
               transactionType = 'debit';
             }
-          
+
             return {
               id: tx._id,
               date: tx.createdAt,
@@ -357,14 +357,14 @@ const Dashboard: React.FC = () => {
               status: tx.status // include status for reference
             };
           });
-        
+
         setTransactions(recentTransactions);
-        
+
         // Process fee collection trend (last 6 months) - only credit transactions
         const now = new Date();
         const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        
-        const last6Months = Array.from({length: 6}, (_, i) => {
+
+        const last6Months = Array.from({ length: 6 }, (_, i) => {
           const date = new Date(now);
           date.setMonth(date.getMonth() - i);
           return {
@@ -373,27 +373,27 @@ const Dashboard: React.FC = () => {
             monthIndex: date.getMonth()
           };
         }).reverse();
-        
-        const feeData = last6Months.map(({month, year, monthIndex}) => {
+
+        const feeData = last6Months.map(({ month, year, monthIndex }) => {
           const monthlyTotal = (data.data ?? [])
             .filter((tx: TransactionType) => {
               const txDate = new Date(tx.createdAt ?? '');
               const txMonth = txDate.getMonth();
               const txYear = txDate.getFullYear();
-              
+
               // Check if it's a credit transaction (fee received)
               const isCredit = tx.category === 'credit' || tx.category === 'credit';
-              
+
               return txMonth === monthIndex && txYear === year && isCredit;
             })
             .reduce((sum: number, tx: TransactionType) => sum + (tx.amount || 0), 0);
-          
+
           return {
             month,
             fees: monthlyTotal
           };
         });
-        
+
         console.log('Processed fee data:', feeData);
         setBarData(feeData);
       }
@@ -421,14 +421,14 @@ const Dashboard: React.FC = () => {
             ...prev,
             balance: (auth.user && typeof auth.user.balance === 'number') ? auth.user.balance : 0
           }));
-          
+
           // Still fetch other data including store count
           await Promise.all([
             fetchStudentsData(),
             fetchTransactionsData(),
             fetchStoreCount()
           ]);
-          
+
           setLoading(false);
           return;
         }
@@ -442,7 +442,7 @@ const Dashboard: React.FC = () => {
         console.log('Fetching fresh user data...');
         // Fetch fresh user data
         const profile = await fetchUserDetails();
-        
+
         console.log('Profile fetched, balance should be:', profile.balance);
 
         // After successful auth, fetch other data including store count
@@ -488,12 +488,12 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     if (authError) setTimeout(() => (window.location.href = '/login'), 3000);
   }, [authError]);
-  
+
   useEffect(() => {
     const styleElement = document.createElement('style');
     styleElement.textContent = calendarStyles;
     document.head.appendChild(styleElement);
-    
+
     return () => {
       document.head.removeChild(styleElement);
     };
@@ -502,7 +502,7 @@ const Dashboard: React.FC = () => {
   if (loading)
     return (
       <div className="flex flex-col min-h-screen bg-gray-50">
-         <Header PsettingsPage="/settings" />
+        <Header PsettingsPage="/settings" />
         <div className="flex flex-grow">
           <div className="hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-white shadow z-10">
             <Asidebar />
@@ -516,14 +516,14 @@ const Dashboard: React.FC = () => {
       </div>
     );
 
-    
+
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
-        <Header PsettingsPage="/settings" />
+      <Header PsettingsPage="/settings" />
       <div className="flex flex-grow">
-          <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-none">
-            <Asidebar />
-          </aside>
+        <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-none">
+          <Asidebar />
+        </aside>
 
         <main className="flex-grow p-4 md:p-8 md:ml-64">
           {/* Top Section */}
@@ -552,7 +552,7 @@ const Dashboard: React.FC = () => {
                   Wallet Balance
                 </h3>
                 <p className="text-2xl font-bold text-gray-800">
-                 ₦{stats.balance.toLocaleString()}
+                  ₦{stats.balance.toLocaleString()}
                 </p>
               </div>
             </div>
@@ -620,22 +620,22 @@ const Dashboard: React.FC = () => {
                           <Cell key={idx} fill={entry.color} />
                         ))}
                       </Pie>
-                     <RechartTooltip
-  content={({ active, payload }) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      return (
-        <div className="bg-white p-3 shadow-lg rounded-lg border text-sm">
-          <p className="font-semibold text-gray-800">{data.name}</p>
-          <p className="text-indigo-600">
-            Students: <span className="font-bold">{data.value}</span>
-          </p>
-        </div>
-      );
-    }
-    return null;
-  }}
-/>
+                      <RechartTooltip
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            const data = payload[0].payload;
+                            return (
+                              <div className="bg-white p-3 shadow-lg rounded-lg border text-sm">
+                                <p className="font-semibold text-gray-800">{data.name}</p>
+                                <p className="text-indigo-600">
+                                  Students: <span className="font-bold">{data.value}</span>
+                                </p>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
                       <Legend verticalAlign="bottom" layout="horizontal" />
                     </PieChart>
                   </ResponsiveContainer>
@@ -692,109 +692,107 @@ const Dashboard: React.FC = () => {
           </div>
 
           {/* Transactions & Calendar */}
-         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-  <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100">
-    <div className="flex justify-between items-center mb-4">
-      <h3 className="text-lg font-semibold text-gray-800">
-        Recent Transactions
-      </h3>
-      <button
-        onClick={() => (window.location.href = '/transactions')}
-        className="text-indigo-600 text-sm font-medium"
-      >
-        View All
-      </button>
-    </div>
-    <div className="overflow-y-auto max-h-72">
-      {transactions.length > 0 ? (
-       <div className="space-y-3">
-  {transactions.map((transaction) => (
-    <div
-      key={transaction.id}
-      className="flex justify-between items-center p-3 hover:bg-gray-50 rounded"
-    >
-      <div className="flex items-center">
-        <div
-          className={`p-2 rounded-full mr-3 ${
-            transaction.category === 'credit'
-              ? 'bg-green-100 text-green-600'
-              : transaction.status === 'pending'
-              ? 'bg-yellow-100 text-yellow-600'
-              : 'bg-red-100 text-red-600'
-          }`}
-        >
-          <FaWallet className="text-sm" />
-        </div>
-        <div>
-          <p className="text-sm font-medium text-gray-800">
-            {transaction.category}
-          </p>
-          <div className="flex items-center">
-            <p className="text-xs text-gray-500">
-              {new Date(transaction.date).toLocaleDateString()}
-            </p>
-            <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
-              {transaction.type.replace(/_/g, ' ')}
-            </span>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-gray-800">
+                  Recent Transactions
+                </h3>
+                <button
+                  onClick={() => (window.location.href = '/transactions')}
+                  className="text-indigo-600 text-sm font-medium"
+                >
+                  View All
+                </button>
+              </div>
+              <div className="overflow-y-auto max-h-72">
+                {transactions.length > 0 ? (
+                  <div className="space-y-3">
+                    {transactions.map((transaction) => (
+                      <div
+                        key={transaction.id}
+                        className="flex justify-between items-center p-3 hover:bg-gray-50 rounded"
+                      >
+                        <div className="flex items-center">
+                          <div
+                            className={`p-2 rounded-full mr-3 ${transaction.category === 'credit'
+                                ? 'bg-green-100 text-green-600'
+                                : transaction.status === 'pending'
+                                  ? 'bg-yellow-100 text-yellow-600'
+                                  : 'bg-red-100 text-red-600'
+                              }`}
+                          >
+                            <FaWallet className="text-sm" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-800">
+                              {transaction.category}
+                            </p>
+                            <div className="flex items-center">
+                              <p className="text-xs text-gray-500">
+                                {new Date(transaction.date).toLocaleDateString()}
+                              </p>
+                              <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                                {transaction.type.replace(/_/g, ' ')}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p
+                            className={`font-medium ${transaction.category === 'credit'
+                                ? 'text-green-600'
+                                : transaction.status === 'pending'
+                                  ? 'text-yellow-600'
+                                  : 'text-red-600'
+                              }`}
+                          >
+                            {transaction.category === 'credit' ? '+' : '-'}₦
+                            {(Number(transaction.amount) || 0).toLocaleString()}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {transaction.status === 'success' ? 'Completed' :
+                              transaction.status === 'failed' ? 'Failed' :
+                                'Pending'}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-600 text-center py-8">
+                    No transactions available.
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-gray-800">
+                  School Calendar
+                </h3>
+                <div className="p-2 rounded-full bg-indigo-100 text-indigo-600">
+                  <FaCalendarAlt className="text-sm" />
+                </div>
+              </div>
+              <div className="flex justify-center">
+                <Calendar
+                  onChange={(value) => {
+                    if (value instanceof Date) {
+                      setCalendarDate(value);
+                    } else if (
+                      Array.isArray(value) &&
+                      value[0] instanceof Date
+                    ) {
+                      setCalendarDate(value[0]);
+                    }
+                  }}
+                  value={calendarDate}
+                  className="react-calendar rounded-lg w-full shadow-sm"
+                />
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
-      <div className="text-right">
-        <p
-          className={`font-medium ${
-            transaction.category === 'credit'
-              ? 'text-green-600'
-              : transaction.status === 'pending'
-              ? 'text-yellow-600'
-              : 'text-red-600'
-          }`}
-        >
-          {transaction.category === 'credit' ? '+' : '-'}₦
-          {(Number(transaction.amount) || 0).toLocaleString()}
-        </p>
-        <p className="text-xs text-gray-500 mt-1">
-          {transaction.status === 'success' ? 'Completed' : 
-           transaction.status === 'failed' ? 'Failed' : 
-           'Pending'}
-        </p>
-      </div>
-    </div>
-  ))}
-</div>
-      ) : (
-        <p className="text-sm text-gray-600 text-center py-8">
-          No transactions available.
-        </p>
-      )}
-    </div>
-  </div>
-  <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100">
-    <div className="flex justify-between items-center mb-4">
-      <h3 className="text-lg font-semibold text-gray-800">
-        School Calendar
-      </h3>
-      <div className="p-2 rounded-full bg-indigo-100 text-indigo-600">
-        <FaCalendarAlt className="text-sm" />
-      </div>
-    </div>
-    <div className="flex justify-center">
-  <Calendar
-    onChange={(value) => {
-      if (value instanceof Date) {
-        setCalendarDate(value);
-      } else if (
-        Array.isArray(value) &&
-        value[0] instanceof Date
-      ) {
-        setCalendarDate(value[0]);
-      }
-    }}
-    value={calendarDate}
-    className="react-calendar rounded-lg w-full shadow-sm"
-  />
-</div>
-  </div>
-</div>
         </main>
       </div>
       <Footer />
@@ -802,19 +800,17 @@ const Dashboard: React.FC = () => {
       {/* Snackbar */}
       {snackbar.open && (
         <div
-          className={`fixed bottom-4 right-4 bg-white p-4 rounded-lg shadow-lg border-l-4 ${
-            snackbar.severity === 'success'
+          className={`fixed bottom-4 right-4 bg-white p-4 rounded-lg shadow-lg border-l-4 ${snackbar.severity === 'success'
               ? 'border-green-500'
               : 'border-red-500'
-          } transition-all duration-300 z-50`}
+            } transition-all duration-300 z-50`}
         >
           <div className="flex items-center">
             <div
-              className={`p-2 rounded-full mr-3 ${
-                snackbar.severity === 'success'
+              className={`p-2 rounded-full mr-3 ${snackbar.severity === 'success'
                   ? 'bg-green-100 text-green-600'
                   : 'bg-red-100 text-red-600'
-              }`}
+                }`}
             >
               {snackbar.severity === 'success' ? '✓' : '✕'}
             </div>

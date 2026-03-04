@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext'; 
+import { AuthProvider } from './context/AuthContext';
 import LoginPage from './pages/Public Pages/LoginPage.js';
 import SchoolsPage from './pages/School/SchoolDashboard';
 import SignUpPage from './pages/Public Pages/SignUpPage.js';
@@ -37,53 +37,51 @@ import StoreSettingsPage from './pages/Store/StoreSettingsPage.js';
 import EditStudentDetails from './pages/School/EditStudentDetails.js';
 import EditStoreDetails from './pages/School/EditStoreDetails.js';
 import ViewStudentTransactions from './pages/School/ViewStudentTransactions.js';
-import Pdispute from './pages/Parent/Pdispute.js'; 
-import Kdispute from './pages/Student/Kdispute.js'; 
+import Pdispute from './pages/Parent/Pdispute.js';
+import Kdispute from './pages/Student/Kdispute.js';
 import DisputePage from './pages/School/Sdiputes.js';
 import Storedispute from './pages/Store/Storedispute.js';
-import Terms from './pages/Public Pages/TermsAndConditions.js';
-import Overview from './pages/Admin/overview';
-import AllUsers from './pages/Admin/AllUsers';
+import Overview from './pages/Admin/overview'; import AllUsers from './pages/Admin/AllUsers';
 import SchoolTransferPage from './pages/School/schooltransfer.js';
 import ForgotPasswordPage from './pages/Public Pages/ForgotPasswordPage.js';
 import ResetPasswordPage from './pages/Public Pages/ResetPasswordPage.js';
+import PrivacyAndPolicy from './pages/Public Pages/PrivacyAndPolicy.js';
+
 
 function App() {
   return (
     <Router>
       <AuthProvider>
         <Routes>
+
+          <Route path="/privacyAndPolicy" element={<PrivacyAndPolicy />} />
+
           {/* Redirect root to login */}
           <Route path="/" element={<Navigate to="/login" replace />} />
 
-          {/* Login page */}
+          {/* Public Routes */}
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/terms" element={<Terms />} />
-
-          {/* Registration Pages */}
           <Route path="/signup" element={<SignUpPage />} />
-          <Route path='/schoolsignup' element={<SchoolSignUpPage />} />
+          <Route path="/schoolsignup" element={<SchoolSignUpPage />} />
           <Route path="/students/new" element={<StudentRegistrationForm />} />
           <Route path="/stores/new" element={<StoreRegistrationForm />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
 
-
-          {/* School dashboard */}
+          {/* School Routes */}
           <Route path="/schools" element={<SchoolsPage />} />
           <Route path="/students" element={<StudentPage />} />
           <Route path="/stores" element={<StorePage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/schoolfees" element={<SchoolFeesModule />} />
           <Route path="/schooltransfer" element={<SchoolTransferPage />} />
-          <Route path='/transactions' element={<TransactionModule />} />
+          <Route path="/transactions" element={<TransactionModule />} />
           <Route path="/withdrawal" element={<WithdrawalPage />} />
           <Route path="/students/edit/:_id" element={<EditStudentDetails />} />
           <Route path="/students/transactions/:_id" element={<ViewStudentTransactions />} />
           <Route path="/Sdisputes" element={<DisputePage />} />
 
-
-          {/* Parent dashboard */}
+          {/* Parent Routes */}
           <Route path="/parent" element={<ParentDashboard />} />
           <Route path="/fundwallet" element={<FundWalletPage />} />
           <Route path="/ptransactionhistory" element={<PTransactionHistoryPage />} />
@@ -93,44 +91,38 @@ function App() {
           <Route path="/paytoagent" element={<PayToAgentPage />} />
           <Route path="/pdispute" element={<Pdispute />} />
 
-
-          
-
-          {/* Kids dashboard */}
-          <Route path="/kidswallet" element={<KidsDashboard/>} />
+          {/* Student Routes */}
+          <Route path="/kidswallet" element={<KidsDashboard />} />
           <Route path="/ksettings" element={<KidsSettingsPage />} />
           <Route path="/kidpayagent" element={<KidPayAgentPage />} />
           <Route path="/kidpaymenthistory" element={<KidPaymentHistoryPage />} />
           <Route path="/schoolbills" element={<SchoolBillsPage />} />
           <Route path="/kdispute" element={<Kdispute />} />
-          
 
-          {/* Store dashboard */}
+          {/* Store Routes */}
           <Route path="/store" element={<StoreDashboard />} />
           <Route path="/agents" element={<ManageAgentsPage />} />
           <Route path="/stransactions" element={<STransactionHistoryPage />} />
-          <Route path='/swithdrawal' element={<SWithdrawalPage />} />
+          <Route path="/swithdrawal" element={<SWithdrawalPage />} />
           <Route path="/store/settings" element={<StoreSettingsPage />} />
           <Route path="/stores/edit/:id" element={<EditStoreDetails />} />
           <Route path="/Storedispute" element={<Storedispute />} />
 
-
-
-          {/* Agent dashboard */}
+          {/* Agent Routes */}
           <Route path="/agent" element={<AgentDashboard />} />
           <Route path="/agent/scanqr" element={<AgentScanQR />} />
           <Route path="/agent/transfertostore" element={<AgentTransferToStore />} />
           <Route path="/agent/transactions" element={<AgentTransactionHistory />} />
-          
 
-          {/* admin routes */}
+          {/* Admin Routes */}
           <Route path="/admin" element={<Overview />} />
           <Route path="/admin/management/all-users" element={<AllUsers />} />
 
-        
-          {/* Paystack Page */}
+          {/* Paystack */}
           <Route path="/payment/callback" element={<PaystackCallback />} />
 
+          {/* Catch-all */}
+          <Route path="*" element={<Navigate to="/login" replace />} />
 
         </Routes>
       </AuthProvider>
@@ -139,6 +131,3 @@ function App() {
 }
 
 export default App;
-
-// https://nodes-1-ohur.onrender.com
-//https://nodes-mxxd.onrender.com

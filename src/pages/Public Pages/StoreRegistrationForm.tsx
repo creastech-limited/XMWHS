@@ -210,9 +210,10 @@ const StoreRegistrationForm: React.FC = () => {
     }
   };
 
-  const handleNext = () => { 
+  const handleNext = (e: React.FormEvent) => { 
+    e.preventDefault();
     if (activeStep === steps.length - 1) {
-      handleSubmit();
+      handleSubmit(e);
     } else {
       setActiveStep(activeStep + 1);
     }
@@ -224,7 +225,8 @@ const StoreRegistrationForm: React.FC = () => {
 
   
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
     if (formData.password !== formData.confirmPassword) {
       setSnackbar({
         open: true,
@@ -293,10 +295,12 @@ const StoreRegistrationForm: React.FC = () => {
       confirmPassword: '',
       description: ''
     });
-    
-    setTimeout(() => {
-      navigate('/login');
-    }, 2000);
+     setTimeout(() => {
+        navigate('/login', { replace: true });
+      }, 800);
+
+      return;
+   
   } else {
     setSnackbar({
       open: true,
