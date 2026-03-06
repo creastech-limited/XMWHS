@@ -120,65 +120,64 @@ const StoreDashboard: React.FC = () => {
   );
 
   // Fetch user transactions
- const fetchUserTransactions = useCallback(
+const fetchUserTransactions = useCallback(
   async (): Promise<Transaction[]> => {
     try {
       const response: TransactionsResponse = await getUserTransactions();
 
+      // Log for debugging
       console.log('Transactions API Response:', JSON.stringify(response, null, 2));
 
-      interface TransactionResponse {
-        _id?: string;
-        id?: string;
-        createdAt?: string;
-        date?: string;
-        description?: string;
-        amount?: number | string;
-        category?: string;
-        status?: string;
-        metadata?: {
-          senderEmail?: string;
-          receiverEmail?: string;
-          [key: string]: unknown;
-        };
-        senderWalletId?: { 
-          email?: string;
-          [key: string]: unknown;
-        };
-      }
+      // Extract the array from the possible response keys
+      const rawData = response.data || response.transactions || [];
 
-      const transactionsArray = (response.data || []) as TransactionResponse[];
+      // Map to the global Transaction interface defined in your project
+      const transactions: Transaction[] = rawData.map((tx) => {
+        // 1. Resolve the ID safely
+        // We cast as any only for the property check to avoid ESLint/TS errors on "id" vs "_id"
+        const apiId = tx._id || (tx as { id?: string }).id || Math.random().toString(36).substring(2, 9);
 
-      const transactions: Transaction[] = transactionsArray.map((tx: TransactionResponse) => {
-        // Safely extract customer information
-        let customer = 'Unknown Sender';
+        // 2. Extract Customer Name strictly as a string
+        let customerName = 'Unknown Sender';
+        const senderWallet = tx.senderWalletId;
+
         if (tx.metadata?.senderEmail) {
-          customer = tx.metadata.senderEmail;
-        } else if (tx.senderWalletId?.email) {
-          customer = tx.senderWalletId.email;
+          customerName = String(tx.metadata.senderEmail);
+        } else if (
+          typeof senderWallet === 'object' && 
+          senderWallet !== null && 
+          'email' in senderWallet
+        ) {
+          customerName = String((senderWallet as { email: string }).email);
+        } else if (typeof tx.customer === 'string') {
+          customerName = tx.customer;
         }
 
-        // Determine status
-        let status: 'Completed' | 'Pending' | 'Failed' = 'Failed';
-        if (tx.status === 'success' || tx.status === 'completed') {
-          status = 'Completed';
-        } else if (tx.status === 'pending') {
-          status = 'Pending';
+        // 3. Determine and normalize status
+        let statusDisplay: string = 'Failed';
+        const rawStatus = (tx.status || '').toLowerCase();
+        
+        if (rawStatus === 'success' || rawStatus === 'completed') {
+          statusDisplay = 'Completed';
+        } else if (rawStatus === 'pending') {
+          statusDisplay = 'Pending';
         }
 
+        // 4. Return the object matching your Transaction interface exactly
         return {
-          // Required properties
-          _id: tx._id || tx.id || Math.random().toString(36).substring(2, 9),
-          date: new Date(tx.createdAt || tx.date || '').toLocaleDateString(),
-          createdAt: tx.createdAt || tx.date || new Date().toISOString(),
+          ...tx, // Spread existing data to keep direction, charges, etc.
+          _id: apiId,
+          id: apiId, // Added this to prevent 'undefined' in the UI
+          date: tx.date || new Date(tx.createdAt || '').toLocaleDateString(),
+          createdAt: tx.createdAt || new Date().toISOString(),
           description: tx.description || 'Transaction',
           amount: Number(tx.amount) || 0,
           category: tx.category || 'General',
-          status: status,
-          customer: customer,
-          // Include metadata if it exists with proper typing
-          metadata: tx.metadata || { senderEmail: '', receiverEmail: '' },
-          senderWalletId: undefined,
+          status: statusDisplay,
+          customer: customerName, // Strictly string to fix Error 2322
+          metadata: tx.metadata || {},
+          // Ensure senderWalletId is handled based on your interface
+          senderWalletId: typeof tx.senderWalletId === 'string' ? tx.senderWalletId : undefined,
         } as Transaction;
       });
 

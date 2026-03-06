@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { jsPDF } from 'jspdf';
 import { Link } from 'react-router-dom';
 import {
     ArrowLeft,
@@ -11,6 +12,8 @@ import {
     AlertCircle,
     User,
     Calendar,
+    Share2,
+    FileText,
     DollarSign,
 } from 'lucide-react';
 import StoreHeader from '../../components/StoreHeader';
@@ -53,6 +56,7 @@ const STransactionHistoryPage = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const [activeReceiptTx, setActiveReceiptTx] = useState<Transaction | null>(null);
 
     // Handle authentication errors
     const handleAuthError = useCallback((message: string) => {
@@ -177,6 +181,53 @@ const STransactionHistoryPage = () => {
             throw error;
         }
     }, []);
+
+
+    // Function to generate PDF receipt for a transaction
+
+    const generateReceiptPDF = (txn: Transaction) => {
+        const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: [100, 150] });
+        const centerX = 50;
+
+        // Header
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(16);
+        doc.setTextColor(37, 99, 235); // Blue-600
+        doc.text("XPAY DIGITAL", centerX, 15, { align: 'center' });
+
+        doc.setFontSize(8);
+        doc.setTextColor(100, 116, 139);
+        doc.text("TRANSACTION RECEIPT", centerX, 20, { align: 'center' });
+
+        // Divider
+        doc.setDrawColor(226, 232, 240);
+        doc.line(10, 25, 90, 25);
+
+        // Amount
+        doc.setFontSize(18);
+        doc.setTextColor(15, 23, 42);
+        doc.text(`NGN ${txn.amount.toLocaleString()}`, centerX, 40, { align: 'center' });
+
+        // Details
+        doc.setFontSize(9);
+        const startY = 55;
+        const details = [
+            ["Status:", txn.status.toUpperCase()],
+            ["Agent/Receiver:", txn.agent],
+            ["Transaction ID:", txn.id],
+            ["Date:", txn.date],
+            ["Description:", txn.description || 'N/A']
+        ];
+
+        details.forEach((item, index) => {
+            doc.setTextColor(100, 116, 139);
+            doc.text(item[0], 15, startY + (index * 8));
+            doc.setTextColor(30, 41, 59);
+            doc.text(item[1], 85, startY + (index * 8), { align: 'right' });
+        });
+
+        return doc;
+    };
 
     // Initialize authentication and fetch data
     useEffect(() => {
@@ -477,7 +528,9 @@ const STransactionHistoryPage = () => {
                                                             <th scope="col" className="px-4 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                                 Status
                                                             </th>
-
+                                                            <th scope="col" className="px-4 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                                Receipt
+                                                            </th>
                                                         </tr>
                                                     </thead>
                                                     <tbody className="bg-white divide-y divide-gray-200">
@@ -500,6 +553,15 @@ const STransactionHistoryPage = () => {
                                                                 </td>
                                                                 <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-center">
                                                                     {getStatusChip(txn.status)}
+                                                                </td>
+                                                                <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-center">
+                                                                    <button
+                                                                        onClick={() => setActiveReceiptTx(txn)}
+                                                                        className="inline-flex items-center gap-1 rounded border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-100 transition-colors"
+                                                                    >
+                                                                        <FileText className="h-3 w-3" />
+                                                                        Get Receipt
+                                                                    </button>
                                                                 </td>
 
                                                             </tr>
@@ -529,6 +591,56 @@ const STransactionHistoryPage = () => {
                 <div className="fixed bottom-0 left-0 w-full">
                     <Footer />
                 </div>
+                {activeReceiptTx && (
+                    <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-[999] p-0 sm:p-4">
+                        <div className="absolute inset-0" onClick={() => setActiveReceiptTx(null)}></div>
+                        <div className="bg-white w-full max-w-sm rounded-t-2xl sm:rounded-2xl p-6 relative animate-in slide-in-from-bottom duration-300 shadow-2xl">
+                            <h3 className="text-lg font-bold text-slate-900 mb-1">Receipt Options</h3>
+                            <p className="text-xs text-gray-500 mb-6 font-mono">ID: {activeReceiptTx.id}</p>
+
+                            <div className="grid grid-cols-1 gap-3">
+                                <button
+                                    onClick={() => {
+                                        const doc = generateReceiptPDF(activeReceiptTx);
+                                        doc.save(`XPay_${activeReceiptTx.id}.pdf`);
+                                        setActiveReceiptTx(null);
+                                    }}
+                                    className="flex items-center gap-4 p-4 border rounded-xl hover:bg-blue-50 transition-all text-left"
+                                >
+                                    <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Download size={20} /></div>
+                                    <div>
+                                        <div className="font-semibold text-sm">Download PDF</div>
+                                        <div className="text-xs text-gray-500">Best for formal records</div>
+                                    </div>
+                                </button>
+
+                                <button
+                                    onClick={async () => {
+                                        const doc = generateReceiptPDF(activeReceiptTx);
+                                        const imgData = doc.output('datauristring');
+                                        const response = await fetch(imgData);
+                                        const blob = await response.blob();
+                                        const file = new File([blob], `Receipt_${activeReceiptTx.id}.png`, { type: 'image/png' });
+                                        if (navigator.share) {
+                                            await navigator.share({ files: [file], title: 'Transaction Receipt' });
+                                        } else {
+                                            doc.save(`Receipt_${activeReceiptTx.id}.pdf`);
+                                        }
+                                        setActiveReceiptTx(null);
+                                    }}
+                                    className="flex items-center gap-4 p-4 border rounded-xl hover:bg-blue-50 transition-all text-left"
+                                >
+                                    <div className="p-2 bg-green-50 text-green-600 rounded-lg"><Share2 size={20} /></div>
+                                    <div>
+                                        <div className="font-semibold text-sm">Share Image</div>
+                                        <div className="text-xs text-gray-500">Send via WhatsApp/Socials</div>
+                                    </div>
+                                </button>
+                            </div>
+                            <button onClick={() => setActiveReceiptTx(null)} className="w-full mt-6 py-2 text-gray-400 text-sm">Cancel</button>
+                        </div>
+                    </div>
+                )}
             </main>
         </div>
     );
