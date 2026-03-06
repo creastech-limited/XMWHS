@@ -12,7 +12,7 @@ import {
   AlertCircle 
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { toBlob, toPng } from 'html-to-image'; // For saving the receipt
+import { toBlob, toPng } from 'html-to-image';
 import Footer from '../../components/Footer';
 import AHeader from '../../components/AHeader';
 import { useAuth } from '../../context/AuthContext';
@@ -21,7 +21,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 type Transaction = {
   id: number | string;
-  type: 'credit' | 'transfer';
+  type: 'credit' | 'transfer'; // transfer = debit/outbound
   amount: number;
   description: string;
   date: string;
@@ -33,6 +33,7 @@ interface RawTransaction {
   id?: string | number;
   type?: string;
   transactionType?: string;
+  direction?: string; // Added to catch inbound/outbound
   amount: number;
   description?: string;
   note?: string;
@@ -43,7 +44,7 @@ interface RawTransaction {
 
 const AgentTransactionHistory = () => {
   const auth = useAuth();
-  const receiptRef = useRef<HTMLDivElement>(null); // Ref for the receipt element
+  const receiptRef = useRef<HTMLDivElement>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -57,7 +58,6 @@ const AgentTransactionHistory = () => {
     auth?.logout?.();
   }, [auth]);
 
-  // --- SAVE RECEIPT AS IMAGE ---
   const handleDownload = async () => {
     if (receiptRef.current === null) return;
     try {
@@ -71,23 +71,16 @@ const AgentTransactionHistory = () => {
     }
   };
 
-  // --- SHARE RECEIPT ---
- const handleShare = async () => {
+  const handleShare = async () => {
     if (receiptRef.current === null || !selectedTxn) return;
-
     try {
-      // 1. Convert the HTML/Tailwind receipt into a Blob (binary data)
       const blob = await toBlob(receiptRef.current, { 
         cacheBust: true, 
         backgroundColor: '#ffffff' 
       });
-      
       if (!blob) return;
-
-      // 2. Create a File object from the Blob
       const file = new File([blob], `XPAY_Receipt_${selectedTxn.id}.png`, { type: 'image/png' });
 
-      // 3. Check if the browser supports sharing files
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
           files: [file],
@@ -95,7 +88,6 @@ const AgentTransactionHistory = () => {
           text: `Transaction receipt for ₦${selectedTxn.amount.toLocaleString()}`,
         });
       } else {
-        // Fallback if file sharing isn't supported (e.g., some desktop browsers)
         alert("Your browser doesn't support sharing image files. Please use the 'Save' button instead.");
       }
     } catch (err) {
@@ -115,20 +107,32 @@ const AgentTransactionHistory = () => {
 
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
+      
+      // Robust data extraction
       const transactionData: RawTransaction[] = data.transactions || data.data || (Array.isArray(data) ? data : []);
 
       return transactionData.map((txn, index) => {
-        const isDebit = txn.type === 'debit' || txn.transactionType === 'debit' || txn.amount < 0;
+        // IMPROVED DEBIT DETECTION
+        const typeAttr = (txn.type || '').toLowerCase();
+        const transTypeAttr = (txn.transactionType || '').toLowerCase();
+        const directionAttr = (txn.direction || '').toLowerCase();
+        
+        const isDebit = 
+          typeAttr === 'debit' || 
+          transTypeAttr === 'debit' || 
+          directionAttr === 'outbound' || 
+          directionAttr === 'debit' ||
+          txn.amount < 0;
+
         const rawDesc = txn.description || txn.note || (isDebit ? 'Transfer' : 'Payment');
         
         return {
-          id: txn._id || txn.id || index + 1,
+          id: txn._id || txn.id || `idx-${index}`,
           type: isDebit ? 'transfer' : 'credit',
           amount: Math.abs(txn.amount || 0),
-          // ADDED XPAY DESCRIPTION HERE
           description: `XPAY - ${rawDesc}`,
           date: txn.date || txn.createdAt || new Date().toISOString(),
-          status: txn.status || 'success',
+          status: (txn.status || 'success').toLowerCase(),
         };
       });
     } catch (err) {
@@ -167,7 +171,6 @@ const AgentTransactionHistory = () => {
   return (
     <div className="flex flex-col min-h-screen bg-[#f8faff]">
       <AHeader />
-
       <main className="text-gray-600 flex-grow relative">
         <div className="max-w-3xl mx-auto py-8 px-4">
           {loading ? (
@@ -203,7 +206,7 @@ const AgentTransactionHistory = () => {
                             {txn.type === 'transfer' ? <ArrowUp className="w-4 h-4 text-orange-600" /> : <ArrowDown className="w-4 h-4 text-green-600" />}
                           </div>
                           <div>
-                            <p className="font-semibold text-gray-800 group-hover:text-blue-700 transition-colors">{txn.description}</p>
+                            <p className="font-semibold text-gray-800 group-hover:text-blue-700 transition-colors text-sm sm:text-base">{txn.description}</p>
                             <p className="text-xs text-gray-400">{new Date(txn.date).toLocaleDateString()}</p>
                           </div>
                         </div>
@@ -230,21 +233,18 @@ const AgentTransactionHistory = () => {
           )}
 
           <div className="text-center mt-8">
-            <Link to="/agent"                             className="inline-flex items-center gap-1 rounded-lg border border-blue-600 px-4 py-2 text-sm font-medium text-blue-600 shadow-sm hover:bg-blue-50"
->
+            <Link to="/agent" className="inline-flex items-center gap-1 rounded-lg border border-blue-600 px-4 py-2 text-sm font-medium text-blue-600 shadow-sm hover:bg-blue-50">
               Back to Dashboard
             </Link>
           </div>
         </div>
 
-        {/* --- RECEIPT MODAL --- */}
         {selectedTxn && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
             <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in duration-200">
-              {/* This div is what we will capture for the download */}
               <div ref={receiptRef}>
                 <div className="bg-blue-600 p-8 text-center text-white relative">
-                  <button onClick={() => setSelectedTxn(null)} className="absolute right-4 top-4 p-2 hover:bg-white/20 rounded-full no-print">
+                  <button onClick={() => setSelectedTxn(null)} className="absolute right-4 top-4 p-2 hover:bg-white/20 rounded-full">
                     <X className="w-5 h-5" />
                   </button>
                   <div className="bg-white w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -256,7 +256,9 @@ const AgentTransactionHistory = () => {
                 <div className="p-6 bg-white">
                   <div className="text-center mb-6 pt-2">
                     <p className="text-gray-400 text-xs font-bold uppercase mb-1">Amount</p>
-                    <h3 className="text-3xl font-black text-gray-900">₦{selectedTxn.amount.toLocaleString()}</h3>
+                    <h3 className="text-3xl font-black text-gray-900">
+                      {selectedTxn.type === 'transfer' ? '-' : '+'}₦{selectedTxn.amount.toLocaleString()}
+                    </h3>
                   </div>
 
                   <div className="space-y-4 border-t border-dashed border-gray-200 pt-6">
@@ -276,19 +278,12 @@ const AgentTransactionHistory = () => {
                 </div>
               </div>
 
-              {/* These buttons are outside the Ref so they don't appear in the saved image */}
               <div className="p-6 pt-0">
                 <div className="grid grid-cols-2 gap-4 mt-2">
-                  <button 
-                    onClick={handleDownload}
-                    className="flex items-center justify-center gap-2 py-3 border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-50 active:scale-95 transition-all"
-                  >
+                  <button onClick={handleDownload} className="flex items-center justify-center gap-2 py-3 border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-50 active:scale-95 transition-all">
                     <Download className="w-4 h-4" /> Save
                   </button>
-                  <button 
-                    onClick={handleShare}
-                    className="flex items-center justify-center gap-2 py-3 bg-blue-600 rounded-xl text-sm font-bold text-white shadow-md active:scale-95 transition-all"
-                  >
+                  <button onClick={handleShare} className="flex items-center justify-center gap-2 py-3 bg-blue-600 rounded-xl text-sm font-bold text-white shadow-md active:scale-95 transition-all">
                     <Share2 className="w-4 h-4" /> Share
                   </button>
                 </div>
