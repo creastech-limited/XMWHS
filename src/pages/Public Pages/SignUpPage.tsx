@@ -5,7 +5,7 @@ import { Eye, EyeOff, User, Mail, Lock, AlertCircle, CheckCircle, School } from 
 import { registerParent } from '../../services';
 import type { ParentRegistrationRequest } from '../../types/auth';
 import bgImage from '../bg.jpeg';
-import logo from '/5.png';
+import logo from '../5.png';
 
 const SignUpPage: React.FC = () => {
 
