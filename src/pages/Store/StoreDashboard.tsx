@@ -125,59 +125,51 @@ const fetchUserTransactions = useCallback(
     try {
       const response: TransactionsResponse = await getUserTransactions();
 
-      // Log for debugging
-      console.log('Transactions API Response:', JSON.stringify(response, null, 2));
-
-      // Extract the array from the possible response keys
+      // Access the array from the interface keys
       const rawData = response.data || response.transactions || [];
 
-      // Map to the global Transaction interface defined in your project
-      const transactions: Transaction[] = rawData.map((tx) => {
-        // 1. Resolve the ID safely
-        // We cast as any only for the property check to avoid ESLint/TS errors on "id" vs "_id"
-        const apiId = tx._id || (tx as { id?: string }).id || Math.random().toString(36).substring(2, 9);
+      const transactions: Transaction[] = rawData.map((tx: Transaction) => {
+        // Fix for ID: Use a type cast ONLY for the lookup to avoid 'any'
+        const resolvedId = String(
+          tx._id || 
+          (tx as Record<string, unknown>).id || 
+          (tx as Record<string, unknown>)["*id"] || 
+          Math.random().toString(36).substring(2, 9)
+        );
 
-        // 2. Extract Customer Name strictly as a string
+        // Safely extract customer string
         let customerName = 'Unknown Sender';
         const senderWallet = tx.senderWalletId;
 
         if (tx.metadata?.senderEmail) {
           customerName = String(tx.metadata.senderEmail);
         } else if (
+          senderWallet && 
           typeof senderWallet === 'object' && 
-          senderWallet !== null && 
           'email' in senderWallet
         ) {
           customerName = String((senderWallet as { email: string }).email);
-        } else if (typeof tx.customer === 'string') {
-          customerName = tx.customer;
         }
 
-        // 3. Determine and normalize status
-        let statusDisplay: string = 'Failed';
+        // Normalize Status
+        let statusDisplay = 'Failed';
         const rawStatus = (tx.status || '').toLowerCase();
-        
         if (rawStatus === 'success' || rawStatus === 'completed') {
           statusDisplay = 'Completed';
         } else if (rawStatus === 'pending') {
           statusDisplay = 'Pending';
         }
 
-        // 4. Return the object matching your Transaction interface exactly
+        // Return strictly typed Transaction
         return {
-          ...tx, // Spread existing data to keep direction, charges, etc.
-          _id: apiId,
-          id: apiId, // Added this to prevent 'undefined' in the UI
-          date: tx.date || new Date(tx.createdAt || '').toLocaleDateString(),
-          createdAt: tx.createdAt || new Date().toISOString(),
-          description: tx.description || 'Transaction',
+          ...tx,
+          _id: resolvedId,
+          id: resolvedId, // Ensures {transaction.id} works in JSX
+          date: tx.date || (tx.createdAt ? new Date(tx.createdAt).toLocaleDateString() : new Date().toLocaleDateString()),
           amount: Number(tx.amount) || 0,
-          category: tx.category || 'General',
+          customer: customerName,
           status: statusDisplay,
-          customer: customerName, // Strictly string to fix Error 2322
           metadata: tx.metadata || {},
-          // Ensure senderWalletId is handled based on your interface
-          senderWalletId: typeof tx.senderWalletId === 'string' ? tx.senderWalletId : undefined,
         } as Transaction;
       });
 
