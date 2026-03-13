@@ -194,6 +194,7 @@ export interface Transaction {
    store?: string;
   customer?: string;
   reference?: string;
+  recipientName?: string;
   
   // Added fields from API response
   transactionType?: string;
