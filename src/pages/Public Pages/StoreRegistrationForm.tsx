@@ -276,7 +276,7 @@ const StoreRegistrationForm: React.FC = () => {
 
   const result = await registerStore(registrationData);
 
-  if (result.success) {
+ if (result.user || result.message === 'Registration successful') {
     setSnackbar({
       open: true,
       message: result.message || `Store "${formData.storeName}" registered successfully!`,

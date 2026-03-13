@@ -245,7 +245,7 @@ const StudentRegistrationForm: React.FC = () => {
       const result: RegistrationResponse = await registerStudent(registrationData);
 
       // Assuming your API returns a success flag or message
-      if (result.success || result.message?.includes('success')) {
+      if (result.user || result.message === 'Registration successful') {
         setSnackbar({
           open: true,
           message: result.message || 'Registration successful! Redirecting...',

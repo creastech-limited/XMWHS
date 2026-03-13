@@ -108,14 +108,14 @@ const SignUpPage: React.FC = () => {
 
   const result = await registerSchool(registrationData);
 
-  if (result.success) {
-    setSuccessMessage(result.message || 'User registered successfully');
-    form.reset();
-    setRole('school');
-    setSchoolType('primary');
-  } else {
-    setErrorMessage(result.message || 'Registration failed');
-  }
+ if (result.user || result.message === 'Registration successful') {
+  setSuccessMessage(result.message || 'User registered successfully');
+  form.reset();
+  setRole('school');
+  setSchoolType('primary');
+} else {
+  setErrorMessage(result.message || 'Registration failed');
+}
 } catch (error) {
   console.error('Registration error:', error);
   const errorMessage = error instanceof Error ? error.message : 'Something went wrong. Please try again.';
