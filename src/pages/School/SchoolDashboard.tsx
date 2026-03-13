@@ -215,8 +215,10 @@ const Dashboard: React.FC = () => {
       const updatedProfile = { ...profile, balance: userBalance };
       setUser(updatedProfile);
 
-      // ✅ Capture schoolId from profile — try schoolId first, fall back to _id
-      const extractedSchoolId = profile.schoolId || profile._id || '';
+      // Use profile._id — classes store the school's _id as their schoolId field
+      const extractedSchoolId = profile._id || '';
+
+
       if (extractedSchoolId) {
         setSchoolId(extractedSchoolId);
       }
@@ -250,26 +252,22 @@ const Dashboard: React.FC = () => {
     }
   }, []);
 
-  // ✅ REPLACED: fetchStudentsData now uses getStudentsBySchoolId just like StudentPage
+  // Fetch students and build pie chart for THIS school only
   const fetchStudentsData = useCallback(async (id: string) => {
     if (!id) return;
 
     try {
-      // ✅ Fetch students for THIS school only — same approach as StudentPage
+      // Fetch real students for this school — same as StudentPage
       const studentsData = await getStudentsBySchoolId(id);
 
       if (studentsData?.data && Array.isArray(studentsData.data)) {
-        // ✅ totalStudents = actual student count for this school
-        const totalStudents = studentsData.data.length;
-        setStats(prev => ({ ...prev, totalStudents }));
-
-        // Build pie chart distribution from classes, filtered to this school
+        // Set correct total student count
+        setStats(prev => ({ ...prev, totalStudents: (studentsData.data?.length ?? 0) }));
         const classesData: ClassesResponse = await getClasses();
 
         if (classesData?.data && Array.isArray(classesData.data)) {
           const pieColors = ['#42a5f5', '#66bb6a', '#ffca28', '#ef5350', '#ab47bc', '#26c6da'];
 
-          // ✅ Filter classes to this school only using schoolId
           const schoolClasses = (classesData.data as ClassItem[]).filter(
             (classItem: ClassItem) => classItem.schoolId === id
           );
@@ -369,8 +367,8 @@ const Dashboard: React.FC = () => {
 
         const profile = await fetchUserDetails();
 
-        // ✅ Get schoolId from the returned profile directly
-        const id = profile.schoolId || profile._id || '';
+        // Use profile._id — this is what classes store as their schoolId
+        const id = profile._id || '';
 
         if (profile._id) {
           await Promise.all([
