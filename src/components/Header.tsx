@@ -9,7 +9,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import logo from '/xpay.jpeg';
+
 import { getmarkNotification, getNotifications, getUserDetails, markAllNotificationsAsRead } from '../services';
 import type { NotificationsResponse } from '../types';
 import type { AxiosError } from 'axios';
@@ -278,7 +278,7 @@ export const Header: React.FC<HeaderProps> = ({ PsettingsPage }) => {
         <div className="flex-shrink-0 flex items-center ml-20 sm:ml-70">
           {/* ✅ FIXED: use src="/5.png" directly — no import needed for public/ assets */}
           <img
-            src={logo}
+            src="/xpay.jpeg"
             alt="Logo"
             className="h-8 w-auto cursor-pointer"
             onClick={() => navigate('')}
