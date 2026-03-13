@@ -6,7 +6,7 @@ import type { LoginRequest } from '../../types/auth';
 import type { User } from '../../types/user';
 import { useAuth } from '../../context/AuthContext';
 import { AlertCircle, Eye, EyeOff, Mail, Lock } from 'lucide-react';
-import logo from '../5.png';
+import logo from '/xpay.jpeg';
 import bgImage from '../bg.jpeg';
 
 const LoginPage: React.FC = () => {

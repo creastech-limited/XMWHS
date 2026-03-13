@@ -1,5 +1,6 @@
 // src/components/Footer.tsx
 import React from 'react';
+import logo from '/xpay.jpeg';
 
 const Footer: React.FC = () => {
   const year = new Date().getFullYear();
@@ -9,7 +10,7 @@ const Footer: React.FC = () => {
       <img
         src="/5.png"
         alt="Logo"
-        className="w-16 sm:w-20 mb-2 sm:mb-0 sm:mr-3"
+        className="w-10 sm:w-10 mb-2 sm:mb-0 sm:mr-3"
       />
       <p className="text-sm text-gray-600">
         © {year} Creastech. All rights reserved.
