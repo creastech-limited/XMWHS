@@ -1,6 +1,5 @@
 // src/components/Footer.tsx
 import React from 'react';
-import logo from '/5.png';
 
 const Footer: React.FC = () => {
   const year = new Date().getFullYear();
@@ -8,7 +7,7 @@ const Footer: React.FC = () => {
   return (
     <footer className="w-full bg-gray-100 py-4 flex flex-col sm:flex-row items-center justify-center text-center">
       <img
-        src={logo}
+        src="/5.png"
         alt="Logo"
         className="w-16 sm:w-20 mb-2 sm:mb-0 sm:mr-3"
       />
