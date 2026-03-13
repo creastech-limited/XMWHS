@@ -9,7 +9,6 @@ import {
 } from '@heroicons/react/24/outline';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import logo from '/xpay.jpeg';
 import { getmarkNotification, getNotifications, getUserDetails, markAllNotificationsAsRead } from '../services';
 import type { NotificationsResponse } from '../types';
 import type { AxiosError } from 'axios';
