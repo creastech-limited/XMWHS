@@ -37,7 +37,7 @@ type Transaction = {
   status: string;
   createdAt: string;
   direction: string;
-  receiver?: string; 
+  receiver?: string;
 };
 
 // API Configuration
@@ -48,7 +48,7 @@ const AgentTransferToStore = () => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  
+
   type ParentStoreData = {
     name: string;
     email: string;
@@ -56,24 +56,24 @@ const AgentTransferToStore = () => {
     storeId: string;
     fullStoreId: string;
   } | null;
-  
+
   const [parentStoreData, setParentStoreData] = useState<ParentStoreData>(null);
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
-  
+
   // Form state
-  const [form, setForm] = useState({ 
-    amount: '', 
-    description: '', 
-    storeEmail: '', 
+  const [form, setForm] = useState({
+    amount: '',
+    description: '',
+    storeEmail: '',
     recipientEmail: '',
     pin: '',
     transferType: 'parentStore' // Default to parent store
   });
-  const [formErrors, setFormErrors] = useState({ 
-    amount: '', 
-    storeEmail: '', 
+  const [formErrors, setFormErrors] = useState({
+    amount: '',
+    storeEmail: '',
     recipientEmail: '',
-    pin: '' 
+    pin: ''
   });
   const [needsStoreEmail, setNeedsStoreEmail] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -109,7 +109,7 @@ const AgentTransferToStore = () => {
 
       const data = await response.json();
       console.log('Raw API response:', data);
-      
+
       // Handle the nested response structure based on your API response
       let profile: User | undefined;
       let walletData: User["wallet"] | null = null;
@@ -184,14 +184,14 @@ const AgentTransferToStore = () => {
       // Transform transactions with dynamic descriptions
       return transactions.map((txn: Transaction & { metadata?: TransactionMetadata; note?: string }) => {
         // Determine transaction type
-        const isDebit = txn.transactionType === 'debit' || 
-                       txn.category === 'debit' ||
-                       (typeof txn.amount === 'number' && txn.amount < 0);
+        const isDebit = txn.transactionType === 'debit' ||
+          txn.category === 'debit' ||
+          (typeof txn.amount === 'number' && txn.amount < 0);
 
         // Generate dynamic description
         const getDescription = () => {
           const metadata: TransactionMetadata = txn.metadata || {};
-          
+
           // For debit transactions
           if (isDebit && metadata.receiverEmail) {
             return `Transfer to ${metadata.receiverEmail}`;
@@ -224,7 +224,7 @@ const AgentTransferToStore = () => {
   const generateParentStoreInfo = useCallback((storeId: string) => {
     // Store ID format: "GRE343652/68302b8272d28bf99cc6f62b"
     const [storeCode, actualStoreId] = storeId.split('/');
-    
+
     return {
       name: `Parent Store (${storeCode})`,
       email: `store.${storeCode.toLowerCase()}@${actualStoreId.substring(0, 8)}.com`,
@@ -291,7 +291,7 @@ const AgentTransferToStore = () => {
         // Try to fetch parent store details, fallback to generated info
         if (userProfile.store_id) {
           console.log('Attempting to fetch parent store details for:', userProfile.store_id);
-          
+
           const storeDetails = await fetchParentStoreDetails(userProfile.store_id, storedToken);
           if (storeDetails) {
             console.log('Successfully fetched store details:', storeDetails);
@@ -300,7 +300,7 @@ const AgentTransferToStore = () => {
             console.log('Using fallback store info');
             const fallbackStoreInfo = generateParentStoreInfo(userProfile.store_id);
             setParentStoreData(fallbackStoreInfo);
-            setNeedsStoreEmail(true); 
+            setNeedsStoreEmail(true);
           }
         } else {
           console.log('No store_id found for user');
@@ -334,26 +334,26 @@ const AgentTransferToStore = () => {
   // PIN Update Handler
   const handlePinUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validation
     if (pinData.pin !== pinData.newPin) {
       alert('PINs do not match. Please ensure both PIN fields are identical.');
       return;
     }
-    
+
     if (pinData.pin.length !== 4) {
       alert('PIN must be exactly 4 digits long.');
       return;
     }
-    
+
     // Check if PIN contains only numbers
     if (!/^\d{4}$/.test(pinData.pin)) {
       alert('PIN must contain only numbers (0-9).');
       return;
     }
-    
+
     setIsLoadingPin(true);
-    
+
     try {
       if (user?.isPinSet) {
         // Update existing PIN
@@ -362,20 +362,20 @@ const AgentTransferToStore = () => {
           setIsLoadingPin(false);
           return;
         }
-        
+
         if (!/^\d{4}$/.test(pinData.currentPin)) {
           alert('Current PIN must be 4 digits.');
           setIsLoadingPin(false);
           return;
         }
-        
+
         await axios.post(`${API_BASE_URL}/api/pin/update`, {
           currentPin: pinData.currentPin,
           newPin: pinData.newPin
         }, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        
+
         alert('PIN updated successfully! Your new PIN is now active.');
       } else {
         // Set new PIN
@@ -384,18 +384,18 @@ const AgentTransferToStore = () => {
         }, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        
+
         alert('PIN set successfully! Your account is now more secure.');
         setUser(prev => prev ? { ...prev, isPinSet: true } : null);
       }
-      
+
       // Clear form data and close modal
       setPinData({ currentPin: '', pin: '', newPin: '' });
       setShowPinModal(false);
-      
+
     } catch (error: unknown) {
       console.error('PIN operation failed:', error);
-      
+
       // More specific error messages
       if (
         typeof error === 'object' &&
@@ -430,7 +430,7 @@ const AgentTransferToStore = () => {
   const validateForm = useCallback(() => {
     const errors = { amount: '', storeEmail: '', recipientEmail: '', pin: '' };
     const amount = parseFloat(form.amount);
-    
+
     if (!form.amount) {
       errors.amount = 'Amount is required';
     } else if (isNaN(amount) || amount <= 0) {
@@ -469,7 +469,7 @@ const AgentTransferToStore = () => {
   // Handle form changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    
+
     // For PIN, only allow digits and limit to 4 characters
     if (name === 'pin') {
       const numericValue = value.replace(/\D/g, '').slice(0, 4);
@@ -477,7 +477,7 @@ const AgentTransferToStore = () => {
     } else {
       setForm(prev => ({ ...prev, [name]: value }));
     }
-    
+
     if (formErrors[name as keyof typeof formErrors]) {
       setFormErrors(prev => ({ ...prev, [name]: '' }));
     }
@@ -486,7 +486,7 @@ const AgentTransferToStore = () => {
   // Process transfer using the new API structure
   const handleSubmitTransfer = async () => {
     if (!validateForm() || !user || !token) {
-      setShowConfirm(false);
+      setShowConfirm(true);
       return;
     }
 
@@ -495,7 +495,7 @@ const AgentTransferToStore = () => {
 
     try {
       let receiverEmail = '';
-      
+
       if (form.transferType === 'parentStore') {
         receiverEmail = needsStoreEmail ? form.storeEmail : (parentStoreData?.email || '');
       } else {
@@ -505,7 +505,7 @@ const AgentTransferToStore = () => {
       if (!receiverEmail) {
         throw new Error('Recipient email is required');
       }
-      
+
       const response = await axios.post(
         `${API_BASE_URL}/api/transaction/transfer`,
         {
@@ -623,7 +623,7 @@ const AgentTransferToStore = () => {
       <AHeader />
       <main className="flex-grow p-3 sm:p-6">
         <div className="mx-auto py-4 sm:py-8 px-2 sm:px-4 max-w-4xl">
-          
+
           {/* Agent Info Card - Mobile Optimized */}
           <div className="bg-white shadow-md rounded-lg p-4 sm:p-6 mb-4 sm:mb-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -643,24 +643,24 @@ const AgentTransferToStore = () => {
               </div>
             </div>
           </div>
-           
-         {/* PIN Management Button - Mobile Optimized */}
-        <div className={`fixed ${isMobile ? 'bottom-4 right-4' : 'bottom-6 right-6'} z-40`}>
-          <button
-            onClick={() => setShowPinModal(true)}
-            className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white p-3 rounded-full shadow-lg transition-all duration-300 flex items-center gap-2"
-            title="Manage PIN"
-          >
-            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-            {!isMobile && (
-              <span className="text-sm font-medium">
-                {user?.isPinSet ? 'Update PIN' : 'Set PIN'}
-              </span>
-            )}
-          </button>
-        </div>
+
+          {/* PIN Management Button - Mobile Optimized */}
+          <div className={`fixed ${isMobile ? 'bottom-4 right-4' : 'bottom-6 right-6'} z-40`}>
+            <button
+              onClick={() => setShowPinModal(true)}
+              className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white p-3 rounded-full shadow-lg transition-all duration-300 flex items-center gap-2"
+              title="Manage PIN"
+            >
+              <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              {!isMobile && (
+                <span className="text-sm font-medium">
+                  {user?.isPinSet ? 'Update PIN' : 'Set PIN'}
+                </span>
+              )}
+            </button>
+          </div>
 
           {transferComplete ? (
             <div className="bg-white shadow-md rounded-lg p-4 sm:p-6 text-center">
@@ -699,27 +699,25 @@ const AgentTransferToStore = () => {
                         setForm(prev => ({ ...prev, transferType: 'parentStore', storeEmail: '' }));
                         setFormErrors(prev => ({ ...prev, storeEmail: '', recipientEmail: '' }));
                       }}
-                      className={`p-3 sm:p-4 border-2 rounded-lg text-center transition-all ${
-                        form.transferType === 'parentStore'
+                      className={`p-3 sm:p-4 border-2 rounded-lg text-center transition-all ${form.transferType === 'parentStore'
                           ? 'border-blue-500 bg-blue-50 text-blue-700'
                           : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
-                      }`}
+                        }`}
                     >
                       <div className="font-medium text-sm sm:text-base mb-1">Parent Store</div>
                       <div className="text-xs text-gray-500">Quick transfer</div>
                     </button>
-                    
+
                     <button
                       type="button"
                       onClick={() => {
                         setForm(prev => ({ ...prev, transferType: 'otherUser', storeEmail: '' }));
                         setFormErrors(prev => ({ ...prev, storeEmail: '', recipientEmail: '' }));
                       }}
-                      className={`p-3 sm:p-4 border-2 rounded-lg text-center transition-all ${
-                        form.transferType === 'otherUser'
+                      className={`p-3 sm:p-4 border-2 rounded-lg text-center transition-all ${form.transferType === 'otherUser'
                           ? 'border-blue-500 bg-blue-50 text-blue-700'
                           : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
-                      }`}
+                        }`}
                     >
                       <div className="font-medium text-sm sm:text-base mb-1">Other User</div>
                       <div className="text-xs text-gray-500">Any system user</div>
@@ -755,7 +753,7 @@ const AgentTransferToStore = () => {
                         <p className="text-xs sm:text-sm text-purple-700 mb-3">
                           Enter the email address of any registered user in the system to transfer funds.
                         </p>
-                        
+
                         <div className="mb-3">
                           <label className="block text-xs sm:text-sm font-medium mb-1 text-gray-700">Recipient Email *</label>
                           <input
@@ -840,7 +838,7 @@ const AgentTransferToStore = () => {
                 {/* Transfer Button */}
                 <button
                   type="submit"
-                  disabled={!form.amount || !form.pin || !!formErrors.amount || !!formErrors.pin || 
+                  disabled={!form.amount || !form.pin || !!formErrors.amount || !!formErrors.pin ||
                     (form.transferType === 'parentStore' && needsStoreEmail && (!form.storeEmail || !!formErrors.storeEmail)) ||
                     (form.transferType === 'otherUser' && (!form.recipientEmail || !!formErrors.recipientEmail))}
                   className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg transition-all shadow-lg hover:shadow-xl text-sm sm:text-base mt-6"
@@ -890,33 +888,44 @@ const AgentTransferToStore = () => {
           )}
         </div>
 
-        {/* Confirmation Modal - Mobile Optimized */}
+        {/* Confirmation Modal - Fixed Z-Index & Content */}
         {showConfirm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white p-4 sm:p-6 rounded-lg shadow-lg max-w-md w-full mx-auto max-h-[90vh] overflow-y-auto">
-              <h4 className="font-semibold text-lg mb-3">Confirm Transfer</h4>
-              <p className="mb-4 text-sm sm:text-base">Please confirm the following details:</p>
-              <ul className="text-xs sm:text-sm space-y-2 mb-4">
-                <li><strong>Transfer Type:</strong> {form.transferType === 'parentStore' ? 'Parent Store' : 'Other User'}</li>
-                <li><strong>To:</strong> {form.transferType === 'parentStore' ? (parentStoreData?.name || 'Parent Store') : form.recipientEmail}</li>
-                {form.transferType === 'parentStore' && parentStoreData?.storeId && (
-                  <li className="break-all"><strong>Store ID:</strong> {parentStoreData.storeId}</li>
-                )}
-                <li className="break-all"><strong>Email:</strong> {form.transferType === 'parentStore' ? (needsStoreEmail ? form.storeEmail : parentStoreData?.email) : form.recipientEmail}</li>
-                <li><strong>Amount:</strong> ₦{parseFloat(form.amount).toLocaleString()}</li>
-                {form.description && <li><strong>Description:</strong> {form.description}</li>}
-                <li><strong>PIN:</strong> {'*'.repeat(form.pin.length)}</li>
-              </ul>
-              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-                <button 
-                  onClick={() => setShowConfirm(false)} 
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded hover:bg-gray-50 transition-colors text-sm sm:text-base"
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+            <div className="bg-white p-6 rounded-lg shadow-2xl max-w-md w-full relative animate-in fade-in zoom-in duration-200">
+              <h4 className="font-bold text-xl mb-3 text-slate-900">Confirm Transfer</h4>
+              <p className="mb-4 text-sm text-slate-600 border-b pb-2">Please verify these details before proceeding:</p>
+
+              <div className="space-y-3 mb-6">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">To:</span>
+                  <span className="font-medium text-slate-900">
+                    {form.transferType === 'parentStore' ? (parentStoreData?.name || 'Parent Store') : (form.recipientEmail || 'N/A')}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Amount:</span>
+                  <span className="font-bold text-blue-600 text-lg">
+                    ₦{form.amount ? Number(form.amount).toLocaleString() : '0.00'}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm border-t pt-2">
+                  <span className="text-gray-500">Security PIN:</span>
+                  <span className="tracking-widest">
+                    {'•'.repeat(form.pin?.length || 0)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  onClick={() => setShowConfirm(false)}
+                  className="flex-1 px-4 py-3 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 font-medium transition-all"
                 >
                   Cancel
                 </button>
-                <button 
-                  onClick={handleSubmitTransfer} 
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm sm:text-base font-medium"
+                <button
+                  onClick={handleSubmitTransfer}
+                  className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-bold shadow-lg shadow-blue-200 transition-all"
                 >
                   Confirm Transfer
                 </button>
@@ -925,12 +934,12 @@ const AgentTransferToStore = () => {
           </div>
         )}
 
-        {/* Processing Modal */}
+        {/* Processing Modal - Higher Z-Index */}
         {processing && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded shadow flex flex-col items-center gap-3">
-              <div className="w-6 h-6 border-4 border-blue-500 border-t-transparent animate-spin rounded-full"></div>
-              <p>Processing transfer...</p>
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[10000]">
+            <div className="bg-white px-8 py-6 rounded-xl shadow-2xl flex flex-col items-center gap-4">
+              <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent animate-spin rounded-full"></div>
+              <p className="font-semibold text-slate-800 animate-pulse">Processing transfer...</p>
             </div>
           </div>
         )}
@@ -957,7 +966,7 @@ const AgentTransferToStore = () => {
                   </div>
                 </div>
               </div>
-              
+
               {/* Modal Body */}
               <div className="p-6">
                 <form onSubmit={handlePinUpdate} className="space-y-5">
@@ -978,7 +987,7 @@ const AgentTransferToStore = () => {
                       />
                     </div>
                   )}
-                  
+
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
                       {user?.isPinSet ? 'New PIN' : 'Create PIN'}
@@ -994,7 +1003,7 @@ const AgentTransferToStore = () => {
                       required
                     />
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
                       Confirm {user?.isPinSet ? 'New ' : ''}PIN
@@ -1010,7 +1019,7 @@ const AgentTransferToStore = () => {
                       required
                     />
                   </div>
-                  
+
                   {/* Security Note */}
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                     <div className="flex items-start gap-3">
@@ -1025,7 +1034,7 @@ const AgentTransferToStore = () => {
                       </div>
                     </div>
                   </div>
-                  
+
                   {/* Action Buttons */}
                   <div className="flex gap-3 pt-4">
                     <button
@@ -1070,15 +1079,15 @@ const AgentTransferToStore = () => {
           </div>
         )}
 
-         <div className="text-center mt-6">
-                    <Link
-                      to="/agent"
-                      className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700"
-                    >
-                      <span className="text-white">Back to Dashboard</span>
-                    </Link>
-                  </div>
-                
+        <div className="text-center mt-6">
+          <Link
+            to="/agent"
+            className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700"
+          >
+            <span className="text-white">Back to Dashboard</span>
+          </Link>
+        </div>
+
       </main>
       <Footer />
     </div>

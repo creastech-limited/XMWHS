@@ -120,65 +120,56 @@ const StoreDashboard: React.FC = () => {
   );
 
   // Fetch user transactions
- const fetchUserTransactions = useCallback(
+const fetchUserTransactions = useCallback(
   async (): Promise<Transaction[]> => {
     try {
       const response: TransactionsResponse = await getUserTransactions();
 
-      console.log('Transactions API Response:', JSON.stringify(response, null, 2));
+      // Access the array from the interface keys
+      const rawData = response.data || response.transactions || [];
 
-      interface TransactionResponse {
-        _id?: string;
-        id?: string;
-        createdAt?: string;
-        date?: string;
-        description?: string;
-        amount?: number | string;
-        category?: string;
-        status?: string;
-        metadata?: {
-          senderEmail?: string;
-          receiverEmail?: string;
-          [key: string]: unknown;
-        };
-        senderWalletId?: { 
-          email?: string;
-          [key: string]: unknown;
-        };
-      }
+      const transactions: Transaction[] = rawData.map((tx: Transaction) => {
+        // Fix for ID: Use a type cast ONLY for the lookup to avoid 'any'
+        const resolvedId = String(
+          tx._id || 
+          (tx as Record<string, unknown>).id || 
+          (tx as Record<string, unknown>)["*id"] || 
+          Math.random().toString(36).substring(2, 9)
+        );
 
-      const transactionsArray = (response.data || []) as TransactionResponse[];
+        // Safely extract customer string
+        let customerName = 'Unknown Sender';
+        const senderWallet = tx.senderWalletId;
 
-      const transactions: Transaction[] = transactionsArray.map((tx: TransactionResponse) => {
-        // Safely extract customer information
-        let customer = 'Unknown Sender';
         if (tx.metadata?.senderEmail) {
-          customer = tx.metadata.senderEmail;
-        } else if (tx.senderWalletId?.email) {
-          customer = tx.senderWalletId.email;
+          customerName = String(tx.metadata.senderEmail);
+        } else if (
+          senderWallet && 
+          typeof senderWallet === 'object' && 
+          'email' in senderWallet
+        ) {
+          customerName = String((senderWallet as { email: string }).email);
         }
 
-        // Determine status
-        let status: 'Completed' | 'Pending' | 'Failed' = 'Failed';
-        if (tx.status === 'success' || tx.status === 'completed') {
-          status = 'Completed';
-        } else if (tx.status === 'pending') {
-          status = 'Pending';
+        // Normalize Status
+        let statusDisplay = 'Failed';
+        const rawStatus = (tx.status || '').toLowerCase();
+        if (rawStatus === 'success' || rawStatus === 'completed') {
+          statusDisplay = 'Completed';
+        } else if (rawStatus === 'pending') {
+          statusDisplay = 'Pending';
         }
 
+        // Return strictly typed Transaction
         return {
-          // Required properties
-          _id: tx._id || tx.id || Math.random().toString(36).substring(2, 9),
-          date: new Date(tx.createdAt || tx.date || '').toLocaleDateString(),
-          createdAt: tx.createdAt || tx.date || new Date().toISOString(),
-          description: tx.description || 'Transaction',
+          ...tx,
+          _id: resolvedId,
+          id: resolvedId, // Ensures {transaction.id} works in JSX
+          date: tx.date || (tx.createdAt ? new Date(tx.createdAt).toLocaleDateString() : new Date().toLocaleDateString()),
           amount: Number(tx.amount) || 0,
-          category: tx.category || 'General',
-          status: status,
-          customer: customer,
-          // Include metadata if it exists with proper typing
-          metadata: tx.metadata || { senderEmail: '', receiverEmail: '' },
-          senderWalletId: undefined,
+          customer: customerName,
+          status: statusDisplay,
+          metadata: tx.metadata || {},
         } as Transaction;
       });
 

@@ -392,6 +392,7 @@ const SettingsPanel = () => {
       setSnackbar({ open: true, message: msg, severity: 'error' });
     }
   };
+  
   // Profile Picture Upload Handler
   const handleProfilePicUpload = async () => {
     if (!selectedImage || !token) return;

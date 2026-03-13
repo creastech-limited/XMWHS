@@ -246,7 +246,6 @@ const EditStudentDetails = () => {
     return (
       <div className="flex flex-col min-h-screen bg-gray-50">
         <Header PsettingsPage="/settings" />
-        <Header PsettingsPage="/settings" />
         <div className="flex flex-grow">
           <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-64 bg-none">
             <Sidebar />
@@ -283,7 +282,7 @@ const EditStudentDetails = () => {
   return (
     <div className="overflow-hidden flex flex-col min-h-screen bg-gray-50">
       <Header PsettingsPage="/settings" />
-      <Header PsettingsPage="/settings" />
+   
       <div className="flex flex-grow">
         <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-64 bg-none">
           <Sidebar />
