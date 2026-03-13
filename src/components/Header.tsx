@@ -9,7 +9,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import logo from '/5.png';
+// ✅ REMOVED: import logo from '/5.png';
 import { getmarkNotification, getNotifications, getUserDetails, markAllNotificationsAsRead } from '../services';
 import type { NotificationsResponse } from '../types';
 import type { AxiosError } from 'axios';
@@ -58,26 +58,20 @@ export const Header: React.FC<HeaderProps> = ({ PsettingsPage }) => {
   const API_URL = import.meta.env.VITE_API_BASE_URL;
   const token = authToken || localStorage.getItem('token');
 
-  // Fetch notifications from API
-
-
   const fetchNotifications = useCallback(async () => {
     if (!token) return;
 
     try {
       setNotificationsLoading(true);
 
-      // 1. data is typed as NotificationsResponse
       const data: NotificationsResponse = await getNotifications();
 
-      // 2. Extract without 'any' using type-safe fallbacks
       const notificationsList = Array.isArray(data)
         ? data
         : data.notifications || data.data || [];
 
       setNotifications(notificationsList);
     } catch (err) {
-      // 3. Cast the error to AxiosError to access the status safely
       const error = err as AxiosError;
 
       if (error.response?.status === 401) {
@@ -93,149 +87,124 @@ export const Header: React.FC<HeaderProps> = ({ PsettingsPage }) => {
       setNotificationsLoading(false);
     }
   }, [token, navigate, logout]);
-  // Mark notification as read
-const markAsRead = async (notificationId: string) => {
-  if (!token) return;
 
-  try {
-  
-    await getmarkNotification(notificationId);
+  const markAsRead = async (notificationId: string) => {
+    if (!token) return;
 
-    
-    setNotifications((prev: Notification[]) => 
-      prev.map((notif) => 
-        notif._id === notificationId 
-          ? { ...notif, read: true } 
-          : notif
-      )
-    );
-  } catch (err) {
-    const error = err as AxiosError;
-    
-    // Optional: Handle 401s here if this component isn't 
-    // already covered by a global check
-    if (error.response?.status === 401) {
-      navigate('/login');
-      return;
-    }
-
-    console.error('Error marking notification as read:', error);
-  }
-};
-
-  // Mark all notifications as read
- const markAllAsRead = async () => {
-  if (!token) return;
-
-  try {
-    // 1. One clean API call
-    await markAllNotificationsAsRead();
-
-    // 2. Update the UI state
-    setNotifications((prev: Notification[]) =>
-      prev.map(notif => ({ ...notif, read: true }))
-    );
-  } catch (error) {
-    console.error('Error marking all notifications as read:', error);
-  }
-};
-
-  // Handle notification click
-  const handleNotificationClick = async (notification: Notification) => {
-    // Mark as read if not already read
-    if (!notification.read) {
-      await markAsRead(notification._id);
-    }
-
-    // Set the selected notification and open modal
-    setSelectedNotification(notification);
-    setNotificationModalOpen(true);
-
-    // Close notifications dropdown
-    setNotifOpen(false);
-  };
-
-
-
-useEffect(() => {
-  const loadUserData = async () => {
     try {
-      setLoading(true);
+      await getmarkNotification(notificationId);
 
-      // 1. Priority: Context/State
-      if (authUser) {
-        setUser(authUser);
-        return;
-      }
-
-      // 2. Secondary: Local Storage
-      const stored = localStorage.getItem('user');
-      if (stored) {
-        const parsed = JSON.parse(stored) as User;
-        const fullName = parsed.name
-          ?? ((parsed.firstName && parsed.lastName) ? `${parsed.firstName} ${parsed.lastName}` : (parsed.firstName ?? parsed.lastName ?? ''));
-        setUser({ ...parsed, name: fullName.trim() || 'User' });
-        return;
-      }
-
-      // 3. Final: API Fetch (Decoupled)
-      if (token) {
-        // Casting to 'User' tells TS that the properties aren't 'unknown'
-        const payload = await getUserDetails() as User;
-
-        // Ensure we treat the name as a string before calling .trim()
-        const rawName = (payload.name as string) || '';
-        const fullName = rawName.trim()
-          || (payload.firstName && payload.lastName ? `${payload.firstName} ${payload.lastName}` : payload.firstName ?? payload.lastName ?? '');
-
-        const formatted: User = {
-          _id: payload._id as string,
-          name: fullName.trim() || 'User',
-          firstName: payload.firstName as string | undefined,
-          lastName: payload.lastName as string | undefined,
-          email: payload.email as string,
-          role: payload.role as string,
-          profilePic: payload.profilePic as string | undefined,
-          // Add any other specific fields from your User interface here
-        };
-
-        setUser(formatted);
-        localStorage.setItem('user', JSON.stringify(formatted));
-      }
+      setNotifications((prev: Notification[]) =>
+        prev.map((notif) =>
+          notif._id === notificationId
+            ? { ...notif, read: true }
+            : notif
+        )
+      );
     } catch (err) {
-      // Cast the error to AxiosError to access .response.status safely
       const error = err as AxiosError;
-      
+
       if (error.response?.status === 401) {
-        logout?.();
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
         navigate('/login');
         return;
       }
 
-      console.error('Error loading user:', error);
-      
-      // Error Fallback: Try local storage one last time
-      const fallback = localStorage.getItem('user');
-      if (fallback) {
-        try {
-          setUser(JSON.parse(fallback));
-        } catch {
-          // ignore parse errors
-        }
-      }
-    } finally {
-      setLoading(false);
+      console.error('Error marking notification as read:', error);
     }
   };
 
-  loadUserData();
-  
- 
-}, [authUser, token, logout, navigate, fetchNotifications]);
+  const markAllAsRead = async () => {
+    if (!token) return;
 
-  // Fetch notifications
+    try {
+      await markAllNotificationsAsRead();
+
+      setNotifications((prev: Notification[]) =>
+        prev.map(notif => ({ ...notif, read: true }))
+      );
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+    }
+  };
+
+  const handleNotificationClick = async (notification: Notification) => {
+    if (!notification.read) {
+      await markAsRead(notification._id);
+    }
+
+    setSelectedNotification(notification);
+    setNotificationModalOpen(true);
+    setNotifOpen(false);
+  };
+
+  useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        setLoading(true);
+
+        if (authUser) {
+          setUser(authUser);
+          return;
+        }
+
+        const stored = localStorage.getItem('user');
+        if (stored) {
+          const parsed = JSON.parse(stored) as User;
+          const fullName = parsed.name
+            ?? ((parsed.firstName && parsed.lastName) ? `${parsed.firstName} ${parsed.lastName}` : (parsed.firstName ?? parsed.lastName ?? ''));
+          setUser({ ...parsed, name: fullName.trim() || 'User' });
+          return;
+        }
+
+        if (token) {
+          const payload = await getUserDetails() as User;
+
+          const rawName = (payload.name as string) || '';
+          const fullName = rawName.trim()
+            || (payload.firstName && payload.lastName ? `${payload.firstName} ${payload.lastName}` : payload.firstName ?? payload.lastName ?? '');
+
+          const formatted: User = {
+            _id: payload._id as string,
+            name: fullName.trim() || 'User',
+            firstName: payload.firstName as string | undefined,
+            lastName: payload.lastName as string | undefined,
+            email: payload.email as string,
+            role: payload.role as string,
+            profilePic: payload.profilePic as string | undefined,
+          };
+
+          setUser(formatted);
+          localStorage.setItem('user', JSON.stringify(formatted));
+        }
+      } catch (err) {
+        const error = err as AxiosError;
+
+        if (error.response?.status === 401) {
+          logout?.();
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          navigate('/login');
+          return;
+        }
+
+        console.error('Error loading user:', error);
+
+        const fallback = localStorage.getItem('user');
+        if (fallback) {
+          try {
+            setUser(JSON.parse(fallback));
+          } catch {
+            // ignore parse errors
+          }
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadUserData();
+  }, [authUser, token, logout, navigate, fetchNotifications]);
+
   useEffect(() => {
     if (user && token) {
       fetchNotifications();
@@ -287,25 +256,18 @@ useEffect(() => {
     if (user?.avatar) {
       return user.avatar;
     }
-    return null; // Return null when no avatar exists
+    return null;
   };
 
-  // Get unread notifications count
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  // Get notification type color
   const getNotificationTypeColor = (type: string) => {
     switch (type.toLowerCase()) {
-      case 'info':
-        return 'border-blue-500';
-      case 'warning':
-        return 'border-yellow-500';
-      case 'error':
-        return 'border-red-500';
-      case 'success':
-        return 'border-green-500';
-      default:
-        return 'border-gray-500';
+      case 'info': return 'border-blue-500';
+      case 'warning': return 'border-yellow-500';
+      case 'error': return 'border-red-500';
+      case 'success': return 'border-green-500';
+      default: return 'border-gray-500';
     }
   };
 
@@ -314,18 +276,17 @@ useEffect(() => {
       <div className="flex items-center justify-between h-16 px-4 sm:px-6 lg:px-8">
         {/* Logo/Brand */}
         <div className="flex-shrink-0 flex items-center ml-20 sm:ml-70">
+          {/* ✅ FIXED: use src="/5.png" directly — no import needed for public/ assets */}
           <img
-            src={logo}
+            src="/5.png"
             alt="Logo"
             className="h-8 w-auto cursor-pointer"
             onClick={() => navigate('')}
           />
         </div>
 
-        {/* Spacer to push content to the right */}
         <div className="flex-1"></div>
 
-        {/* Right-aligned action buttons */}
         <div className="flex items-center space-x-1 sm:space-x-3">
           {/* Notifications */}
           <div className="relative" ref={notifRef}>
@@ -528,17 +489,14 @@ useEffect(() => {
           </div>
         </div>
       </div>
+
       {notificationModalOpen && selectedNotification && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          {/* Backdrop click to close */}
           <div
             className="absolute inset-0"
             onClick={() => setNotificationModalOpen(false)}
           />
-
-          {/* Modal container with animation */}
           <div className="relative bg-white rounded-lg shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto transform transition-all duration-300 ease-out animate-fadeInUp">
-            {/* Modal header */}
             <div className="sticky top-0 bg-white z-10 p-6 border-b border-gray-200">
               <div className="flex justify-between items-start">
                 <div>
@@ -558,7 +516,6 @@ useEffect(() => {
               </div>
             </div>
 
-            {/* Modal content */}
             <div className="p-6">
               <div className="mb-6">
                 <p className="text-gray-700 whitespace-pre-line">
@@ -580,7 +537,6 @@ useEffect(() => {
               </div>
             </div>
 
-            {/* Modal footer */}
             <div className="sticky bottom-0 bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-between items-center">
               <button
                 onClick={() => {
