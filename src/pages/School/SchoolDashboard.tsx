@@ -25,7 +25,8 @@ import {
   getUserDetails,
   getStoreCount,
   getClasses,
-  getUserTransactions
+  getUserTransactions,
+  getStudentsBySchoolId, // ✅ ADDED
 } from '../../services';
 
 // Import types
@@ -149,6 +150,9 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [authError, setAuthError] = useState<string | null>(null);
 
+  // ✅ ADDED: schoolId state
+  const [schoolId, setSchoolId] = useState<string>('');
+
   const [stats, setStats] = useState<Stats>({
     balance: 0,
     totalStudents: 0,
@@ -181,78 +185,55 @@ const Dashboard: React.FC = () => {
     [auth]
   );
 
-  // Enhanced fetchUserDetails function with better balance handling
-  const fetchUserDetails = useCallback(
-    async (): Promise<User> => {
-      try {
-        const data: UserResponse = await getUserDetails();
+  // ✅ UPDATED: fetchUserDetails now also captures and stores schoolId
+  const fetchUserDetails = useCallback(async (): Promise<User> => {
+    try {
+      const data: UserResponse = await getUserDetails();
 
-        console.log('User details response:', data);
+      console.log('User details response:', data);
 
-        let profile: User | undefined;
-        let userBalance: number = 0;
+      let profile: User | undefined;
+      let userBalance: number = 0;
 
-        // Try different possible response structures
-        if (data.user?.data) {
-          profile = data.user.data;
-          if (data.user.wallet?.balance !== undefined) {
-            userBalance = data.user.wallet.balance;
-          }
-        } else if (data.data) {
-          profile = data.data;
-          if (data.wallet?.balance !== undefined) {
-            userBalance = data.wallet.balance;
-          }
-        } else if (data.user) {
-          profile = data.user as User;
-          if (data.user.wallet?.balance !== undefined) {
-            userBalance = data.user.wallet.balance;
-          }
-        } else {
-          profile = data as User;
-          if (data.wallet?.balance !== undefined) {
-            userBalance = data.wallet.balance;
-          }
-        }
-
-        // Convert balance to number if it's a string
-        if (typeof userBalance === 'string') {
-          userBalance = parseFloat(userBalance) || 0;
-        }
-
-        if (!profile?._id) throw new Error('Invalid user payload');
-
-        const updatedProfile = {
-          ...profile,
-          balance: userBalance
-        };
-
-        // Update user state
-        setUser(updatedProfile);
-
-        // Update stats with the balance
-        setStats(prevStats => ({
-          ...prevStats,
-          balance: userBalance
-        }));
-
-        return updatedProfile;
-      } catch (error) {
-        console.error('Error fetching user details:', error);
-        throw error;
+      if (data.user?.data) {
+        profile = data.user.data;
+        if (data.user.wallet?.balance !== undefined) userBalance = data.user.wallet.balance;
+      } else if (data.data) {
+        profile = data.data;
+        if (data.wallet?.balance !== undefined) userBalance = data.wallet.balance;
+      } else if (data.user) {
+        profile = data.user as User;
+        if (data.user.wallet?.balance !== undefined) userBalance = data.user.wallet.balance;
+      } else {
+        profile = data as User;
+        if (data.wallet?.balance !== undefined) userBalance = data.wallet.balance;
       }
-    },
-    []
-  );
+
+      if (typeof userBalance === 'string') userBalance = parseFloat(userBalance) || 0;
+      if (!profile?._id) throw new Error('Invalid user payload');
+
+      const updatedProfile = { ...profile, balance: userBalance };
+      setUser(updatedProfile);
+
+      // ✅ Capture schoolId from profile — try schoolId first, fall back to _id
+      const extractedSchoolId = profile.schoolId || profile._id || '';
+      if (extractedSchoolId) {
+        setSchoolId(extractedSchoolId);
+      }
+
+      setStats(prevStats => ({ ...prevStats, balance: userBalance }));
+      return updatedProfile;
+    } catch (error) {
+      console.error('Error fetching user details:', error);
+      throw error;
+    }
+  }, []);
 
   // Fetch store count data
   const fetchStoreCount = useCallback(async () => {
     try {
       const data: StoreCountResponse = await getStoreCount();
 
-      console.log('Store Count API Response:', JSON.stringify(data, null, 2));
-
-      // Extract store count from response
       let storeCount = 0;
       if (typeof data.data === 'number') {
         storeCount = data.data;
@@ -262,88 +243,70 @@ const Dashboard: React.FC = () => {
         storeCount = data.totalStores;
       }
 
-      console.log('Extracted store count:', storeCount);
-
-      // Update stats with store count
-      setStats(prev => ({
-        ...prev,
-        totalStores: storeCount
-      }));
-
+      setStats(prev => ({ ...prev, totalStores: storeCount }));
     } catch (error) {
       console.error('Error fetching store count:', error);
-      setSnackbar({
-        open: true,
-        message: 'Failed to load store count',
-        severity: 'error'
-      });
+      setSnackbar({ open: true, message: 'Failed to load store count', severity: 'error' });
     }
   }, []);
 
-  // Fetch students data for distribution
-  const fetchStudentsData = useCallback(async () => {
+  // ✅ REPLACED: fetchStudentsData now uses getStudentsBySchoolId just like StudentPage
+  const fetchStudentsData = useCallback(async (id: string) => {
+    if (!id) return;
+
     try {
-      const classesData: ClassesResponse = await getClasses();
+      // ✅ Fetch students for THIS school only — same approach as StudentPage
+      const studentsData = await getStudentsBySchoolId(id);
 
-      // Process classes data for pie chart (class distribution)
-      if (classesData.data && Array.isArray(classesData.data)) {
-        // Create data for pie chart
-        const pieColors = ['#42a5f5', '#66bb6a', '#ffca28', '#ef5350', '#ab47bc', '#26c6da'];
+      if (studentsData?.data && Array.isArray(studentsData.data)) {
+        // ✅ totalStudents = actual student count for this school
+        const totalStudents = studentsData.data.length;
+        setStats(prev => ({ ...prev, totalStudents }));
 
-        const pieData: PieDataEntry[] = classesData.data
-          .filter((classItem: ClassItem) => classItem.className) // ensure className exists
-          .map((classItem: ClassItem, index: number): PieDataEntry => ({
-            name: classItem.className,
-            value: classItem.students?.length || 0,
-            color: pieColors[index % pieColors.length]
-          }));
+        // Build pie chart distribution from classes, filtered to this school
+        const classesData: ClassesResponse = await getClasses();
 
-        // Calculate total students
-        const totalStudents = classesData.data.reduce(
-          (sum: number, classItem: ClassItem) => sum + (classItem.students?.length || 0),
-          0
-        );
+        if (classesData?.data && Array.isArray(classesData.data)) {
+          const pieColors = ['#42a5f5', '#66bb6a', '#ffca28', '#ef5350', '#ab47bc', '#26c6da'];
 
-        setPieData(pieData);
-        setStats(prev => ({
-          ...prev,
-          totalStudents
-        }));
+          // ✅ Filter classes to this school only using schoolId
+          const schoolClasses = (classesData.data as ClassItem[]).filter(
+            (classItem: ClassItem) => classItem.schoolId === id
+          );
+
+          const pieChartData: PieDataEntry[] = schoolClasses
+            .filter((classItem: ClassItem) => classItem.className)
+            .map((classItem: ClassItem, index: number): PieDataEntry => ({
+              name: classItem.className,
+              value: classItem.students?.length || 0,
+              color: pieColors[index % pieColors.length],
+            }));
+
+          setPieData(pieChartData);
+        }
       }
     } catch (error) {
-      console.error('Error fetching classes data:', error);
-      setSnackbar({
-        open: true,
-        message: 'Failed to load class data',
-        severity: 'error'
-      });
+      console.error('Error fetching students data:', error);
+      setSnackbar({ open: true, message: 'Failed to load student data', severity: 'error' });
     }
   }, []);
 
-  // Fetch transactions data with proper credit/debit handling
+  // Fetch transactions data
   const fetchTransactionsData = useCallback(async () => {
     try {
       const data: TransactionsResponse = await getUserTransactions();
 
-      console.log('Transactions API Response:', JSON.stringify(data, null, 2));
-
       if (data.data && Array.isArray(data.data)) {
-        // Process recent transactions with proper credit/debit logic
         const recentTransactions = data.data
           .slice(0, 4)
           .map((tx: TransactionType) => {
-            // Determine transaction type based on direction field primarily
             let transactionType: 'credit' | 'debit' | 'pending' = 'debit';
 
-            // First check status for pending transactions
             if (tx.status === 'pending') {
               transactionType = 'pending';
-            }
-            // Then use direction field as primary indicator
-            else if (tx.category === 'credit') {
+            } else if (tx.category === 'credit') {
               transactionType = 'credit';
-            }
-            else if (tx.category === 'debit') {
+            } else if (tx.category === 'debit') {
               transactionType = 'debit';
             }
 
@@ -354,13 +317,12 @@ const Dashboard: React.FC = () => {
               category: tx.category || 'Transaction',
               amount: tx.amount,
               type: transactionType,
-              status: tx.status // include status for reference
+              status: tx.status,
             };
           });
 
         setTransactions(recentTransactions);
 
-        // Process fee collection trend (last 6 months) - only credit transactions
         const now = new Date();
         const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -370,7 +332,7 @@ const Dashboard: React.FC = () => {
           return {
             month: monthNames[date.getMonth()],
             year: date.getFullYear(),
-            monthIndex: date.getMonth()
+            monthIndex: date.getMonth(),
           };
         }).reverse();
 
@@ -378,79 +340,43 @@ const Dashboard: React.FC = () => {
           const monthlyTotal = (data.data ?? [])
             .filter((tx: TransactionType) => {
               const txDate = new Date(tx.createdAt ?? '');
-              const txMonth = txDate.getMonth();
-              const txYear = txDate.getFullYear();
-
-              // Check if it's a credit transaction (fee received)
-              const isCredit = tx.category === 'credit' || tx.category === 'credit';
-
-              return txMonth === monthIndex && txYear === year && isCredit;
+              const isCredit = tx.category === 'credit';
+              return txDate.getMonth() === monthIndex && txDate.getFullYear() === year && isCredit;
             })
             .reduce((sum: number, tx: TransactionType) => sum + (tx.amount || 0), 0);
 
-          return {
-            month,
-            fees: monthlyTotal
-          };
+          return { month, fees: monthlyTotal };
         });
 
-        console.log('Processed fee data:', feeData);
         setBarData(feeData);
       }
     } catch (error) {
       console.error('Error fetching transactions:', error);
-      setSnackbar({
-        open: true,
-        message: 'Failed to load transaction data',
-        severity: 'error'
-      });
+      setSnackbar({ open: true, message: 'Failed to load transaction data', severity: 'error' });
     }
   }, []);
 
-  // Enhanced initialization with better balance handling
+  // ✅ UPDATED: initializeAuth passes schoolId from profile into fetchStudentsData
   useEffect(() => {
     const initializeAuth = async () => {
       try {
         setLoading(true);
 
-        // Check if we already have user data in context with valid balance
-        if (auth?.user?._id && auth?.token && typeof auth.user?.balance === 'number') {
-          console.log('Using context user with balance:', auth.user.balance);
-          setUser(auth.user);
-          setStats(prev => ({
-            ...prev,
-            balance: (auth.user && typeof auth.user.balance === 'number') ? auth.user.balance : 0
-          }));
-
-          // Still fetch other data including store count
-          await Promise.all([
-            fetchStudentsData(),
-            fetchTransactionsData(),
-            fetchStoreCount()
-          ]);
-
-          setLoading(false);
-          return;
-        }
-
-        // Try localStorage for token
         const storedToken = localStorage.getItem('token');
-        if (!storedToken) {
+        if (!storedToken && !auth?.token) {
           throw new Error('No authentication token found');
         }
 
-        console.log('Fetching fresh user data...');
-        // Fetch fresh user data
         const profile = await fetchUserDetails();
 
-        console.log('Profile fetched, balance should be:', profile.balance);
+        // ✅ Get schoolId from the returned profile directly
+        const id = profile.schoolId || profile._id || '';
 
-        // After successful auth, fetch other data including store count
         if (profile._id) {
           await Promise.all([
-            fetchStudentsData(),
+            fetchStudentsData(id),   // ✅ pass id so it fetches THIS school's students
             fetchTransactionsData(),
-            fetchStoreCount()
+            fetchStoreCount(),
           ]);
         }
       } catch (error) {
@@ -462,29 +388,21 @@ const Dashboard: React.FC = () => {
     };
 
     initializeAuth();
-  }, [auth?.token, auth?.user, fetchUserDetails, fetchStudentsData, fetchTransactionsData, fetchStoreCount, handleAuthError]);
+  }, [auth?.token, fetchUserDetails, fetchStudentsData, fetchTransactionsData, fetchStoreCount, handleAuthError]);
 
-  // Debug effect to monitor stats changes
-  useEffect(() => {
-    console.log('Stats updated:', stats);
-  }, [stats]);
+  // Debug effects
+  useEffect(() => { console.log('Stats updated:', stats); }, [stats]);
+  useEffect(() => { console.log('User updated:', user); }, [user]);
+  useEffect(() => { console.log('SchoolId updated:', schoolId); }, [schoolId]);
 
-  // Debug effect to monitor user changes
-  useEffect(() => {
-    console.log('User updated:', user);
-  }, [user]);
-
-  // auto-hide snackbar
+  // Auto-hide snackbar
   useEffect(() => {
     if (!snackbar.open) return;
-    const t = setTimeout(
-      () => setSnackbar((s) => ({ ...s, open: false })),
-      6000
-    );
+    const t = setTimeout(() => setSnackbar((s) => ({ ...s, open: false })), 6000);
     return () => clearTimeout(t);
   }, [snackbar.open]);
 
-  // redirect on error
+  // Redirect on error
   useEffect(() => {
     if (authError) setTimeout(() => (window.location.href = '/login'), 3000);
   }, [authError]);
@@ -493,10 +411,7 @@ const Dashboard: React.FC = () => {
     const styleElement = document.createElement('style');
     styleElement.textContent = calendarStyles;
     document.head.appendChild(styleElement);
-
-    return () => {
-      document.head.removeChild(styleElement);
-    };
+    return () => { document.head.removeChild(styleElement); };
   }, []);
 
   if (loading)
@@ -515,7 +430,6 @@ const Dashboard: React.FC = () => {
         <Footer />
       </div>
     );
-
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
@@ -548,35 +462,32 @@ const Dashboard: React.FC = () => {
                 <FaWallet className="text-xl" />
               </div>
               <div>
-                <h3 className="text-sm font-medium text-gray-500">
-                  Wallet Balance
-                </h3>
+                <h3 className="text-sm font-medium text-gray-500">Wallet Balance</h3>
                 <p className="text-2xl font-bold text-gray-800">
                   ₦{stats.balance.toLocaleString()}
                 </p>
               </div>
             </div>
+
             <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100 hover:shadow-md transition-all duration-300 flex items-start">
               <div className="p-3 rounded-full bg-green-100 text-green-600 mr-4">
                 <FaUsers className="text-xl" />
               </div>
               <div>
-                <h3 className="text-sm font-medium text-gray-500">
-                  Total Students
-                </h3>
+                <h3 className="text-sm font-medium text-gray-500">Total Students</h3>
+                {/* ✅ Now shows the correct count from getStudentsBySchoolId */}
                 <p className="text-2xl font-bold text-gray-800">
                   {stats.totalStudents.toLocaleString()}
                 </p>
               </div>
             </div>
+
             <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100 hover:shadow-md transition-all duration-300 flex items-start">
               <div className="p-3 rounded-full bg-amber-100 text-amber-600 mr-4">
                 <FaStore className="text-xl" />
               </div>
               <div>
-                <h3 className="text-sm font-medium text-gray-500">
-                  Total Stores
-                </h3>
+                <h3 className="text-sm font-medium text-gray-500">Total Stores</h3>
                 <p className="text-2xl font-bold text-gray-800">
                   {stats.totalStores.toLocaleString()}
                 </p>
@@ -588,9 +499,7 @@ const Dashboard: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">
-                  Student Distribution
-                </h3>
+                <h3 className="text-lg font-semibold text-gray-800">Student Distribution</h3>
                 <select
                   className="text-sm border border-gray-300 rounded p-1 bg-white text-gray-600"
                   aria-label="Student distribution period"
@@ -646,11 +555,10 @@ const Dashboard: React.FC = () => {
                 )}
               </div>
             </div>
+
             <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">
-                  Fee Collection Trend
-                </h3>
+                <h3 className="text-lg font-semibold text-gray-800">Fee Collection Trend</h3>
                 <select
                   className="text-sm border border-gray-300 rounded p-1 bg-white text-gray-600"
                   aria-label="Fee collection period"
@@ -662,24 +570,12 @@ const Dashboard: React.FC = () => {
               <div className="w-full h-64">
                 {barData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={barData}
-                      margin={{ top: 5, right: 5, bottom: 5, left: 0 }}
-                    >
+                    <BarChart data={barData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis
-                        dataKey="month"
-                        axisLine={false}
-                        tickLine={false}
-                      />
+                      <XAxis dataKey="month" axisLine={false} tickLine={false} />
                       <YAxis axisLine={false} tickLine={false} />
                       <RechartTooltip />
-                      <Bar
-                        dataKey="fees"
-                        fill="#6366f1"
-                        radius={[6, 6, 0, 0]}
-                        barSize={20}
-                      />
+                      <Bar dataKey="fees" fill="#6366f1" radius={[6, 6, 0, 0]} barSize={20} />
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
@@ -695,9 +591,7 @@ const Dashboard: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">
-                  Recent Transactions
-                </h3>
+                <h3 className="text-lg font-semibold text-gray-800">Recent Transactions</h3>
                 <button
                   onClick={() => (window.location.href = '/transactions')}
                   className="text-indigo-600 text-sm font-medium"
@@ -715,12 +609,13 @@ const Dashboard: React.FC = () => {
                       >
                         <div className="flex items-center">
                           <div
-                            className={`p-2 rounded-full mr-3 ${transaction.category === 'credit'
+                            className={`p-2 rounded-full mr-3 ${
+                              transaction.category === 'credit'
                                 ? 'bg-green-100 text-green-600'
                                 : transaction.status === 'pending'
-                                  ? 'bg-yellow-100 text-yellow-600'
-                                  : 'bg-red-100 text-red-600'
-                              }`}
+                                ? 'bg-yellow-100 text-yellow-600'
+                                : 'bg-red-100 text-red-600'
+                            }`}
                           >
                             <FaWallet className="text-sm" />
                           </div>
@@ -740,20 +635,23 @@ const Dashboard: React.FC = () => {
                         </div>
                         <div className="text-right">
                           <p
-                            className={`font-medium ${transaction.category === 'credit'
+                            className={`font-medium ${
+                              transaction.category === 'credit'
                                 ? 'text-green-600'
                                 : transaction.status === 'pending'
-                                  ? 'text-yellow-600'
-                                  : 'text-red-600'
-                              }`}
+                                ? 'text-yellow-600'
+                                : 'text-red-600'
+                            }`}
                           >
                             {transaction.category === 'credit' ? '+' : '-'}₦
                             {(Number(transaction.amount) || 0).toLocaleString()}
                           </p>
                           <p className="text-xs text-gray-500 mt-1">
-                            {transaction.status === 'success' ? 'Completed' :
-                              transaction.status === 'failed' ? 'Failed' :
-                                'Pending'}
+                            {transaction.status === 'success'
+                              ? 'Completed'
+                              : transaction.status === 'failed'
+                              ? 'Failed'
+                              : 'Pending'}
                           </p>
                         </div>
                       </div>
@@ -766,11 +664,10 @@ const Dashboard: React.FC = () => {
                 )}
               </div>
             </div>
+
             <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">
-                  School Calendar
-                </h3>
+                <h3 className="text-lg font-semibold text-gray-800">School Calendar</h3>
                 <div className="p-2 rounded-full bg-indigo-100 text-indigo-600">
                   <FaCalendarAlt className="text-sm" />
                 </div>
@@ -780,10 +677,7 @@ const Dashboard: React.FC = () => {
                   onChange={(value) => {
                     if (value instanceof Date) {
                       setCalendarDate(value);
-                    } else if (
-                      Array.isArray(value) &&
-                      value[0] instanceof Date
-                    ) {
+                    } else if (Array.isArray(value) && value[0] instanceof Date) {
                       setCalendarDate(value[0]);
                     }
                   }}
@@ -800,17 +694,17 @@ const Dashboard: React.FC = () => {
       {/* Snackbar */}
       {snackbar.open && (
         <div
-          className={`fixed bottom-4 right-4 bg-white p-4 rounded-lg shadow-lg border-l-4 ${snackbar.severity === 'success'
-              ? 'border-green-500'
-              : 'border-red-500'
-            } transition-all duration-300 z-50`}
+          className={`fixed bottom-4 right-4 bg-white p-4 rounded-lg shadow-lg border-l-4 ${
+            snackbar.severity === 'success' ? 'border-green-500' : 'border-red-500'
+          } transition-all duration-300 z-50`}
         >
           <div className="flex items-center">
             <div
-              className={`p-2 rounded-full mr-3 ${snackbar.severity === 'success'
+              className={`p-2 rounded-full mr-3 ${
+                snackbar.severity === 'success'
                   ? 'bg-green-100 text-green-600'
                   : 'bg-red-100 text-red-600'
-                }`}
+              }`}
             >
               {snackbar.severity === 'success' ? '✓' : '✕'}
             </div>
