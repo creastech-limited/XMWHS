@@ -418,9 +418,9 @@ export const updateAccountPin = async (payload: UpdatePinPayload): Promise<void>
 
 // Service to handle the actual file upload to the server
 
-export const uploadProfileImage = async (file: File) => {
+export const uploadProfileImage = async (profile: File) => {
   const formData = new FormData();
-  formData.append('profile', file);
+  formData.append('profile', profile);
 
   const response = await apiClient.post<{ profilePicture: string }>(
     '/api/users/upload-profile', 
