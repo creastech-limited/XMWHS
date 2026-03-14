@@ -3,7 +3,7 @@ import {
   Search,
   Send,
   ArrowLeft,
-   User as UserIcon,
+  User as UserIcon,
   AlertCircle,
   Check,
   X,
@@ -48,7 +48,7 @@ const SchoolTransferPage: React.FC = () => {
 
     try {
       const data = await getAllCharges();
-      
+
       if (data && Array.isArray(data)) {
         const transferCharge = data.find((charge: Charge) =>
           charge.name.toLowerCase().includes('transfer') && charge.status === 'Active'
@@ -78,7 +78,7 @@ const SchoolTransferPage: React.FC = () => {
         // The response has user.data containing the actual user
         if (data.user?.data) {
           userData = data.user.data;
-          
+
           // Get wallet balance from the wallet object
           if (data.user?.wallet?.balance !== undefined) {
             walletBalance = data.user.wallet.balance;
@@ -94,26 +94,26 @@ const SchoolTransferPage: React.FC = () => {
         if (!userData) {
           throw new Error('User data is missing in response');
         }
-        
+
         // Create user object that matches the imported User type
         const userProfile: User = {
           // Core required fields (all present in API)
           _id: userData._id ?? '',
-          name: userData.name ?? 
-                (userData.firstName && userData.lastName 
-                  ? `${userData.firstName} ${userData.lastName}`.trim() 
-                  : (userData.firstName ?? userData.lastName ?? 'User')),
+          name: userData.name ??
+            (userData.firstName && userData.lastName
+              ? `${userData.firstName} ${userData.lastName}`.trim()
+              : (userData.firstName ?? userData.lastName ?? 'User')),
           email: userData.email ?? '',
           role: userData.role ?? '',
           status: userData.status || 'Active',
           createdAt: userData.createdAt || new Date().toISOString(),
           updatedAt: userData.updatedAt || new Date().toISOString(),
-          
+
           // Personal info - ensure these are strings, not undefined
           firstName: userData.firstName ?? '',
           lastName: userData.lastName ?? '',
           phone: userData.phone,
-          
+
           // School info
           schoolId: userData.schoolId,
           schoolName: userData.schoolName,
@@ -121,7 +121,7 @@ const SchoolTransferPage: React.FC = () => {
           schoolAddress: userData.schoolAddress,
           ownership: userData.ownership,
           schoolCanTransfer: userData.schoolCanTransfer === true,
-          
+
           // Wallet & balance
           balance: walletBalance,
           wallet: {
@@ -129,12 +129,12 @@ const SchoolTransferPage: React.FC = () => {
             // Remove currency and walletId as they're not in the User type's wallet interface
           },
           accountNumber: userData.accountNumber,
-          
+
           // Other fields
           isPinSet: userData.isPinSet,
           profilePicture: userData.profilePicture,
           qrcode: userData.qrcode,
-          
+
           // Permission flags
           agentCanTopup: userData.agentCanTopup,
           agentCanTransfer: userData.agentCanTransfer,
@@ -147,7 +147,7 @@ const SchoolTransferPage: React.FC = () => {
           studentCanTransfer: userData.studentCanTransfer,
           studentCanWithdraw: userData.studentCanWithdraw,
           studentCanPayBill: userData.studentCanPayBill,
-          
+
           // Bank details
           bankDetails: userData.bankDetails
         };
@@ -199,7 +199,7 @@ const SchoolTransferPage: React.FC = () => {
       setFilteredUsers(filteredUsers);
     } catch (error: unknown) {
       console.error('Error fetching school users:', error);
-      
+
       let errorMessage = 'Failed to load school users. Please try again.';
       if (error instanceof Error) {
         errorMessage = error.message;
@@ -207,7 +207,7 @@ const SchoolTransferPage: React.FC = () => {
         const err = error as { response?: { data?: { message?: string } } };
         errorMessage = err.response?.data?.message || errorMessage;
       }
-      
+
       setSnackbarMessage(errorMessage);
       setSnackbarSeverity('error');
       setShowSnackbar(true);
@@ -304,10 +304,10 @@ const SchoolTransferPage: React.FC = () => {
       }
     } catch (error: unknown) {
       console.error('Transfer error:', error);
-      
+
       let errorMessage = 'Transfer failed. Please try again.';
       let message = '';
-      
+
       if (error instanceof Error) {
         message = error.message?.toLowerCase() || '';
       } else if (typeof error === 'object' && error !== null && 'response' in error) {
@@ -359,11 +359,11 @@ const SchoolTransferPage: React.FC = () => {
     return (
       <div className="flex flex-col min-h-screen bg-gray-50">
         <Header PsettingsPage="/settings" />
-        <Header PsettingsPage="/settings" />
+
         <div className="flex flex-grow">
-          <div className="hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-white shadow z-10">
+          <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-none">
             <Asidebar />
-          </div>
+          </aside>
           <main className="flex-1 p-4 text-center">
             <div className="animate-spin h-12 w-12 border-4 border-indigo-600 border-r-transparent rounded-full mx-auto"></div>
             <p className="mt-4 text-indigo-800">Loading...</p>
@@ -378,7 +378,6 @@ const SchoolTransferPage: React.FC = () => {
   if (user?.role !== 'school') {
     return (
       <div className="flex flex-col min-h-screen bg-gray-50">
-        <Header PsettingsPage="/settings" />
         <Header PsettingsPage="/settings" />
         <div className="flex flex-grow">
           <div className="hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-white shadow z-10">
@@ -411,7 +410,6 @@ const SchoolTransferPage: React.FC = () => {
   if (user?.role === 'school' && !user?.schoolCanTransfer) {
     return (
       <div className="flex flex-col min-h-screen bg-gray-50">
-        <Header PsettingsPage="/settings" />
         <Header PsettingsPage="/settings" />
         <div className="flex flex-grow">
           <div className="hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-white shadow z-10">
@@ -453,7 +451,6 @@ const SchoolTransferPage: React.FC = () => {
   // Main page rendering
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
-      <Header PsettingsPage="/settings" />
       <Header PsettingsPage="/settings" />
       <div className="flex flex-grow">
         <div className="hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-white shadow z-10">
@@ -521,11 +518,10 @@ const SchoolTransferPage: React.FC = () => {
                       <div
                         key={user._id}
                         onClick={() => setSelectedUser(user)}
-                        className={`p-3 rounded-lg border cursor-pointer transition-all ${
-                          selectedUser?._id === user._id
+                        className={`p-3 rounded-lg border cursor-pointer transition-all ${selectedUser?._id === user._id
                             ? 'border-blue-500 bg-blue-50'
                             : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                        }`}
+                          }`}
                       >
                         <div className="flex items-center space-x-3">
                           <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
@@ -536,7 +532,7 @@ const SchoolTransferPage: React.FC = () => {
                                 className="w-10 h-10 rounded-full object-cover"
                               />
                             ) : (
-                              <UserIcon  className="w-5 h-5 text-gray-400" />
+                              <UserIcon className="w-5 h-5 text-gray-400" />
                             )}
                           </div>
                           <div className="flex-1">
@@ -578,7 +574,7 @@ const SchoolTransferPage: React.FC = () => {
                               className="w-12 h-12 rounded-full object-cover"
                             />
                           ) : (
-                            <UserIcon  className="w-6 h-6 text-gray-400" />
+                            <UserIcon className="w-6 h-6 text-gray-400" />
                           )}
                         </div>
                         <div>
@@ -712,11 +708,10 @@ const SchoolTransferPage: React.FC = () => {
           {/* Snackbar */}
           {showSnackbar && (
             <div className="fixed bottom-4 right-4 z-50">
-              <div className={`p-4 rounded-lg shadow-lg flex items-center space-x-3 ${
-                snackbarSeverity === 'success'
+              <div className={`p-4 rounded-lg shadow-lg flex items-center space-x-3 ${snackbarSeverity === 'success'
                   ? 'bg-green-600 text-white'
                   : 'bg-red-600 text-white'
-              }`}>
+                }`}>
                 {snackbarSeverity === 'success' ? (
                   <Check className="w-5 h-5" />
                 ) : (

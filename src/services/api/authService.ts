@@ -89,11 +89,7 @@ export const resetPassword = async (
 };
 
 // Update this in your userService.ts
-export const requestPinReset = async (email: string, newPin: string): Promise<{ message: string }> => {
-  const response = await apiClient.post<{ message: string }>('/api/pin/request-reset', { 
-    email, 
-    newPin 
-  });
+export const requestPinReset = async (newPin: string) => {
+  const response = await apiClient.post('/api/pin/request-reset', { newPin });
   return response.data;
 };
-

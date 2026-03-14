@@ -5,7 +5,7 @@ import { Sidebar as Asidebar } from '../../components/Sidebar';
 import Footer from '../../components/Footer';
 import { toBlob, toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
-import { Download, Share2, FileText, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Download, Share2, FileText, RefreshCw } from 'lucide-react';
 
 // Import services
 import { getUserTransactions } from '../../services';
@@ -127,13 +127,17 @@ const TransactionModule: React.FC = () => {
   };
 
   const getTransactionName = (transaction: Transaction) => {
-    if (transaction.senderWalletId && typeof transaction.senderWalletId === 'object') {
-      return `${transaction.senderWalletId.firstName} ${transaction.senderWalletId.lastName}`;
-    }
     if (transaction.receiverWalletId && typeof transaction.receiverWalletId === 'object') {
       return `${transaction.receiverWalletId.firstName} ${transaction.receiverWalletId.lastName}`;
     }
-    return 'System Transaction';
+    return 'Recipient Not Specified';
+  };
+
+  const getSenderName = (transaction: Transaction) => {
+    if (transaction.senderWalletId && typeof transaction.senderWalletId === 'object') {
+      return `${transaction.senderWalletId.firstName} ${transaction.senderWalletId.lastName}`;
+    }
+    return 'System/External';
   };
 
   const getStatusColor = (status: string) => {
@@ -197,7 +201,7 @@ const TransactionModule: React.FC = () => {
                           getPaginatedTransactions().map((transaction) => (
                             <tr key={transaction._id} className="hover:bg-gray-50">
                               <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
-                                <div className="font-medium">{getTransactionName(transaction)}</div>
+                                <div className="font-medium">{getSenderName(transaction)}</div>
                                 <div className="text-gray-500 text-xs">{formatDate(transaction.createdAt)}</div>
                               </td>
                               <td className={`px-3 py-4 whitespace-nowrap text-sm font-medium ${getTransactionTypeColor(transaction)}`}>
@@ -261,9 +265,11 @@ const TransactionModule: React.FC = () => {
             {/* Capture Area */}
             <div ref={receiptRef} className="bg-white p-6">
               <div className="text-center border-b border-dashed border-gray-200 pb-6">
-                <div className="bg-indigo-600 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4">
-                  {selectedTxn.status === 'success' ? <CheckCircle2 className="text-white" /> : <AlertCircle className="text-white" />}
+                {/* XPAY Logo Addition */}
+                <div className="flex justify-center mb-4">
+                  <img src="/xpay.jpeg" alt="XPAY Logo" className="h-10 w-auto object-contain" />
                 </div>
+                
                 <h2 className="text-xl font-bold text-gray-900 tracking-tight">TRANSACTION RECEIPT</h2>
                 <p className="text-xs text-gray-500 font-mono mt-1 uppercase">Ref: {selectedTxn.reference}</p>
               </div>
@@ -274,7 +280,11 @@ const TransactionModule: React.FC = () => {
                   <span className="text-xl font-black text-gray-900">{formatCurrency(selectedTxn.amount)}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-400 text-sm font-medium">User</span>
+                  <span className="text-gray-400 text-sm font-medium">Sender</span>
+                  <span className="text-sm font-bold text-gray-800 text-right">{getSenderName(selectedTxn)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400 text-sm font-medium">Recipient</span>
                   <span className="text-sm font-bold text-gray-800 text-right">{getTransactionName(selectedTxn)}</span>
                 </div>
                 <div className="flex justify-between items-center">

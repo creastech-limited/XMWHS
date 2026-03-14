@@ -335,64 +335,67 @@ const SettingsPanel = () => {
     setIsModalOpen(true);    // Open the modal
   };
 
-  // STEP 1: Send New PIN and Email to get OTP
-  const handleRequestOtp = async () => {
-    if (pinData.pin.length < 4) {
-      setSnackbar({ open: true, message: "Please enter a 4-digit PIN", severity: 'error' });
-      return;
+  // STEP 1: Request Reset (Backend sends OTP to email)
+ const handleRequestOtp = async () => {
+  if (pinData.pin.length < 4) {
+    setSnackbar({ open: true, message: "Please enter a 4-digit PIN", severity: 'error' });
+    return;
+  }
+
+  setIsLoading(true);
+  try {
+    await requestPinReset(pinData.pin);
+    setResetStep('otp');
+    setSnackbar({ open: true, message: "OTP sent to your email!", severity: 'success' });
+  } catch (error: unknown) {
+    let msg = "Failed to send OTP";
+    
+    if (axios.isAxiosError(error)) {
+      msg = error.response?.data?.error || error.response?.data?.message || msg;
+    } else if (error instanceof Error) {
+      msg = error.message;
     }
 
-    setIsLoading(true);
-    try {
-      // Calling the updated service with both values
-      await requestPinReset(profile?.email || '', pinData.pin);
+    setSnackbar({ open: true, message: msg, severity: 'error' });
+  } finally {
+    setIsLoading(false);
+  }
+};
 
-      setResetStep('otp');
-      setSnackbar({ open: true, message: "OTP sent to your email!", severity: 'success' });
-    } catch (error: unknown) {
-      let msg = "An error occurred";
-
-      // Use axios.isAxiosError to check the type safely
-      if (axios.isAxiosError(error)) {
-        msg = error.response?.data?.error || error.response?.data?.message || msg;
-      } else if (error instanceof Error) {
-        msg = error.message;
-      }
-
-      setSnackbar({ open: true, message: msg, severity: 'error' });
-    }
-  };
-
-  // STEP 2: Send Email, OTP, and the New PIN again to verify
+  // STEP 2: Verify OTP and Finalize Reset
   const handleFinalReset = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    try {
-      // Calling the verify service you already have
-      await verifyPinOtp(
-        profile?.email || '',
-        otpValue,
-        pinData.pin
-      );
-
-      setSnackbar({ open: true, message: "PIN reset successful!", severity: 'success' });
-      setIsModalOpen(false);
-      setResetStep('pin');
-      setPinData({ ...pinData, pin: '' });
-      setOtpValue('');
-    } catch (error: unknown) {
-      let msg = "An error occurred";
-
-      // Import axios at the top of your file to use this check
-      if (axios.isAxiosError(error)) {
-        // Check for .error (your backend) or .message
-        msg = error.response?.data?.error || error.response?.data?.message || msg;
-      }
-
-      setSnackbar({ open: true, message: msg, severity: 'error' });
-    }
-  };
+  e.preventDefault();
   
+  if (otpValue.length < 6) {
+    setSnackbar({ open: true, message: "Please enter the 6-digit OTP", severity: 'error' });
+    return;
+  }
+
+  setIsLoading(true);
+  try {
+    await verifyPinOtp(otpValue, pinData.pin);
+
+    setSnackbar({ open: true, message: "PIN reset successfully!", severity: 'success' });
+    setIsModalOpen(false);
+    setResetStep('pin');
+    setPinData({ ...pinData, pin: '' });
+    setOtpValue('');
+    setUser(prev => prev ? { ...prev, isPinSet: true } : null);
+  } catch (error: unknown) {
+    let msg = "Verification failed";
+
+    if (axios.isAxiosError(error)) {
+      msg = error.response?.data?.error || error.response?.data?.message || msg;
+    } else if (error instanceof Error) {
+      msg = error.message;
+    }
+
+    setSnackbar({ open: true, message: msg, severity: 'error' });
+  } finally {
+    setIsLoading(false);
+  }
+};
+
   // Profile Picture Upload Handler
   const handleProfilePicUpload = async () => {
     if (!selectedImage || !token) return;
@@ -993,28 +996,31 @@ const SettingsPanel = () => {
 
             {resetStep === 'pin' ? (
               <div className="space-y-8">
-                {/* VISUAL PIN GRID */}
-                <div className="flex justify-between gap-3">
+                {/* PIN GRID - Added onClick to focus the hidden input */}
+                <div
+                  className="flex justify-between gap-3 cursor-pointer"
+                  onClick={() => document.getElementById('hidden-pin-input')?.focus()}
+                >
                   {[0, 1, 2, 3].map((i) => (
                     <div
                       key={i}
-                      className={`w-16 h-20 rounded-2xl border-2 flex items-center justify-center text-3xl font-bold transition-all duration-150
-                  ${pinData.pin.length === i ? 'border-indigo-600 bg-indigo-50 shadow-[0_0_15px_rgba(79,70,229,0.2)] scale-105' : 'border-slate-100 bg-slate-50'}
-                  ${pinData.pin[i] ? 'border-slate-800 bg-white text-slate-800' : 'text-slate-300'}`}
+                      className={`w-14 h-16 rounded-2xl border-2 flex items-center justify-center text-3xl font-bold transition-all duration-150
+                ${pinData.pin.length === i ? 'border-indigo-600 bg-indigo-50 scale-105' : 'border-slate-100 bg-slate-50'}
+                ${pinData.pin[i] ? 'border-slate-800 bg-white text-slate-800' : 'text-slate-300'}`}
                     >
-                      {pinData.pin[i] || ''}
+                      {pinData.pin[i] ? '●' : ''} {/* Use dots for security or pinData.pin[i] for visibility */}
                     </div>
                   ))}
                 </div>
 
-                {/* REAL HIDDEN INPUT FOR KEYBOARD TRIGGER */}
                 <input
+                  id="hidden-pin-input"
                   type="text"
                   pattern="\d*"
                   inputMode="numeric"
                   maxLength={4}
                   autoFocus
-                  className="absolute opacity-0 h-0 w-0" // Stays hidden but handles the typing
+                  className="absolute opacity-0 h-0 w-0"
                   value={pinData.pin}
                   onChange={(e) => setPinData({ ...pinData, pin: e.target.value.replace(/\D/g, '').slice(0, 4) })}
                 />
@@ -1022,48 +1028,50 @@ const SettingsPanel = () => {
                 <button
                   onClick={handleRequestOtp}
                   disabled={isLoading || pinData.pin.length < 4}
-                  className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold text-lg hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 transition-all shadow-lg active:translate-y-1"
+                  className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold text-lg hover:bg-indigo-700 disabled:bg-slate-200 transition-all shadow-lg"
                 >
-                  {isLoading ? 'Sending...' : 'Continue'}
+                  {isLoading ? 'Processing...' : 'Continue'}
                 </button>
               </div>
             ) : (
-              /* OTP STEP */
               <div className="space-y-8">
                 <input
                   type="text"
                   placeholder="000000"
+                  inputMode="numeric"
                   maxLength={6}
-                  className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl text-center text-black text-4xl font-black tracking-widest focus:border-green-500 focus:bg-white outline-none transition-all"
+                  className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl text-center text-black text-4xl font-black tracking-widest focus:border-indigo-600 focus:bg-white outline-none transition-all"
                   value={otpValue}
                   onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, ''))}
                 />
 
                 <div className="flex gap-3">
                   <button
-                    onClick={() => setResetStep('pin')}
-                    className="flex-1 py-4 font-bold text-slate-400 hover:text-slate-600"
+                    onClick={() => { setResetStep('pin'); setOtpValue(''); }}
+                    className="flex-1 py-4 font-bold text-slate-400"
                   >
                     Back
                   </button>
                   <button
                     onClick={handleFinalReset}
-                    className="flex-[2] bg-green-600 text-white py-4 rounded-2xl font-bold text-lg hover:bg-green-700 shadow-lg shadow-green-100"
+                    disabled={isLoading || otpValue.length < 6}
+                    className="flex-[2] bg-green-600 text-white py-4 rounded-2xl font-bold text-lg hover:bg-green-700 shadow-lg disabled:bg-slate-200"
                   >
-                    Verify & Reset
+                    {isLoading ? 'Verifying...' : 'Reset PIN'}
                   </button>
                 </div>
               </div>
             )}
 
+            {/* Close Button */}
             <button
               onClick={() => {
                 setIsModalOpen(false);
                 setResetStep('pin');
+                setPinData({ ...pinData, pin: '' });
                 setOtpValue('');
-                setPinData({ currentPin: '', pin: '', newPin: '' });
               }}
-              className="mt-8 w-full text-slate-300 text-xs font-bold uppercase tracking-widest hover:text-red-400 transition-colors"
+              className="mt-8 w-full text-slate-400 text-xs font-bold uppercase tracking-widest hover:text-red-500 transition-colors"
             >
               Cancel
             </button>

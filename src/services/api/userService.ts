@@ -500,11 +500,7 @@ export const removeBeneficiary = async (studentId: string) => {
   return response.data;
 };
 
-export const verifyPinOtp = async (email: string, otp: string, newPin: string) => {
-  const response = await apiClient.post('/api/pin/verifyotp', { 
-    email, 
-    otp, 
-    newPin 
-  });
+export const verifyPinOtp = async (otp: string, newPin: string) => {
+  const response = await apiClient.post('/api/pin/verifyotp', { otp, newPin });
   return response.data;
 };

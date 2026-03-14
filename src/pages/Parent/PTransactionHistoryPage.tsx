@@ -20,6 +20,7 @@ import {
 import type { Transaction, TransactionStats, User, UserData } from '../../types';
 import { getUserDetails, getUserTransactions, getUserWallet } from '../../services';
 import { jsPDF } from 'jspdf';
+import { toBlob } from 'html-to-image';
 
 
 
@@ -88,155 +89,116 @@ const TransactionHistoryPage: React.FC = () => {
   };
 
   const handleDownloadReceipt = async () => {
-  if (!selectedTxn) return;
+    if (!selectedTxn) return;
 
-  try {
-    // 1. Create a fresh PDF (A4 size)
-    const doc = new jsPDF({
-      orientation: 'portrait',
-      unit: 'mm',
-      format: 'a4'
-    });
-
-    const centerX = 105; // Center of A4 page
-
-    // 2. Add Branding (Logo placeholder or Text)
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(22);
-    doc.setTextColor(30, 41, 59); // Slate 800
-    doc.text("XPAY DIGITAL", centerX, 30, { align: 'center' });
-    
-    doc.setFontSize(10);
-    doc.setTextColor(100, 116, 139); // Slate 500
-    doc.text("TRANSACTION RECEIPT", centerX, 38, { align: 'center' });
-
-    // 3. Draw a Decorative Line
-    doc.setDrawColor(226, 232, 240); // Slate 200
-    doc.line(20, 45, 190, 45);
-
-    // 4. Amount Section
-    doc.setFontSize(12);
-    doc.text("AMOUNT", centerX, 60, { align: 'center' });
-    doc.setFontSize(28);
-    doc.setTextColor(15, 23, 42); // Slate 900
-    doc.text(`NGN ${selectedTxn.amount.toLocaleString()}`, centerX, 72, { align: 'center' });
-
-    // 5. Status Box
-    doc.setFillColor(240, 253, 244); // Light Green
-    doc.roundedRect(80, 80, 50, 8, 2, 2, 'F');
-    doc.setFontSize(9);
-    doc.setTextColor(22, 101, 52); // Green 800
-    doc.text("SUCCESSFUL", centerX, 85.5, { align: 'center' });
-
-    // 6. Details Table
-    const startY = 105;
-    const rowHeight = 12;
-    const details = [
-      { label: "DATE", value: formatDate(selectedTxn.createdAt) },
-      { label: "REFERENCE", value: selectedTxn.reference },
-      { label: "TYPE", value: selectedTxn.category.toUpperCase() },
-      { label: "DESCRIPTION", value: selectedTxn.description },
-      { label: "STATUS", value: selectedTxn.status.toUpperCase() }
-    ];
-
-    doc.setFontSize(10);
-    details.forEach((item, i) => {
-      const currentY = startY + (i * rowHeight);
-      
-      // Label
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(100, 116, 139);
-      doc.text(item.label, 25, currentY);
-      
-      // Value
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(30, 41, 59);
-      doc.text(String(item.value), 185, currentY, { align: 'right' });
-      
-      // Thin separator line
-      doc.setDrawColor(248, 250, 252);
-      doc.line(25, currentY + 4, 185, currentY + 4);
-    });
-
-    // 7. Footer
-    doc.setFont("helvetica", "italic");
-    doc.setFontSize(8);
-    doc.setTextColor(148, 163, 184);
-    doc.text("Thank you for using XPay Digital.", centerX, 200, { align: 'center' });
-    doc.text(`Generated on ${new Date().toLocaleString()}`, centerX, 205, { align: 'center' });
-
-    // 8. Save
-    doc.save(`XPay_Receipt_${selectedTxn.reference}.pdf`);
-
-  } catch (err) {
-    console.error("Manual PDF Error:", err);
-    alert("Could not generate PDF. Please try again.");
-  }
-};
-
-
-// Handle sharing the receipt as an image
-const handleShareReceipt = async () => {
-  if (!selectedTxn) return;
-
-  try {
-    // 1. Create the PDF (This is our 'safe' middle-man)
-    const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: [100, 150] }); // Custom receipt size
-    const centerX = 50;
-
-    // --- DRAWING LOGIC (Identical to your PDF download) ---
-    doc.setFillColor(255, 255, 255);
-    doc.rect(0, 0, 100, 150, 'F');
-    
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(18);
-    doc.setTextColor(30, 41, 59);
-    doc.text("XPAY DIGITAL", centerX, 20, { align: 'center' });
-    
-    doc.setFontSize(8);
-    doc.setTextColor(100, 116, 139);
-    doc.text("TRANSACTION RECEIPT", centerX, 26, { align: 'center' });
-
-    doc.setDrawColor(226, 232, 240);
-    doc.line(10, 32, 90, 32);
-
-    doc.setFontSize(22);
-    doc.setTextColor(15, 23, 42);
-    doc.text(`N${selectedTxn.amount.toLocaleString()}`, centerX, 45, { align: 'center' });
-
-    // Details
-    doc.setFontSize(9);
-    doc.text(`Ref: ${selectedTxn.reference}`, centerX, 55, { align: 'center' });
-    doc.text(`Date: ${formatDate(selectedTxn.createdAt)}`, centerX, 62, { align: 'center' });
-    doc.text(`Type: ${selectedTxn.category.toUpperCase()}`, centerX, 69, { align: 'center' });
-
-    // 2. Convert PDF to Image Data
-    // We use the internal 'output' method to get a dataurl
-    const imgData = doc.output('datauristring');
-
-    // 3. Convert DataURL to a Blob/File for sharing
-    const response = await fetch(imgData);
-    const blob = await response.blob();
-    const file = new File([blob], `XPay_Receipt_${selectedTxn.reference}.png`, { type: 'image/png' });
-
-    // 4. Share
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({
-        files: [file],
-        title: 'XPay Receipt',
+    try {
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
       });
-    } else {
-      // Fallback: Download PNG
-      const link = document.createElement('a');
-      link.href = imgData;
-      link.download = `XPay_Receipt_${selectedTxn.reference}.png`;
-      link.click();
+
+      const centerX = 105;
+
+      // --- 1. Add Logo ---
+      // Note: Ensure the path is correct. Using a base64 or a loaded Image object is safer.
+      try {
+        doc.addImage("/xpay.jpeg", "JPEG", centerX - 10, 10, 20, 20);
+      } catch (e) {
+        console.error("Logo failed to load for PDF", e);
+      }
+
+      // 2. Branding
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(22);
+      doc.setTextColor(30, 41, 59);
+      doc.text("XPAY DIGITAL", centerX, 40, { align: 'center' });
+
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139);
+      doc.text("TRANSACTION RECEIPT", centerX, 48, { align: 'center' });
+
+      doc.setDrawColor(226, 232, 240);
+      doc.line(20, 55, 190, 55);
+
+      // 3. Amount
+      doc.setFontSize(12);
+      doc.text("AMOUNT", centerX, 70, { align: 'center' });
+      doc.setFontSize(28);
+      doc.setTextColor(15, 23, 42);
+      doc.text(`NGN ${selectedTxn.amount.toLocaleString()}`, centerX, 82, { align: 'center' });
+
+      // 4. Details Table (Including SENDER)
+      const startY = 105;
+      const rowHeight = 12;
+      const details = [
+        {
+          label: "SENDER",
+          value: (userData.username ?? "N/A").toUpperCase() 
+        },
+        { label: "DATE", value: formatDate(selectedTxn.createdAt) },
+        { label: "REFERENCE", value: selectedTxn.reference },
+        { label: "TYPE", value: selectedTxn.category.toUpperCase() },
+        { label: "STATUS", value: selectedTxn.status.toUpperCase() }
+      ];
+
+      doc.setFontSize(10);
+      details.forEach((item, i) => {
+        const currentY = startY + (i * rowHeight);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(100, 116, 139);
+        doc.text(item.label, 25, currentY);
+
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(30, 41, 59);
+        doc.text(String(item.value), 185, currentY, { align: 'right' });
+
+        doc.setDrawColor(248, 250, 252);
+        doc.line(25, currentY + 4, 185, currentY + 4);
+      });
+
+      doc.save(`XPay_Receipt_${selectedTxn.reference}.pdf`);
+    } catch (err) {
+      console.error("PDF Error:", err);
+      alert("Could not generate PDF.");
     }
-  } catch (err) {
-    console.error("Share Error:", err);
-    alert("Could not generate shareable image.");
-  }
-};
+  };
+
+  // Handle sharing the receipt as an image
+  const handleShareReceipt = async () => {
+    if (!receiptRef.current || !selectedTxn) return;
+
+    try {
+      // 1. Capture the DOM element as a Blob
+      const blob = await toBlob(receiptRef.current, {
+        cacheBust: true,
+        backgroundColor: '#ffffff',
+      });
+
+      if (!blob) return;
+
+      // 2. Create a File object
+      const file = new File([blob], `XPay_Receipt_${selectedTxn.reference}.png`, { type: 'image/png' });
+
+      // 3. Use Web Share API
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: 'XPay Transaction Receipt',
+          text: `Receipt for my transaction: ₦${selectedTxn.amount.toLocaleString()}`,
+        });
+      } else {
+        // Fallback: Just download the image if sharing isn't supported
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `XPay_Receipt_${selectedTxn.reference}.png`;
+        link.click();
+      }
+    } catch (err) {
+      console.error("Share Error:", err);
+      alert("Sharing is not supported on this browser or device.");
+    }
+  };
 
   // Fetch user profile and transactions on component mount
   useEffect(() => {
@@ -687,20 +649,30 @@ const handleShareReceipt = async () => {
                 <h1 className="text-3xl font-black text-slate-900">₦{selectedTxn.amount.toLocaleString()}</h1>
               </div>
 
+              {/* Inside the Receipt Modal - Details Section */}
               <div className="space-y-3 relative z-10 text-left">
                 {[
+               { label: 'Sender', value: userData.username || 'User' },
                   { label: 'Date', value: formatDate(selectedTxn.createdAt) },
-                  { label: 'Ref', value: selectedTxn.reference, mono: true },
-                  { label: 'Type', value: selectedTxn.category.toUpperCase() },
-                  { label: 'Status', value: selectedTxn.status.toUpperCase(), color: 'text-green-600' }
+                  { label: 'Ref', value: selectedTxn.reference || 'N/A', mono: true },
+                  {
+                    label: 'Type',
+                    value: (selectedTxn.transactionType || selectedTxn.category || 'Transaction').replace('_', ' ').toUpperCase()
+                  },
+                  {
+                    label: 'Status',
+                    value: selectedTxn.status.toUpperCase(),
+                    color: selectedTxn.status === 'success' ? 'text-green-600' : 'text-amber-500'
+                  }
                 ].map((item, idx) => (
                   <div key={idx} className="flex justify-between items-center text-xs border-b border-slate-50 pb-2">
                     <span className="font-medium text-slate-400">{item.label}</span>
-                    <span className={`font-bold ${item.mono ? 'font-mono' : ''} ${item.color || 'text-slate-700'}`}>{item.value}</span>
+                    <span className={`font-bold ${item.mono ? 'font-mono' : ''} ${item.color || 'text-slate-700'}`}>
+                      {item.value}
+                    </span>
                   </div>
                 ))}
               </div>
-
               <div className="mt-8 pt-4 border-t border-dashed border-slate-200 text-center">
                 <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Powered by XPay Digital</p>
               </div>
