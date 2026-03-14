@@ -8,6 +8,7 @@ import { useAuth } from '../../context/AuthContext';
 import { AlertCircle, Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import logo from '/xpay.jpeg';
 import bgImage from '../bg.jpeg';
+import axios from 'axios';
 
 const LoginPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -92,14 +93,21 @@ try {
   };
   
   const data = await apiLogin(credentials);
-  
-  // Call the auth context login function (which handles navigation)
   login(data.user as User, data.accessToken);
-  // Note: No need for navigate() here - auth context login handles it
-} catch (error: Error | unknown) {
+
+} catch (error: unknown) {
   console.error('Login error:', error);
-  const errorMessage = error instanceof Error ? error.message : 'An error occurred. Please try again later.';
-  setErrorMessage(errorMessage);
+  
+  let message = 'An error occurred. Please try again later.';
+
+  if (axios.isAxiosError(error)) {
+    // This checks for your backend's custom message (e.g., "User is not active")
+    message = error.response?.data?.message || error.response?.data?.error || error.message;
+  } else if (error instanceof Error) {
+    message = error.message;
+  }
+
+  setErrorMessage(message);
 } finally {
   setIsLoading(false);
 }
