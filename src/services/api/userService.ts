@@ -4,6 +4,7 @@ import type {
   StoreCountResponse,
   ClassesResponse,
   TransactionsResponse,  Store, StoreDetails, StoreProfileFormData,
+  StoreAgent,
   AgentCountResponse,
   GetAgentsResponse,
   AgentRegistrationData,
@@ -23,7 +24,7 @@ import type {
   UpdatePinPayload,
   SetPinPayload,
   NotificationPreferences,
-  User,
+
   UserData,
   WalletResponse,
   TransferResponse,
@@ -71,6 +72,29 @@ export const getStoresBySchoolId = async (schoolId: string): Promise<Store[]> =>
     return responseData.stores;
   }
   
+  return [];
+};
+
+// Get stores in a school for admin
+export const getStoresInSchoolByAdmin = async (schoolId: string): Promise<Store[]> => {
+  const response = await apiClient.get<Store[] | { data?: Store[]; stores?: Store[] }>(
+    `/api/users/getstoreinschoolbyadmin/${encodeURIComponent(schoolId)}`
+  );
+
+  const responseData = response.data;
+
+  if (Array.isArray(responseData)) {
+    return responseData;
+  }
+
+  if (Array.isArray(responseData?.data)) {
+    return responseData.data;
+  }
+
+  if (Array.isArray(responseData?.stores)) {
+    return responseData.stores;
+  }
+
   return [];
 };
 
@@ -199,6 +223,33 @@ export const getAgentsById = async (schoolId?: string): Promise<GetAgentsRespons
   
   const response = await apiClient.get<GetAgentsResponse>(url);
   return response.data;
+};
+
+// Get agents in a store for admin
+export const getAgentsInStoreByAdmin = async (storeId: string): Promise<StoreAgent[]> => {
+  const response = await apiClient.get<
+    StoreAgent[] | { data?: StoreAgent[] | { agent?: StoreAgent[] }; agent?: StoreAgent[] }
+  >(`/api/users/getagentinstorebyadmin/${encodeURIComponent(storeId)}`);
+
+  const responseData = response.data;
+
+  if (Array.isArray(responseData)) {
+    return responseData;
+  }
+
+  if (Array.isArray(responseData?.data)) {
+    return responseData.data;
+  }
+
+  if (responseData?.data && !Array.isArray(responseData.data) && Array.isArray(responseData.data.agent)) {
+    return responseData.data.agent;
+  }
+
+  if (Array.isArray(responseData?.agent)) {
+    return responseData.agent;
+  }
+
+  return [];
 };
 
 // Register agent
@@ -456,11 +507,71 @@ export const updateNotificationPreferences = async (
 export const getAllUsers = async (): Promise<UserData[]> => {
   const response = await apiClient.get('/api/users/getallUsers');
   
- const rawUsers = (response.data.data || []) as User[];
+  // We extract the array from response.data.data
+  // and tell TypeScript it matches our UserData array.
+  return (response.data.data || []) as UserData[];
+};
 
-  return rawUsers.map((u: User) => ({
-    user: u
-  }));
+const extractUserList = (payload: unknown): UserData[] => {
+  if (Array.isArray(payload)) {
+    return payload as UserData[];
+  }
+
+  if (payload && typeof payload === 'object') {
+    const record = payload as {
+      data?: UserData[];
+      parents?: UserData[];
+      parent?: UserData[];
+      schools?: UserData[];
+      school?: UserData[];
+    };
+
+    return (
+      record.data ||
+      record.parents ||
+      record.parent ||
+      record.schools ||
+      record.school ||
+      []
+    ) as UserData[];
+  }
+
+  return [];
+};
+
+const tryUserListEndpoints = async (endpoints: string[]): Promise<UserData[]> => {
+  let lastError: unknown;
+
+  for (const endpoint of endpoints) {
+    try {
+      const response = await apiClient.get(endpoint);
+      return extractUserList(response.data);
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 404) {
+        lastError = error;
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  throw lastError ?? new Error(`No working endpoint found: ${endpoints.join(', ')}`);
+};
+
+export const getAllParents = async (): Promise<UserData[]> => {
+  return tryUserListEndpoints([
+    '/api/users/getallparents',
+    '/api/users/getallParents'
+  ]);
+};
+
+export const getAllSchools = async (): Promise<UserData[]> => {
+  return tryUserListEndpoints([
+    '/api/users/getallSchools',
+    '/api/users/getallschools',
+    '/api/users/getallschool'
+  ]);
 };
 
 

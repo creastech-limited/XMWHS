@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { 
   Users, 
@@ -18,11 +19,12 @@ import {
 } from 'lucide-react';
 import AdminSidebar from '../../components/Adminsidebar';
 import AdminHeader from '../../components/AdminHeader';
-import { getAllUsers } from '../../services';
+import { getAllParents, getAllUsers } from '../../services';
 import type { UserData } from '../../types'; // Use the imported type
 
 const AllUsers = () => {
   const { user: authUser } = useAuth() ?? {};
+  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeMenu, setActiveMenu] = useState('all-users');
   const [loading, setLoading] = useState(true);
@@ -34,15 +36,48 @@ const AllUsers = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
 
-  const fetchAllUsers = useCallback(async () => {
-    try {
-      const data = await getAllUsers();
-      setUsers(data);
-      setFilteredUsers(data);
-    } catch (error) {
-      console.error('Error fetching users:', error);
+  const sectionConfig = (() => {
+    if (location.pathname.endsWith('/schools')) {
+      return {
+        menuId: 'schools',
+        title: 'Schools',
+        description: 'Manage all school accounts',
+        defaultRole: 'school',
+        totalLabel: 'Total Schools'
+      };
     }
-  }, []);
+
+    if (location.pathname.endsWith('/parents')) {
+      return {
+        menuId: 'parents',
+        title: 'Parents',
+        description: 'Manage all parent accounts',
+        defaultRole: 'parent',
+        totalLabel: 'Total Parents'
+      };
+    }
+
+    return {
+      menuId: 'all-users',
+      title: 'User Management',
+      description: 'Manage all platform users',
+      defaultRole: 'all',
+      totalLabel: 'Total Users'
+    };
+  })();
+
+const fetchUsers = useCallback(async () => {
+  try {
+    const data = sectionConfig.defaultRole === 'parent'
+      ? await getAllParents()
+      : await getAllUsers();
+
+    setUsers(data);
+    setFilteredUsers(data);
+  } catch (error) {
+    console.error('Error fetching users:', error);
+  }
+}, [sectionConfig.defaultRole]);
 
   useEffect(() => {
     const initializeData = async () => {
@@ -66,7 +101,7 @@ const AllUsers = () => {
           return;
         }
 
-        await fetchAllUsers();
+        await fetchUsers();
 
       } catch (error) {
         console.error('Error initializing data:', error);
@@ -79,11 +114,21 @@ const AllUsers = () => {
     if (authUser !== undefined) {
       initializeData();
     }
-  }, [authUser?.token, fetchAllUsers, authUser]);
+  }, [authUser?.token, fetchUsers, authUser]);
+
+  useEffect(() => {
+    setActiveMenu(sectionConfig.menuId);
+    setRoleFilter('all');
+    setStatusFilter('all');
+    setSearchTerm('');
+    setCurrentPage(1);
+  }, [sectionConfig.menuId]);
 
   // Filter users based on search term and filters
   useEffect(() => {
-    let result = users;
+    let result = sectionConfig.defaultRole === 'all'
+      ? users
+      : users.filter((userData) => userData.user?.role === sectionConfig.defaultRole);
 
     // Apply search filter
     if (searchTerm) {
@@ -112,7 +157,11 @@ const AllUsers = () => {
 
     setFilteredUsers(result);
     setCurrentPage(1); // Reset to first page when filters change
-  }, [users, searchTerm, statusFilter, roleFilter]);
+  }, [users, searchTerm, statusFilter, roleFilter, sectionConfig.defaultRole]);
+
+  const scopedUsers = sectionConfig.defaultRole === 'all'
+    ? users
+    : users.filter((userData) => userData.user?.role === sectionConfig.defaultRole);
 
   // Pagination
   const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
@@ -203,8 +252,8 @@ const AllUsers = () => {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
-                <p className="text-gray-600 mt-1">Manage all platform users</p>
+                <h1 className="text-2xl font-bold text-gray-900">{sectionConfig.title}</h1>
+                <p className="text-gray-600 mt-1">{sectionConfig.description}</p>
               </div>
               <div className="flex space-x-3 mt-4 sm:mt-0">
                 <button className="bg-white border border-gray-300 rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center">
@@ -222,8 +271,8 @@ const AllUsers = () => {
                     <Users className="h-6 w-6 text-blue-600" />
                   </div>
                   <div className="ml-4">
-                    <p className="text-sm text-gray-600">Total Users</p>
-                    <p className="text-2xl font-bold text-gray-900">{users.length}</p>
+                    <p className="text-sm text-gray-600">{sectionConfig.totalLabel}</p>
+                    <p className="text-2xl font-bold text-gray-900">{scopedUsers.length}</p>
                   </div>
                 </div>
               </div>
@@ -234,9 +283,9 @@ const AllUsers = () => {
                     <CheckCircle className="h-6 w-6 text-green-600" />
                   </div>
                   <div className="ml-4">
-                    <p className="text-sm text-gray-600">Active Users</p>
+                    <p className="text-sm text-gray-600">Active Accounts</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {users.filter(u => u.user?.status === 'Active').length}
+                      {scopedUsers.filter(u => u.user?.status === 'Active').length}
                     </p>
                   </div>
                 </div>
@@ -248,9 +297,9 @@ const AllUsers = () => {
                     <User className="h-6 w-6 text-orange-600" />
                   </div>
                   <div className="ml-4">
-                    <p className="text-sm text-gray-600">Students</p>
+                    <p className="text-sm text-gray-600">Pending Accounts</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {users.filter(u => u.user?.role === 'student').length}
+                      {scopedUsers.filter(u => u.user?.status === 'Pending').length}
                     </p>
                   </div>
                 </div>
@@ -262,9 +311,9 @@ const AllUsers = () => {
                     <Shield className="h-6 w-6 text-purple-600" />
                   </div>
                   <div className="ml-4">
-                    <p className="text-sm text-gray-600">Staff/Admin</p>
+                    <p className="text-sm text-gray-600">Inactive Accounts</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {users.filter(u => u.user?.role && ['admin', 'staff'].includes(u.user.role)).length}
+                      {scopedUsers.filter(u => u.user?.status === 'Inactive').length}
                     </p>
                   </div>
                 </div>
@@ -300,17 +349,20 @@ const AllUsers = () => {
                     <option value="Pending">Pending</option>
                   </select>
                   
-                  <select
-                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
-                    value={roleFilter}
-                    onChange={(e) => setRoleFilter(e.target.value)}
-                  >
-                    <option value="all">All Roles</option>
-                    <option value="student">Student</option>
-                    <option value="admin">Admin</option>
-                    <option value="staff">Staff</option>
-                    <option value="parent">Parent</option>
-                  </select>
+                  {sectionConfig.defaultRole === 'all' && (
+                    <select
+                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
+                      value={roleFilter}
+                      onChange={(e) => setRoleFilter(e.target.value)}
+                    >
+                      <option value="all">All Roles</option>
+                      <option value="student">Student</option>
+                      <option value="admin">Admin</option>
+                      <option value="staff">Staff</option>
+                      <option value="school">School</option>
+                      <option value="parent">Parent</option>
+                    </select>
+                  )}
                 </div>
               </div>
             </div>
@@ -432,7 +484,7 @@ const AllUsers = () => {
                       <button
                         onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                         disabled={currentPage === 1}
-                        className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-3 py-1 border text-black border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <ChevronLeft size={16} />
                       </button>
@@ -465,7 +517,7 @@ const AllUsers = () => {
                       <button
                         onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                         disabled={currentPage === totalPages}
-                        className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-3 py-1 text-black border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <ChevronRight size={16} />
                       </button>

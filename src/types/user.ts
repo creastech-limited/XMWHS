@@ -90,6 +90,7 @@ export interface UserData {
   balance?: number;
   lastTransactions?: Transaction[];
   recentTransfers?: Transfer[];
+  
 
 }     
 /* ----------------------- WALLET ----------------------- */

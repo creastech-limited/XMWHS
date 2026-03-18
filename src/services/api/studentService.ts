@@ -1,5 +1,6 @@
 import { apiClient } from './client';
 import type {
+  Student,
   StudentsResponse,
   ParentsResponse,
   PinRequest,
@@ -13,6 +14,29 @@ import type { Charge } from '../../types';
 export const getStudentsBySchoolId = async (schoolId: string): Promise<StudentsResponse> => {
   const response = await apiClient.get<StudentsResponse>(`/api/users/getstudentbyid?id=${encodeURIComponent(schoolId)}`);
   return response.data;
+};
+
+// Get students in a school for admin
+export const getStudentsInSchoolByAdmin = async (schoolId: string): Promise<Student[]> => {
+  const response = await apiClient.get<
+    Student[] | { data?: Student[]; students?: Student[] }
+  >(`/api/users/getstudentinschoolbyadmin/${encodeURIComponent(schoolId)}`);
+
+  const responseData = response.data;
+
+  if (Array.isArray(responseData)) {
+    return responseData;
+  }
+
+  if (Array.isArray(responseData?.data)) {
+    return responseData.data;
+  }
+
+  if (Array.isArray(responseData?.students)) {
+    return responseData.students;
+  }
+
+  return [];
 };
 
 

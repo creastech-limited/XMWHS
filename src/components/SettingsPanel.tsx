@@ -799,7 +799,7 @@ const SettingsPanel = () => {
                             onClick={handleOpenResetModal}
                             className="text-sm text-indigo-600 hover:text-indigo-800 hover:bg-indigo-600 font-medium underline underline-offset-4 justify-end"
                           >
-                            Forgot PIN? Reset via OTP
+                            Forgot PIN?
                           </button>
                         )}
                         <button
