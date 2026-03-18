@@ -2,7 +2,8 @@
 export interface Student {
   _id: string;
   firstName: string;        
-  lastName: string;        
+  lastName: string;  
+  fullName?: string;      
   name: string;            
   email: string;            
   phone: string;            
@@ -27,8 +28,10 @@ export interface Student {
   updatedAt: string;        
   isPinSet: boolean;       
   isFirstLogin: boolean;    
-  profilePicture?: string;  
-  qrcode?: string;          
+  profilePicture?: string; 
+   profilePics?: string; 
+  qrcode?: string;
+   QRcode?: string;          
   accountNumber?: string;   
   
   // Permission flags 
