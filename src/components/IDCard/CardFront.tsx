@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 
 export interface Student {
   id: string;
@@ -28,9 +28,28 @@ function SchoolCrest({ size = 52 }: { size?: number }) {
   );
 }
 
-// Renders real QR if data is a base64/URL image, otherwise falls back to pattern
-function QRDisplay({ data, size = 88 }: { data: string; size?: number }) {
-  const isImage = data.startsWith("data:image") || data.startsWith("http") || data.startsWith("/uploads");
+// Converts any image URL to base64 so html2canvas can render it without CORS issues
+async function toBase64(url: string): Promise<string> {
+  try {
+    const res = await fetch(url, { mode: "cors" });
+    const blob = await res.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return url; // fallback to original URL if fetch fails
+  }
+}
+
+function QRDisplay({ data, size = 78 }: { data: string; size?: number }) {
+  const isImage =
+    data.startsWith("data:image") ||
+    data.startsWith("http") ||
+    data.startsWith("/uploads");
+
   if (isImage) {
     return (
       <img
@@ -38,13 +57,12 @@ function QRDisplay({ data, size = 88 }: { data: string; size?: number }) {
         alt="QR Code"
         width={size}
         height={size}
-        crossOrigin="anonymous"
-        style={{ objectFit: "contain", display: "block" }}
+        style={{ objectFit: "contain", display: "block", imageRendering: "pixelated" }}
       />
     );
   }
 
-  // Fallback pattern for text-based qrData
+  // Fallback SVG pattern for non-image qrData
   const seed = data.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
   const cells = 10;
   const cellSize = size / (cells + 2);
@@ -87,6 +105,36 @@ interface CardFrontProps {
 
 const CardFront = React.forwardRef<HTMLDivElement, CardFrontProps>(
   ({ student }, ref) => {
+    // Convert remote photo URL to base64 so html2canvas can render it
+    const [photoSrc, setPhotoSrc] = useState<string>(student.photoUrl);
+    const [qrSrc, setQrSrc] = useState<string>(student.qrData);
+
+    useEffect(() => {
+      // Photo: if it's a remote URL (not already base64), convert it
+      if (
+        student.photoUrl &&
+        !student.photoUrl.startsWith("data:") &&
+        (student.photoUrl.startsWith("http") || student.photoUrl.startsWith("/"))
+      ) {
+        toBase64(student.photoUrl).then(setPhotoSrc);
+      } else {
+        setPhotoSrc(student.photoUrl);
+      }
+    }, [student.photoUrl]);
+
+    useEffect(() => {
+      // QR: if it's a remote URL (not already base64), convert it
+      if (
+        student.qrData &&
+        !student.qrData.startsWith("data:") &&
+        (student.qrData.startsWith("http") || student.qrData.startsWith("/"))
+      ) {
+        toBase64(student.qrData).then(setQrSrc);
+      } else {
+        setQrSrc(student.qrData);
+      }
+    }, [student.qrData]);
+
     return (
       <div
         ref={ref}
@@ -94,7 +142,10 @@ const CardFront = React.forwardRef<HTMLDivElement, CardFrontProps>(
         className="flex overflow-hidden rounded-xl border border-gray-200 bg-white shadow-md flex-shrink-0"
       >
         {/* Red side banner */}
-        <div className="flex items-center justify-center flex-shrink-0" style={{ width: 38, background: "#c0392b" }}>
+        <div
+          className="flex items-center justify-center flex-shrink-0"
+          style={{ width: 38, background: "#c0392b" }}
+        >
           <span
             style={{
               fontFamily: "'Oswald', sans-serif",
@@ -123,15 +174,14 @@ const CardFront = React.forwardRef<HTMLDivElement, CardFrontProps>(
 
           {/* Photo */}
           <div
-            className="overflow-hidden bg-gray-100 flex-shrink-0"
-            style={{ width: 110, height: 130, border: "2px solid #ddd", marginBottom: 8 }}
+            className="overflow-hidden flex-shrink-0"
+            style={{ width: 110, height: 130, border: "2px solid #ddd", marginBottom: 8, background: "#f0f0f0" }}
           >
-            {student.photoUrl ? (
+            {photoSrc ? (
               <img
-                src={student.photoUrl}
+                src={photoSrc}
                 alt={student.name}
-                crossOrigin="anonymous"
-                className="w-full h-full object-cover"
+                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
               />
             ) : (
@@ -164,7 +214,8 @@ const CardFront = React.forwardRef<HTMLDivElement, CardFrontProps>(
             </svg>
           </div>
 
-          <QRDisplay data={student.qrData} size={78} />
+          {/* QR Code */}
+          <QRDisplay data={qrSrc} size={78} />
 
           {/* Footer */}
           <div

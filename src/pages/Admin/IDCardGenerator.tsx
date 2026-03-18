@@ -220,7 +220,7 @@ const IDCardGenerator = () => {
   // ── PDF generation
   const runPDFGeneration = async (studentList: NormalisedStudent[]) => {
     setRenderBatch(studentList);
-    await new Promise((r) => setTimeout(r, 300));
+    await new Promise((r) => setTimeout(r, 1500)); // wait for base64 image conversions
     setGenerating(true);
     setProgress({ current: 0, total: studentList.length, name: '' });
 
@@ -537,10 +537,9 @@ const IDCardGenerator = () => {
                 {paginated.length > 0 ? paginated.map((s) => (
                   <tr
                     key={s._id}
-                    className={`hover:bg-gray-50 cursor-pointer transition-colors ${selected.has(s._id) ? 'bg-blue-50' : ''}`}
-                    onClick={() => toggleSelect(s._id)}
+                    className={`hover:bg-gray-50 transition-colors ${selected.has(s._id) ? 'bg-blue-50' : ''}`}
                   >
-                    <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-6 py-4">
                       <input
                         type="checkbox"
                         className="cursor-pointer"
@@ -548,7 +547,7 @@ const IDCardGenerator = () => {
                         onChange={() => toggleSelect(s._id)}
                       />
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => toggleSelect(s._id)}>
                       <div className="flex items-center gap-3">
                         {s.photoUrl ? (
                           <img
@@ -569,13 +568,13 @@ const IDCardGenerator = () => {
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden md:table-cell">{s.email}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden md:table-cell cursor-pointer" onClick={() => toggleSelect(s._id)}>{s.email}</td>
+                    <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => toggleSelect(s._id)}>
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                         {s.className || '—'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => toggleSelect(s._id)}>
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                         s.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
                       }`}>
@@ -586,7 +585,7 @@ const IDCardGenerator = () => {
                         {s.status}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => toggleSelect(s._id)}>
                       {s.photoUrl ? (
                         <span className="inline-flex items-center gap-1 text-xs text-green-600">
                           <CheckCircle size={12} /> Ready
@@ -595,10 +594,11 @@ const IDCardGenerator = () => {
                         <span className="text-xs text-amber-500">No photo</span>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-6 py-4 whitespace-nowrap text-right">
                       <button
-                        className="text-blue-600 hover:text-blue-900 p-1"
-                        onClick={() => setPreviewStudent(s)}
+                        className="text-blue-600 hover:text-blue-900 p-1 hover:bg-blue-50 rounded transition"
+                        onClick={(e) => { e.stopPropagation(); setPreviewStudent(s); }}
+                        title="Preview ID Card"
                       >
                         <Eye size={16} />
                       </button>
@@ -690,8 +690,12 @@ const IDCardGenerator = () => {
           className="fixed inset-0 bg-black/85 flex flex-col items-center justify-center z-50 p-6 overflow-y-auto"
           onClick={() => setPreviewStudent(null)}
         >
+          {/* Hidden render for single card PDF */}
+          <HiddenRenderLayer students={[previewStudent]} />
+
           <p className="text-white font-semibold text-lg mb-1">{previewStudent.displayName}</p>
-          <p className="text-gray-400 text-xs mb-5">Click anywhere to close</p>
+          <p className="text-gray-400 text-xs mb-2">{previewStudent.className} · {previewStudent.student_id}</p>
+          <p className="text-gray-500 text-xs mb-5">Click outside the cards to close</p>
           <div className="flex gap-5 flex-wrap justify-center" onClick={(e) => e.stopPropagation()}>
             <div>
               <p className="text-xs text-gray-400 text-center mb-2 tracking-widest uppercase">Front</p>
@@ -712,12 +716,20 @@ const IDCardGenerator = () => {
               <CardBack />
             </div>
           </div>
-          <button
-            className="mt-6 bg-blue-600 hover:bg-blue-700 rounded-xl px-6 py-3 text-sm font-bold text-white flex items-center gap-2 transition"
-            onClick={async () => { setPreviewStudent(null); await runPDFGeneration([previewStudent]); }}
-          >
-            <Download className="w-4 h-4" /> Download This Card
-          </button>
+          <div className="flex gap-3 mt-6" onClick={(e) => e.stopPropagation()}>
+            <button
+              className="border border-gray-500 rounded-xl px-5 py-2.5 text-sm font-medium text-gray-300 hover:bg-white/10 transition"
+              onClick={() => setPreviewStudent(null)}
+            >
+              Close
+            </button>
+            <button
+              className="bg-blue-600 hover:bg-blue-700 rounded-xl px-6 py-2.5 text-sm font-bold text-white flex items-center gap-2 transition"
+              onClick={async () => { setPreviewStudent(null); await runPDFGeneration([previewStudent]); }}
+            >
+              <Download className="w-4 h-4" /> Download This Card
+            </button>
+          </div>
         </div>
       )}
     </Layout>
