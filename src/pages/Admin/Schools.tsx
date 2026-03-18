@@ -7,15 +7,16 @@ import {
   UserRound,
   Shield,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import AdminSidebar from '../../components/Adminsidebar';
 import AdminHeader from '../../components/AdminHeader';
 import { getAgentsInStoreByAdmin, getAllSchools, getStoresInSchoolByAdmin, getStudentsInSchoolByAdmin } from '../../services';
-import type { Store, StoreAgent, Student, User, UserData } from '../../types';
+import type { Store, StoreAgent, Student, School as AdminSchool, SchoolsResponse, StudentsInSchoolResponse } from '../../types';
 
-type SchoolUser = User;
 type ResourceTab = 'students' | 'agents' | 'stores';
 type AdminAgent = StoreAgent & { storeId?: string; storeName?: string; status?: string };
 
@@ -38,7 +39,7 @@ const Schools = () => {
   const [loading, setLoading] = useState(true);
   const [schoolsLoading, setSchoolsLoading] = useState(true);
   const [detailsLoading, setDetailsLoading] = useState(false);
-  const [schools, setSchools] = useState<SchoolUser[]>([]);
+  const [schools, setSchools] = useState<AdminSchool[]>([]);
   const [selectedSchoolId, setSelectedSchoolId] = useState('');
   const [schoolSearch, setSchoolSearch] = useState('');
   const [resourceSearch, setResourceSearch] = useState('');
@@ -47,26 +48,17 @@ const Schools = () => {
   const [activeTab, setActiveTab] = useState<ResourceTab>('students');
   const [resources, setResources] = useState<SchoolResourceState>(EMPTY_RESOURCES);
 
-  const extractUser = (entry: UserData): User | null => entry.user ?? null;
+  const getSchoolIdentifier = (school: AdminSchool) => school.schoolId || school.school_id || school._id || '';
 
-  const getSchoolIdentifier = (school: SchoolUser) => school.schoolId || school._id;
-
-  const getSchoolLabel = (school: SchoolUser) =>
-    school.schoolName || school.name || `${school.firstName || ''} ${school.lastName || ''}`.trim() || 'Unnamed School';
+  const getSchoolLabel = (school: AdminSchool) => school.schoolName || 'Unnamed School';
 
   const fetchSchools = useCallback(async () => {
     try {
       setSchoolsLoading(true);
-      const data = await getAllSchools();
-      const schoolUsers = data
-        .map(extractUser)
-        .filter((user): user is User => Boolean(user && user.role === 'school'));
+      const response = await getAllSchools();
+      const schoolUsers = (response as SchoolsResponse).data ?? (response as SchoolsResponse).schools ?? [];
 
       setSchools(schoolUsers);
-
-      if (!selectedSchoolId && schoolUsers.length > 0) {
-        setSelectedSchoolId(getSchoolIdentifier(schoolUsers[0]));
-      }
     } catch (error) {
       console.error('Error fetching schools:', error);
       setSchools([]);
@@ -89,6 +81,9 @@ const Schools = () => {
         getStudentsInSchoolByAdmin(schoolId),
         getStoresInSchoolByAdmin(schoolId)
       ]);
+      const students = (studentsResponse as StudentsInSchoolResponse).data ??
+        (studentsResponse as StudentsInSchoolResponse).students ??
+        [];
 
       const agentGroups = await Promise.all(
         storesResponse.map(async (store) => {
@@ -103,7 +98,7 @@ const Schools = () => {
       );
 
       setResources({
-        students: studentsResponse,
+        students,
         agents: agentGroups.flat(),
         stores: storesResponse
       });
@@ -127,6 +122,11 @@ const Schools = () => {
   }, [authUser?.token, fetchSchools]);
 
   useEffect(() => {
+    if (!selectedSchoolId) {
+      setResources(EMPTY_RESOURCES);
+      return;
+    }
+
     fetchSchoolResources(selectedSchoolId);
   }, [selectedSchoolId, fetchSchoolResources]);
 
@@ -142,7 +142,8 @@ const Schools = () => {
     const query = schoolSearch.toLowerCase();
     return schools.filter((school) =>
       getSchoolLabel(school).toLowerCase().includes(query) ||
-      school.email?.toLowerCase().includes(query) ||
+      school.schoolEmail?.toLowerCase().includes(query) ||
+      school.schoolPhone?.toLowerCase().includes(query) ||
       getSchoolIdentifier(school).toLowerCase().includes(query)
     );
   }, [schoolSearch, schools]);
@@ -245,6 +246,99 @@ const Schools = () => {
     );
   }
 
+  if (!selectedSchool) {
+    return (
+      <div className="flex h-screen bg-gray-100">
+        <AdminSidebar
+          sidebarOpen={sidebarOpen}
+          setSidebarOpen={setSidebarOpen}
+          activeMenu={activeMenu}
+          setActiveMenu={setActiveMenu}
+        />
+
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <AdminHeader
+            sidebarOpen={sidebarOpen}
+            setSidebarOpen={setSidebarOpen}
+            activeMenu={activeMenu}
+          />
+
+          <main className="flex-1 overflow-y-auto bg-gray-50 p-6">
+            <div className="max-w-7xl mx-auto space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-900">School Management</h1>
+                  <p className="text-gray-600 mt-1">Select a school to view its students, agents, and stores.</p>
+                </div>
+                <div className="mt-4 sm:mt-0 bg-white border border-gray-200 rounded-lg px-4 py-3 shadow-sm">
+                  <p className="text-xs uppercase tracking-wide text-gray-500">Schools</p>
+                  <p className="text-2xl font-bold text-gray-900">{schools.length}</p>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
+                <div className="relative max-w-md">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <input
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-black"
+                    placeholder="Search schools..."
+                    value={schoolSearch}
+                    onChange={(e) => setSchoolSearch(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {schoolsLoading && (
+                <div className="flex justify-center py-12">
+                  <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500" />
+                </div>
+              )}
+
+              {!schoolsLoading && filteredSchools.length === 0 && (
+                <p className="text-gray-400 text-sm text-center py-12">No schools found.</p>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {filteredSchools.map((school) => {
+                  const schoolId = getSchoolIdentifier(school);
+                  return (
+                    <button
+                      key={schoolId}
+                      type="button"
+                      onClick={() => setSelectedSchoolId(schoolId)}
+                      className="bg-white border border-gray-200 rounded-lg p-5 text-left hover:border-blue-400 hover:shadow-md transition-all duration-200 group shadow-sm"
+                    >
+                      <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-4 text-white font-bold text-lg overflow-hidden bg-blue-600">
+                        {school.logo ? (
+                          <img src={school.logo} alt={getSchoolLabel(school)} className="w-full h-full object-cover" />
+                        ) : (
+                          getSchoolLabel(school).charAt(0).toUpperCase()
+                        )}
+                      </div>
+                      <h3 className="font-semibold text-gray-900 text-sm group-hover:text-blue-700 transition-colors leading-snug mb-1">
+                        {getSchoolLabel(school)}
+                      </h3>
+                      {school.schoolEmail && (
+                        <p className="text-xs text-gray-400 truncate">{school.schoolEmail}</p>
+                      )}
+                      {school.schoolAddress && (
+                        <p className="text-xs text-gray-400 truncate mt-0.5">{school.schoolAddress}</p>
+                      )}
+                      <div className="mt-3 flex items-center gap-1 text-xs font-medium text-blue-600">
+                        View School
+                        <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen bg-gray-100">
       <AdminSidebar
@@ -264,9 +358,18 @@ const Schools = () => {
         <main className="flex-1 overflow-y-auto bg-gray-50 p-6">
           <div className="max-w-7xl mx-auto space-y-6">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">School Management</h1>
-                <p className="text-gray-600 mt-1">Attach and review students, agents, and stores for each school.</p>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSelectedSchoolId('')}
+                  className="text-gray-400 hover:text-gray-700 transition p-1.5 rounded-lg hover:bg-gray-100 border border-gray-200"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-900">{getSchoolLabel(selectedSchool)}</h1>
+                  <p className="text-gray-600 mt-1">View students, agents, and stores attached to this school.</p>
+                </div>
               </div>
               <div className="flex items-center gap-3">
                 <div className="bg-white border border-gray-200 rounded-lg px-4 py-3 shadow-sm">
@@ -275,108 +378,48 @@ const Schools = () => {
                 </div>
               </div>
             </div>
-
-            <div className="grid grid-cols-1 xl:grid-cols-[320px,1fr] gap-6">
-              <section className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="p-4 border-b border-gray-200">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input
-                      type="text"
-                      value={schoolSearch}
-                      onChange={(e) => setSchoolSearch(e.target.value)}
-                      placeholder="Search schools"
-                      className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
-                    />
-                  </div>
-                </div>
-
-                <div className="max-h-[70vh] overflow-y-auto divide-y divide-gray-100">
-                  {schoolsLoading ? (
-                    <div className="p-6 text-center text-gray-500">Loading schools...</div>
-                  ) : filteredSchools.length === 0 ? (
-                    <div className="p-6 text-center text-gray-500">No schools found.</div>
-                  ) : (
-                    filteredSchools.map((school) => {
-                      const schoolId = getSchoolIdentifier(school);
-                      const isActive = schoolId === selectedSchoolId;
-
-                      return (
-                        <button
-                          key={schoolId}
-                          type="button"
-                          onClick={() => setSelectedSchoolId(schoolId)}
-                          className={`w-full text-left p-4 transition-colors ${
-                            isActive ? 'bg-blue-50 border-l-4 border-blue-600' : 'hover:bg-gray-50'
-                          }`}
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="font-semibold text-gray-900">{getSchoolLabel(school)}</p>
-                              <p className="text-sm text-gray-500">{school.email || 'No email'}</p>
-                              <p className="text-xs text-gray-400 mt-1">ID: {schoolId}</p>
-                            </div>
-                            <span className={`text-xs px-2 py-1 rounded-full ${
-                              school.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
-                            }`}>
-                              {school.status || 'Unknown'}
-                            </span>
-                          </div>
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              </section>
-
-              <section className="space-y-6">
+            <section className="space-y-6">
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                  {selectedSchool ? (
-                    <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-                      <div>
-                        <div className="flex items-center gap-2 text-blue-600 mb-2">
-                          <Building2 className="w-5 h-5" />
-                          <span className="font-medium">Selected School</span>
-                        </div>
-                        <h2 className="text-2xl font-bold text-gray-900">{getSchoolLabel(selectedSchool)}</h2>
-                        <p className="text-gray-600 mt-1">{selectedSchool.email || 'No email available'}</p>
-                        <div className="flex flex-wrap gap-2 mt-4">
+                  <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2 text-blue-600 mb-2">
+                        <Building2 className="w-5 h-5" />
+                        <span className="font-medium">Selected School</span>
+                      </div>
+                      <h2 className="text-2xl font-bold text-gray-900">{getSchoolLabel(selectedSchool)}</h2>
+                      <p className="text-gray-600 mt-1">{selectedSchool.schoolEmail || 'No email available'}</p>
+                      <div className="flex flex-wrap gap-2 mt-4">
+                        <span className="bg-gray-100 text-gray-700 text-xs px-3 py-1 rounded-full">
+                          ID: {getSchoolIdentifier(selectedSchool)}
+                        </span>
+                        {selectedSchool.schoolPhone && (
                           <span className="bg-gray-100 text-gray-700 text-xs px-3 py-1 rounded-full">
-                            ID: {getSchoolIdentifier(selectedSchool)}
+                            {selectedSchool.schoolPhone}
                           </span>
-                          {selectedSchool.phone && (
-                            <span className="bg-gray-100 text-gray-700 text-xs px-3 py-1 rounded-full">
-                              {selectedSchool.phone}
-                            </span>
-                          )}
-                          <span className={`text-xs px-3 py-1 rounded-full ${
-                            selectedSchool.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
-                          }`}>
-                            {selectedSchool.status || 'Unknown'}
-                          </span>
-                        </div>
+                        )}
+                        <span className={`text-xs px-3 py-1 rounded-full ${
+                          selectedSchool.schoolStatus === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+                        }`}>
+                          {selectedSchool.schoolStatus || 'Unknown'}
+                        </span>
                       </div>
+                    </div>
 
-                      <div className="grid grid-cols-3 gap-3 min-w-[280px]">
-                        <div className="bg-blue-50 rounded-lg p-4">
-                          <p className="text-xs text-blue-700">Students</p>
-                          <p className="text-2xl font-bold text-blue-900">{stats.students}</p>
-                        </div>
-                        <div className="bg-cyan-50 rounded-lg p-4">
-                          <p className="text-xs text-cyan-700">Agents</p>
-                          <p className="text-2xl font-bold text-cyan-900">{stats.agents}</p>
-                        </div>
-                        <div className="bg-amber-50 rounded-lg p-4">
-                          <p className="text-xs text-amber-700">Stores</p>
-                          <p className="text-2xl font-bold text-amber-900">{stats.stores}</p>
-                        </div>
+                    <div className="grid grid-cols-3 gap-3 min-w-[280px]">
+                      <div className="bg-blue-50 rounded-lg p-4">
+                        <p className="text-xs text-blue-700">Students</p>
+                        <p className="text-2xl font-bold text-blue-900">{stats.students}</p>
+                      </div>
+                      <div className="bg-cyan-50 rounded-lg p-4">
+                        <p className="text-xs text-cyan-700">Agents</p>
+                        <p className="text-2xl font-bold text-cyan-900">{stats.agents}</p>
+                      </div>
+                      <div className="bg-amber-50 rounded-lg p-4">
+                        <p className="text-xs text-amber-700">Stores</p>
+                        <p className="text-2xl font-bold text-amber-900">{stats.stores}</p>
                       </div>
                     </div>
-                  ) : (
-                    <div className="text-center py-12 text-gray-500">
-                      Select a school to view its students, agents, and stores.
-                    </div>
-                  )}
+                  </div>
                 </div>
 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200">
@@ -587,8 +630,7 @@ const Schools = () => {
                     </div>
                   </div>
                 </div>
-              </section>
-            </div>
+            </section>
           </div>
         </main>
       </div>

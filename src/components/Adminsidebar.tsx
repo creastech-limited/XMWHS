@@ -12,7 +12,8 @@ import {
   Settings,
   AlertCircle,
   UserCog,
-  User
+  User,
+  IdCard
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -161,15 +162,21 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, activeMenu, setActiveMenu }
       ]
     },
     {
-      id: 'user-management',
-      label: 'User Management',
+      id: 'management',
+      label: 'Management',
       icon: UserCog,
       hasSubMenu: true,
       subItems: [
-        { id: 'all-users', label: 'All Users', icon: Users, path: '/admin/usermanagent/all-users' },
-        { id: 'schools', label: 'Schools', icon: Users, path: '/admin/usermanagent/schools' },
-        { id: 'parents', label: 'Parents', icon: User, path: '/admin/usermanagent/parents' }
+        { id: 'all-users', label: 'All Users', icon: Users, path: '/admin/management/all-users' },
+        { id: 'schools', label: 'Schools', icon: Users, path: '/admin/management/schools' },
+        { id: 'parents', label: 'Parents', icon: User, path: '/admin/management/parents' }
       ]
+    },
+    {
+      id: 'id-cards',
+      label: 'ID Cards',
+      icon: IdCard,
+      path: '/admin/id-cards'
     },
     {
       id: 'disputes',

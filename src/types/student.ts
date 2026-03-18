@@ -211,3 +211,33 @@ export interface ApiTransaction {
   status: string;
 }
 
+export interface School {
+  _id?: string;
+  school_id?: string;
+  schoolName?: string;
+  schoolEmail?: string;
+  schoolPhone?: string;
+  schoolAddress?: string;
+  schoolType?: string;
+  schoolStatus?: string;
+  schoolId?: string;
+  studentCount?: number;
+  logo?: string;
+}
+ 
+export interface SchoolsResponse {
+  data?: School[];
+  schools?: School[];
+  message?: string;
+}
+ 
+export interface StudentsInSchoolResponse {
+  data?: Student[];
+  students?: Student[];
+  message?: string;
+}
+ 
+export interface ZipUploadResponse {
+  message: string;
+  updated: number;
+}

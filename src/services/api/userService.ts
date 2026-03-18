@@ -566,14 +566,6 @@ export const getAllParents = async (): Promise<UserData[]> => {
   ]);
 };
 
-export const getAllSchools = async (): Promise<UserData[]> => {
-  return tryUserListEndpoints([
-    '/api/users/getallSchools',
-    '/api/users/getallschools',
-    '/api/users/getallschool'
-  ]);
-};
-
 
 // Service to fetch dashboard data for admin overview
 

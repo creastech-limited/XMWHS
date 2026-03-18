@@ -1,13 +1,12 @@
 import { apiClient } from './client';
 import type {
-  Student,
   StudentsResponse,
   ParentsResponse,
   PinRequest,
   PinResponse,
   StudentDetails, StudentProfileFormData,
   SchoolFee,
-  Kid,
+  Kid, StudentsInSchoolResponse, ZipUploadResponse,SchoolsResponse,
 } from '../../types/student';
 import type { Charge } from '../../types';
 // Get students by school ID
@@ -15,31 +14,6 @@ export const getStudentsBySchoolId = async (schoolId: string): Promise<StudentsR
   const response = await apiClient.get<StudentsResponse>(`/api/users/getstudentbyid?id=${encodeURIComponent(schoolId)}`);
   return response.data;
 };
-
-// Get students in a school for admin
-export const getStudentsInSchoolByAdmin = async (schoolId: string): Promise<Student[]> => {
-  const response = await apiClient.get<
-    Student[] | { data?: Student[]; students?: Student[] }
-  >(`/api/users/getstudentinschoolbyadmin/${encodeURIComponent(schoolId)}`);
-
-  const responseData = response.data;
-
-  if (Array.isArray(responseData)) {
-    return responseData;
-  }
-
-  if (Array.isArray(responseData?.data)) {
-    return responseData.data;
-  }
-
-  if (Array.isArray(responseData?.students)) {
-    return responseData.students;
-  }
-
-  return [];
-};
-
-
 
 // Get parents
 export const getParents = async (): Promise<ParentsResponse> => {
@@ -287,4 +261,29 @@ export const getTransferCharge = async (): Promise<number> => {
   return 0;
 };
 
-
+export const getStudentsInSchoolByAdmin = async (
+  schoolId: string
+): Promise<StudentsInSchoolResponse> => {
+  const response = await apiClient.get<StudentsInSchoolResponse>(
+    `/api/users/getstudentinschoolbyadmin/${schoolId}`
+  );
+  return response.data;
+};
+ 
+// Bulk upload student profile pictures via zip
+export const uploadStudentPhotosZip = async (file: File): Promise<ZipUploadResponse> => {
+  const formData = new FormData();
+  formData.append('file', file);
+ 
+  const response = await apiClient.post<ZipUploadResponse>(
+    '/api/users/upload-zip',
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' } }
+  );
+  return response.data;
+};
+// Get all schools (Admin)
+export const getAllSchools = async (): Promise<SchoolsResponse> => {
+  const response = await apiClient.get<SchoolsResponse>('/api/users/getallSchools');
+  return response.data;
+};
