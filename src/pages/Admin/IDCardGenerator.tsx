@@ -15,7 +15,7 @@ import AdminHeader from '../../components/AdminHeader';
 import type { Student, School, SchoolsResponse } from '../../types/student';
 import {
   getAllSchools,
-  getStudentsBySchoolId,
+  getStudentsInSchoolByAdmin,
   uploadStudentPhotosZip,
 } from '../../services/api/studentService';
 import CardFront from '../../components/IDCard/CardFront';
@@ -26,19 +26,24 @@ function normaliseStudents(raw: Student[]) {
   return raw.map((s) => ({
     ...s,
     displayName:
-      s.firstName && s.lastName
-        ? `${s.firstName} ${s.lastName}`
-        : s.name || 'Unknown',
-    // profilePicture may be a relative path — prefix with API base URL
-    photoUrl: s.profilePicture
-      ? s.profilePicture.startsWith('http')
-        ? s.profilePicture
-        : `${import.meta.env.VITE_API_BASE_URL ?? ''}${s.profilePicture}`
-      : '',
-    // qrcode is already a base64 data URI from the API
-    qrData: s.qrcode ?? `GRACE-${s._id}`,
-    // Class field is an ID — use academicDetails instead
-    className: s.academicDetails?.classAdmittedTo ?? s.classAdmittedTo ?? '',
+      s.fullName ||
+      (s.firstName && s.lastName ? `${s.firstName} ${s.lastName}` : '') ||
+      s.name ||
+      'Unknown',
+    // API returns "profilePics" (not profilePicture)
+    photoUrl: s.profilePics
+      ? s.profilePics.startsWith('http')
+        ? s.profilePics
+        : `${import.meta.env.VITE_API_BASE_URL ?? ''}${s.profilePics}`
+      : s.profilePicture
+        ? s.profilePicture.startsWith('http')
+          ? s.profilePicture
+          : `${import.meta.env.VITE_API_BASE_URL ?? ''}${s.profilePicture}`
+        : '',
+    // API returns "QRcode" (capital QR)
+    qrData: s.QRcode ?? s.qrcode ?? `GRACE-${s._id}`,
+    // API returns "Class" as a string e.g. "JSS 1" in this endpoint
+    className: s.Class ?? s.academicDetails?.classAdmittedTo ?? s.classAdmittedTo ?? '',
     session: '2024/2025',
   }));
 }
@@ -140,10 +145,10 @@ const IDCardGenerator = () => {
     setZipResult(null);
     setZipError('');
 
-    const id = selectedSchool.school_id ?? selectedSchool._id ?? '';
-    getStudentsBySchoolId(id)
+    const id = selectedSchool.schoolId ?? selectedSchool.school_id ?? selectedSchool._id ?? '';
+    getStudentsInSchoolByAdmin(id)
       .then((res) => {
-        const raw = res.data ?? [];
+        const raw = res.data ?? res.students ?? [];
         setStudents(normaliseStudents(raw));
       })
       .catch((e: { response?: { data?: { message?: string } } }) =>
@@ -200,9 +205,9 @@ const IDCardGenerator = () => {
       const result = await uploadStudentPhotosZip(file);
       setZipResult(result);
       if (selectedSchool) {
-        const id = selectedSchool.school_id ?? selectedSchool._id ?? '';
-        const res = await getStudentsBySchoolId(id);
-        setStudents(normaliseStudents(res.data ?? []));
+        const id = selectedSchool.schoolId ?? selectedSchool.school_id ?? selectedSchool._id ?? '';
+        const res = await getStudentsInSchoolByAdmin(id);
+        setStudents(normaliseStudents(res.data ?? res.students ?? []));
       }
     } catch (e: unknown) {
       const err = e as { response?: { data?: { message?: string } } };
@@ -545,9 +550,9 @@ const IDCardGenerator = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-3">
-                        {s.profilePicture ? (
+                        {s.photoUrl ? (
                           <img
-                            src={s.profilePicture}
+                            src={s.photoUrl}
                             alt={s.displayName}
                             crossOrigin="anonymous"
                             className="w-9 h-9 rounded-full object-cover border border-gray-200 flex-shrink-0"
@@ -582,7 +587,7 @@ const IDCardGenerator = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {s.profilePicture ? (
+                      {s.photoUrl ? (
                         <span className="inline-flex items-center gap-1 text-xs text-green-600">
                           <CheckCircle size={12} /> Ready
                         </span>
