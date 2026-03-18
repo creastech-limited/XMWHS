@@ -402,10 +402,12 @@ export const updateUserProfile = async (userId: string, profileData: UpdateUserP
   return response.data;
 };
 
+//update passsword
 export const updateUserPassword = async (payload: UpdatePasswordPayload): Promise<void> => {
   await apiClient.post('/api/users/updatePassword', payload);
 };
 
+//set account pin
 export const setAccountPin = async (payload: SetPinPayload): Promise<void> => {
   await apiClient.post('/api/pin/set', payload);
 };
