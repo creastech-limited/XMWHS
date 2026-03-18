@@ -15,8 +15,6 @@ export const getStudentsBySchoolId = async (schoolId: string): Promise<StudentsR
   return response.data;
 };
 
-
-
 // Get parents
 export const getParents = async (): Promise<ParentsResponse> => {
   const response = await apiClient.get<ParentsResponse>('/api/users/getparents');

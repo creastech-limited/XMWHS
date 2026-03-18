@@ -4,7 +4,6 @@ import {
   CreditCard, 
   Vault, 
   Users, 
-  Shield,  
   LogOut,
   ChevronDown,
   ChevronRight,
@@ -13,6 +12,7 @@ import {
   Settings,
   AlertCircle,
   UserCog,
+  User,
   IdCard
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
@@ -118,6 +118,31 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, activeMenu, setActiveMenu }
     return 'Admin';
   };
 
+  const itemHasActiveDescendant = (item: MenuItem, targetId: string): boolean => {
+    return item.subItems?.some((subItem) => {
+      if (subItem.id === targetId) return true;
+      return itemHasActiveDescendant(subItem, targetId);
+    }) ?? false;
+  };
+
+  const getAncestorIds = (items: MenuItem[], targetId: string, trail: string[] = []): string[] => {
+    for (const item of items) {
+      const nextTrail = [...trail, item.id];
+      if (item.id === targetId) {
+        return trail;
+      }
+
+      if (item.subItems?.length) {
+        const foundTrail = getAncestorIds(item.subItems, targetId, nextTrail);
+        if (foundTrail.length) {
+          return foundTrail;
+        }
+      }
+    }
+
+    return [];
+  };
+
   const menuItems: MenuItem[] = [
     {
       id: 'overview',
@@ -139,21 +164,20 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, activeMenu, setActiveMenu }
     {
       id: 'management',
       label: 'Management',
-      icon: Users,
+      icon: UserCog,
       hasSubMenu: true,
       subItems: [
         { id: 'all-users', label: 'All Users', icon: Users, path: '/admin/management/all-users' },
-        { id: 'staffs', label: 'Staffs', icon: UserCog, path: '/admin/management/staffs' },
-        { id: 'role-permission', label: 'Role & Permission', icon: Shield, path: '/admin/management/roles' }
+        { id: 'schools', label: 'Schools', icon: Users, path: '/admin/management/schools' },
+        { id: 'parents', label: 'Parents', icon: User, path: '/admin/management/parents' }
       ]
     },
-
     {
-  id: 'id-cards',
-  label: 'ID Cards',
-  icon: IdCard,
-  path: '/admin/id-cards'
-},
+      id: 'id-cards',
+      label: 'ID Cards',
+      icon: IdCard,
+      path: '/admin/id-cards'
+    },
     {
       id: 'disputes',
       label: 'Disputes',
@@ -168,14 +192,31 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, activeMenu, setActiveMenu }
     }
   ];
 
-  const MenuItemComponent = ({ item, isSubItem = false }: { item: MenuItem; isSubItem?: boolean }) => {
+  useEffect(() => {
+    if (!activeMenu) return;
+
+    const ancestorIds = getAncestorIds(menuItems, activeMenu);
+    if (!ancestorIds.length) return;
+
+    setOpenSubMenus((prev) => {
+      const next = { ...prev };
+      ancestorIds.forEach((id) => {
+        next[id] = true;
+      });
+      return next;
+    });
+  }, [activeMenu]);
+
+  const MenuItemComponent = ({ item, depth = 0 }: { item: MenuItem; depth?: number }) => {
     const Icon = item.icon;
     const isActive = activeMenu === item.id;
-    const hasSubMenu = item.hasSubMenu && !isSubItem;
+    const isParentOfActive = itemHasActiveDescendant(item, activeMenu);
+    const hasSubMenu = item.hasSubMenu || Boolean(item.subItems?.length);
     const isSubMenuOpen = openSubMenus[item.id];
+    const isNestedItem = depth > 0;
 
     return (
-      <div className={`${isSubItem ? 'ml-4' : ''}`}>
+      <div className={isNestedItem ? 'ml-4' : ''}>
         <div
           onClick={() => {
             if (hasSubMenu) {
@@ -190,13 +231,15 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, activeMenu, setActiveMenu }
             flex items-center justify-between px-4 py-3 rounded-lg cursor-pointer transition-all duration-200
             ${isActive 
               ? 'bg-blue-600 text-white shadow-lg' 
+              : isParentOfActive
+                ? 'bg-gray-700 text-white'
               : 'text-gray-300 hover:bg-gray-700 hover:text-white'
             }
-            ${isSubItem ? 'py-2 text-sm' : ''}
+            ${isNestedItem ? 'py-2 text-sm' : ''}
           `}
         >
           <div className="flex items-center space-x-3">
-            <Icon size={isSubItem ? 16 : 20} />
+            <Icon size={isNestedItem ? 16 : 20} />
             <span className="font-medium">{item.label}</span>
           </div>
           {hasSubMenu && (
@@ -209,7 +252,7 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, activeMenu, setActiveMenu }
         {hasSubMenu && isSubMenuOpen && (
           <div className="mt-2 space-y-1 animate-in slide-in-from-top-2 duration-200">
             {item.subItems?.map((subItem) => (
-              <MenuItemComponent key={subItem.id} item={subItem} isSubItem={true} />
+              <MenuItemComponent key={subItem.id} item={subItem} depth={depth + 1} />
             ))}
           </div>
         )}
