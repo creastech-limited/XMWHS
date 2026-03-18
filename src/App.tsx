@@ -41,11 +41,13 @@ import Pdispute from './pages/Parent/Pdispute.js';
 import Kdispute from './pages/Student/Kdispute.js';
 import DisputePage from './pages/School/Sdiputes.js';
 import Storedispute from './pages/Store/Storedispute.js';
-import Overview from './pages/Admin/overview'; import AllUsers from './pages/Admin/AllUsers';
+import Overview from './pages/Admin/overview'; 
+import AllUsers from './pages/Admin/AllUsers';
 import SchoolTransferPage from './pages/School/schooltransfer.js';
 import ForgotPasswordPage from './pages/Public Pages/ForgotPasswordPage.js';
 import ResetPasswordPage from './pages/Public Pages/ResetPasswordPage.js';
 import PrivacyAndPolicy from './pages/Public Pages/PrivacyAndPolicy.js';
+import IDCardGenerator from './pages/Admin/IDCardGenerator.js';
 
 
 function App() {
@@ -117,6 +119,8 @@ function App() {
           {/* Admin Routes */}
           <Route path="/admin" element={<Overview />} />
           <Route path="/admin/management/all-users" element={<AllUsers />} />
+          <Route path="/admin/id-cards" element={<IDCardGenerator />} />
+          <Route path="/admin/id-cards" element={<IDCardGenerator />} />
 
           {/* Paystack */}
           <Route path="/payment/callback" element={<PaystackCallback />} />

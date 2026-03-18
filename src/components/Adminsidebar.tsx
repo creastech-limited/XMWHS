@@ -12,7 +12,8 @@ import {
   X,
   Settings,
   AlertCircle,
-  UserCog
+  UserCog,
+  IdCard
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -146,6 +147,13 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, activeMenu, setActiveMenu }
         { id: 'role-permission', label: 'Role & Permission', icon: Shield, path: '/admin/management/roles' }
       ]
     },
+
+    {
+  id: 'id-cards',
+  label: 'ID Cards',
+  icon: IdCard,
+  path: '/admin/id-cards'
+},
     {
       id: 'disputes',
       label: 'Disputes',
