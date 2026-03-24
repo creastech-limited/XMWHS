@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { 
   QrCode, 
@@ -11,7 +11,8 @@ import {
   CreditCard,
   Shield,
   X,
-  AlertCircle
+  AlertCircle,
+  Bluetooth
 } from 'lucide-react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 
@@ -81,6 +82,13 @@ const AgentScanQR: React.FC = () => {
   const [availableCameras, setAvailableCameras] = useState<MediaDeviceInfo[]>([]);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
   const [transactionFee, setTransactionFee] = useState<number>(0);
+  
+  // NEW: Tera Scanner States
+  const [scannerMode, setScannerMode] = useState<'camera' | 'bluetooth'>('camera');
+  const [isBluetoothScannerActive, setIsBluetoothScannerActive] = useState<boolean>(false);
+  const [scanBuffer, setScanBuffer] = useState<string>('');
+  const [scanTimeout, setScanTimeout] = useState<NodeJS.Timeout | null>(null);
+  const hiddenInputRef = useRef<HTMLInputElement>(null);
 
   const colors = {
     primary: '#3f51b5',
@@ -111,6 +119,55 @@ const AgentScanQR: React.FC = () => {
       fetchTransactionCharges();
     }
   }, [token]);
+
+  // NEW: Setup Bluetooth scanner listener when in bluetooth mode
+  useEffect(() => {
+    if (scannerMode === 'bluetooth' && isBluetoothScannerActive) {
+      // Focus the hidden input to capture scanner input
+      if (hiddenInputRef.current) {
+        hiddenInputRef.current.focus();
+      }
+      
+      // Alternative: Global keyboard listener for scanner
+      const handleGlobalKeyPress = (event: KeyboardEvent) => {
+        // Check if it's likely from a scanner (fast typing)
+        // Scanners typically send characters very quickly (< 50ms between keystrokes)
+        
+        if (scanTimeout) clearTimeout(scanTimeout);
+        
+        setScanBuffer(prev => prev + event.key);
+        
+        const timeout = setTimeout(() => {
+          if (scanBuffer.length > 0) {
+            console.log('Scanner detected data:', scanBuffer);
+            try {
+              const qrData = parseQRData(scanBuffer);
+              if (qrData.transactionType === 'payment' || qrData.type === 'payment_request') {
+                setScanResult({ qrData });
+                setShowConfirmDialog(true);
+                setIsBluetoothScannerActive(false);
+              } else {
+                setError('Invalid QR code - not a payment QR code');
+              }
+            } catch (decodeError) {
+              console.error('QR decode error:', decodeError);
+              setError("Couldn't read QR code. Please ensure this is a valid payment QR code.");
+            }
+            setScanBuffer('');
+          }
+        }, 100); // Wait 100ms after last keystroke to consider scan complete
+        
+        setScanTimeout(timeout);
+      };
+      
+      window.addEventListener('keypress', handleGlobalKeyPress);
+      
+      return () => {
+        window.removeEventListener('keypress', handleGlobalKeyPress);
+        if (scanTimeout) clearTimeout(scanTimeout);
+      };
+    }
+  }, [scannerMode, isBluetoothScannerActive, scanBuffer, scanTimeout]);
 
   const enumerateCameras = async () => {
     try {
@@ -181,6 +238,7 @@ const AgentScanQR: React.FC = () => {
         setScanResult({ qrData });
         setShowConfirmDialog(true);
         setScanning(false);
+        setIsBluetoothScannerActive(false); // Deactivate bluetooth scanner after successful scan
       } catch (decodeError) {
         console.error('QR decode error:', decodeError);
         setError("Couldn't read QR code. Please ensure this is a valid payment QR code.");
@@ -189,10 +247,37 @@ const AgentScanQR: React.FC = () => {
     }
   }, [scanResult]);
 
+  // NEW: Toggle between camera and bluetooth scanner
+  const toggleScannerMode = () => {
+    if (scannerMode === 'camera') {
+      // Switch to bluetooth scanner
+      setScannerMode('bluetooth');
+      setScanning(false); // Turn off camera if it was on
+      setIsBluetoothScannerActive(true);
+      setError(null);
+    } else {
+      // Switch to camera
+      setScannerMode('camera');
+      setIsBluetoothScannerActive(false);
+      setScanBuffer('');
+      if (scanTimeout) clearTimeout(scanTimeout);
+      setError(null);
+    }
+  };
+
   const toggleScanning = () => {
-    setScanning(!scanning);
-    setError(null);
-    setScanResult(null);
+    if (scannerMode === 'camera') {
+      setScanning(!scanning);
+      setError(null);
+      setScanResult(null);
+    } else {
+      // For bluetooth scanner, just toggle active state
+      setIsBluetoothScannerActive(!isBluetoothScannerActive);
+      if (!isBluetoothScannerActive) {
+        // Focus the hidden input when activating
+        setTimeout(() => hiddenInputRef.current?.focus(), 100);
+      }
+    }
   };
 
   const switchCamera = () => {
@@ -269,62 +354,59 @@ const AgentScanQR: React.FC = () => {
   };
 
   const handlePinSubmit = async () => {
-  if (!scanResult || !amount || !userEnteredPin) return;
+    if (!scanResult || !amount || !userEnteredPin) return;
 
-  setProcessingTransaction(true);
-  
-  
-  try {
-    if (!scanResult.qrData.email) {
-      setError('Invalid QR code: missing email address.');
-      setProcessingTransaction(false);
-      return;
-    }
-
-    const transactionData: TransactionData = {
-      receiverEmail: scanResult.qrData.email,
-      amount: Number(amount),
-      pin: userEnteredPin,
-      transactionFee: transactionFee
-    };
-
-    const result = await processTransfer(transactionData);
+    setProcessingTransaction(true);
     
-    // Only close dialogs on success
-    setShowPinDialog(false);
-    setTransactionId(result.transactionId || 'N/A');
-    setProcessingTransaction(false);
-    setTransactionComplete(true);
-    setUserEnteredPin('');
-    
-  } catch (err) {
-    setProcessingTransaction(false);
-    
-    let errorMessage = 'Transaction failed. Please try again.';
-    
-    if (axios.isAxiosError(err) && err.response) {
-      const backendError = err.response.data?.error || err.response.data?.message || err.message;
-      errorMessage = backendError;
-      
-      if (backendError === 'Invalid PIN') {
-        errorMessage = 'Invalid PIN. Please ask the customer to enter their correct 4-digit PIN.';
-      } else if (backendError === 'Insufficient funds') {
-        errorMessage = 'Insufficient funds. The customer does not have enough balance for this transaction.';
-      } else if (backendError === 'User not found') {
-        errorMessage = 'Recipient not found. Please verify the QR code is valid.';
-      } else if (backendError === 'Transaction limit exceeded') {
-        errorMessage = 'Transaction limit exceeded. Please try a smaller amount.';
-      } else if (backendError === 'Account blocked') {
-        errorMessage = 'Account temporarily blocked. Please contact support.';
+    try {
+      if (!scanResult.qrData.email) {
+        setError('Invalid QR code: missing email address.');
+        setProcessingTransaction(false);
+        return;
       }
-    } else if (err instanceof Error) {
-      errorMessage = err.message;
+
+      const transactionData: TransactionData = {
+        receiverEmail: scanResult.qrData.email,
+        amount: Number(amount),
+        pin: userEnteredPin,
+        transactionFee: transactionFee
+      };
+
+      const result = await processTransfer(transactionData);
+      
+      setShowPinDialog(false);
+      setTransactionId(result.transactionId || 'N/A');
+      setProcessingTransaction(false);
+      setTransactionComplete(true);
+      setUserEnteredPin('');
+      
+    } catch (err) {
+      setProcessingTransaction(false);
+      
+      let errorMessage = 'Transaction failed. Please try again.';
+      
+      if (axios.isAxiosError(err) && err.response) {
+        const backendError = err.response.data?.error || err.response.data?.message || err.message;
+        errorMessage = backendError;
+        
+        if (backendError === 'Invalid PIN') {
+          errorMessage = 'Invalid PIN. Please ask the customer to enter their correct 4-digit PIN.';
+        } else if (backendError === 'Insufficient funds') {
+          errorMessage = 'Insufficient funds. The customer does not have enough balance for this transaction.';
+        } else if (backendError === 'User not found') {
+          errorMessage = 'Recipient not found. Please verify the QR code is valid.';
+        } else if (backendError === 'Transaction limit exceeded') {
+          errorMessage = 'Transaction limit exceeded. Please try a smaller amount.';
+        } else if (backendError === 'Account blocked') {
+          errorMessage = 'Account temporarily blocked. Please contact support.';
+        }
+      } else if (err instanceof Error) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
     }
-    
-    setError(errorMessage);
-   
-  }
-};
+  };
 
   const resetScan = () => {
     setScanning(false);
@@ -335,6 +417,9 @@ const AgentScanQR: React.FC = () => {
     setError(null);
     setTransactionComplete(false);
     setCameraError(null);
+    setIsBluetoothScannerActive(false);
+    setScanBuffer('');
+    if (scanTimeout) clearTimeout(scanTimeout);
   };
 
   const formatCurrency = (amount: number, currency: string = 'NGN'): string => {
@@ -352,6 +437,22 @@ const AgentScanQR: React.FC = () => {
 
   return (
     <div className="flex flex-col min-h-screen" style={{ backgroundColor: colors.background }}>
+      {/* NEW: Hidden input for bluetooth scanner */}
+      <input
+        ref={hiddenInputRef}
+        type="text"
+        style={{
+          position: 'fixed',
+          top: '-100px',
+          left: '-100px',
+          opacity: 0,
+          height: 0,
+          width: 0,
+          pointerEvents: 'none'
+        }}
+        aria-hidden="true"
+      />
+      
       <main className="flex-grow p-4 sm:p-6">
         <div className="container mx-auto py-6 px-4 flex-grow max-w-4xl">
           {/* Error Display Section */}
@@ -435,94 +536,191 @@ const AgentScanQR: React.FC = () => {
               </>
             ) : (
               <>
-                <h2 className="text-2xl font-bold mb-4 text-gray-800">QR Code Payment Scanner</h2>
-                <p className="text-gray-600 mb-6">Scan customer's payment QR code to process transaction</p>
+                {/* NEW: Scanner Mode Toggle Buttons */}
+                <div className="flex gap-4 mb-6 justify-center">
+                  <button
+                    className={`flex items-center gap-2 px-6 py-2 rounded-lg font-medium transition-all ${
+                      scannerMode === 'camera'
+                        ? 'bg-blue-600 text-white shadow-md'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }`}
+                    onClick={toggleScannerMode}
+                  >
+                    <Camera size={18} />
+                    Camera Scanner
+                  </button>
+                  <button
+                    className={`flex items-center gap-2 px-6 py-2 rounded-lg font-medium transition-all ${
+                      scannerMode === 'bluetooth'
+                        ? 'bg-blue-600 text-white shadow-md'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }`}
+                    onClick={toggleScannerMode}
+                  >
+                    <Bluetooth size={18} />
+                    Tera Bluetooth Scanner
+                  </button>
+                </div>
                 
-                <div className="w-full max-w-[350px] h-[350px] bg-black rounded-lg relative overflow-hidden mx-auto">
-                  {scanning ? (
-                    <div className="relative w-full h-full">
-                      <Scanner
-                        onScan={(data) => {
-                          if (Array.isArray(data) && data.length > 0 && data[0]?.rawValue) {
-                            handleScan(data[0].rawValue);
-                          } else if (typeof data === 'string') {
-                            handleScan(data);
-                          }
-                        }}
-                        constraints={{
-                          facingMode,
-                          width: { ideal: 1280 },
-                          height: { ideal: 720 }
-                        }}
-                        onError={(error) => {
-                          console.error('Scanner error:', error);
-                          setCameraError('Failed to access camera. Please ensure permissions are granted.');
-                          setScanning(false);
-                        }}
-                        components={{
-                          tracker: () => null,
-                          torch: true,
-                        }}
-                        styles={{
-                          container: {
-                            width: '100%',
-                            height: '100%',
-                            position: 'relative'
-                          } as React.CSSProperties,
-                          video: {
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'cover',
-                            transform: facingMode === 'user' ? 'scaleX(-1)' : 'none'
-                          } as React.CSSProperties
-                        }}
-                      />
-                      <div className="absolute inset-0 border-4 border-blue-500 rounded-lg pointer-events-none"></div>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-full">
-                      <QrCode size={60} className="text-white mb-2" />
-                      <Camera size={40} className="text-white" />
-                      <p className="text-white mt-2 text-center">
-                        {availableCameras.length > 0 ? 'Ready to scan payment QR code' : 'Camera access required'}
-                      </p>
-                      {availableCameras.length === 0 && (
-                        <button
-                          onClick={enumerateCameras}
-                          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                        >
-                          Allow Camera Access
-                        </button>
+                <h2 className="text-2xl font-bold mb-4 text-gray-800">
+                  {scannerMode === 'camera' ? 'QR Code Payment Scanner' : 'Tera Bluetooth Scanner'}
+                </h2>
+                <p className="text-gray-600 mb-6">
+                  {scannerMode === 'camera' 
+                    ? 'Scan customer\'s payment QR code to process transaction'
+                    : 'Connect your Tera 2D scanner via Bluetooth and scan QR codes'}
+                </p>
+                
+                {/* Camera Scanner UI */}
+                {scannerMode === 'camera' && (
+                  <>
+                    <div className="w-full max-w-[350px] h-[350px] bg-black rounded-lg relative overflow-hidden mx-auto">
+                      {scanning ? (
+                        <div className="relative w-full h-full">
+                          <Scanner
+                            onScan={(data) => {
+                              if (Array.isArray(data) && data.length > 0 && data[0]?.rawValue) {
+                                handleScan(data[0].rawValue);
+                              } else if (typeof data === 'string') {
+                                handleScan(data);
+                              }
+                            }}
+                            constraints={{
+                              facingMode,
+                              width: { ideal: 1280 },
+                              height: { ideal: 720 }
+                            }}
+                            onError={(error) => {
+                              console.error('Scanner error:', error);
+                              setCameraError('Failed to access camera. Please ensure permissions are granted.');
+                              setScanning(false);
+                            }}
+                            components={{
+                              tracker: () => null,
+                              torch: true,
+                            }}
+                            styles={{
+                              container: {
+                                width: '100%',
+                                height: '100%',
+                                position: 'relative'
+                              } as React.CSSProperties,
+                              video: {
+                                width: '100%',
+                                height: '100%',
+                                objectFit: 'cover',
+                                transform: facingMode === 'user' ? 'scaleX(-1)' : 'none'
+                              } as React.CSSProperties
+                            }}
+                          />
+                          <div className="absolute inset-0 border-4 border-blue-500 rounded-lg pointer-events-none"></div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center h-full">
+                          <QrCode size={60} className="text-white mb-2" />
+                          <Camera size={40} className="text-white" />
+                          <p className="text-white mt-2 text-center">
+                            {availableCameras.length > 0 ? 'Ready to scan payment QR code' : 'Camera access required'}
+                          </p>
+                          {availableCameras.length === 0 && (
+                            <button
+                              onClick={enumerateCameras}
+                              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                            >
+                              Allow Camera Access
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
-                  )}
-                </div>
 
-                {scanning && availableCameras.length > 1 && (
-                  <div className="mt-4">
-                    <button
-                      onClick={switchCamera}
-                      className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded"
-                    >
-                      Switch to {facingMode === 'environment' ? 'Front' : 'Rear'} Camera
-                    </button>
+                    {scanning && availableCameras.length > 1 && (
+                      <div className="mt-4">
+                        <button
+                          onClick={switchCamera}
+                          className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded"
+                        >
+                          Switch to {facingMode === 'environment' ? 'Front' : 'Rear'} Camera
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+                
+                {/* Tera Bluetooth Scanner UI */}
+                {scannerMode === 'bluetooth' && (
+                  <div className="w-full max-w-[350px] h-[350px] bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg relative overflow-hidden mx-auto border-2 border-dashed border-blue-300">
+                    <div className="flex flex-col items-center justify-center h-full p-6 text-center">
+                      <Bluetooth size={60} className="text-blue-600 mb-4" />
+                      <h3 className="text-lg font-semibold text-gray-800 mb-2">
+                        Tera 2D Scanner Ready
+                      </h3>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Connect your Tera scanner via Bluetooth and scan the customer's QR code
+                      </p>
+                      <div className="bg-white rounded-lg p-3 mb-4 w-full">
+                        <p className="text-xs text-gray-500 font-mono break-all">
+                          {isBluetoothScannerActive 
+                            ? '🟢 Scanner active - Ready to scan QR codes'
+                            : '⚪ Scanner inactive - Click "Start Scanner" below'}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setIsBluetoothScannerActive(!isBluetoothScannerActive);
+                            if (!isBluetoothScannerActive) {
+                              setTimeout(() => hiddenInputRef.current?.focus(), 100);
+                            }
+                          }}
+                          className={`px-4 py-2 rounded-lg font-medium ${
+                            isBluetoothScannerActive
+                              ? 'bg-red-600 hover:bg-red-700 text-white'
+                              : 'bg-blue-600 hover:bg-blue-700 text-white'
+                          }`}
+                        >
+                          {isBluetoothScannerActive ? 'Stop Scanner' : 'Start Scanner'}
+                        </button>
+                        {isBluetoothScannerActive && (
+                          <button
+                            onClick={() => {
+                              setError(null);
+                              setScanBuffer('');
+                            }}
+                            className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg text-gray-700"
+                          >
+                            Clear Buffer
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )}
 
+                {/* Common Scan Button */}
                 <div className="mt-6">
                   <button
                     className={`flex items-center gap-2 px-6 py-3 rounded-lg mx-auto font-medium ${
-                      availableCameras.length === 0
+                      scannerMode === 'camera' && availableCameras.length === 0
                         ? 'bg-gray-400 cursor-not-allowed text-gray-200'
-                        : scanning
+                        : scanning || isBluetoothScannerActive
                         ? 'bg-red-600 hover:bg-red-700 text-white'
                         : 'bg-blue-600 hover:bg-blue-700 text-white'
                     }`}
                     onClick={toggleScanning}
-                    disabled={availableCameras.length === 0}
+                    disabled={scannerMode === 'camera' && availableCameras.length === 0}
                   >
-                    <QrCode size={20} />
-                    {scanning ? 'Stop Scanning' : 'Start Scanning'}
+                    {scannerMode === 'camera' ? (
+                      <>
+                        <QrCode size={20} />
+                        {scanning ? 'Stop Scanning' : 'Start Scanning'}
+                      </>
+                    ) : (
+                      <>
+                        <Bluetooth size={20} />
+                        {isBluetoothScannerActive ? 'Deactivate Scanner' : 'Activate Scanner'}
+                      </>
+                    )}
                   </button>
                 </div>
               </>
@@ -636,152 +834,150 @@ const AgentScanQR: React.FC = () => {
           </div>
         )}
 
-       {/* PIN Verification Dialog */}
-{showPinDialog && scanResult && (
-  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-    <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-      <div className="p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Shield className="text-green-600" size={24} />
-          <h3 className="text-lg font-bold text-gray-800">Customer PIN Verification</h3>
-        </div>
-        
-        {/* Show error inside the PIN dialog */}
-        {error && (
-          <div className="bg-red-50 border-l-4 border-red-500 text-red-700 p-4 mb-4 rounded-lg">
-            <div className="flex items-start gap-2">
-              <AlertCircle size={18} className="flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="font-medium">{error}</p>
-                {error.includes('PIN') && (
-                  <div className="text-sm mt-2 bg-red-100 p-2 rounded">
-                    <p className="font-medium">💡 PIN Tips:</p>
-                    <ul className="list-disc pl-5 mt-1 space-y-1">
-                      <li>Ask customer to enter their exact 4-digit PIN</li>
-                      <li>Ensure the PIN pad is not visible to others</li>
-                      <li>If PIN is forgotten, customer should reset it via the app</li>
-                    </ul>
+        {/* PIN Verification Dialog */}
+        {showPinDialog && scanResult && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+              <div className="p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Shield className="text-green-600" size={24} />
+                  <h3 className="text-lg font-bold text-gray-800">Customer PIN Verification</h3>
+                </div>
+                
+                {error && (
+                  <div className="bg-red-50 border-l-4 border-red-500 text-red-700 p-4 mb-4 rounded-lg">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle size={18} className="flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="font-medium">{error}</p>
+                        {error.includes('PIN') && (
+                          <div className="text-sm mt-2 bg-red-100 p-2 rounded">
+                            <p className="font-medium">💡 PIN Tips:</p>
+                            <ul className="list-disc pl-5 mt-1 space-y-1">
+                              <li>Ask customer to enter their exact 4-digit PIN</li>
+                              <li>Ensure the PIN pad is not visible to others</li>
+                              <li>If PIN is forgotten, customer should reset it via the app</li>
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                      <button 
+                        className="flex-shrink-0 text-red-600 hover:text-red-800"
+                        onClick={() => setError(null)}
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
                   </div>
                 )}
+                
+                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+                  <p className="text-yellow-800 font-medium">
+                    🔒 Ask customer to enter their PIN to authorize this payment
+                  </p>
+                </div>
+                
+                <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                  <h4 className="font-semibold text-gray-800 mb-2">Payment Summary:</h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-700">Amount:</span>
+                      <span className="text-gray-700 font-medium">
+                        {formatCurrency(parseFloat(amount), scanResult.qrData.currency)}
+                      </span>
+                    </div>
+                    
+                    {transactionFee > 0 && (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-gray-700">Transaction Fee:</span>
+                          <span className="text-gray-700">
+                            {formatCurrency(transactionFee, scanResult.qrData.currency)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between border-t border-gray-200 pt-2">
+                          <span className="text-gray-800 font-medium">Total Deducted:</span>
+                          <span className="text-gray-800 font-bold">
+                            {formatCurrency(parseFloat(amount) + transactionFee, scanResult.qrData.currency)}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                    
+                    <div className="flex justify-between">
+                      <span className="text-gray-700">To:</span>
+                      <span className="text-gray-700">{scanResult.qrData.name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-700">Email:</span>
+                      <span className="text-gray-700">{scanResult.qrData.email}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-700">Account:</span>
+                      <span className="text-gray-700">{scanResult.qrData.accountNumber}</span>
+                    </div>
+                    {description && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-700">Description:</span>
+                        <span className="text-gray-700">{description}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mb-6">
+                  <label htmlFor="pinInput" className="block text-left mb-2 font-medium text-gray-700">
+                    Customer's PIN:
+                  </label>
+                  <input
+                    type="password"
+                    id="pinInput"
+                    value={userEnteredPin}
+                    onChange={(e) => {
+                      setUserEnteredPin(e.target.value);
+                      if (error) setError(null);
+                    }}
+                    className="w-full p-3 border border-gray-300 rounded-lg text-center text-xl tracking-wides text-black"
+                    placeholder="••••"
+                    maxLength={4}
+                    disabled={processingTransaction}
+                  />
+                  <p className="text-xs text-gray-500 mt-1 text-center">
+                    The customer must enter their 4-digit PIN
+                  </p>
+                </div>
+
+                <div className="flex justify-end gap-3">
+                  <button 
+                    className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50 text-black"
+                    onClick={() => {
+                      setShowPinDialog(false);
+                      setUserEnteredPin('');
+                      setError(null);
+                    }}
+                    disabled={processingTransaction}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
+                    onClick={handlePinSubmit}
+                    disabled={!userEnteredPin || userEnteredPin.length !== 4 || processingTransaction}
+                  >
+                    {processingTransaction ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Processing...
+                      </>
+                    ) : (
+                      'Verify PIN & Process Payment'
+                    )}
+                  </button>
+                </div>
               </div>
-              <button 
-                className="flex-shrink-0 text-red-600 hover:text-red-800"
-                onClick={() => setError(null)}
-              >
-                <X size={16} />
-              </button>
             </div>
           </div>
         )}
-        
-        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
-          <p className="text-yellow-800 font-medium">
-            🔒 Ask customer to enter their PIN to authorize this payment
-          </p>
-        </div>
-        
-        <div className="bg-gray-50 rounded-lg p-4 mb-4">
-          <h4 className="font-semibold text-gray-800 mb-2">Payment Summary:</h4>
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <span className="text-gray-700">Amount:</span>
-              <span className="text-gray-700 font-medium">
-                {formatCurrency(parseFloat(amount), scanResult.qrData.currency)}
-              </span>
-            </div>
-            
-            {transactionFee > 0 && (
-              <>
-                <div className="flex justify-between">
-                  <span className="text-gray-700">Transaction Fee:</span>
-                  <span className="text-gray-700">
-                    {formatCurrency(transactionFee, scanResult.qrData.currency)}
-                  </span>
-                </div>
-                <div className="flex justify-between border-t border-gray-200 pt-2">
-                  <span className="text-gray-800 font-medium">Total Deducted:</span>
-                  <span className="text-gray-800 font-bold">
-                    {formatCurrency(parseFloat(amount) + transactionFee, scanResult.qrData.currency)}
-                  </span>
-                </div>
-              </>
-            )}
-            
-            <div className="flex justify-between">
-              <span className="text-gray-700">To:</span>
-              <span className="text-gray-700">{scanResult.qrData.name}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-700">Email:</span>
-              <span className="text-gray-700">{scanResult.qrData.email}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-700">Account:</span>
-              <span className="text-gray-700">{scanResult.qrData.accountNumber}</span>
-            </div>
-            {description && (
-              <div className="flex justify-between">
-                <span className="text-gray-700">Description:</span>
-                <span className="text-gray-700">{description}</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="mb-6">
-          <label htmlFor="pinInput" className="block text-left mb-2 font-medium text-gray-700">
-            Customer's PIN:
-          </label>
-          <input
-            type="password"
-            id="pinInput"
-            value={userEnteredPin}
-            onChange={(e) => {
-              setUserEnteredPin(e.target.value);
-              // Clear error when user starts typing again
-              if (error) setError(null);
-            }}
-            className="w-full p-3 border border-gray-300 rounded-lg text-center text-xl tracking-wides text-black"
-            placeholder="••••"
-            maxLength={4}
-            disabled={processingTransaction}
-          />
-          <p className="text-xs text-gray-500 mt-1 text-center">
-            The customer must enter their 4-digit PIN
-          </p>
-        </div>
-
-        <div className="flex justify-end gap-3">
-          <button 
-            className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50 text-black"
-            onClick={() => {
-              setShowPinDialog(false);
-              setUserEnteredPin('');
-              setError(null);
-            }}
-            disabled={processingTransaction}
-          >
-            Cancel
-          </button>
-          <button 
-            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
-            onClick={handlePinSubmit}
-            disabled={!userEnteredPin || userEnteredPin.length !== 4 || processingTransaction}
-          >
-            {processingTransaction ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                Processing...
-              </>
-            ) : (
-              'Verify PIN & Process Payment'
-            )}
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-)}
 
         {/* Processing Dialog */}
         {processingTransaction && (
