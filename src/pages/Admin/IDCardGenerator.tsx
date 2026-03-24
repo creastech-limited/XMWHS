@@ -31,15 +31,15 @@ function normaliseStudents(raw: Student[]) {
       s.name ||
       'Unknown',
     // API returns "profilePics" (not profilePicture)
-    photoUrl: s.profilePics
-      ? s.profilePics.startsWith('http')
-        ? s.profilePics
-        : `${import.meta.env.VITE_API_BASE_URL ?? ''}${s.profilePics}`
-      : s.profilePicture
-        ? s.profilePicture.startsWith('http')
-          ? s.profilePicture
-          : `${import.meta.env.VITE_API_BASE_URL ?? ''}${s.profilePicture}`
-        : '',
+    photoUrl: (() => {
+      const pic = s.profilePics || s.profilePicture || '';
+      if (!pic) return '';
+      if (pic.startsWith('http')) return pic.replace(/ /g, '%20');
+      // Ensure path always starts with /
+      const path = pic.startsWith('/') ? pic : `/${pic}`;
+      const base = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
+      return `${base}${path}`.replace(/ /g, '%20');
+    })(),
     // API returns "QRcode" (capital QR)
     qrData: s.QRcode ?? s.qrcode ?? `GRACE-${s._id}`,
     // API returns "Class" as a string e.g. "JSS 1" in this endpoint
@@ -59,7 +59,8 @@ function HiddenRenderLayer({ students }: { students: NormalisedStudent[] }) {
     >
       {students.map((s) => (
         <React.Fragment key={s._id}>
-          <div id={`pdf-front-${s._id}`} style={{ width: 242, height: 385 }}>
+          {/* PDF capture targets — sized to match the inner 2x render (408×646) */}
+          <div id={`pdf-front-${s._id}`} style={{ width: 408, height: 646, overflow: "hidden" }}>
             <CardFront
               student={{
                 id: s._id,
@@ -72,7 +73,7 @@ function HiddenRenderLayer({ students }: { students: NormalisedStudent[] }) {
               }}
             />
           </div>
-          <div id={`pdf-back-${s._id}`} style={{ width: 242, height: 385 }}>
+          <div id={`pdf-back-${s._id}`} style={{ width: 408, height: 646, overflow: "hidden" }}>
             <CardBack />
           </div>
         </React.Fragment>
@@ -235,14 +236,22 @@ const IDCardGenerator = () => {
 
       if (frontEl) {
         const canvas = await html2canvas(frontEl, {
-          scale: 3, useCORS: true, backgroundColor: '#ffffff', logging: false,
+          scale: 1,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: '#ffffff',
+          logging: false,
         } as Parameters<typeof html2canvas>[1]);
         if (i > 0) pdf.addPage([54, 85.6], 'portrait');
         pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, 54, 85.6);
       }
       if (backEl) {
         const canvas = await html2canvas(backEl, {
-          scale: 3, useCORS: true, backgroundColor: '#ffffff', logging: false,
+          scale: 1,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: '#ffffff',
+          logging: false,
         } as Parameters<typeof html2canvas>[1]);
         pdf.addPage([54, 85.6], 'portrait');
         pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, 54, 85.6);
