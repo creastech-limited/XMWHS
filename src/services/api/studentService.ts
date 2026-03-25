@@ -327,9 +327,9 @@ export const getStudentsInSchoolByAdmin = async (
 };
  
 // Bulk upload student profile pictures via zip
-export const uploadStudentPhotosZip = async (file: File): Promise<ZipUploadResponse> => {
+export const uploadStudentPhotosZip = async (zipfile: File): Promise<ZipUploadResponse> => {
   const formData = new FormData();
-  formData.append('file', file);
+  formData.append('zipfile', zipfile);
  
   const response = await apiClient.post<ZipUploadResponse>(
     '/api/users/upload-zip',
