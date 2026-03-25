@@ -1,5 +1,6 @@
 import { apiClient } from './client';
 import type {
+  Student,
   StudentsResponse,
   ParentsResponse,
   PinRequest,
@@ -261,13 +262,68 @@ export const getTransferCharge = async (): Promise<number> => {
   return 0;
 };
 
+const normalizeAdminStudent = (student: Student, index: number): Student => {
+  const fullName = student.fullName ||
+    `${student.firstName || ''} ${student.lastName || ''}`.trim() ||
+    student.name ||
+    'Unknown Student';
+  const fallbackId =
+    student._id ||
+    student.student_id ||
+    student.email ||
+    `${student.schoolId || 'student'}-${index}`;
+
+  return {
+    ...student,
+    _id: fallbackId,
+    student_id: student.student_id || fallbackId,
+    name: student.name || fullName,
+    fullName,
+    firstName: student.firstName || fullName.split(' ')[0] || '',
+    lastName: student.lastName || fullName.split(' ').slice(1).join(' '),
+    phone: student.phone || '',
+    role: student.role || 'student',
+    status: student.status || 'Active',
+    Class: student.Class || student.classAdmittedTo || student.academicDetails?.classAdmittedTo || '',
+    classAdmittedTo: student.classAdmittedTo || student.Class || student.academicDetails?.classAdmittedTo || '',
+    academicDetails: student.academicDetails || {
+      classAdmittedTo: student.Class || student.classAdmittedTo || ''
+    },
+    registrationDate: student.registrationDate || '',
+    createdAt: student.createdAt || '',
+    updatedAt: student.updatedAt || '',
+    isPinSet: student.isPinSet ?? false,
+    isFirstLogin: student.isFirstLogin ?? false,
+    profilePicture: student.profilePicture || student.profilePics,
+    profilePics: student.profilePics || student.profilePicture,
+    qrcode: student.qrcode || student.QRcode,
+    QRcode: student.QRcode || student.qrcode,
+    studentCanTopup: student.studentCanTopup ?? false,
+    studentCanTransfer: student.studentCanTransfer ?? false,
+    studentCanWithdraw: student.studentCanWithdraw ?? false,
+    studentCanPayBill: student.studentCanPayBill ?? false,
+    accountNumber: student.accountNumber || ''
+  };
+};
+
 export const getStudentsInSchoolByAdmin = async (
   schoolId: string
 ): Promise<StudentsInSchoolResponse> => {
   const response = await apiClient.get<StudentsInSchoolResponse>(
     `/api/users/getstudentinschoolbyadmin/${schoolId}`
   );
-  return response.data;
+
+  const payload = response.data;
+  const rawStudents = payload.data ?? payload.students ?? [];
+  const normalizedStudents = rawStudents.map((student, index) =>
+    normalizeAdminStudent(student, index)
+  );
+
+  return {
+    ...payload,
+    data: normalizedStudents,
+    students: normalizedStudents
+  };
 };
  
 // Bulk upload student profile pictures via zip

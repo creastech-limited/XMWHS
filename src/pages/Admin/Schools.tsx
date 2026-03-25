@@ -31,6 +31,7 @@ const EMPTY_RESOURCES: SchoolResourceState = {
   agents: [],
   stores: []
 };
+const ITEMS_PER_PAGE = 10;
 
 const Schools = () => {
   const { user: authUser } = useAuth() ?? {};
@@ -46,11 +47,45 @@ const Schools = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [storeFilter, setStoreFilter] = useState('all');
   const [activeTab, setActiveTab] = useState<ResourceTab>('students');
+  const [currentPage, setCurrentPage] = useState(1);
   const [resources, setResources] = useState<SchoolResourceState>(EMPTY_RESOURCES);
 
   const getSchoolIdentifier = (school: AdminSchool) => school.schoolId || school.school_id || school._id || '';
 
   const getSchoolLabel = (school: AdminSchool) => school.schoolName || 'Unnamed School';
+
+  const getStoreIdentifier = (store: Store) => {
+    const storeWithFallbackId = store as Store & {
+      store_id?: string;
+      id?: string;
+      storeId?: string;
+    };
+
+    const compositeStoreId =
+      storeWithFallbackId.storeId ||
+      storeWithFallbackId.store_id ||
+      storeWithFallbackId.id ||
+      storeWithFallbackId._id ||
+      '';
+
+    if (storeWithFallbackId._id) {
+      return storeWithFallbackId._id;
+    }
+
+    if (compositeStoreId.includes('/')) {
+      const parts = compositeStoreId.split('/');
+      return parts[parts.length - 1] || '';
+    }
+
+    return compositeStoreId;
+  };
+
+  const getAgentIdentifier = (agent: AdminAgent) => {
+    const agentWithFallbackId = agent as AdminAgent & { _id?: string };
+    return agentWithFallbackId.id || agentWithFallbackId._id || agentWithFallbackId.email || 'unknown-agent';
+  };
+
+
 
   const fetchSchools = useCallback(async () => {
     try {
@@ -77,29 +112,53 @@ const Schools = () => {
     try {
       setDetailsLoading(true);
 
-      const [studentsResponse, storesResponse] = await Promise.all([
+      const [studentsResult, storesResult] = await Promise.allSettled([
         getStudentsInSchoolByAdmin(schoolId),
         getStoresInSchoolByAdmin(schoolId)
       ]);
+
+      const studentsResponse = studentsResult.status === 'fulfilled' ? studentsResult.value : null;
+      const storesResponse = storesResult.status === 'fulfilled' ? storesResult.value : [];
+
       const students = (studentsResponse as StudentsInSchoolResponse).data ??
         (studentsResponse as StudentsInSchoolResponse).students ??
         [];
 
-      const agentGroups = await Promise.all(
-        storesResponse.map(async (store) => {
-          const agents = await getAgentsInStoreByAdmin(store._id);
+      if (studentsResult.status === 'rejected') {
+        console.error('Error fetching students for school:', studentsResult.reason);
+      }
+
+      if (storesResult.status === 'rejected') {
+        console.error('Error fetching stores for school:', storesResult.reason);
+      }
+
+      const validStores = storesResponse.filter((store) => getStoreIdentifier(store));
+
+      const agentGroups = await Promise.allSettled(
+        validStores.map(async (store) => {
+          const storeId = getStoreIdentifier(store);
+          const agents = await getAgentsInStoreByAdmin(storeId);
           return agents.map((agent) => ({
             ...agent,
-            storeId: store._id,
+            storeId,
             storeName: store.storeName || 'Unnamed Store',
-            status: 'Active'
+            status: (agent as AdminAgent).status || 'Active'
           }));
         })
       );
 
+      const resolvedAgents = agentGroups.flatMap((result) => {
+        if (result.status === 'fulfilled') {
+          return result.value;
+        }
+
+        console.error('Error fetching agents for store:', result.reason);
+        return [];
+      });
+
       setResources({
         students,
-        agents: agentGroups.flat(),
+        agents: resolvedAgents,
         stores: storesResponse
       });
     } catch (error) {
@@ -135,6 +194,10 @@ const Schools = () => {
     setResourceSearch('');
     setStoreFilter('all');
   }, [activeTab, selectedSchoolId]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, selectedSchoolId, resourceSearch, statusFilter, storeFilter]);
 
   const filteredSchools = useMemo(() => {
     if (!schoolSearch.trim()) return schools;
@@ -177,6 +240,8 @@ const Schools = () => {
             student.email,
             student.phone,
             student.student_id,
+            student.guardian?.fullName,
+            student.guardian?.email,
             student.Class,
             student.academicDetails?.classAdmittedTo
           ].some((value) => String(value || '').toLowerCase().includes(query));
@@ -229,6 +294,19 @@ const Schools = () => {
 
     return ['all', 'Active', 'Inactive', 'Pending'];
   }, [activeTab]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / ITEMS_PER_PAGE));
+
+  const paginatedItems = useMemo(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredItems.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [currentPage, filteredItems]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   const stats = useMemo(() => ({
     students: resources.students.length,
@@ -484,7 +562,7 @@ const Schools = () => {
                         >
                           <option value="all">All Stores</option>
                           {resources.stores.map((store) => (
-                            <option key={store._id} value={store._id}>
+                            <option key={getStoreIdentifier(store)} value={getStoreIdentifier(store)}>
                               {store.storeName || 'Unnamed Store'}
                             </option>
                           ))}
@@ -501,90 +579,158 @@ const Schools = () => {
                         No {activeTab} found for this school with the current filters.
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                        {activeTab === 'students' && filteredItems.map((item) => {
-                          const student = item as Student;
-                          return (
-                            <div key={student._id} className="border border-gray-200 rounded-xl p-4 bg-white">
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <p className="font-semibold text-gray-900">{student.name}</p>
-                                  <p className="text-sm text-gray-500">{student.email}</p>
-                                </div>
-                                <span className={`text-xs px-2 py-1 rounded-full ${
-                                  student.status === 'Active'
-                                    ? 'bg-green-100 text-green-700'
-                                    : student.status === 'Pending'
-                                      ? 'bg-yellow-100 text-yellow-700'
-                                      : 'bg-gray-100 text-gray-700'
-                                }`}>
-                                  {student.status}
-                                </span>
-                              </div>
-                              <div className="mt-4 space-y-2 text-sm text-gray-600">
-                                <p><span className="font-medium text-gray-800">Student ID:</span> {student.student_id || 'N/A'}</p>
-                                <p><span className="font-medium text-gray-800">Class:</span> {student.Class || student.academicDetails?.classAdmittedTo || 'N/A'}</p>
-                                <p><span className="font-medium text-gray-800">Phone:</span> {student.phone || 'N/A'}</p>
-                              </div>
-                            </div>
-                          );
-                        })}
+                      <>
+                        {activeTab === 'students' && (
+                          <div className="overflow-x-auto rounded-xl border border-gray-200">
+                            <table className="min-w-full divide-y divide-gray-200">
+                              <thead className="bg-gray-50">
+                                <tr>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Student ID</th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Name</th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Email</th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Guardian</th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Class</th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Status</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-200 bg-white">
+                                {paginatedItems.map((item) => {
+                                  const student = item as Student;
+                                  return (
+                                    <tr key={student._id} className="hover:bg-gray-50">
+                                      <td className="px-4 py-3 text-sm text-gray-700">{student.student_id || student._id || 'N/A'}</td>
+                                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{student.name || student.fullName || 'N/A'}</td>
+                                      <td className="px-4 py-3 text-sm text-gray-700">{student.email || 'N/A'}</td>
+                                      <td className="px-4 py-3 text-sm text-gray-700">
+                                        {student.guardian?.fullName || student.guardian?.email || 'N/A'}
+                                      </td>
+                                      <td className="px-4 py-3 text-sm text-gray-700">
+                                        {student.Class || student.academicDetails?.classAdmittedTo || 'N/A'}
+                                      </td>
+                                      <td className="px-4 py-3 text-sm">
+                                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
+                                          student.status === 'Active'
+                                            ? 'bg-green-100 text-green-700'
+                                            : student.status === 'Pending'
+                                              ? 'bg-yellow-100 text-yellow-700'
+                                              : 'bg-gray-100 text-gray-700'
+                                        }`}>
+                                          {student.status || 'Unknown'}
+                                        </span>
+                                      </td>
+                                      
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
 
-                        {activeTab === 'agents' && filteredItems.map((item) => {
-                          const agent = item as AdminAgent;
-                          const fullName = agent.fullName || `${agent.firstName || ''} ${agent.lastName || ''}`.trim() || 'Unnamed Agent';
-                          return (
-                            <div key={agent.id} className="border border-gray-200 rounded-xl p-4 bg-white">
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-10 h-10 rounded-full bg-cyan-100 text-cyan-700 flex items-center justify-center">
-                                    <UserRound className="w-5 h-5" />
+                        {activeTab === 'agents' && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                            {paginatedItems.map((item) => {
+                              const agent = item as AdminAgent;
+                              const fullName = agent.fullName || `${agent.firstName || ''} ${agent.lastName || ''}`.trim() || 'Unnamed Agent';
+                              return (
+                                <div key={getAgentIdentifier(agent)} className="border border-gray-200 rounded-xl p-4 bg-white">
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-10 h-10 rounded-full bg-cyan-100 text-cyan-700 flex items-center justify-center">
+                                        <UserRound className="w-5 h-5" />
+                                      </div>
+                                      <div>
+                                        <p className="font-semibold text-gray-900">{fullName}</p>
+                                        <p className="text-sm text-gray-500">{agent.email || 'No email'}</p>
+                                      </div>
+                                    </div>
+                                    <span className={`text-xs px-2 py-1 rounded-full ${
+                                      agent.status === 'Active'
+                                        ? 'bg-green-100 text-green-700'
+                                        : agent.status === 'Pending'
+                                          ? 'bg-yellow-100 text-yellow-700'
+                                          : 'bg-gray-100 text-gray-700'
+                                    }`}>
+                                      {agent.status || 'Unknown'}
+                                    </span>
                                   </div>
-                                  <div>
-                                    <p className="font-semibold text-gray-900">{fullName}</p>
-                                    <p className="text-sm text-gray-500">{agent.email || 'No email'}</p>
+                                  <div className="mt-4 space-y-2 text-sm text-gray-600">
+                                    <p><span className="font-medium text-gray-800">Phone:</span> {agent.phone || 'N/A'}</p>
+                                    <p><span className="font-medium text-gray-800">Role:</span> {agent.role || 'agent'}</p>
+                                    <p><span className="font-medium text-gray-800">Store:</span> {agent.storeName || 'N/A'}</p>
+                                    <p><span className="font-medium text-gray-800">School ID:</span> {agent.schoolId || 'N/A'}</p>
                                   </div>
                                 </div>
-                                <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700">
-                                  Active
-                                </span>
-                              </div>
-                              <div className="mt-4 space-y-2 text-sm text-gray-600">
-                                <p><span className="font-medium text-gray-800">Phone:</span> {agent.phone || 'N/A'}</p>
-                                <p><span className="font-medium text-gray-800">Role:</span> {agent.role || 'agent'}</p>
-                                <p><span className="font-medium text-gray-800">Store:</span> {agent.storeName || 'N/A'}</p>
-                                <p><span className="font-medium text-gray-800">School ID:</span> {agent.schoolId || 'N/A'}</p>
-                              </div>
-                            </div>
-                          );
-                        })}
+                              );
+                            })}
+                          </div>
+                        )}
 
-                        {activeTab === 'stores' && filteredItems.map((item) => {
-                          const store = item as Store;
-                          return (
-                            <div key={store._id} className="border border-gray-200 rounded-xl p-4 bg-white">
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <p className="font-semibold text-gray-900">{store.storeName || 'Unnamed Store'}</p>
-                                  <p className="text-sm text-gray-500">{store.email || 'No email'}</p>
+                        {activeTab === 'stores' && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                            {paginatedItems.map((item) => {
+                              const store = item as Store;
+                              return (
+                                <div key={getStoreIdentifier(store)} className="border border-gray-200 rounded-xl p-4 bg-white">
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                      <p className="font-semibold text-gray-900">{store.storeName || 'Unnamed Store'}</p>
+                                      <p className="text-sm text-gray-500">{store.email || 'No email'}</p>
+                                    </div>
+                                    <span className={`text-xs px-2 py-1 rounded-full ${
+                                      store.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+                                    }`}>
+                                      {store.status || 'Unknown'}
+                                    </span>
+                                  </div>
+                                  <div className="mt-4 space-y-2 text-sm text-gray-600">
+                                    <p><span className="font-medium text-gray-800">Type:</span> {store.storeType || 'N/A'}</p>
+                                    <p><span className="font-medium text-gray-800">Phone:</span> {store.phone || 'N/A'}</p>
+                                    <p><span className="font-medium text-gray-800">Location:</span> {store.location || 'N/A'}</p>
+                                  </div>
                                 </div>
-                                <span className={`text-xs px-2 py-1 rounded-full ${
-                                  store.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
-                                }`}>
-                                  {store.status || 'Unknown'}
-                                </span>
-                              </div>
-                              <div className="mt-4 space-y-2 text-sm text-gray-600">
-                                <p><span className="font-medium text-gray-800">Type:</span> {store.storeType || 'N/A'}</p>
-                                <p><span className="font-medium text-gray-800">Phone:</span> {store.phone || 'N/A'}</p>
-                                <p><span className="font-medium text-gray-800">Location:</span> {store.location || 'N/A'}</p>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
+
+                  {!detailsLoading && filteredItems.length > 0 && (
+                    <div className="border-t border-gray-200 px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-sm text-gray-600">
+                        Showing {Math.min((currentPage - 1) * ITEMS_PER_PAGE + 1, filteredItems.length)}-
+                        {Math.min(currentPage * ITEMS_PER_PAGE, filteredItems.length)} of {filteredItems.length}
+                      </p>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                          disabled={currentPage === 1}
+                          className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 hover:bg-gray-50"
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                          Previous
+                        </button>
+
+                        <span className="text-sm text-gray-600">
+                          Page {currentPage} of {totalPages}
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                          disabled={currentPage === totalPages}
+                          className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 hover:bg-gray-50"
+                        >
+                          Next
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
