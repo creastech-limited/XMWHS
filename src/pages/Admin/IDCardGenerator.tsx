@@ -30,57 +30,21 @@ function normaliseStudents(raw: Student[]) {
       (s.firstName && s.lastName ? `${s.firstName} ${s.lastName}` : '') ||
       s.name ||
       'Unknown',
-    // API returns "profilePics" (not profilePicture)
     photoUrl: (() => {
       const pic = s.profilePics || s.profilePicture || '';
       if (!pic) return '';
       if (pic.startsWith('http')) return pic.replace(/ /g, '%20');
-      // Ensure path always starts with /
       const path = pic.startsWith('/') ? pic : `/${pic}`;
       const base = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
       return `${base}${path}`.replace(/ /g, '%20');
     })(),
-    // API returns "QRcode" (capital QR)
     qrData: s.QRcode ?? s.qrcode ?? `GRACE-${s._id}`,
-    // API returns "Class" as a string e.g. "JSS 1" in this endpoint
     className: s.Class ?? s.academicDetails?.classAdmittedTo ?? s.classAdmittedTo ?? '',
     session: '2024/2025',
   }));
 }
 
 type NormalisedStudent = ReturnType<typeof normaliseStudents>[number];
-
-// ─── Hidden render layer for PDF ──────────────────────────────────────────
-function HiddenRenderLayer({ students }: { students: NormalisedStudent[] }) {
-  return (
-    <div
-      style={{ position: 'fixed', left: -9999, top: 0, zIndex: -1, pointerEvents: 'none' }}
-      aria-hidden="true"
-    >
-      {students.map((s) => (
-        <React.Fragment key={s._id}>
-          {/* PDF capture targets — sized to match the inner 2x render (408×646) */}
-          <div id={`pdf-front-${s._id}`} style={{ width: 408, height: 646, overflow: "hidden" }}>
-            <CardFront
-              student={{
-                id: s._id,
-                name: s.displayName,
-                email: s.email,
-                photoUrl: s.photoUrl,
-                qrData: s.qrData,
-                className: s.className,
-                session: s.session,
-              }}
-            />
-          </div>
-          <div id={`pdf-back-${s._id}`} style={{ width: 408, height: 646, overflow: "hidden" }}>
-            <CardBack />
-          </div>
-        </React.Fragment>
-      ))}
-    </div>
-  );
-}
 
 const PER_PAGE = 10;
 
@@ -177,19 +141,22 @@ const IDCardGenerator = () => {
 
   const totalPages = Math.ceil(filtered.length / PER_PAGE);
   const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+
+  // ── Only use selected students if any are checked; otherwise use all filtered
   const targetStudents =
     selected.size > 0 ? students.filter((s) => selected.has(s._id)) : filtered;
 
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) { next.delete(id); } else { next.add(id); }
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
 
   const toggleSelectAll = () => {
-    if (selected.size === filtered.length) {
+    if (selected.size === filtered.length && filtered.length > 0) {
       setSelected(new Set());
     } else {
       setSelected(new Set(filtered.map((s) => s._id)));
@@ -198,7 +165,10 @@ const IDCardGenerator = () => {
 
   // ── Zip upload
   const handleZipUpload = async (file: File) => {
-    if (!file.name.endsWith('.zip')) { setZipError('Please select a .zip file'); return; }
+    if (!file.name.endsWith('.zip')) {
+      setZipError('Please select a .zip file');
+      return;
+    }
     setZipUploading(true);
     setZipError('');
     setZipResult(null);
@@ -218,58 +188,185 @@ const IDCardGenerator = () => {
     }
   };
 
-  // ── PDF generation
-  const runPDFGeneration = async (studentList: NormalisedStudent[]) => {
-    setRenderBatch(studentList);
-    await new Promise((r) => setTimeout(r, 1500)); // wait for base64 image conversions
-    setGenerating(true);
-    setProgress({ current: 0, total: studentList.length, name: '' });
-
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [54, 85.6] });
-
-    for (let i = 0; i < studentList.length; i++) {
-      const s = studentList[i];
-      setProgress({ current: i + 1, total: studentList.length, name: s.displayName });
-
-      const frontEl = document.getElementById(`pdf-front-${s._id}`);
-      const backEl = document.getElementById(`pdf-back-${s._id}`);
-
-      if (frontEl) {
-        const canvas = await html2canvas(frontEl, {
-          scale: 1,
-          useCORS: true,
-          allowTaint: true,
-          backgroundColor: '#ffffff',
-          logging: false,
-        } as Parameters<typeof html2canvas>[1]);
-        if (i > 0) pdf.addPage([54, 85.6], 'portrait');
-        pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, 54, 85.6);
-      }
-      if (backEl) {
-        const canvas = await html2canvas(backEl, {
-          scale: 1,
-          useCORS: true,
-          allowTaint: true,
-          backgroundColor: '#ffffff',
-          logging: false,
-        } as Parameters<typeof html2canvas>[1]);
-        pdf.addPage([54, 85.6], 'portrait');
-        pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, 54, 85.6);
-      }
-
-      await new Promise((r) => setTimeout(r, 0));
-    }
-
-    const schoolSlug = selectedSchool?.schoolName?.replace(/\s+/g, '-') ?? 'school';
-    const label = selected.size > 0 ? `selected-${selected.size}` : 'all';
-    pdf.save(`GraceSchools-${schoolSlug}-IDCards-${label}.pdf`);
-    setGenerating(false);
-    setRenderBatch([]);
+  // ── Wait for all images inside an element to fully load
+  const waitForImages = async (element: HTMLElement): Promise<void> => {
+    const images = Array.from(element.querySelectorAll<HTMLImageElement>('img'));
+    await Promise.all(
+      images.map(
+        (img) =>
+          new Promise<void>((resolve) => {
+            if (img.complete && img.naturalWidth > 0) {
+              resolve();
+              return;
+            }
+            img.onload = () => resolve();
+            img.onerror = () => resolve(); // don't hang on broken images
+          })
+      )
+    );
   };
 
-  const pct = progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0;
+  // ── Capture a single card container → JPEG data URL
+  //    Targets the inner 2× render div (the one with scale(0.5)) so html2canvas
+  //    sees the full-resolution pixels, then downscales to card dimensions.
+  const captureCard = async (
+    containerId: string,
+    cardName: string
+  ): Promise<string | null> => {
+    const container = document.getElementById(containerId);
+    if (!container) {
+      console.error(`[captureCard] Container #${containerId} not found`);
+      return null;
+    }
+
+    // The inner 2× div is the direct first child of the outer wrapper div
+    // (it has transform:scale(0.5) and position:absolute)
+    const innerDiv =
+      container.querySelector<HTMLDivElement>('div > div[style*="scale(0.5)"]') ??
+      container.querySelector<HTMLDivElement>('div > div') ??
+      container;
+
+    // Wait for all images to load
+    await waitForImages(innerDiv as HTMLElement);
+
+    // Give the browser an extra paint tick
+    await new Promise((r) => setTimeout(r, 300));
+
+    try {
+      // Capture the inner 2× div at its native 408×646 size
+      const canvas = await html2canvas(innerDiv as HTMLElement, {
+        useCORS: true,
+        allowTaint: false,
+        background: '#ffffff',
+        logging: false,
+      });
+
+      // Downscale the captured canvas from 408×646 → 204×323
+      // so the PDF image proportions match the card's physical size exactly
+      const out = document.createElement('canvas');
+      out.width = 204;
+      out.height = 323;
+      const ctx = out.getContext('2d');
+      if (!ctx) return canvas.toDataURL('image/jpeg', 0.95);
+      ctx.drawImage(canvas, 0, 0, 204, 323);
+      return out.toDataURL('image/jpeg', 0.95);
+    } catch (err) {
+      console.error(`[captureCard] Failed to capture ${cardName}:`, err);
+      return null;
+    }
+  };
+
+  // ── PDF generation — handles both single-student and bulk
+  const runPDFGeneration = async (studentList: NormalisedStudent[]) => {
+    if (!studentList || studentList.length === 0) {
+      setStudentsError('No students to generate cards for. Select at least one student.');
+      return;
+    }
+
+    setGenerating(true);
+    setStudentsError('');
+    setProgress({ current: 0, total: studentList.length, name: '' });
+
+    try {
+      // Mount the hidden render batch
+      setRenderBatch(studentList);
+
+      // Wait for React to render the batch + images to load from the network
+      await new Promise((r) => setTimeout(r, 2000));
+
+      // Physical ID card: 85.6 mm wide × 54 mm tall (landscape)
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: [85.6, 54],
+      });
+
+      let pagesAdded = 0;
+
+      for (let i = 0; i < studentList.length; i++) {
+        const s = studentList[i];
+        setProgress({ current: i + 1, total: studentList.length, name: s.displayName });
+
+        const frontImage = await captureCard(`pdf-front-${s._id}`, `${s.displayName} Front`);
+        const backImage  = await captureCard(`pdf-back-${s._id}`,  `${s.displayName} Back`);
+
+        if (frontImage) {
+          if (pagesAdded > 0) pdf.addPage([85.6, 54], 'landscape');
+          pdf.addImage(frontImage, 'JPEG', 0, 0, 85.6, 54);
+          pagesAdded++;
+        } else {
+          console.warn(`[PDF] No front image for ${s.displayName}`);
+        }
+
+        if (backImage) {
+          pdf.addPage([85.6, 54], 'landscape');
+          pdf.addImage(backImage, 'JPEG', 0, 0, 85.6, 54);
+          pagesAdded++;
+        } else {
+          console.warn(`[PDF] No back image for ${s.displayName}`);
+        }
+
+        // Small pause to keep the UI responsive
+        await new Promise((r) => setTimeout(r, 150));
+      }
+
+      if (pagesAdded === 0) {
+        throw new Error('No cards could be captured. Check the browser console for CORS or rendering errors.');
+      }
+
+      const schoolSlug = selectedSchool?.schoolName?.replace(/\s+/g, '-') ?? 'school';
+      const label =
+        studentList.length === 1
+          ? studentList[0].displayName.replace(/\s+/g, '-')
+          : selected.size > 0
+          ? `selected-${selected.size}`
+          : `all-${studentList.length}`;
+
+      pdf.save(`GraceSchools-${schoolSlug}-IDCards-${label}.pdf`);
+    } catch (error) {
+      console.error('[PDF] Generation error:', error);
+      setStudentsError(
+        typeof error === 'object' && error !== null && 'message' in error
+          ? String((error as Error).message)
+          : 'Failed to generate PDF. Open the browser console (F12) for details.'
+      );
+    } finally {
+      setGenerating(false);
+      setRenderBatch([]);
+    }
+  };
+
+  const pct =
+    progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0;
+
   const filteredSchools = schools.filter((sc) =>
     sc.schoolName?.toLowerCase().includes(schoolSearch.toLowerCase())
+  );
+
+  // ── Hidden render batch (placed off-screen so html2canvas can access the DOM)
+  const HiddenBatch = () => (
+    <div style={{ position: 'fixed', left: '-9999px', top: 0, pointerEvents: 'none' }}>
+      {renderBatch.map((s) => (
+        <React.Fragment key={s._id}>
+          <div id={`pdf-front-${s._id}`}>
+            <CardFront
+              student={{
+                id: s._id,
+                name: s.displayName,
+                email: s.email,
+                photoUrl: s.photoUrl,
+                qrData: s.qrData,
+                className: s.className,
+                session: s.session,
+              }}
+            />
+          </div>
+          <div id={`pdf-back-${s._id}`}>
+            <CardBack />
+          </div>
+        </React.Fragment>
+      ))}
+    </div>
   );
 
   // ════════════════════════════════════════════════════════════════════════
@@ -290,9 +387,7 @@ const IDCardGenerator = () => {
           activeMenu={activeMenu}
         />
         <main className="flex-1 overflow-y-auto bg-gray-50 p-6">
-          <div className="max-w-7xl mx-auto space-y-6">
-            {children}
-          </div>
+          <div className="max-w-7xl mx-auto space-y-6">{children}</div>
         </main>
       </div>
     </div>
@@ -304,7 +399,8 @@ const IDCardGenerator = () => {
   if (!selectedSchool) {
     return (
       <Layout>
-        {renderBatch.length > 0 && <HiddenRenderLayer students={renderBatch} />}
+        {/* Always render hidden batch even on school picker screen */}
+        {renderBatch.length > 0 && <HiddenBatch />}
 
         {/* Page header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
@@ -350,10 +446,15 @@ const IDCardGenerator = () => {
               className="bg-white border border-gray-200 rounded-lg p-5 text-left hover:border-blue-400 hover:shadow-md transition-all duration-200 group shadow-sm"
             >
               <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-4 text-white font-bold text-lg overflow-hidden bg-blue-600">
-                {sc.logo
-                  ? <img src={sc.logo} alt={sc.schoolName} className="w-full h-full object-cover" />
-                  : sc.schoolName?.charAt(0).toUpperCase()
-                }
+                {sc.logo ? (
+                  <img
+                    src={sc.logo}
+                    alt={sc.schoolName}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  sc.schoolName?.charAt(0).toUpperCase()
+                )}
               </div>
               <h3 className="font-semibold text-gray-900 text-sm group-hover:text-blue-700 transition-colors leading-snug mb-1">
                 {sc.schoolName}
@@ -384,13 +485,17 @@ const IDCardGenerator = () => {
   // ════════════════════════════════════════════════════════════════════════
   return (
     <Layout>
-      {renderBatch.length > 0 && <HiddenRenderLayer students={renderBatch} />}
+      {/* Hidden cards for PDF rendering — always present when batch is active */}
+      {renderBatch.length > 0 && <HiddenBatch />}
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => { setSelectedSchool(null); setStudents([]); }}
+            onClick={() => {
+              setSelectedSchool(null);
+              setStudents([]);
+            }}
             className="text-gray-400 hover:text-gray-700 transition p-1.5 rounded-lg hover:bg-gray-100 border border-gray-200"
           >
             <ChevronLeft className="w-4 h-4" />
@@ -405,12 +510,35 @@ const IDCardGenerator = () => {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: 'Total Students', value: students.length, color: 'bg-blue-100', text: 'text-blue-600' },
-          { label: 'Filtered', value: filtered.length, color: 'bg-purple-100', text: 'text-purple-600' },
-          { label: 'Selected', value: selected.size > 0 ? selected.size : '—', color: 'bg-orange-100', text: 'text-orange-600' },
-          { label: 'Will Generate', value: targetStudents.length, color: 'bg-green-100', text: 'text-green-600' },
+          {
+            label: 'Total Students',
+            value: students.length,
+            color: 'bg-blue-100',
+            text: 'text-blue-600',
+          },
+          {
+            label: 'Filtered',
+            value: filtered.length,
+            color: 'bg-purple-100',
+            text: 'text-purple-600',
+          },
+          {
+            label: 'Selected',
+            value: selected.size > 0 ? selected.size : '—',
+            color: 'bg-orange-100',
+            text: 'text-orange-600',
+          },
+          {
+            label: 'Will Generate',
+            value: targetStudents.length,
+            color: 'bg-green-100',
+            text: 'text-green-600',
+          },
         ].map((stat) => (
-          <div key={stat.label} className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
+          <div
+            key={stat.label}
+            className="bg-white rounded-lg p-4 shadow-sm border border-gray-200"
+          >
             <div className="flex items-center">
               <div className={`${stat.color} p-2 rounded-lg`}>
                 <Download className={`h-5 w-5 ${stat.text}`} />
@@ -429,7 +557,9 @@ const IDCardGenerator = () => {
         <div className="flex-1 min-w-[200px]">
           <p className="text-sm font-semibold text-gray-800">Upload Student Photos</p>
           <p className="text-xs text-gray-400 mt-0.5">
-            Upload a <code className="bg-gray-100 px-1 rounded text-gray-600">photos.zip</code> file before generating cards
+            Upload a{' '}
+            <code className="bg-gray-100 px-1 rounded text-gray-600">photos.zip</code> file
+            before generating cards
           </p>
         </div>
         {zipResult && (
@@ -449,7 +579,11 @@ const IDCardGenerator = () => {
           type="file"
           accept=".zip"
           className="hidden"
-          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleZipUpload(f); e.target.value = ''; }}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) handleZipUpload(f);
+            e.target.value = '';
+          }}
         />
         <button
           className="flex items-center gap-2 border border-gray-300 rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition disabled:opacity-50 bg-white"
@@ -457,9 +591,14 @@ const IDCardGenerator = () => {
           onClick={() => zipInputRef.current?.click()}
         >
           {zipUploading ? (
-            <><div className="animate-spin rounded-full h-4 w-4 border-t-2 border-blue-500" /> Uploading...</>
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-blue-500" />
+              Uploading...
+            </>
           ) : (
-            <><Download className="w-4 h-4 rotate-180" /> Upload photos.zip</>
+            <>
+              <Download className="w-4 h-4 rotate-180" /> Upload photos.zip
+            </>
           )}
         </button>
       </div>
@@ -472,22 +611,35 @@ const IDCardGenerator = () => {
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
             placeholder="Search by name, email or ID..."
             value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
           />
         </div>
+
         <select
           className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-700"
           value={classFilter}
-          onChange={(e) => { setClassFilter(e.target.value); setPage(1); }}
+          onChange={(e) => {
+            setClassFilter(e.target.value);
+            setPage(1);
+          }}
         >
-          {classes.map((c) => <option key={c}>{c}</option>)}
+          {classes.map((c) => (
+            <option key={c}>{c}</option>
+          ))}
         </select>
+
         <button
           className="border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition bg-white"
           onClick={toggleSelectAll}
         >
-          {selected.size === filtered.length && filtered.length > 0 ? 'Deselect All' : 'Select All Filtered'}
+          {selected.size === filtered.length && filtered.length > 0
+            ? 'Deselect All'
+            : 'Select All Filtered'}
         </button>
+
         {selected.size > 0 && (
           <button
             className="border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-500 hover:bg-gray-50 transition bg-white"
@@ -496,13 +648,18 @@ const IDCardGenerator = () => {
             Clear ({selected.size})
           </button>
         )}
+
         <button
           className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-5 py-2 text-sm font-medium transition flex items-center gap-2 disabled:opacity-60"
           disabled={generating || targetStudents.length === 0}
           onClick={() => runPDFGeneration(targetStudents)}
         >
           <Download className="w-4 h-4" />
-          {generating ? `Generating... ${pct}%` : `Generate PDF (${targetStudents.length} cards)`}
+          {generating
+            ? `Generating… ${pct}%`
+            : selected.size > 0
+            ? `Generate PDF (${selected.size} selected)`
+            : `Generate PDF (all ${filtered.length})`}
         </button>
       </div>
 
@@ -530,92 +687,128 @@ const IDCardGenerator = () => {
                     <input
                       type="checkbox"
                       className="cursor-pointer"
-                      checked={selected.size === filtered.length && filtered.length > 0}
+                      checked={
+                        selected.size === filtered.length && filtered.length > 0
+                      }
                       onChange={toggleSelectAll}
                     />
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Email</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Class</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Photo</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Student
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
+                    Email
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Class
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Photo
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {paginated.length > 0 ? paginated.map((s) => (
-                  <tr
-                    key={s._id}
-                    className={`hover:bg-gray-50 transition-colors ${selected.has(s._id) ? 'bg-blue-50' : ''}`}
-                  >
-                    <td className="px-6 py-4">
-                      <input
-                        type="checkbox"
-                        className="cursor-pointer"
-                        checked={selected.has(s._id)}
-                        onChange={() => toggleSelect(s._id)}
-                      />
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => toggleSelect(s._id)}>
-                      <div className="flex items-center gap-3">
-                        {s.photoUrl ? (
-                          <img
-                            src={s.photoUrl}
-                            alt={s.displayName}
-                            crossOrigin="anonymous"
-                            className="w-9 h-9 rounded-full object-cover border border-gray-200 flex-shrink-0"
-                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                          />
-                        ) : (
-                          <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-medium flex-shrink-0">
-                            {s.displayName.charAt(0).toUpperCase()}
+                {paginated.length > 0 ? (
+                  paginated.map((s) => (
+                    <tr
+                      key={s._id}
+                      className={`hover:bg-gray-50 transition-colors ${
+                        selected.has(s._id) ? 'bg-blue-50' : ''
+                      }`}
+                    >
+                      <td className="px-6 py-4">
+                        <input
+                          type="checkbox"
+                          className="cursor-pointer"
+                          checked={selected.has(s._id)}
+                          onChange={() => toggleSelect(s._id)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-3">
+                          {s.photoUrl ? (
+                            <img
+                              src={s.photoUrl}
+                              alt={s.displayName}
+                              crossOrigin="anonymous"
+                              className="w-9 h-9 rounded-full object-cover border border-gray-200 flex-shrink-0"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-medium flex-shrink-0">
+                              {s.displayName.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">
+                              {s.displayName}
+                            </p>
+                            <p className="text-xs text-gray-400">{s.student_id}</p>
                           </div>
-                        )}
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">{s.displayName}</p>
-                          <p className="text-xs text-gray-400">{s.student_id}</p>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden md:table-cell cursor-pointer" onClick={() => toggleSelect(s._id)}>{s.email}</td>
-                    <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => toggleSelect(s._id)}>
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                        {s.className || '—'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => toggleSelect(s._id)}>
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        s.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
-                      }`}>
-                        {s.status === 'Active'
-                          ? <CheckCircle size={11} className="mr-1" />
-                          : <XCircle size={11} className="mr-1" />
-                        }
-                        {s.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => toggleSelect(s._id)}>
-                      {s.photoUrl ? (
-                        <span className="inline-flex items-center gap-1 text-xs text-green-600">
-                          <CheckCircle size={12} /> Ready
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden md:table-cell">
+                        {s.email}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          {s.className || '—'}
                         </span>
-                      ) : (
-                        <span className="text-xs text-amber-500">No photo</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                      <button
-                        className="text-blue-600 hover:text-blue-900 p-1 hover:bg-blue-50 rounded transition"
-                        onClick={(e) => { e.stopPropagation(); setPreviewStudent(s); }}
-                        title="Preview ID Card"
-                      >
-                        <Eye size={16} />
-                      </button>
-                    </td>
-                  </tr>
-                )) : (
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            s.status === 'Active'
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-gray-100 text-gray-600'
+                          }`}
+                        >
+                          {s.status === 'Active' ? (
+                            <CheckCircle size={11} className="mr-1" />
+                          ) : (
+                            <XCircle size={11} className="mr-1" />
+                          )}
+                          {s.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {s.photoUrl ? (
+                          <span className="inline-flex items-center gap-1 text-xs text-green-600">
+                            <CheckCircle size={12} /> Ready
+                          </span>
+                        ) : (
+                          <span className="text-xs text-amber-500">No photo</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <button
+                          className="text-blue-600 hover:text-blue-900 p-1 hover:bg-blue-50 rounded transition"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPreviewStudent(s);
+                          }}
+                          title="Preview ID Card"
+                        >
+                          <Eye size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
                   <tr>
-                    <td colSpan={7} className="px-6 py-10 text-center text-gray-400 text-sm">
+                    <td
+                      colSpan={7}
+                      className="px-6 py-10 text-center text-gray-400 text-sm"
+                    >
                       No students found
                     </td>
                   </tr>
@@ -629,9 +822,12 @@ const IDCardGenerator = () => {
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-gray-700">
-                  Showing <span className="font-medium">{(page - 1) * PER_PAGE + 1}</span>–
-                  <span className="font-medium">{Math.min(page * PER_PAGE, filtered.length)}</span> of{' '}
-                  <span className="font-medium">{filtered.length}</span> students
+                  Showing{' '}
+                  <span className="font-medium">{(page - 1) * PER_PAGE + 1}</span>–
+                  <span className="font-medium">
+                    {Math.min(page * PER_PAGE, filtered.length)}
+                  </span>{' '}
+                  of <span className="font-medium">{filtered.length}</span> students
                 </p>
                 <div className="flex gap-2">
                   <button
@@ -644,7 +840,8 @@ const IDCardGenerator = () => {
                   {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
                     let pageNum = i + 1;
                     if (totalPages > 5 && page > 3) pageNum = page - 3 + i;
-                    if (totalPages > 5 && page > totalPages - 2) pageNum = totalPages - 4 + i;
+                    if (totalPages > 5 && page > totalPages - 2)
+                      pageNum = totalPages - 4 + i;
                     return pageNum <= totalPages ? (
                       <button
                         key={pageNum}
@@ -679,7 +876,9 @@ const IDCardGenerator = () => {
           <div className="bg-white rounded-2xl p-10 text-center min-w-[320px] shadow-2xl">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600 mx-auto mb-4" />
             <h3 className="text-lg font-bold text-gray-900 mb-1">Generating ID Cards</h3>
-            <p className="text-sm text-gray-500 mb-1">{progress.current} / {progress.total} processed</p>
+            <p className="text-sm text-gray-500 mb-1">
+              {progress.current} / {progress.total} processed
+            </p>
             <p className="text-xs text-gray-400 h-4 mb-3 truncate">{progress.name}</p>
             <div className="w-full bg-gray-100 rounded-full h-2 mb-2 overflow-hidden">
               <div
@@ -688,7 +887,9 @@ const IDCardGenerator = () => {
               />
             </div>
             <p className="text-2xl font-bold text-blue-600 mt-2">{pct}%</p>
-            <p className="text-xs text-gray-400 mt-2">PDF will download automatically when complete</p>
+            <p className="text-xs text-gray-400 mt-2">
+              PDF will download automatically when complete
+            </p>
           </div>
         </div>
       )}
@@ -699,15 +900,22 @@ const IDCardGenerator = () => {
           className="fixed inset-0 bg-black/85 flex flex-col items-center justify-center z-50 p-6 overflow-y-auto"
           onClick={() => setPreviewStudent(null)}
         >
-          {/* Hidden render for single card PDF */}
-          <HiddenRenderLayer students={[previewStudent]} />
-
-          <p className="text-white font-semibold text-lg mb-1">{previewStudent.displayName}</p>
-          <p className="text-gray-400 text-xs mb-2">{previewStudent.className} · {previewStudent.student_id}</p>
+          <p className="text-white font-semibold text-lg mb-1">
+            {previewStudent.displayName}
+          </p>
+          <p className="text-gray-400 text-xs mb-2">
+            {previewStudent.className} · {previewStudent.student_id}
+          </p>
           <p className="text-gray-500 text-xs mb-5">Click outside the cards to close</p>
-          <div className="flex gap-5 flex-wrap justify-center" onClick={(e) => e.stopPropagation()}>
+
+          <div
+            className="flex gap-5 flex-wrap justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div>
-              <p className="text-xs text-gray-400 text-center mb-2 tracking-widest uppercase">Front</p>
+              <p className="text-xs text-gray-400 text-center mb-2 tracking-widest uppercase">
+                Front
+              </p>
               <CardFront
                 student={{
                   id: previewStudent._id,
@@ -721,11 +929,17 @@ const IDCardGenerator = () => {
               />
             </div>
             <div>
-              <p className="text-xs text-gray-400 text-center mb-2 tracking-widest uppercase">Back</p>
+              <p className="text-xs text-gray-400 text-center mb-2 tracking-widest uppercase">
+                Back
+              </p>
               <CardBack />
             </div>
           </div>
-          <div className="flex gap-3 mt-6" onClick={(e) => e.stopPropagation()}>
+
+          <div
+            className="flex gap-3 mt-6"
+            onClick={(e) => e.stopPropagation()}
+          >
             <button
               className="border border-gray-500 rounded-xl px-5 py-2.5 text-sm font-medium text-gray-300 hover:bg-white/10 transition"
               onClick={() => setPreviewStudent(null)}
@@ -734,7 +948,13 @@ const IDCardGenerator = () => {
             </button>
             <button
               className="bg-blue-600 hover:bg-blue-700 rounded-xl px-6 py-2.5 text-sm font-bold text-white flex items-center gap-2 transition"
-              onClick={async () => { setPreviewStudent(null); await runPDFGeneration([previewStudent]); }}
+              onClick={async () => {
+                const student = previewStudent;
+                setPreviewStudent(null);
+                // Small delay so the modal unmounts before we start rendering
+                await new Promise((r) => setTimeout(r, 200));
+                await runPDFGeneration([student]);
+              }}
             >
               <Download className="w-4 h-4" /> Download This Card
             </button>

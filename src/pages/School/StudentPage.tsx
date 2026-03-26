@@ -744,45 +744,87 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
   }, []);
 
   const handleExport = useCallback(() => {
-    if (!students || students.length === 0) {
-      setSnackbar({ open: true, message: "No students available to export", severity: "warning" });
-      return;
-    }
+  if (!students || students.length === 0) {
+    setSnackbar({ open: true, message: "No students available to export", severity: "warning" });
+    return;
+  }
 
-    setSnackbar({ open: true, message: "Exporting students...", severity: "info" });
+  setSnackbar({ open: true, message: "Exporting students...", severity: "info" });
 
-    // Build CSV
-    const headers = Object.keys(students[0] || {}).join(",") + "\n";
+  // Define the columns that should appear in the export (matching table columns)
+  const exportColumns = [
+    { key: 'studentId', label: 'Student ID' },
+    { key: 'name', label: 'Student Name' },
+    { key: 'email', label: 'Email' },
+    { key: 'guardianName', label: 'Guardian Name' },
+    { key: 'guardianEmail', label: 'Guardian Email' },
+    { key: 'classAdmittedTo', label: 'Class' },
+    { key: 'status', label: 'Status' },
+    { key: 'joinDate', label: 'Join Date' }
+  ];
 
-    const rows = students
-      .map((student) =>
-        Object.values(student)
-          .map((value) => {
-            const strValue = value ?? "";
-            if (typeof strValue === "string" && (strValue.includes(",") || strValue.includes('"'))) {
-              return `"${strValue.replace(/"/g, '""')}"`;
-            }
-            return strValue;
-          })
-          .join(",")
-      )
-      .join("\n");
+  // Transform students data into export format
+  const exportData = students.map(student => ({
+    studentId: student._id,
+    name: student.name || `${student.firstName || ''} ${student.lastName || ''}`.trim() || 'Unknown',
+    email: student.email || 'No email',
+    guardianName: student.guardian?.fullName || 'Not assigned',
+    guardianEmail: student.guardian?.email || 'Not assigned',
+    classAdmittedTo: student.classAdmittedTo || 'Not Assigned',
+    status: student.status || 'Pending',
+    joinDate: formatDate(student.createdAt)
+  }));
 
-    const csvContent = headers + rows;
+  // Build CSV headers
+  const headers = exportColumns.map(col => col.label).join(',') + '\n';
 
-    // Download
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
+  // Build CSV rows
+  const rows = exportData
+    .map(row => {
+      return exportColumns
+        .map(col => {
+          let value = row[col.key as keyof typeof row];
+          
+          // Handle null/undefined values
+          if (value === null || value === undefined) {
+            value = '';
+          }
+          
+          // Convert to string
+          let stringValue = String(value);
+          
+          // Escape quotes and wrap in quotes if contains comma, quote, or newline
+          if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+            stringValue = `"${stringValue.replace(/"/g, '""')}"`;
+          }
+          
+          return stringValue;
+        })
+        .join(',');
+    })
+    .join('\n');
 
-    link.href = url;
-    link.download = "students_export.csv";
-    link.click();
+  const csvContent = headers + rows;
 
-    URL.revokeObjectURL(url);
+  // Download CSV
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
 
-    setSnackbar({ open: true, message: "Students exported successfully", severity: "success" });
-  }, [students]);
+  // Add timestamp to filename
+  const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+  link.href = url;
+  link.download = `students_export_${timestamp}.csv`;
+  link.click();
+
+  URL.revokeObjectURL(url);
+
+  setSnackbar({ 
+    open: true, 
+    message: `Exported ${students.length} students successfully`, 
+    severity: "success" 
+  });
+}, [students, formatDate]);
 
   // ==================== DATA PROCESSING ====================
 

@@ -83,12 +83,15 @@ const AgentScanQR: React.FC = () => {
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
   const [transactionFee, setTransactionFee] = useState<number>(0);
   
-  // NEW: Tera Scanner States
+  // Tera Scanner States
   const [scannerMode, setScannerMode] = useState<'camera' | 'bluetooth'>('camera');
   const [isBluetoothScannerActive, setIsBluetoothScannerActive] = useState<boolean>(false);
-  const [scanBuffer, setScanBuffer] = useState<string>('');
-  const [scanTimeout, setScanTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [debugRawData, setDebugRawData] = useState<string>('');
   const hiddenInputRef = useRef<HTMLInputElement>(null);
+  
+  // Use refs for buffer to avoid re-renders
+  const accumulatedBufferRef = useRef<string>('');
+  const bufferTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const colors = {
     primary: '#3f51b5',
@@ -97,194 +100,7 @@ const AgentScanQR: React.FC = () => {
     background: '#f8faff',
   };
 
-  useEffect(() => {
-    const initializeApp = async () => {
-      const storedToken = localStorage.getItem('token');
-      if (!storedToken) {
-        setError('Authentication required. Please login.');
-        setLoading(false);
-        return;
-      }
-      
-      setToken(storedToken);
-      await enumerateCameras();
-      setLoading(false);
-    };
-
-    initializeApp();
-  }, []);
-
-  useEffect(() => {
-    if (token) {
-      fetchTransactionCharges();
-    }
-  }, [token]);
-
-  // NEW: Setup Bluetooth scanner listener when in bluetooth mode
-  useEffect(() => {
-    if (scannerMode === 'bluetooth' && isBluetoothScannerActive) {
-      // Focus the hidden input to capture scanner input
-      if (hiddenInputRef.current) {
-        hiddenInputRef.current.focus();
-      }
-      
-      // Alternative: Global keyboard listener for scanner
-      const handleGlobalKeyPress = (event: KeyboardEvent) => {
-        // Check if it's likely from a scanner (fast typing)
-        // Scanners typically send characters very quickly (< 50ms between keystrokes)
-        
-        if (scanTimeout) clearTimeout(scanTimeout);
-        
-        setScanBuffer(prev => prev + event.key);
-        
-        const timeout = setTimeout(() => {
-          if (scanBuffer.length > 0) {
-            console.log('Scanner detected data:', scanBuffer);
-            try {
-              const qrData = parseQRData(scanBuffer);
-              if (qrData.transactionType === 'payment' || qrData.type === 'payment_request') {
-                setScanResult({ qrData });
-                setShowConfirmDialog(true);
-                setIsBluetoothScannerActive(false);
-              } else {
-                setError('Invalid QR code - not a payment QR code');
-              }
-            } catch (decodeError) {
-              console.error('QR decode error:', decodeError);
-              setError("Couldn't read QR code. Please ensure this is a valid payment QR code.");
-            }
-            setScanBuffer('');
-          }
-        }, 100); // Wait 100ms after last keystroke to consider scan complete
-        
-        setScanTimeout(timeout);
-      };
-      
-      window.addEventListener('keypress', handleGlobalKeyPress);
-      
-      return () => {
-        window.removeEventListener('keypress', handleGlobalKeyPress);
-        if (scanTimeout) clearTimeout(scanTimeout);
-      };
-    }
-  }, [scannerMode, isBluetoothScannerActive, scanBuffer, scanTimeout]);
-
-  const enumerateCameras = async () => {
-    try {
-      await navigator.mediaDevices.getUserMedia({ video: true });
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const videoDevices = devices.filter(device => device.kind === 'videoinput');
-      
-      if (videoDevices.length === 0) {
-        throw new Error('No cameras found');
-      }
-      
-      setAvailableCameras(videoDevices);
-    } catch (err) {
-      console.error('Camera enumeration error:', err);
-      setCameraError('Could not access camera. Please ensure permissions are granted and a camera is available.');
-    }
-  };
-
-  const parseQRData = (data: string): QRCodeData => {
-    try {
-      let parsedData: unknown;
-      try {
-        parsedData = JSON.parse(data);
-      } catch {
-        const cleanedData = data
-          .replace(/['']/g, '"') 
-          .replace(/'/g, '"');    
-        parsedData = JSON.parse(cleanedData);
-      }
-
-      if (typeof parsedData !== 'object' || parsedData === null) {
-        throw new Error('Invalid QR code format');
-      }
-      
-      const normalizedData: QRCodeData = {
-        ...(parsedData as object),
-        userId: (typeof parsedData === 'object' && parsedData !== null && 'userId' in parsedData ? (parsedData as { userId?: string }).userId : undefined)
-          || (typeof parsedData === 'object' && parsedData !== null && 'userld' in parsedData ? (parsedData as { userld?: string }).userld : undefined),
-        name: (parsedData as Record<string, unknown>).name as string || '',
-        email: (parsedData as Record<string, unknown>).email as string || '',
-        role: (parsedData as Record<string, unknown>).role as string || '',
-        accountNumber: (parsedData as Record<string, unknown>).accountNumber as string || '',
-        timestamp: (parsedData as Record<string, unknown>).timestamp as number || Date.now(),
-        currency: (parsedData as Record<string, unknown>).currency as string || ((parsedData as Record<string, unknown>).wallet as { currency?: string } | undefined)?.currency,
-        transactionType: (parsedData as Record<string, unknown>).transactionType as string || (parsedData as Record<string, unknown>).type as string,
-      };
-
-      if (!normalizedData.userId || !normalizedData.name || !normalizedData.accountNumber || !normalizedData.email) {
-        throw new Error('Invalid QR code - missing required fields');
-      }
-
-      return normalizedData;
-    } catch (error) {
-      console.error('QR decode error:', error);
-      throw new Error('Invalid QR code format');
-    }
-  };
-
-  const handleScan = useCallback((data: string) => {
-    if (data && !scanResult) {
-      try {
-        const qrData = parseQRData(data);
-        
-        if (qrData.transactionType !== 'payment' && qrData.type !== 'payment_request') {
-          throw new Error('Invalid QR code - not a payment QR code');
-        }
-        
-        setScanResult({ qrData });
-        setShowConfirmDialog(true);
-        setScanning(false);
-        setIsBluetoothScannerActive(false); // Deactivate bluetooth scanner after successful scan
-      } catch (decodeError) {
-        console.error('QR decode error:', decodeError);
-        setError("Couldn't read QR code. Please ensure this is a valid payment QR code.");
-        setScanning(false);
-      }
-    }
-  }, [scanResult]);
-
-  // NEW: Toggle between camera and bluetooth scanner
-  const toggleScannerMode = () => {
-    if (scannerMode === 'camera') {
-      // Switch to bluetooth scanner
-      setScannerMode('bluetooth');
-      setScanning(false); // Turn off camera if it was on
-      setIsBluetoothScannerActive(true);
-      setError(null);
-    } else {
-      // Switch to camera
-      setScannerMode('camera');
-      setIsBluetoothScannerActive(false);
-      setScanBuffer('');
-      if (scanTimeout) clearTimeout(scanTimeout);
-      setError(null);
-    }
-  };
-
-  const toggleScanning = () => {
-    if (scannerMode === 'camera') {
-      setScanning(!scanning);
-      setError(null);
-      setScanResult(null);
-    } else {
-      // For bluetooth scanner, just toggle active state
-      setIsBluetoothScannerActive(!isBluetoothScannerActive);
-      if (!isBluetoothScannerActive) {
-        // Focus the hidden input when activating
-        setTimeout(() => hiddenInputRef.current?.focus(), 100);
-      }
-    }
-  };
-
-  const switchCamera = () => {
-    setFacingMode(prev => prev === 'environment' ? 'user' : 'environment');
-  };
-
-  const fetchTransactionCharges = async () => {
+  const fetchTransactionCharges = useCallback(async () => {
     if (!token) {
       console.log('No token available for fetching charges');
       return;
@@ -315,6 +131,431 @@ const AgentScanQR: React.FC = () => {
       console.error('Error fetching transaction charges:', error);
       setTransactionFee(0);
     }
+  }, [token]);
+
+  useEffect(() => {
+    const initializeApp = async () => {
+      const storedToken = localStorage.getItem('token');
+      if (!storedToken) {
+        setError('Authentication required. Please login.');
+        setLoading(false);
+        return;
+      }
+      
+      setToken(storedToken);
+      await enumerateCameras();
+      setLoading(false);
+    };
+
+    initializeApp();
+  }, []);
+
+  useEffect(() => {
+    if (token) {
+      fetchTransactionCharges();
+    }
+  }, [token, fetchTransactionCharges]);
+
+  // Improved QR parsing with extensive debugging
+  const parseQRData = useCallback((data: string): QRCodeData => {
+    console.log('🔧 === PARSING QR DATA ===');
+    console.log('📥 Input data type:', typeof data);
+    console.log('📥 Input data length:', data.length);
+    console.log('📥 Input data (full):', data);
+    
+    // Log each character's char code to see if there are hidden characters
+    console.log('🔢 Character codes:');
+    const maxCharsToShow = Math.min(data.length, 100);
+    for (let i = 0; i < maxCharsToShow; i++) {
+      const charCode = data.charCodeAt(i);
+      const char = data[i];
+      console.log(`  [${i}]: '${char}' (${charCode}) ${charCode < 32 ? '⚠️ CONTROL CHAR' : ''}`);
+    }
+    
+    try {
+      // Try to clean the data first - remove any whitespace, newlines, or control characters
+      let cleanedData = data.trim();
+      console.log('🧹 After trim:', cleanedData);
+      
+      // Remove any non-printable characters
+      cleanedData = cleanedData.replace(/[^\x20-\x7E]/g, '');
+      console.log('🧹 After removing non-printable:', cleanedData);
+      
+      // Check if it's a URL (common for some QR codes)
+      if (cleanedData.startsWith('http://') || cleanedData.startsWith('https://')) {
+        console.log('🌐 Detected URL format, trying to extract params');
+        try {
+          const url = new URL(cleanedData);
+          const params = new URLSearchParams(url.search);
+          console.log('📋 URL params:', Array.from(params.entries()));
+          
+          // Try to find JSON in URL params
+          for (const [key, value] of params.entries()) {
+            console.log(`🔍 Checking param "${key}":`, value);
+            if (value.startsWith('{') || value.startsWith('[')) {
+              try {
+                const parsed = JSON.parse(decodeURIComponent(value));
+                console.log('✅ Successfully parsed JSON from URL param:', parsed);
+                return parsed as QRCodeData;
+              } catch (err) {
+                console.log('Could not parse param as JSON:', err);
+              }
+            }
+          }
+        } catch (urlError) {
+          console.log('Failed to parse URL:', urlError);
+        }
+        
+        throw new Error('URL format not supported yet');
+      }
+      
+      // Try to parse as JSON directly
+      let parsedData: unknown;
+      try {
+        parsedData = JSON.parse(cleanedData);
+        console.log('✅ Successfully parsed as JSON directly:', parsedData);
+      } catch (firstError) {
+        console.log('Direct JSON parse failed, trying to fix format');
+        console.log('First error:', firstError);
+        
+        // Try replacing single quotes with double quotes
+        let fixedData = cleanedData.replace(/'/g, '"');
+        console.log('After replacing single quotes:', fixedData);
+        
+        // Try to handle unquoted keys
+        fixedData = fixedData.replace(/([{,]\s*)([a-zA-Z0-9_]+)(\s*:)/g, '$1"$2"$3');
+        console.log('After adding quotes to keys:', fixedData);
+        
+        try {
+          parsedData = JSON.parse(fixedData);
+          console.log('✅ Successfully parsed after fixing quotes:', parsedData);
+        } catch (secondError) {
+          console.log('Second parse attempt failed:', secondError);
+          
+          // Try to extract JSON from the string if it's embedded
+          const jsonMatch = cleanedData.match(/\{.*\}/s);
+          if (jsonMatch) {
+            console.log('Found JSON-like structure:', jsonMatch[0]);
+            try {
+              parsedData = JSON.parse(jsonMatch[0]);
+              console.log('✅ Successfully parsed extracted JSON:', parsedData);
+            } catch (thirdError) {
+              console.log('Extracted JSON parse failed:', thirdError);
+              throw new Error(`Unable to parse QR data as JSON: ${cleanedData.substring(0, 100)}`);
+            }
+          } else {
+            console.log('No JSON-like structure found');
+            throw new Error(`QR data is not valid JSON: ${cleanedData.substring(0, 100)}`);
+          }
+        }
+      }
+
+      if (typeof parsedData !== 'object' || parsedData === null) {
+        throw new Error('Invalid QR code format - not an object');
+      }
+      
+      const dataObj = parsedData as Record<string, unknown>;
+      console.log('📦 Data object keys:', Object.keys(dataObj));
+      
+      const normalizedData: QRCodeData = {
+        userId: (dataObj.userId as string) || (dataObj.userld as string),
+        name: dataObj.name as string || '',
+        email: dataObj.email as string || '',
+        role: dataObj.role as string || '',
+        accountNumber: dataObj.accountNumber as string || '',
+        timestamp: (dataObj.timestamp as number) || Date.now(),
+        currency: (dataObj.currency as string) || (dataObj.wallet as { currency?: string })?.currency,
+        transactionType: (dataObj.transactionType as string) || (dataObj.type as string) || '',
+      };
+
+      console.log('📋 Normalized data:', normalizedData);
+
+      // Validate required fields
+      if (!normalizedData.userId) {
+        throw new Error('Missing userId in QR code');
+      }
+      if (!normalizedData.name) {
+        throw new Error('Missing name in QR code');
+      }
+      if (!normalizedData.accountNumber) {
+        throw new Error('Missing accountNumber in QR code');
+      }
+      if (!normalizedData.email) {
+        throw new Error('Missing email in QR code');
+      }
+      if (!normalizedData.transactionType || (normalizedData.transactionType !== 'payment' && normalizedData.transactionType !== 'payment_request')) {
+        throw new Error('QR code is not a payment QR code');
+      }
+
+      console.log('✅ QR data validation passed!');
+      return normalizedData;
+    } catch (error) {
+      console.error('❌ QR decode error:', error);
+      throw new Error(`Invalid QR code format: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }, []);
+
+  // Improved scanner handler with better debugging
+  const handleScannerInput = useCallback((inputData: string) => {
+    console.log('\n🎯 === SCANNER INPUT RECEIVED ===');
+    console.log('📝 Raw input data:', inputData);
+    console.log('📏 Data length:', inputData.length);
+    console.log('🔍 First 100 chars:', inputData.substring(0, 100));
+    console.log('🔍 Last 100 chars:', inputData.substring(inputData.length - 100));
+    
+    // Try to see if it contains any JSON structure
+    const hasBraces = inputData.includes('{') && inputData.includes('}');
+    console.log('Contains JSON braces {}:', hasBraces);
+    
+    if (hasBraces) {
+      const jsonStart = inputData.indexOf('{');
+      const jsonEnd = inputData.lastIndexOf('}') + 1;
+      const possibleJson = inputData.substring(jsonStart, jsonEnd);
+      console.log('📦 Extracted possible JSON:', possibleJson);
+    }
+    
+    // Check if it's a URL
+    const isUrl = inputData.startsWith('http');
+    console.log('Is URL:', isUrl);
+    
+    setDebugRawData(inputData);
+    
+    try {
+      const qrData = parseQRData(inputData);
+      console.log('✅ Successfully parsed QR data:', qrData);
+      console.log('👤 Customer name:', qrData.name);
+      console.log('📧 Customer email:', qrData.email);
+      console.log('💳 Account number:', qrData.accountNumber);
+      console.log('💰 Currency:', qrData.currency);
+      console.log('📝 Transaction type:', qrData.transactionType);
+      
+      setScanResult({ qrData });
+      setShowConfirmDialog(true);
+      setIsBluetoothScannerActive(false);
+      setError(null);
+    } catch (decodeError) {
+      console.error('❌ Failed to parse scanner input:', decodeError);
+      console.error('❌ Error details:', decodeError instanceof Error ? decodeError.message : 'Unknown error');
+      console.error('❌ Data that failed to parse:', inputData);
+      setError(`Couldn't read QR code. ${decodeError instanceof Error ? decodeError.message : 'Invalid format'}`);
+      // Keep the scanner active so they can try again
+    }
+  }, [parseQRData]);
+
+  const enumerateCameras = async () => {
+    try {
+      await navigator.mediaDevices.getUserMedia({ video: true });
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(device => device.kind === 'videoinput');
+      
+      if (videoDevices.length === 0) {
+        throw new Error('No cameras found');
+      }
+      
+      setAvailableCameras(videoDevices);
+    } catch (err) {
+      console.error('Camera enumeration error:', err);
+      setCameraError('Could not access camera. Please ensure permissions are granted and a camera is available.');
+    }
+  };
+
+  // Setup Bluetooth scanner listener with proper buffering
+  useEffect(() => {
+    if (scannerMode === 'bluetooth' && isBluetoothScannerActive) {
+      console.log('\n🔵 ===== BLUETOOTH SCANNER ACTIVATED =====');
+      console.log('Focusing hidden input...');
+      
+      // Focus the hidden input
+      if (hiddenInputRef.current) {
+        hiddenInputRef.current.focus();
+        console.log('✅ Hidden input focused');
+      }
+      
+      // Store ref in a variable for cleanup
+      const hiddenInput = hiddenInputRef.current;
+      
+      // Reset buffer when activating
+      accumulatedBufferRef.current = '';
+      if (bufferTimerRef.current) {
+        clearTimeout(bufferTimerRef.current);
+        bufferTimerRef.current = null;
+      }
+      
+      // Function to process the accumulated buffer
+      const processBuffer = () => {
+        const buffer = accumulatedBufferRef.current;
+        if (buffer.length > 0) {
+          console.log('\n📦 ===== PROCESSING COMPLETE BUFFER =====');
+          console.log('Buffer content:', buffer);
+          console.log('Buffer length:', buffer.length);
+          console.log('First 50 chars:', buffer.substring(0, 50));
+          console.log('Last 50 chars:', buffer.substring(buffer.length - 50));
+          
+          // Show in debug display
+          setDebugRawData(buffer);
+          
+          // Process the scanned data
+          handleScannerInput(buffer);
+          
+          // Clear buffer
+          accumulatedBufferRef.current = '';
+        } else {
+          console.log('⚠️ Buffer empty, nothing to process');
+        }
+      };
+      
+      // Handle input events from the hidden input
+      const handleHiddenInput = (event: Event) => {
+        const target = event.target as HTMLInputElement;
+        const newValue = target.value;
+        
+        if (newValue) {
+          console.log(`\n📝 Hidden input received: "${newValue}" (length: ${newValue.length})`);
+          console.log(`Character codes:`, Array.from(newValue).map(c => `${c}(${c.charCodeAt(0)})`).join(', '));
+          
+          // Append to accumulated buffer
+          accumulatedBufferRef.current += newValue;
+          console.log(`📚 Current accumulated buffer: "${accumulatedBufferRef.current}" (length: ${accumulatedBufferRef.current.length})`);
+          
+          // Clear previous timer
+          if (bufferTimerRef.current) {
+            console.log('⏰ Clearing previous timer');
+            clearTimeout(bufferTimerRef.current);
+            bufferTimerRef.current = null;
+          }
+          
+          // Set new timer - wait 300ms after last input to consider scan complete
+          bufferTimerRef.current = setTimeout(() => {
+            console.log('\n⏰ Scan pause detected (300ms), processing buffer...');
+            processBuffer();
+            bufferTimerRef.current = null;
+          }, 300);
+          
+          // Clear the input for next scan
+          target.value = '';
+        }
+      };
+      
+      // Also listen for Enter key as immediate completion
+      const handleKeyPress = (event: KeyboardEvent) => {
+        if (event.key === 'Enter') {
+          console.log('\n⏎ Enter key pressed, processing immediately');
+          if (bufferTimerRef.current) {
+            clearTimeout(bufferTimerRef.current);
+            bufferTimerRef.current = null;
+          }
+          processBuffer();
+        }
+      };
+      
+      // Also listen for the scanner's termination character (often a newline or carriage return)
+      const handleKeyDown = (event: KeyboardEvent) => {
+        if (event.key === 'Enter' || event.key === 'Tab') {
+          console.log(`\n⌨️ Special key detected: ${event.key}`);
+          if (bufferTimerRef.current) {
+            clearTimeout(bufferTimerRef.current);
+            bufferTimerRef.current = null;
+          }
+          processBuffer();
+        }
+      };
+      
+      if (hiddenInput) {
+        hiddenInput.addEventListener('input', handleHiddenInput);
+        console.log('✅ Added input listener to hidden input');
+      }
+      window.addEventListener('keypress', handleKeyPress);
+      window.addEventListener('keydown', handleKeyDown);
+      console.log('✅ Added global keyboard listeners');
+      console.log('🟢 Bluetooth scanner ready and waiting for scans...');
+      
+      return () => {
+        console.log('\n🔴 Cleaning up Bluetooth scanner listeners');
+        if (hiddenInput) {
+          hiddenInput.removeEventListener('input', handleHiddenInput);
+        }
+        window.removeEventListener('keypress', handleKeyPress);
+        window.removeEventListener('keydown', handleKeyDown);
+        if (bufferTimerRef.current) {
+          clearTimeout(bufferTimerRef.current);
+          bufferTimerRef.current = null;
+        }
+        accumulatedBufferRef.current = '';
+        console.log('✅ Cleanup complete');
+      };
+    }
+  }, [scannerMode, isBluetoothScannerActive, handleScannerInput]);
+
+  const handleScan = useCallback((data: string) => {
+    if (data && !scanResult) {
+      console.log('📸 Camera scan data:', data);
+      handleScannerInput(data);
+      setScanning(false);
+    }
+  }, [scanResult, handleScannerInput]);
+
+  const toggleScannerMode = () => {
+    console.log(`\n🔄 Toggling scanner mode from ${scannerMode} to ${scannerMode === 'camera' ? 'bluetooth' : 'camera'}`);
+    if (scannerMode === 'camera') {
+      setScannerMode('bluetooth');
+      setScanning(false);
+      setIsBluetoothScannerActive(true);
+      setError(null);
+      setDebugRawData('');
+      // Reset buffer
+      accumulatedBufferRef.current = '';
+      if (bufferTimerRef.current) {
+        clearTimeout(bufferTimerRef.current);
+        bufferTimerRef.current = null;
+      }
+      console.log('🔵 Switched to Bluetooth mode');
+    } else {
+      setScannerMode('camera');
+      setIsBluetoothScannerActive(false);
+      setError(null);
+      setDebugRawData('');
+      // Reset buffer
+      accumulatedBufferRef.current = '';
+      if (bufferTimerRef.current) {
+        clearTimeout(bufferTimerRef.current);
+        bufferTimerRef.current = null;
+      }
+      console.log('📷 Switched to Camera mode');
+    }
+  };
+
+  const toggleScanning = () => {
+    if (scannerMode === 'camera') {
+      setScanning(!scanning);
+      setError(null);
+      setScanResult(null);
+      console.log(`📷 Camera scanning ${!scanning ? 'started' : 'stopped'}`);
+    } else {
+      setIsBluetoothScannerActive(!isBluetoothScannerActive);
+      if (!isBluetoothScannerActive) {
+        // Reset buffer when activating
+        accumulatedBufferRef.current = '';
+        if (bufferTimerRef.current) {
+          clearTimeout(bufferTimerRef.current);
+          bufferTimerRef.current = null;
+        }
+        setTimeout(() => {
+          if (hiddenInputRef.current) {
+            hiddenInputRef.current.focus();
+            console.log('🔵 Bluetooth scanner activated, hidden input focused');
+          }
+        }, 100);
+      } else {
+        console.log('🔴 Bluetooth scanner deactivated');
+      }
+      setError(null);
+      setDebugRawData('');
+    }
+  };
+
+  const switchCamera = () => {
+    setFacingMode(prev => prev === 'environment' ? 'user' : 'environment');
+    console.log(`🔄 Switched to ${facingMode === 'environment' ? 'front' : 'rear'} camera`);
   };
 
   const processTransfer = async (transactionData: TransactionData): Promise<TransactionResponse> => {
@@ -349,6 +590,7 @@ const AgentScanQR: React.FC = () => {
 
   const handleConfirmTransaction = () => {
     if (!scanResult || !amount) return;
+    console.log('📝 Confirming transaction, amount:', amount);
     setShowConfirmDialog(false);
     setShowPinDialog(true);
   };
@@ -356,6 +598,7 @@ const AgentScanQR: React.FC = () => {
   const handlePinSubmit = async () => {
     if (!scanResult || !amount || !userEnteredPin) return;
 
+    console.log('🔐 Submitting PIN verification');
     setProcessingTransaction(true);
     
     try {
@@ -372,8 +615,15 @@ const AgentScanQR: React.FC = () => {
         transactionFee: transactionFee
       };
 
+      console.log('💸 Processing transfer:', {
+        email: transactionData.receiverEmail,
+        amount: transactionData.amount,
+        fee: transactionData.transactionFee
+      });
+
       const result = await processTransfer(transactionData);
       
+      console.log('✅ Transaction successful:', result);
       setShowPinDialog(false);
       setTransactionId(result.transactionId || 'N/A');
       setProcessingTransaction(false);
@@ -381,6 +631,7 @@ const AgentScanQR: React.FC = () => {
       setUserEnteredPin('');
       
     } catch (err) {
+      console.error('❌ Transaction failed:', err);
       setProcessingTransaction(false);
       
       let errorMessage = 'Transaction failed. Please try again.';
@@ -409,6 +660,7 @@ const AgentScanQR: React.FC = () => {
   };
 
   const resetScan = () => {
+    console.log('🔄 Resetting scan state');
     setScanning(false);
     setScanResult(null);
     setAmount('');
@@ -418,8 +670,12 @@ const AgentScanQR: React.FC = () => {
     setTransactionComplete(false);
     setCameraError(null);
     setIsBluetoothScannerActive(false);
-    setScanBuffer('');
-    if (scanTimeout) clearTimeout(scanTimeout);
+    setDebugRawData('');
+    accumulatedBufferRef.current = '';
+    if (bufferTimerRef.current) {
+      clearTimeout(bufferTimerRef.current);
+      bufferTimerRef.current = null;
+    }
   };
 
   const formatCurrency = (amount: number, currency: string = 'NGN'): string => {
@@ -437,7 +693,7 @@ const AgentScanQR: React.FC = () => {
 
   return (
     <div className="flex flex-col min-h-screen" style={{ backgroundColor: colors.background }}>
-      {/* NEW: Hidden input for bluetooth scanner */}
+      {/* Hidden input for bluetooth scanner */}
       <input
         ref={hiddenInputRef}
         type="text"
@@ -462,6 +718,14 @@ const AgentScanQR: React.FC = () => {
                 <AlertCircle size={20} className="flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <p className="font-medium mb-1">{error || cameraError}</p>
+                  
+                  {debugRawData && error && (
+                    <div className="text-xs mt-2 bg-red-100 p-2 rounded font-mono">
+                      <p className="font-medium mb-1">Debug Info - Raw Scanner Data:</p>
+                      <p className="break-all">{debugRawData.substring(0, 200)}</p>
+                      <p className="text-xs text-gray-600 mt-1">Length: {debugRawData.length} characters</p>
+                    </div>
+                  )}
                   
                   {error && error.includes('PIN') && (
                     <div className="text-sm mt-2 bg-red-100 p-2 rounded">
@@ -490,6 +754,7 @@ const AgentScanQR: React.FC = () => {
                   onClick={() => {
                     setError(null);
                     setCameraError(null);
+                    setDebugRawData('');
                   }}
                 >
                   <X size={16} />
@@ -536,7 +801,7 @@ const AgentScanQR: React.FC = () => {
               </>
             ) : (
               <>
-                {/* NEW: Scanner Mode Toggle Buttons */}
+                {/* Scanner Mode Toggle Buttons */}
                 <div className="flex gap-4 mb-6 justify-center">
                   <button
                     className={`flex items-center gap-2 px-6 py-2 rounded-lg font-medium transition-all ${
@@ -649,8 +914,8 @@ const AgentScanQR: React.FC = () => {
                 
                 {/* Tera Bluetooth Scanner UI */}
                 {scannerMode === 'bluetooth' && (
-                  <div className="w-full max-w-[350px] h-[350px] bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg relative overflow-hidden mx-auto border-2 border-dashed border-blue-300">
-                    <div className="flex flex-col items-center justify-center h-full p-6 text-center">
+                  <div className="w-full max-w-[350px] bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg relative overflow-hidden mx-auto border-2 border-dashed border-blue-300">
+                    <div className="flex flex-col items-center justify-center p-6 text-center">
                       <Bluetooth size={60} className="text-blue-600 mb-4" />
                       <h3 className="text-lg font-semibold text-gray-800 mb-2">
                         Tera 2D Scanner Ready
@@ -664,14 +929,29 @@ const AgentScanQR: React.FC = () => {
                             ? '🟢 Scanner active - Ready to scan QR codes'
                             : '⚪ Scanner inactive - Click "Start Scanner" below'}
                         </p>
+                        {debugRawData && (
+                          <div className="mt-2 p-2 bg-gray-100 rounded text-xs">
+                            <p className="font-medium text-gray-700">Last scanned data:</p>
+                            <p className="font-mono text-gray-600 break-all">{debugRawData.substring(0, 100)}</p>
+                            <p className="text-gray-500 mt-1">Length: {debugRawData.length} chars</p>
+                          </div>
+                        )}
                       </div>
                       <div className="flex gap-2">
                         <button
                           onClick={() => {
                             setIsBluetoothScannerActive(!isBluetoothScannerActive);
                             if (!isBluetoothScannerActive) {
+                              // Reset buffer when activating
+                              accumulatedBufferRef.current = '';
+                              if (bufferTimerRef.current) {
+                                clearTimeout(bufferTimerRef.current);
+                                bufferTimerRef.current = null;
+                              }
                               setTimeout(() => hiddenInputRef.current?.focus(), 100);
                             }
+                            setError(null);
+                            setDebugRawData('');
                           }}
                           className={`px-4 py-2 rounded-lg font-medium ${
                             isBluetoothScannerActive
@@ -685,11 +965,17 @@ const AgentScanQR: React.FC = () => {
                           <button
                             onClick={() => {
                               setError(null);
-                              setScanBuffer('');
+                              setDebugRawData('');
+                              accumulatedBufferRef.current = '';
+                              if (bufferTimerRef.current) {
+                                clearTimeout(bufferTimerRef.current);
+                                bufferTimerRef.current = null;
+                              }
+                              console.log('🧹 Cleared buffer and debug data');
                             }}
                             className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg text-gray-700"
                           >
-                            Clear Buffer
+                            Clear
                           </button>
                         )}
                       </div>
