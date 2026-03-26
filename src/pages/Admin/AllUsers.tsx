@@ -221,6 +221,48 @@ const fetchUsers = useCallback(async () => {
     return first + last || user.name?.charAt(0) || '?';
   };
 
+  const escapeCsvValue = (value: unknown) => {
+    const stringValue = String(value ?? '');
+    return `"${stringValue.replace(/"/g, '""')}"`;
+  };
+
+  const handleExport = () => {
+    if (sectionConfig.defaultRole !== 'parent' || filteredUsers.length === 0) {
+      return;
+    }
+
+    const headers = ['Parent ID', 'Name', 'Email', 'Phone', 'Status', 'Address', 'Date Joined'];
+    const rows = filteredUsers.map((userData) => {
+      const user = userData.user;
+      return [
+        user?._id || '',
+        user?.name || '',
+        user?.email || '',
+        user?.phone || '',
+        user?.status || '',
+        user?.schoolAddress || '',
+        formatDate(user?.createdAt)
+      ];
+    });
+
+    const csvContent = [
+      headers.map(escapeCsvValue).join(','),
+      ...rows.map((row) => row.map(escapeCsvValue).join(','))
+    ].join('\n');
+
+    const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
+    const downloadUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const dateStamp = new Date().toISOString().slice(0, 10);
+
+    link.href = downloadUrl;
+    link.download = `parents-${dateStamp}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(downloadUrl);
+  };
+
   if (loading) {
     return (
       <div className="flex h-screen bg-gray-100">
@@ -256,9 +298,14 @@ const fetchUsers = useCallback(async () => {
                 <p className="text-gray-600 mt-1">{sectionConfig.description}</p>
               </div>
               <div className="flex space-x-3 mt-4 sm:mt-0">
-                <button className="bg-white border border-gray-300 rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center">
+                <button
+                  type="button"
+                  onClick={handleExport}
+                  disabled={sectionConfig.defaultRole !== 'parent' || filteredUsers.length === 0}
+                  className="bg-white border border-gray-300 rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                >
                   <Download size={16} className="mr-2" />
-                  Export
+                  {sectionConfig.defaultRole === 'parent' ? 'Export CSV' : 'Export'}
                 </button>
               </div>
             </div>

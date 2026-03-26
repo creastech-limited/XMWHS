@@ -228,28 +228,68 @@ export const getAgentsById = async (schoolId?: string): Promise<GetAgentsRespons
 // Get agents in a store for admin
 export const getAgentsInStoreByAdmin = async (storeId: string): Promise<StoreAgent[]> => {
   const response = await apiClient.get<
-    StoreAgent[] | { data?: StoreAgent[] | { agent?: StoreAgent[] }; agent?: StoreAgent[] }
+    | StoreAgent[]
+    | {
+        data?:
+          | StoreAgent[]
+          | {
+              agent?: StoreAgent[];
+              data?: {
+                agent?: StoreAgent[];
+              };
+            };
+        agent?: StoreAgent[];
+        agents?: StoreAgent[];
+      }
   >(`/api/users/getagentinstorebyadmin/${encodeURIComponent(storeId)}`);
 
   const responseData = response.data;
 
-  if (Array.isArray(responseData)) {
-    return responseData;
-  }
+  const rawAgents = (() => {
+    if (Array.isArray(responseData)) {
+      return responseData;
+    }
 
-  if (Array.isArray(responseData?.data)) {
-    return responseData.data;
-  }
+    if (Array.isArray(responseData?.data)) {
+      return responseData.data;
+    }
 
-  if (responseData?.data && !Array.isArray(responseData.data) && Array.isArray(responseData.data.agent)) {
-    return responseData.data.agent;
-  }
+    if (Array.isArray(responseData?.agent)) {
+      return responseData.agent;
+    }
 
-  if (Array.isArray(responseData?.agent)) {
-    return responseData.agent;
-  }
+    if (Array.isArray(responseData?.agents)) {
+      return responseData.agents;
+    }
 
-  return [];
+    if (responseData?.data && !Array.isArray(responseData.data)) {
+      if (Array.isArray(responseData.data.agent)) {
+        return responseData.data.agent;
+      }
+
+      if (responseData.data.data && Array.isArray(responseData.data.data.agent)) {
+        return responseData.data.data.agent;
+      }
+    }
+
+    return [];
+  })();
+
+  return rawAgents.map((agent, index) => {
+    const normalizedAgent = agent as StoreAgent & {
+      _id?: string;
+      status?: string;
+    };
+
+    return {
+      ...normalizedAgent,
+      id: normalizedAgent.id || normalizedAgent._id || normalizedAgent.email || `agent-${storeId}-${index}`,
+      fullName:
+        normalizedAgent.fullName ||
+        `${normalizedAgent.firstName || ''} ${normalizedAgent.lastName || ''}`.trim() ||
+        'Unnamed Agent'
+    };
+  });
 };
 
 // Register agent
@@ -559,11 +599,55 @@ const tryUserListEndpoints = async (endpoints: string[]): Promise<UserData[]> =>
   throw lastError ?? new Error(`No working endpoint found: ${endpoints.join(', ')}`);
 };
 
+const normalizeParentRows = (rows: unknown[]): UserData[] => {
+  return rows.map((row, index) => {
+    const parent = row as {
+      _id?: string;
+      parent_id?: string;
+      parentName?: string;
+      parentEmail?: string;
+      parentPhone?: string;
+      parentStatus?: string;
+      parentAddress?: string;
+      createdAt?: string;
+      updatedAt?: string;
+    };
+
+    const id = parent._id || parent.parent_id || `parent-${index}`;
+    const name = parent.parentName || 'Unknown Parent';
+    const [firstName = '', ...rest] = name.split(' ');
+    const lastName = rest.join(' ');
+
+    return {
+      user: {
+        _id: id,
+        name,
+        firstName,
+        lastName,
+        email: parent.parentEmail || '',
+        phone: parent.parentPhone || '',
+        role: 'parent',
+        status: parent.parentStatus || 'Inactive',
+        createdAt: parent.createdAt || '',
+        updatedAt: parent.updatedAt || '',
+        schoolAddress: parent.parentAddress || ''
+      }
+    };
+  });
+};
+
 export const getAllParents = async (): Promise<UserData[]> => {
-  return tryUserListEndpoints([
+  const data = await tryUserListEndpoints([
     '/api/users/getallparents',
     '/api/users/getallParents'
   ]);
+
+  const looksLikeFlatParentPayload = data.every((item) => {
+    const record = item as unknown as { user?: unknown; parentName?: unknown; parentEmail?: unknown };
+    return !record.user && ('parentName' in record || 'parentEmail' in record);
+  });
+
+  return looksLikeFlatParentPayload ? normalizeParentRows(data as unknown[]) : data;
 };
 
 

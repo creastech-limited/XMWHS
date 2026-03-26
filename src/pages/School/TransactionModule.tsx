@@ -233,11 +233,11 @@ const TransactionModule: React.FC = () => {
                   </div>
 
                   {totalPages > 1 && (
-                    <div className="flex justify-center items-center gap-4 mt-6">
+                    <div className=" text-black flex justify-center items-center gap-4 mt-6">
                       <button 
                         disabled={currentPage === 1} 
                         onClick={() => setCurrentPage(p => p - 1)} 
-                        className="px-4 py-2 border rounded-lg disabled:opacity-30 hover:bg-gray-50 text-sm font-medium"
+                        className="px-4 text-black py-2 border rounded-lg disabled:opacity-30 hover:bg-gray-50 text-sm font-medium"
                       >
                         Previous
                       </button>
@@ -245,7 +245,7 @@ const TransactionModule: React.FC = () => {
                       <button 
                         disabled={currentPage === totalPages} 
                         onClick={() => setCurrentPage(p => p + 1)} 
-                        className="px-4 py-2 border rounded-lg disabled:opacity-30 hover:bg-gray-50 text-sm font-medium"
+                        className="px-4  text-black py-2 border rounded-lg disabled:opacity-30 hover:bg-gray-50 text-sm font-medium"
                       >
                         Next
                       </button>
