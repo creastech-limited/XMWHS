@@ -12,6 +12,7 @@ export interface Student {
   student_id: string;       
   schoolId: string;         
   Class: string;  
+  admissionNumber?: string,
   classAdmittedTo: string;           
   academicDetails: {        
     classAdmittedTo: string;
