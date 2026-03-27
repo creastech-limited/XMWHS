@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { jsPDF } from 'jspdf';
 import {
   Search, Download, ChevronLeft, ChevronRight,
@@ -39,7 +39,7 @@ function normaliseStudents(raw: Student[]) {
     qrData:          s.QRcode ?? s.qrcode ?? `GRACE-${s._id}`,
     className:       s.Class ?? s.academicDetails?.classAdmittedTo ?? s.classAdmittedTo ?? '',
     session:         '2024/2025',
-    admissionNumber: s.admissionNumber ?? '',  // ← normalised
+    admissionNumber: s.admissionNumber ?? '',
   }));
 }
 
@@ -50,6 +50,19 @@ const LOGO_URL  = '/graceschhollogo.png';
 const XPAY_URL  = '/xpay.jpeg';
 const CARD_MM_W = 54;
 const CARD_MM_H = 85.6;
+
+// ─── Separate Layout Component (prevents recreating on every render)
+const Layout = ({ children, sidebarOpen, setSidebarOpen, activeMenu, setActiveMenu }: { children: React.ReactNode; sidebarOpen: boolean; setSidebarOpen: (v: boolean) => void; activeMenu: string; setActiveMenu: (v: string) => void; }) => (
+  <div className="flex h-screen bg-gray-100">
+    <AdminSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activeMenu={activeMenu} setActiveMenu={setActiveMenu} />
+    <div className="flex-1 flex flex-col overflow-hidden">
+      <AdminHeader sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activeMenu={activeMenu} />
+      <main className="flex-1 overflow-y-auto bg-gray-50 p-6">
+        <div className="max-w-7xl mx-auto space-y-6">{children}</div>
+      </main>
+    </div>
+  </div>
+);
 
 // ─── Main Page ─────────────────────────────────────────────────────────────
 const IDCardGenerator = () => {
@@ -74,6 +87,7 @@ const IDCardGenerator = () => {
   const [zipResult, setZipResult]             = useState<{ message: string; updated: number } | null>(null);
   const [zipError, setZipError]               = useState('');
   const zipInputRef = useRef<HTMLInputElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // ── Fetch schools
   useEffect(() => {
@@ -110,19 +124,26 @@ const IDCardGenerator = () => {
       .finally(() => setStudentsLoading(false));
   }, [selectedSchool]);
 
-  // ── Derived
-  const classes = ['All', ...Array.from(new Set(students.map((s) => s.className).filter(Boolean))).sort()];
- const filtered = students.filter((s) => {
-  const q = search.toLowerCase();
-  const matchSearch =
-    s.displayName.toLowerCase().includes(q) ||
-    (s.email?.toLowerCase() ?? '').includes(q) ||   // ✅ FIXED
-    s._id.includes(q) ||
-    (s.student_id?.toLowerCase() ?? '').includes(q) ||
-    (s.admissionNumber?.toLowerCase() ?? '').includes(q);
+  // ── Derived (using useMemo to prevent unnecessary recalculations)
+  const classes = useMemo(() => 
+    ['All', ...Array.from(new Set(students.map((s) => s.className).filter(Boolean))).sort()],
+    [students]
+  );
 
-  return matchSearch && (classFilter === 'All' || s.className === classFilter);
-});
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return students.filter((s) => {
+      const matchSearch =
+        s.displayName.toLowerCase().includes(q) ||
+        (s.email?.toLowerCase() ?? '').includes(q) ||
+        s._id.includes(q) ||
+        (s.student_id?.toLowerCase() ?? '').includes(q) ||
+        (s.admissionNumber?.toLowerCase() ?? '').includes(q);
+
+      return matchSearch && (classFilter === 'All' || s.className === classFilter);
+    });
+  }, [students, search, classFilter]);
+
   const totalPages     = Math.ceil(filtered.length / PER_PAGE);
   const paginated      = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
   const targetStudents = selected.size > 0 ? students.filter((s) => selected.has(s._id)) : filtered;
@@ -136,6 +157,7 @@ const IDCardGenerator = () => {
     }
     return next;
   });
+
   const toggleSelectAll = () => {
     if (selected.size === filtered.length && filtered.length > 0) setSelected(new Set());
     else setSelected(new Set(filtered.map((s) => s._id)));
@@ -159,9 +181,7 @@ const IDCardGenerator = () => {
     } finally { setZipUploading(false); }
   };
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // PDF GENERATION — pure Canvas 2D drawing
-  // ─────────────────────────────────────────────────────────────────────────
+  // ── PDF Generation
   const runPDFGeneration = async (studentList: NormalisedStudent[]) => {
     if (!studentList.length) { setStudentsError('No students to generate cards for.'); return; }
 
@@ -170,7 +190,6 @@ const IDCardGenerator = () => {
     setProgress({ current: 0, total: studentList.length, name: '' });
 
     const canvas = document.createElement('canvas');
-
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [CARD_MM_W, CARD_MM_H] });
     let pagesAdded = 0;
 
@@ -187,14 +206,12 @@ const IDCardGenerator = () => {
           admissionNumber: s.admissionNumber,
         };
 
-        // Front
         await drawCardFront(canvas, cardStudent, LOGO_URL);
         const frontJpeg = canvas.toDataURL('image/jpeg', 0.92);
         if (pagesAdded > 0) pdf.addPage([CARD_MM_W, CARD_MM_H], 'portrait');
         pdf.addImage(frontJpeg, 'JPEG', 0, 0, CARD_MM_W, CARD_MM_H);
         pagesAdded++;
 
-        // Back
         await drawCardBack(canvas, LOGO_URL, XPAY_URL);
         const backJpeg = canvas.toDataURL('image/jpeg', 0.92);
         pdf.addPage([CARD_MM_W, CARD_MM_H], 'portrait');
@@ -226,32 +243,20 @@ const IDCardGenerator = () => {
     sc.schoolName?.toLowerCase().includes(schoolSearch.toLowerCase())
   );
 
-  const Layout = ({ children }: { children: React.ReactNode }) => (
-    <div className="flex h-screen bg-gray-100">
-      <AdminSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activeMenu={activeMenu} setActiveMenu={setActiveMenu} />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <AdminHeader sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activeMenu={activeMenu} />
-        <main className="flex-1 overflow-y-auto bg-gray-50 p-6">
-          <div className="max-w-7xl mx-auto space-y-6">{children}</div>
-        </main>
-      </div>
-    </div>
-  );
-
   // ════════════════════════════════════════════════════════════════════════
   // School picker
   // ════════════════════════════════════════════════════════════════════════
   if (!selectedSchool) {
     return (
-      <Layout>
+      <Layout sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activeMenu={activeMenu} setActiveMenu={setActiveMenu}>
         <div>
           <h1 className="text-2xl font-bold text-gray-900">ID Card Generator</h1>
           <p className="text-gray-600 mt-1">Select a school to generate student ID cards</p>
         </div>
         <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
           <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
-            <input className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm text-black" placeholder="Search schools..." value={schoolSearch} onChange={(e) => setSchoolSearch(e.target.value)} />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4 pointer-events-none" />
+            <input type="text" className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm text-black" placeholder="Search schools..." value={schoolSearch} onChange={(e) => setSchoolSearch(e.target.value)} />
           </div>
         </div>
         {schoolsLoading && <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500" /></div>}
@@ -283,7 +288,7 @@ const IDCardGenerator = () => {
   // Student list
   // ════════════════════════════════════════════════════════════════════════
   return (
-    <Layout>
+    <Layout sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activeMenu={activeMenu} setActiveMenu={setActiveMenu}>
       {/* Header */}
       <div className="flex items-center gap-3">
         <button onClick={() => { setSelectedSchool(null); setStudents([]); }}
@@ -331,39 +336,46 @@ const IDCardGenerator = () => {
       </div>
 
       {/* Controls */}
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 flex flex-wrap gap-3 items-center">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
-         <input 
-  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm text-black" 
-  placeholder="Search by name, email, ID or adm no..." 
-  value={search} 
-  onChange={(e) => {
-    const newValue = e.target.value;
-    setSearch(newValue);
-    setPage(1);
-  }} 
-/>
+      <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 space-y-3">
+        <div className="flex gap-3 items-center">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4 pointer-events-none" />
+            <input 
+              ref={searchInputRef}
+              type="text"
+              autoComplete="off"
+              spellCheck="false"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm text-black"
+              placeholder="Search by name, email, ID or adm no..." 
+              value={search} 
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+            />
+          </div>
+          <select className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-700 whitespace-nowrap" value={classFilter} onChange={(e) => { setClassFilter(e.target.value); setPage(1); }}>
+            {classes.map((c) => <option key={c}>{c}</option>)}
+          </select>
         </div>
-        <select className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-700" value={classFilter} onChange={(e) => { setClassFilter(e.target.value); setPage(1); }}>
-          {classes.map((c) => <option key={c}>{c}</option>)}
-        </select>
-        <button className="border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition bg-white" onClick={toggleSelectAll}>
-          {selected.size === filtered.length && filtered.length > 0 ? 'Deselect All' : 'Select All Filtered'}
-        </button>
-        {selected.size > 0 && (
-          <button className="border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-500 hover:bg-gray-50 transition bg-white" onClick={() => setSelected(new Set())}>
-            Clear ({selected.size})
+        <div className="flex flex-wrap gap-3 items-center">
+          <button className="border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition bg-white" onClick={toggleSelectAll}>
+            {selected.size === filtered.length && filtered.length > 0 ? 'Deselect All' : 'Select All Filtered'}
           </button>
-        )}
-        <button
-          className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-5 py-2 text-sm font-medium transition flex items-center gap-2 disabled:opacity-60"
-          disabled={generating || targetStudents.length === 0}
-          onClick={() => runPDFGeneration(targetStudents)}
-        >
-          <Download className="w-4 h-4" />
-          {generating ? `Generating… ${pct}%` : selected.size > 0 ? `Generate PDF (${selected.size} selected)` : `Generate PDF (all ${filtered.length})`}
-        </button>
+          {selected.size > 0 && (
+            <button className="border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-500 hover:bg-gray-50 transition bg-white" onClick={() => setSelected(new Set())}>
+              Clear ({selected.size})
+            </button>
+          )}
+          <button
+            className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-5 py-2 text-sm font-medium transition flex items-center gap-2 disabled:opacity-60"
+            disabled={generating || targetStudents.length === 0}
+            onClick={() => runPDFGeneration(targetStudents)}
+          >
+            <Download className="w-4 h-4" />
+            {generating ? `Generating… ${pct}%` : selected.size > 0 ? `Generate PDF (${selected.size} selected)` : `Generate PDF (all ${filtered.length})`}
+          </button>
+        </div>
       </div>
 
       {studentsLoading && <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500" /></div>}
