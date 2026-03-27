@@ -190,7 +190,7 @@ const CardBack = React.forwardRef<HTMLDivElement>((_, ref) => {
           }}
         >
           <p style={{ fontSize: 8.5, color: "#fff", margin: 0, lineHeight: 1.6 }}>
-            For customer service: 07064755837 or 09154110883<br />
+            For customer service: 09019832344 or 09154110883<br />
             Email: customersupport@xpay.ng
           </p>
         </div>

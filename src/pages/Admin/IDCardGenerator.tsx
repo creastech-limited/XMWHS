@@ -112,16 +112,17 @@ const IDCardGenerator = () => {
 
   // ── Derived
   const classes = ['All', ...Array.from(new Set(students.map((s) => s.className).filter(Boolean))).sort()];
-  const filtered = students.filter((s) => {
-    const q = search.toLowerCase();
-    const matchSearch =
-      s.displayName.toLowerCase().includes(q) ||
-      s.email.toLowerCase().includes(q) ||
-      s._id.includes(q) ||
-      (s.student_id?.toLowerCase() ?? '').includes(q) ||
-      (s.admissionNumber?.toLowerCase() ?? '').includes(q);
-    return matchSearch && (classFilter === 'All' || s.className === classFilter);
-  });
+ const filtered = students.filter((s) => {
+  const q = search.toLowerCase();
+  const matchSearch =
+    s.displayName.toLowerCase().includes(q) ||
+    (s.email?.toLowerCase() ?? '').includes(q) ||   // ✅ FIXED
+    s._id.includes(q) ||
+    (s.student_id?.toLowerCase() ?? '').includes(q) ||
+    (s.admissionNumber?.toLowerCase() ?? '').includes(q);
+
+  return matchSearch && (classFilter === 'All' || s.className === classFilter);
+});
   const totalPages     = Math.ceil(filtered.length / PER_PAGE);
   const paginated      = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
   const targetStudents = selected.size > 0 ? students.filter((s) => selected.has(s._id)) : filtered;
@@ -250,7 +251,7 @@ const IDCardGenerator = () => {
         <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
           <div className="relative max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
-            <input className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" placeholder="Search schools..." value={schoolSearch} onChange={(e) => setSchoolSearch(e.target.value)} />
+            <input className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm text-black" placeholder="Search schools..." value={schoolSearch} onChange={(e) => setSchoolSearch(e.target.value)} />
           </div>
         </div>
         {schoolsLoading && <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500" /></div>}
@@ -333,7 +334,16 @@ const IDCardGenerator = () => {
       <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 flex flex-wrap gap-3 items-center">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
-          <input className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" placeholder="Search by name, email, ID or adm no..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
+         <input 
+  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm text-black" 
+  placeholder="Search by name, email, ID or adm no..." 
+  value={search} 
+  onChange={(e) => {
+    const newValue = e.target.value;
+    setSearch(newValue);
+    setPage(1);
+  }} 
+/>
         </div>
         <select className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-700" value={classFilter} onChange={(e) => { setClassFilter(e.target.value); setPage(1); }}>
           {classes.map((c) => <option key={c}>{c}</option>)}
