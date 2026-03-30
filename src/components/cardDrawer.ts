@@ -223,7 +223,7 @@ export async function drawCardFront(
   curY = photoY + photoH + Math.round(H * 0.040); 
 
   // ── Student name ──────────────────────────────────────────────────────────
-  const nameFontSize = Math.round(W * 0.050);
+  const nameFontSize = Math.round(W * 0.045);
   ctx.font = `900 ${nameFontSize}px 'Oswald', sans-serif`;
   ctx.fillStyle = RED;
   ctx.textAlign = 'center';
@@ -244,7 +244,7 @@ export async function drawCardFront(
   }
 
   // ── Email ─────────────────────────────────────────────────────────────────
-  const emailFontSize = Math.round(W * 0.040);
+  const emailFontSize = Math.round(W * 0.030);
   ctx.font = `${emailFontSize}px 'Lato', sans-serif`;
   ctx.fillStyle = '#555';
   ctx.textAlign = 'center';
@@ -333,7 +333,7 @@ export async function drawCardBack(
   y += barH + Math.round(H * 0.030);
 
   // ── Contact lines ─────────────────────────────────────────────────────────
-  const cFontSize = Math.round(W * 0.040);
+  const cFontSize = Math.round(W * 0.030);
   const cLH = cFontSize * 1.55;
   ctx.font = `${cFontSize}px 'Lato', sans-serif`;
   ctx.fillStyle = '#333';
@@ -369,7 +369,7 @@ export async function drawCardBack(
   y += tHdrH + Math.round(H * 0.025);
 
   // ── Terms list ────────────────────────────────────────────────────────────
-  const tFontSize = Math.round(W * 0.050);
+  const tFontSize = Math.round(W * 0.030);
   const tLH = tFontSize * 1.65;
   ctx.font = `${tFontSize}px 'Lato', sans-serif`;
   ctx.fillStyle = '#333';
@@ -419,7 +419,7 @@ export async function drawCardBack(
   ctx.fillStyle = RED;
   ctx.fillRect(0, footerY, W, footerH);
 
-  const fFont = Math.round(W * 0.030);
+  const fFont = Math.round(W * 0.022);
   ctx.font = `${fFont}px 'Lato', sans-serif`;
   ctx.fillStyle = '#fff';
   ctx.textAlign = 'center';
