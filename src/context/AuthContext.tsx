@@ -79,6 +79,7 @@ const isPublicPath = (pathname: string): boolean => {
     '/schoolsignup',
     '/forgot-password',
     '/terms',
+    '/privacyAndPolicy',
   ];
   
   // Check exact matches first

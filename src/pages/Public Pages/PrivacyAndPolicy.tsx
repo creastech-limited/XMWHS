@@ -1,186 +1,243 @@
-import { useState } from 'react';
-import { ChevronDown, ChevronRight, Shield, CreditCard, Users, AlertCircle, FileText, Lock, Globe, Eye } from 'lucide-react';
+import Logo from '/xpay.jpeg';
 import Footer from '../../components/Footer';
-import Logo from '../5.png';
+
+type PolicySection = {
+  title: string;
+  paragraphs?: string[];
+  bullets?: string[];
+};
+
+const policySections: PolicySection[] = [
+  {
+    title: '1. Information We Collect',
+  },
+  {
+    title: '1.1 Personal Information',
+    paragraphs: [
+      'When you create an XPay account, we collect the following personal information:',
+    ],
+    bullets: [
+      'Full name',
+      'Email address and phone number',
+      'Address',
+      'Profile photo (optional)',
+    ],
+  },
+  {
+    title: '1.3 Device and Usage Information',
+    paragraphs: [
+      'We automatically collect information about your device and how you use XPay:',
+    ],
+    bullets: [
+      'Device type, operating system, and unique device identifiers',
+      'IP address and geographic location data',
+      'App usage patterns, features accessed, and time spent in the app',
+      'Login times and authentication methods used',
+      'Crash reports and diagnostic data',
+    ],
+  },
+  {
+    title: '1.4 Communication Data',
+    paragraphs: [
+      'If you contact our customer support team, we collect the content of your communications, including messages, emails, and call recordings for quality assurance and training purposes.',
+    ],
+  },
+  {
+    title: '2. How We Use Your Information',
+    paragraphs: [
+      'We use the information we collect for the following purposes:',
+    ],
+    bullets: [
+      'To create and manage your XPay account',
+      'To process transactions, transfers, and payments',
+      'To verify your identity and prevent fraud or unauthorized access',
+      'To comply with legal obligations and regulatory requirements',
+      'To provide customer support and respond to your inquiries',
+      'To improve our services, develop new features, and enhance user experience',
+      'To send you important updates, security alerts, and promotional communications',
+      'To detect and prevent security incidents, fraud, and illegal activity',
+      'To analyze usage trends and conduct research',
+    ],
+  },
+  {
+    title: '3. How We Share Your Information',
+    paragraphs: [
+      'We do not sell your personal information to third parties. However, we may share your information in the following circumstances:',
+    ],
+  },
+  {
+    title: '3.1 Service Providers',
+    paragraphs: [
+      'We work with trusted third-party service providers who help us operate XPay, including payment processors, banking partners, identity verification services, cloud storage providers, and analytics platforms. These providers are contractually obligated to protect your information and use it only for the services they provide to us.',
+    ],
+  },
+  {
+    title: '3.2 Legal Compliance',
+    paragraphs: [
+      'We may disclose your information when required by law, such as in response to court orders, subpoenas, government investigations, or to comply with financial regulations and anti-money laundering laws.',
+    ],
+  },
+  {
+    title: '3.4 With Your Consent',
+    paragraphs: [
+      'We may share your information with other parties when you give us explicit consent to do so, such as when you authorize a transaction with a specific merchant or connect XPay with third-party apps.',
+    ],
+  },
+  {
+    title: '4. Data Security',
+    paragraphs: [
+      'We take the security of your information seriously and implement industry-standard security measures to protect it, including:',
+      'While we strive to protect your information, no method of transmission or storage is completely secure. We cannot guarantee absolute security, but we continuously work to improve our security practices.',
+    ],
+    bullets: [
+      'End-to-end encryption for sensitive data transmission',
+      'Secure socket layer (SSL) technology for all communications',
+      'Multi-factor authentication and biometric security options',
+      'Regular security audits and vulnerability assessments',
+      'Restricted access to personal information by authorized personnel only',
+      'Secure data centers with physical and electronic safeguards',
+    ],
+  },
+  {
+    title: '5. Your Privacy Rights',
+    paragraphs: [
+      'Depending on your location, you may have certain rights regarding your personal information:',
+      'To exercise these rights, please contact us at privacy@xpay.ng. We will respond to your request within 30 days. Please note that we may need to retain certain information for legal or operational purposes.',
+    ],
+    bullets: [
+      'Access: You can request a copy of the personal information we hold about you',
+      'Correction: You can update or correct inaccurate information in your account settings',
+      'Portability: You can request your data in a portable format',
+      'Opt-out: You can opt out of marketing communications at any time',
+      'Object: You can object to certain processing of your information',
+    ],
+  },
+  {
+    title: '6. Data Retention',
+    paragraphs: [
+      'We retain your personal information for as long as necessary to provide our services, comply with legal obligations, resolve disputes, and enforce our agreement.',
+    ],
+  },
+  {
+    title: '7. International Data Transfers',
+    paragraphs: [
+      'XPay operates currently in Nigeria, and your information may be transferred to and processed within Nigeria other than your country of residence. These countries may have different data protection laws than your country. When we transfer your information internationally, we ensure appropriate safeguards are in place, such as standard contractual clauses or adequacy decisions, to protect your information in accordance with this Privacy Policy.',
+    ],
+  },
+  {
+    title: '8. Cookies and Tracking Technologies',
+    paragraphs: [
+      'XPay uses cookies and similar tracking technologies to improve your experience, analyze usage patterns, and deliver personalized content. Cookies are small data files stored on your device. You can control cookie preferences through your device settings, but disabling cookies may limit your ability to use certain features of XPay.',
+      'We use the following types of cookies:',
+    ],
+    bullets: [
+      'Essential cookies: Necessary for the app to function properly',
+      'Analytics cookies: Help us understand how users interact with XPay',
+      'Preference cookies: Remember your settings and personalize your experience',
+    ],
+  },
+  {
+    title: '10. Third-Party Links',
+    paragraphs: [
+      'XPay may contain links to third-party websites, apps, or services. We are not responsible for the privacy practices of these third parties. We encourage you to review their privacy policies before providing any personal information. This Privacy Policy applies only to information collected by XPay.',
+    ],
+  },
+  {
+    title: '11. Changes to This Privacy Policy',
+    paragraphs: [
+      'We may update this Privacy Policy from time to time to reflect changes in our practices, technology, legal requirements, or other factors. When we make significant changes, we will notify you through the app or via email. The updated policy will include a new effective date at the top. We encourage you to review this Privacy Policy periodically to stay informed about how we protect your information.',
+    ],
+  },
+  {
+    title: '12. Contact Us',
+    paragraphs: [
+      'If you have any questions, concerns, or requests regarding this Privacy Policy or our privacy practices, please contact us:',
+      'Email: privacy@xpay.ng',
+      'Customer Support: support@xpay.ng',
+      'Mailing Address:',
+      'Privacy@xpay.ng',
+      '16A, Oguntona crescent,',
+      'Gbagada phase 1, Lagos, 100234',
+      'Nigeria.',
+      'We are committed to protecting your privacy and earning your trust. Thank you for choosing XPay.',
+    ],
+  },
+];
 
 const PrivacyAndPolicy = () => {
-  interface ExpandedSections {
-    [key: string]: boolean;
-  }
-
-  const [expandedSections, setExpandedSections] = useState<ExpandedSections>({});
-
-  const toggleSection = (sectionId: string) => {
-    setExpandedSections((prev: ExpandedSections) => ({
-      ...prev,
-      [sectionId]: !prev[sectionId]
-    }));
-  };
-
-  const sections = [
-    {
-      id: 'collection',
-      title: '1. Information We Collect',
-      icon: <FileText className="w-5 h-5" />,
-      content: `1.1 Personal Information: We collect your full name, date of birth, email, phone number, physical address, and government-issued ID for verification.
-
-1.2 Financial Information: We collect bank account details, card information, transaction history, wallet balances, and recipient details to enable services.
-
-1.3 Device and Usage: We automatically track device types, unique identifiers, IP addresses, geographic location, and app usage patterns.`
-    },
-    {
-      id: 'usage',
-      title: '2. How We Use Your Information',
-      icon: <Eye className="w-5 h-5" />,
-      content: `We use your data to:
-- Create and manage your XPay account.
-- Process transactions, transfers, and payments.
-- Verify identity and prevent fraud or unauthorized access.
-- Comply with legal obligations and regulatory requirements.
-- Provide customer support and improve user experience.
-- Send security alerts and promotional communications.`
-    },
-    {
-      id: 'sharing',
-      title: '3. How We Share Your Information',
-      icon: <Users className="w-5 h-5" />,
-      content: `We do not sell your personal information. We share data only with:
-- Service Providers: Trusted partners (payment processors, banking partners, cloud storage) obligated to protect your data.
-- Legal Compliance: When required by law, court orders, or anti-money laundering regulations.
-- Business Transfers: In the event of a merger or sale of assets.
-- Consent: When you explicitly authorize sharing with a merchant or third-party app.`
-    },
-    {
-      id: 'security',
-      title: '4. Data Security',
-      icon: <Lock className="w-5 h-5" />,
-      content: `We implement industry-standard measures including:
-- End-to-end encryption and SSL technology.
-- Multi-factor authentication and biometric security.
-- Regular security audits and restricted internal access.
-While we strive for absolute security, no method of transmission is 100% secure.`
-    },
-    {
-      id: 'rights',
-      title: '5. Your Privacy Rights',
-      icon: <Shield className="w-5 h-5" />,
-      content: `Depending on your location, you may:
-- Access a copy of your personal information.
-- Correct inaccurate data in your account settings.
-- Request data portability or object to certain processing.
-- Opt-out of marketing communications at any time.
-Contact privacy@xpay.ng to exercise these rights; we respond within 30 days.`
-    },
-    {
-      id: 'international',
-      title: '6. Data Retention & International Transfers',
-      icon: <Globe className="w-5 h-5" />,
-      content: `Data Retention: We keep your information as long as necessary to provide services and comply with legal duties.
-
-International Transfers: XPay operates in Nigeria. Your information may be processed in Nigeria, which may have different data laws than your residence. We ensure appropriate safeguards are in place.`
-    },
-    {
-      id: 'children',
-      title: "7. Children's Privacy",
-      icon: <AlertCircle className="w-5 h-5" />,
-      content: `XPay is not intended for individuals under the age of 18. We do not knowingly collect children's data. If we discover we have inadvertently collected info from a child under 18, we will delete it as soon as possible.`
-    },
-    {
-      id: 'cookies',
-      title: '8. Cookies & Third-Party Links',
-      icon: <CreditCard className="w-5 h-5" />,
-      content: `Cookies: We use essential, analytics, and preference cookies to improve your experience. You can control these in your device settings.
-
-Third-Party Links: We are not responsible for the privacy practices of external websites linked within XPay.`
-    }
-  ];
-
   return (
-    <div className="min-h-screen bg-white">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-4xl mx-auto px-4 py-6">
-          <div className="flex items-center space-x-3">
-            <img src={Logo} alt="XPay Logo" className="w-16 sm:w-30 mb-2 sm:mb-0 sm:mr-3" />
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">XPAY PRIVACY POLICY</h1>
-              <p className="text-sm text-gray-600">Protecting your personal and financial information</p>
-            </div>
+    <div className="min-h-screen bg-slate-50">
+      <div className="border-b border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-5xl items-center gap-4 px-4 py-6">
+          <img src={Logo} alt="XPay Logo" className="w-16 sm:w-24" />
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+              XPAY PRIVACY POLICY
+            </h1>
+            <p className="mt-1 text-sm text-slate-600">
+              Effective Date: February 16, 2026
+            </p>
           </div>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8">
-          <div className="flex items-start space-x-3">
-            <AlertCircle className="w-6 h-6 text-blue-600 mt-0.5 flex-shrink-0" />
-            <div>
-              <h2 className="text-lg font-semibold text-blue-900 mb-2">Welcome to XPay</h2>
-              <p className="text-blue-800 leading-relaxed">
-                By using XPay, you agree to the terms of this Privacy Policy. This document explains how we collect, use, and protect your information.
-              </p>
-              <p className="text-blue-800 mt-2 text-sm">
-                <strong>Effective Date:</strong> February 16, 2026
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Accordion Sections */}
-        <div className="space-y-4">
-          {sections.map((section) => (
-            <div key={section.id} className="border border-gray-200 rounded-lg bg-white">
-              <button
-                onClick={() => toggleSection(section.id)}
-                className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50 transition-colors duration-200"
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="text-blue-600">{section.icon}</div>
-                  <h3 className="text-lg font-semibold text-gray-900">{section.title}</h3>
-                </div>
-                {expandedSections[section.id] ? <ChevronDown className="w-5 h-5 text-gray-400" /> : <ChevronRight className="w-5 h-5 text-gray-400" />}
-              </button>
-
-              {expandedSections[section.id] && (
-                <div className="px-4 pb-4">
-                  <div className="pl-8 border-l-2 border-blue-200">
-                    <div className="text-gray-700 leading-relaxed whitespace-pre-line text-sm sm:text-base">
-                      {section.content}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-
-        {/* Contact Information */}
-        <div className="mt-12 bg-gray-50 border border-gray-200 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Contact Us</h3>
-          <div className="grid md:grid-cols-2 gap-6 text-sm text-gray-600">
-            <div>
-              <p className="font-medium text-gray-900 mb-2">Privacy & Support</p>
-              <p>Privacy Email: privacy@xpay.ng</p>
-              <p>Support Email: support@xpay.ng</p>
-            </div>
-            <div>
-              <p className="font-medium text-gray-900 mb-2">Mailing Address</p>
-              <p>XPay Privacy Team</p>
-              <p>16A Oguntona Crescent</p>
-              <p>Gbagada, Lagos, 100234, Nigeria</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Footer info */}
-        <div className="mt-8 pt-6 border-t border-gray-200 text-center text-sm text-gray-500">
-          <p className="bg-gray-100 py-4 px-2 rounded mb-4">
-            By using XPay, you acknowledge that you have read and understood this Privacy Policy.
+      <main className="mx-auto max-w-5xl px-4 py-8">
+        <section className="rounded-2xl border border-blue-200 bg-blue-50 p-6 text-slate-800 shadow-sm">
+          <p className="mb-4 leading-7">
+            Welcome to XPay. We are committed to protecting your privacy and
+            ensuring the security of your personal and financial information.
+            This Privacy Policy explains how we collect, use, share, and
+            protect your information when you use our mobile wallet application
+            and related services.
           </p>
+          <p className="leading-7">
+            By using XPay, you agree to the terms of this Privacy Policy. If
+            you do not agree with our practices, please do not use our
+            services.
+          </p>
+        </section>
+
+        <section className="mt-8 space-y-6">
+          {policySections.map((section) => (
+            <article
+              key={section.title}
+              className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+            >
+              <h2 className="text-xl font-semibold text-slate-900">
+                {section.title}
+              </h2>
+
+              {section.paragraphs?.map((paragraph) => (
+                <p
+                  key={`${section.title}-${paragraph}`}
+                  className="mt-4 leading-7 text-slate-700"
+                >
+                  {paragraph}
+                </p>
+              ))}
+
+              {section.bullets && (
+                <ul className="mt-4 list-disc space-y-2 pl-6 text-slate-700">
+                  {section.bullets.map((bullet) => (
+                    <li key={`${section.title}-${bullet}`}>{bullet}</li>
+                  ))}
+                </ul>
+              )}
+            </article>
+          ))}
+        </section>
+
+        <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <p className="leading-7 text-slate-700">
+            By using XPay, you acknowledge that you have read and understood
+            this Privacy Policy.
+          </p>
+        </section>
+
+        <div className="mt-8">
           <Footer />
         </div>
-      </div>
+      </main>
     </div>
   );
 };

@@ -14,7 +14,7 @@ const SignUpPage: React.FC = () => {
     firstName: '',
     lastName: '',
     email: '',
-    role: 'parent', 
+    role: 'parent',
     password: '',
     confirmPassword: '',
     termsAccepted: false,
@@ -374,9 +374,9 @@ const SignUpPage: React.FC = () => {
               />
               <span className="text-gray-700 text-sm">
                 I confirm that I have read and agree to the{' '}
-               <RouterLink to="/terms" target='_blank' className="text-indigo-700 underline hover:text-indigo-900">
-  Terms and Conditions
-</RouterLink>
+                <RouterLink to="/privacyAndPolicy" className="text-indigo-700 underline hover:text-indigo-900">
+                  Privacy and Policy
+                </RouterLink>
               </span>
             </label>
 

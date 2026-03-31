@@ -58,6 +58,7 @@ function App() {
         <Routes>
 
           <Route path="/privacyAndPolicy" element={<PrivacyAndPolicy />} />
+          <Route path="/terms" element={<PrivacyAndPolicy />} />
 
           {/* Redirect root to login */}
           <Route path="/" element={<Navigate to="/login" replace />} />
