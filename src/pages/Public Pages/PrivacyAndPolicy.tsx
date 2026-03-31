@@ -78,7 +78,7 @@ const policySections: PolicySection[] = [
     ],
   },
   {
-    title: '3.4 With Your Consent',
+    title: '3.3 With Your Consent',
     paragraphs: [
       'We may share your information with other parties when you give us explicit consent to do so, such as when you authorize a transaction with a specific merchant or connect XPay with third-party apps.',
     ],
@@ -137,19 +137,19 @@ const policySections: PolicySection[] = [
     ],
   },
   {
-    title: '10. Third-Party Links',
+    title: '9. Third-Party Links',
     paragraphs: [
       'XPay may contain links to third-party websites, apps, or services. We are not responsible for the privacy practices of these third parties. We encourage you to review their privacy policies before providing any personal information. This Privacy Policy applies only to information collected by XPay.',
     ],
   },
   {
-    title: '11. Changes to This Privacy Policy',
+    title: '10. Changes to This Privacy Policy',
     paragraphs: [
       'We may update this Privacy Policy from time to time to reflect changes in our practices, technology, legal requirements, or other factors. When we make significant changes, we will notify you through the app or via email. The updated policy will include a new effective date at the top. We encourage you to review this Privacy Policy periodically to stay informed about how we protect your information.',
     ],
   },
   {
-    title: '12. Contact Us',
+    title: '11. Contact Us',
     paragraphs: [
       'If you have any questions, concerns, or requests regarding this Privacy Policy or our privacy practices, please contact us:',
       'Email: privacy@xpay.ng',
