@@ -24,7 +24,7 @@ const policySections: PolicySection[] = [
     ],
   },
   {
-    title: '1.3 Device and Usage Information',
+    title: '1.2 Device and Usage Information',
     paragraphs: [
       'We automatically collect information about your device and how you use XPay:',
     ],
@@ -37,7 +37,7 @@ const policySections: PolicySection[] = [
     ],
   },
   {
-    title: '1.4 Communication Data',
+    title: '1.3 Communication Data',
     paragraphs: [
       'If you contact our customer support team, we collect the content of your communications, including messages, emails, and call recordings for quality assurance and training purposes.',
     ],
