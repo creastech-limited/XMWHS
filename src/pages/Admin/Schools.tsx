@@ -46,6 +46,7 @@ const Schools = () => {
   const [schoolSearch, setSchoolSearch] = useState('');
   const [resourceSearch, setResourceSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [classFilter, setClassFilter] = useState('all');
   const [storeFilter, setStoreFilter] = useState('all');
   const [activeTab, setActiveTab] = useState<ResourceTab>('students');
   const [currentPage, setCurrentPage] = useState(1);
@@ -221,13 +222,14 @@ const Schools = () => {
 
   useEffect(() => {
     setStatusFilter('all');
+    setClassFilter('all');
     setResourceSearch('');
     setStoreFilter('all');
   }, [activeTab, selectedSchoolId]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, selectedSchoolId, resourceSearch, statusFilter, storeFilter]);
+  }, [activeTab, selectedSchoolId, resourceSearch, statusFilter, classFilter, storeFilter]);
 
   const filteredSchools = useMemo(() => {
     if (!schoolSearch.trim()) return schools;
@@ -306,6 +308,14 @@ const Schools = () => {
         if (agent.storeId !== storeFilter) return false;
       }
 
+      if (activeTab === 'students') {
+        if (classFilter === 'all') return true;
+
+        const student = item as Student;
+        const studentClass = student.Class || student.academicDetails?.classAdmittedTo || 'N/A';
+        return studentClass === classFilter;
+      }
+
       if (statusFilter === 'all') return true;
 
       if (activeTab === 'agents') {
@@ -315,7 +325,22 @@ const Schools = () => {
       const itemStatus = (item as Student | Store).status || 'Active';
       return itemStatus === statusFilter;
     });
-  }, [activeTab, currentItems, resourceSearch, statusFilter, storeFilter]);
+  }, [activeTab, currentItems, resourceSearch, statusFilter, classFilter, storeFilter]);
+
+  const classOptions = useMemo(() => {
+    if (activeTab !== 'students') return [];
+
+    return [
+      'all',
+      ...Array.from(
+        new Set(
+          resources.students
+            .map((student) => student.Class || student.academicDetails?.classAdmittedTo || 'N/A')
+            .filter(Boolean)
+        )
+      ).sort()
+    ];
+  }, [activeTab, resources.students]);
 
   const statusOptions = useMemo(() => {
     if (activeTab === 'agents') {
@@ -572,17 +597,31 @@ const Schools = () => {
                         />
                       </div>
 
-                      <select
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
-                      >
-                        {statusOptions.map((option) => (
-                          <option key={option} value={option}>
-                            {option === 'all' ? 'All Statuses' : option}
-                          </option>
-                        ))}
-                      </select>
+                      {activeTab === 'students' ? (
+                        <select
+                          value={classFilter}
+                          onChange={(e) => setClassFilter(e.target.value)}
+                          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
+                        >
+                          {classOptions.map((option) => (
+                            <option key={option} value={option}>
+                              {option === 'all' ? 'All Classes' : option}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <select
+                          value={statusFilter}
+                          onChange={(e) => setStatusFilter(e.target.value)}
+                          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
+                        >
+                          {statusOptions.map((option) => (
+                            <option key={option} value={option}>
+                              {option === 'all' ? 'All Statuses' : option}
+                            </option>
+                          ))}
+                        </select>
+                      )}
 
                       {activeTab === 'agents' && (
                         <select
