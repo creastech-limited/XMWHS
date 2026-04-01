@@ -61,6 +61,7 @@ const StudentPage: React.FC = () => {
   const authContext = useAuth();
   const token = authContext?.token || localStorage.getItem('token');
   const authToken = token;
+  const API_URL = import.meta.env.VITE_API_BASE_URL;
 
   const [schoolId, setSchoolId] = useState<string>('');
   const [schoolProfile, setSchoolProfile] = useState<SchoolProfile | null>(null);
@@ -145,18 +146,33 @@ const StudentPage: React.FC = () => {
     }
   }, []);
 
-  const formatDate = useCallback((dateString?: string): string => {
-    if (!dateString) return 'N/A';
-    try {
-      return new Date(dateString).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-      });
-    } catch {
-      return 'Invalid date';
-    }
+  const getStudentDisplayName = useCallback((student: Student): string => {
+    return (
+      student.name ||
+      student.fullName ||
+      `${student.firstName || ''} ${student.lastName || ''}`.trim() ||
+      'Unknown'
+    );
   }, []);
+
+  const getStudentInitials = useCallback((student: Student): string => {
+    const displayName = getStudentDisplayName(student);
+    const parts = displayName.split(' ').filter(Boolean).slice(0, 2);
+
+    if (parts.length === 0) return 'ST';
+
+    return parts.map((part) => part[0]?.toUpperCase() || '').join('');
+  }, [getStudentDisplayName]);
+
+  const getStudentProfileImage = useCallback((student: Student): string | null => {
+    const image = student.profilePicture || student.profilePics || '';
+
+    if (!image) return null;
+    if (image.startsWith('http')) return image;
+    if (image.startsWith('/uploads/')) return `${API_URL}${image}`;
+
+    return `${API_URL}/${image.replace(/^\/+/, '')}`;
+  }, [API_URL]);
 
   // ==================== API CALL FUNCTIONS ====================
 
@@ -751,28 +767,24 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
 
   setSnackbar({ open: true, message: "Exporting students...", severity: "info" });
 
-  // Define the columns that should appear in the export (matching table columns)
+  // Keep export fields aligned with the ID-card-style table layout.
   const exportColumns = [
-    { key: 'studentId', label: 'Student ID' },
     { key: 'name', label: 'Student Name' },
+    { key: 'admissionNumber', label: 'Adm No' },
     { key: 'email', label: 'Email' },
-    { key: 'guardianName', label: 'Guardian Name' },
-    { key: 'guardianEmail', label: 'Guardian Email' },
+    { key: 'guardian', label: 'Guardian' },
     { key: 'classAdmittedTo', label: 'Class' },
     { key: 'status', label: 'Status' },
-    { key: 'joinDate', label: 'Join Date' }
   ];
 
   // Transform students data into export format
   const exportData = students.map(student => ({
-    studentId: student._id,
-    name: student.name || `${student.firstName || ''} ${student.lastName || ''}`.trim() || 'Unknown',
+    name: getStudentDisplayName(student),
+    admissionNumber: student.admissionNumber || student.student_id || 'N/A',
     email: student.email || 'No email',
-    guardianName: student.guardian?.fullName || 'Not assigned',
-    guardianEmail: student.guardian?.email || 'Not assigned',
+    guardian: student.guardian?.fullName || 'N/A',
     classAdmittedTo: student.classAdmittedTo || 'Not Assigned',
     status: student.status || 'Pending',
-    joinDate: formatDate(student.createdAt)
   }));
 
   // Build CSV headers
@@ -824,7 +836,7 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
     message: `Exported ${students.length} students successfully`, 
     severity: "success" 
   });
-}, [students, formatDate]);
+}, [students, getStudentDisplayName]);
 
   // ==================== DATA PROCESSING ====================
 
@@ -892,11 +904,14 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
             <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
               <UsersIcon className="h-7 w-7 text-indigo-600" />
-              <span className="text-indigo-900">Student Management</span>
-            </h1>
-            <button
-              onClick={() => {
-                if (registrationLink) {
+                <span className="text-indigo-900">Student Management</span>
+              </h1>
+              <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-amber-800">
+                Updated Student Page
+              </div>
+              <button
+                onClick={() => {
+                  if (registrationLink) {
                   window.location.href = registrationLink;
                 } else {
                   setSnackbar({
@@ -1152,10 +1167,13 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-4 py-3 md:px-6 md:py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Student ID
+                        Student Name
                       </th>
                       <th className="px-4 py-3 md:px-6 md:py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Student Details
+                        Adm No
+                      </th>
+                      <th className="px-4 py-3 md:px-6 md:py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Email
                       </th>
                       <th className="px-4 py-3 md:px-6 md:py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                         Guardian
@@ -1165,9 +1183,6 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
                       </th>
                       <th className="px-4 py-3 md:px-6 md:py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                         Status
-                      </th>
-                      <th className="px-4 py-3 md:px-6 md:py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Join Date
                       </th>
                       <th className="px-4 py-3 md:px-6 md:py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
                         Actions
@@ -1180,38 +1195,44 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
                         key={student._id}
                         className="hover:bg-gray-50 transition-colors"
                       >
-                        <td className="px-4 py-3 md:px-6 md:py-4 whitespace-nowrap">
-                          <div className="text-xs md:text-sm font-mono text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                            {student._id.slice(-8)}
+                        <td className="px-4 py-3 md:px-6 md:py-4">
+                          <div className="flex min-w-[220px] items-center gap-3">
+                            <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-full bg-blue-100">
+                              {getStudentProfileImage(student) ? (
+                                <img
+                                  src={getStudentProfileImage(student) || ''}
+                                  alt={getStudentDisplayName(student)}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-blue-700">
+                                  {getStudentInitials(student)}
+                                </div>
+                              )}
+                            </div>
+                            <div className="text-sm font-medium text-gray-900">
+                              {getStudentDisplayName(student)}
+                            </div>
                           </div>
                         </td>
                         
                         <td className="px-4 py-3 md:px-6 md:py-4 whitespace-nowrap">
-                          <div className="flex items-center min-w-[200px]">
-                            <div className="flex-shrink-0 h-8 w-8 md:h-10 md:w-10">
-                              <div className="h-8 w-8 md:h-10 md:w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                                <UserIcon className="h-4 w-4 md:h-5 md:w-5 text-blue-600" />
-                              </div>
-                            </div>
-                            <div className="ml-3">
-                              <div className="text-sm font-medium text-gray-900 truncate max-w-[120px] md:max-w-none">
-                                {student.name || 'Unknown'}
-                              </div>
-                              <div className="text-xs text-gray-500 flex items-center gap-1 truncate max-w-[120px] md:max-w-none">
-                                <MailIcon className="h-3 w-3" />
-                                {student.email || 'No email'}
-                              </div>
-                            </div>
+                          <div className="text-xs md:text-sm font-mono text-gray-500 bg-gray-100 px-2 py-1 rounded w-fit">
+                            {student.admissionNumber || student.student_id || 'N/A'}
+                          </div>
+                        </td>
+                        
+                        <td className="px-4 py-3 md:px-6 md:py-4">
+                          <div className="flex min-w-[220px] items-center gap-2 text-sm text-gray-700">
+                            <MailIcon className="h-4 w-4 text-gray-400" />
+                            <span className="truncate">{student.email || 'No email'}</span>
                           </div>
                         </td>
                         
                         <td className="px-4 py-3 md:px-6 md:py-4 whitespace-nowrap">
                           {student.guardian ? (
-                            <div className="text-sm text-gray-900">
-                              <div className="font-medium">{student.guardian.fullName}</div>
-                              <div className="text-xs text-gray-500">
-                                {student.guardian.relationship} • {student.guardian.email}
-                              </div>
+                            <div className="text-sm font-medium text-gray-900">
+                              {student.guardian.fullName}
                             </div>
                           ) : (
                             <span className="text-xs text-gray-500 italic">No guardian assigned</span>
@@ -1234,13 +1255,6 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
                             {getStatusIcon(student.status)}
                             <span className="capitalize">{student.status || 'Pending'}</span>
                           </span>
-                        </td>
-                        
-                        <td className="px-4 py-3 md:px-6 md:py-4 whitespace-nowrap">
-                          <div className="flex items-center gap-1 text-xs md:text-sm text-gray-500">
-                            <CalendarIcon className="h-3 w-3 md:h-4 md:w-4" />
-                            {formatDate(student.createdAt)}
-                          </div>
                         </td>
                         
                         <td className="px-4 py-3 md:px-6 md:py-4 whitespace-nowrap text-center">

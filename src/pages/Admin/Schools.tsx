@@ -34,6 +34,7 @@ const EMPTY_RESOURCES: SchoolResourceState = {
 const ITEMS_PER_PAGE = 10;
 
 const Schools = () => {
+  const API_URL = import.meta.env.VITE_API_BASE_URL;
   const { user: authUser } = useAuth() ?? {};
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeMenu, setActiveMenu] = useState('schools');
@@ -84,6 +85,35 @@ const Schools = () => {
     const agentWithFallbackId = agent as AdminAgent & { _id?: string };
     return agentWithFallbackId.id || agentWithFallbackId._id || agentWithFallbackId.email || 'unknown-agent';
   };
+
+  const getStudentDisplayName = useCallback((student: Student) => {
+    return (
+      student.fullName ||
+      student.name ||
+      `${student.firstName || ''} ${student.lastName || ''}`.trim() ||
+      'Unknown Student'
+    );
+  }, []);
+
+  const getStudentPhotoUrl = useCallback((student: Student) => {
+    const studentWithPhoto = student as Student & {
+      profilePicture?: string;
+      profilePics?: string;
+    };
+    const image = studentWithPhoto.profilePicture || studentWithPhoto.profilePics || '';
+
+    if (!image) return '';
+    if (image.startsWith('http')) return image;
+    if (image.startsWith('/uploads/')) return `${API_URL}${image}`;
+
+    return `${API_URL}/${image.replace(/^\/+/, '')}`;
+  }, [API_URL]);
+
+  const getStudentInitials = useCallback((student: Student) => {
+    const parts = getStudentDisplayName(student).split(' ').filter(Boolean).slice(0, 2);
+    if (parts.length === 0) return 'ST';
+    return parts.map((part) => part[0]?.toUpperCase() || '').join('');
+  }, [getStudentDisplayName]);
 
 
 
@@ -585,8 +615,8 @@ const Schools = () => {
                             <table className="min-w-full divide-y divide-gray-200">
                               <thead className="bg-gray-50">
                                 <tr>
-                                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Student ID</th>
-                                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Name</th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Student Name</th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Adm No</th>
                                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Email</th>
                                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Guardian</th>
                                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Class</th>
@@ -598,11 +628,32 @@ const Schools = () => {
                                   const student = item as Student;
                                   return (
                                     <tr key={student._id} className="hover:bg-gray-50">
-                                      <td className="px-4 py-3 text-sm text-gray-700">{student.student_id || student._id || 'N/A'}</td>
-                                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{student.name || student.fullName || 'N/A'}</td>
+                                      <td className="px-4 py-3">
+                                        <div className="flex min-w-[240px] items-center gap-3">
+                                          <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-full bg-blue-100">
+                                            {getStudentPhotoUrl(student) ? (
+                                              <img
+                                                src={getStudentPhotoUrl(student)}
+                                                alt={getStudentDisplayName(student)}
+                                                className="h-full w-full object-cover"
+                                              />
+                                            ) : (
+                                              <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-blue-700">
+                                                {getStudentInitials(student)}
+                                              </div>
+                                            )}
+                                          </div>
+                                          <div className="text-sm font-medium text-gray-900">
+                                            {getStudentDisplayName(student)}
+                                          </div>
+                                        </div>
+                                      </td>
+                                      <td className="px-4 py-3 text-sm text-gray-700">
+                                        {(student as Student & { admissionNumber?: string }).admissionNumber || student.student_id || 'N/A'}
+                                      </td>
                                       <td className="px-4 py-3 text-sm text-gray-700">{student.email || 'N/A'}</td>
                                       <td className="px-4 py-3 text-sm text-gray-700">
-                                        {student.guardian?.fullName || student.guardian?.email || 'N/A'}
+                                        {student.guardian?.fullName || 'N/A'}
                                       </td>
                                       <td className="px-4 py-3 text-sm text-gray-700">
                                         {student.Class || student.academicDetails?.classAdmittedTo || 'N/A'}
