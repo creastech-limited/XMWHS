@@ -131,7 +131,7 @@ const Schools = () => {
       setSchoolsLoading(false);
       setLoading(false);
     }
-  }, [selectedSchoolId]);
+  }, []);
 
   const fetchSchoolResources = useCallback(async (schoolId: string) => {
     if (!schoolId) {
