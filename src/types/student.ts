@@ -24,6 +24,8 @@ export interface Student {
     phone: string;
     address?: string;
   };
+  guardianName?: string;
+  guardianEmail?: string;
   registrationDate: string; 
   createdAt: string;        
   updatedAt: string;        

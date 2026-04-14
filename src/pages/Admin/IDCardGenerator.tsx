@@ -445,7 +445,7 @@ const IDCardGenerator = () => {
                 Showing <span className="font-medium">{(page - 1) * PER_PAGE + 1}</span>–<span className="font-medium">{Math.min(page * PER_PAGE, filtered.length)}</span> of <span className="font-medium">{filtered.length}</span>
               </p>
               <div className="flex gap-2">
-                <button className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50 hover:bg-gray-100" disabled={page === 1} onClick={() => setPage((p) => p - 1)}><ChevronLeft size={16} /></button>
+                <button className="px-3 py-1 border text-black border-gray-300 rounded-md text-sm disabled:opacity-50 hover:bg-gray-100" disabled={page === 1} onClick={() => setPage((p) => p - 1)}><ChevronLeft size={16} /></button>
                 {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
                   let n = i + 1;
                   if (totalPages > 5 && page > 3)            n = page - 3 + i;
@@ -454,7 +454,7 @@ const IDCardGenerator = () => {
                     <button key={n} onClick={() => setPage(n)} className={`px-3 py-1 border rounded-md text-sm ${page === n ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}>{n}</button>
                   ) : null;
                 })}
-                <button className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50 hover:bg-gray-100" disabled={page === totalPages} onClick={() => setPage((p) => p + 1)}><ChevronRight size={16} /></button>
+                <button className="px-3 py-1 border text-black border-gray-300 rounded-md text-sm disabled:opacity-50 hover:bg-gray-100" disabled={page === totalPages} onClick={() => setPage((p) => p + 1)}><ChevronRight size={16} /></button>
               </div>
             </div>
           )}

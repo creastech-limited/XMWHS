@@ -689,19 +689,23 @@ const Schools = () => {
                                         </div>
                                       </td>
                                       <td className="px-4 py-3 text-sm text-gray-700">
-                                        {(student as Student & { admissionNumber?: string }).admissionNumber || 'N/A'}
+                                        {student.admissionNumber || '—'}
                                       </td>
                                       <td className="px-4 py-3 text-sm text-gray-700">{student.email || '—'}</td>
                                       <td className="px-4 py-3 text-sm text-gray-700">
-                                        {student.guardian?.fullName ? (
+                                        {(student.guardianName || student.guardian?.fullName) ? (
                                           <div className="space-y-0.5">
-                                            <p className="font-medium text-gray-900">{student.guardian.fullName}</p>
-                                            {student.guardian?.email && (
-                                              <p className="text-gray-600 text-xs">{student.guardian.email}</p>
+                                            <p className="font-medium text-gray-900">
+                                              {student.guardianName || student.guardian?.fullName}
+                                            </p>
+                                            {(student.guardianEmail || student.guardian?.email) && (
+                                              <p className="text-gray-600 text-xs">
+                                                {student.guardianEmail || student.guardian?.email}
+                                              </p>
                                             )}
                                           </div>
                                         ) : (
-                                          'N/A'
+                                          '—'
                                         )}
                                       </td>
                                       <td className="px-4 py-3 text-sm text-gray-700">
