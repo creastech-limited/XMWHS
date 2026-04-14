@@ -49,6 +49,8 @@ import ForgotPasswordPage from './pages/Public Pages/ForgotPasswordPage.js';
 import ResetPasswordPage from './pages/Public Pages/ResetPasswordPage.js';
 import PrivacyAndPolicy from './pages/Public Pages/PrivacyAndPolicy.js';
 import IDCardGenerator from './pages/Admin/IDCardGenerator.js';
+import GetCharges from './pages/Admin/GetCharges.js';
+import Userwallets from './pages/Admin/Userwallets.js';
 
 
 function App() {
@@ -124,6 +126,10 @@ function App() {
           <Route path="/admin/management/schools" element={<Schools />} />
           <Route path="/admin/management/parents" element={<AllUsers />} />
           <Route path="/admin/id-cards" element={<IDCardGenerator />} />
+          <Route path="/admin/get-charges" element={<GetCharges  />} />
+          <Route path="/admin/user-wallets" element={<Userwallets  />} />
+
+
 
           {/* Paystack */}
           <Route path="/payment/callback" element={<PaystackCallback />} />

@@ -156,8 +156,8 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, activeMenu, setActiveMenu }
       icon: Wallet,
       hasSubMenu: true,
       subItems: [
-        { id: 'charge-wallet', label: 'Charge Wallet', icon: CreditCard, path: '/admin/wallet/charge' },
-        { id: 'user-wallet', label: 'User Wallet', icon: Users, path: '/admin/wallet/user' },
+        { id: 'charge-wallet', label: 'Charge Wallet', icon: CreditCard, path: '/admin/get-charges' },
+        { id: 'user-wallet', label: 'User Wallet', icon: Users, path: '/admin/user-wallets' },
         { id: 'system-wallet', label: 'System Wallet', icon: Vault, path: '/admin/wallet/system' }
       ]
     },

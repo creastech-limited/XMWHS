@@ -400,8 +400,19 @@ export const deleteFeeBill = async (billId: string): Promise<{ message: string }
 };
 
 export const getAllCharges = async (): Promise<Charge[]> => {
-  const response = await apiClient.get<ChargesResponse>('/api/charge/getallcharges');
-  return response.data.data || [];
+  const response = await apiClient.get<ChargesResponse | Charge[]>('/api/charge/getallcharges');
+  
+  // Handle different response structures
+  if (Array.isArray(response.data)) {
+    return response.data;
+  }
+  
+  if (response.data && typeof response.data === 'object' && 'data' in response.data) {
+    const chargesData = (response.data as ChargesResponse).data;
+    return Array.isArray(chargesData) ? chargesData : [];
+  }
+  
+  return [];
 };
 
 // Get all school users

@@ -8,7 +8,7 @@ import {
   ArrowDownRight,
   Calendar
 } from 'lucide-react';
-import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import AdminSidebar from '../../components/Adminsidebar';
 import AdminHeader from '../../components/AdminHeader';
 import { getAdminDashboardData, getUserDetails } from '../../services';
@@ -36,6 +36,13 @@ interface ChargeData {
   updatedAt: string;
 }
 
+interface UserRoleDistribution {
+  role: string;
+  count: number;
+  color: string;
+  percentage: number;
+}
+
 
 
 const Overview = () => {
@@ -47,7 +54,8 @@ const Overview = () => {
   const [chargesData, setChargesData] = useState<ChargeData[]>([]);
   const [adminProfile, setAdminProfile] = useState<User | null>(null);
   const [totalUsers, setTotalUsers] = useState(0);
-  const [usersByRole, setUsersByRole] = useState<Array<{ role: string; count: number; color: string }>>([]);
+  const [usersByRole, setUsersByRole] = useState<UserRoleDistribution[]>([]);
+  const [activeRoleIndex, setActiveRoleIndex] = useState(0);
 
 
   const fetchUserDetails = useCallback(async (): Promise<User> => {
@@ -151,13 +159,19 @@ const Overview = () => {
             return acc;
           }, {} as Record<string, number>);
 
-          const roleData = Object.entries(roleCounts).map(([role, count]) => ({
+          const totalRoleUsers = (Object.values(roleCounts) as number[]).reduce((sum, count) => sum + count, 0);
+
+          const roleData = Object.entries(roleCounts)
+            .map(([role, count]) => ({
             role: role.charAt(0).toUpperCase() + role.slice(1),
             count: count as number,
-            color: roleColors[role as keyof typeof roleColors] || '#6B7280'
-          }));
+            color: roleColors[role as keyof typeof roleColors] || '#6B7280',
+            percentage: totalRoleUsers > 0 ? ((count as number) / totalRoleUsers) * 100 : 0
+            }))
+            .sort((a, b) => b.count - a.count);
 
           setUsersByRole(roleData);
+          setActiveRoleIndex(0);
         }
 
         setWalletData(Array.isArray(walletJson) ? walletJson : []);
@@ -197,6 +211,9 @@ const Overview = () => {
     amount: charge.amount,
     type: charge.name
   }));
+
+  const totalRoleUsers = usersByRole.reduce((sum, item) => sum + item.count, 0);
+  const activeRole = usersByRole[activeRoleIndex] || usersByRole[0];
 
   if (loading) {
     return (
@@ -414,46 +431,111 @@ const Overview = () => {
                 </div>
               </div>
               {/* User Distribution Pie Chart */}
-              <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+              <div className="overflow-hidden bg-white rounded-xl shadow-sm p-6 border border-gray-100">
                 <div className="flex items-center justify-between mb-6">
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900">User Distribution</h3>
-                    <p className="text-gray-600 text-sm">Users by role percentage</p>
+                    <p className="text-gray-600 text-sm">Users by role with quick share breakdown</p>
                   </div>
                 </div>
-                <div className="h-64">
+                <div className="min-h-[26rem]">
                   {usersByRole.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={usersByRole}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={40}
-                          outerRadius={80}
-                          dataKey="count"
-                          label={({ role, percent }) => `${role} ${(percent * 100).toFixed(1)}%`}
-                        >
-                          {usersByRole.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip
-                          formatter={(value: number) => [value, 'Users']}
-                          contentStyle={{
-                            backgroundColor: '#fff',
-                            border: '1px solid #e5e7eb',
-                            borderRadius: '8px',
-                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                          }}
-                        />
-                        <Legend
-                          verticalAlign="bottom"
-                          height={36}
-                          formatter={(value) => <span style={{ fontSize: '12px' }}>{value}</span>}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
+                    <div className="grid gap-6 lg:min-h-[26rem] lg:grid-cols-[minmax(0,1.1fr)_minmax(260px,0.9fr)]">
+                      <div className="relative min-h-[260px] overflow-hidden rounded-2xl border border-slate-100 bg-gradient-to-br from-slate-50 via-white to-sky-50/80 lg:h-full">
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.12),_transparent_58%)]" />
+                        <div className="relative h-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={usersByRole}
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={68}
+                                outerRadius={104}
+                                paddingAngle={3}
+                                cornerRadius={8}
+                                stroke="#ffffff"
+                                strokeWidth={4}
+                                dataKey="count"
+                                onMouseEnter={(_, index) => setActiveRoleIndex(index)}
+                              >
+                                {usersByRole.map((entry, index) => (
+                                  <Cell
+                                    key={`cell-${index}`}
+                                    fill={entry.color}
+                                    fillOpacity={index === activeRoleIndex ? 1 : 0.82}
+                                  />
+                                ))}
+                              </Pie>
+                              <Tooltip
+                                content={({ active, payload }) => {
+                                  if (!active || !payload?.length) return null;
+
+                                  const item = payload[0].payload as UserRoleDistribution;
+
+                                  return (
+                                    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-lg">
+                                      <p className="text-sm font-semibold text-slate-900">{item.role}</p>
+                                      <p className="text-sm text-slate-600">
+                                        {item.count} users
+                                      </p>
+                                      <p className="text-xs font-medium text-slate-500">
+                                        {item.percentage.toFixed(1)}% of total
+                                      </p>
+                                    </div>
+                                  );
+                                }}
+                              />
+                            </PieChart>
+                          </ResponsiveContainer>
+
+                          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                            <div className="rounded-full bg-white/88 px-6 py-5 text-center shadow-sm ring-1 ring-slate-100 backdrop-blur-sm">
+                              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Total Users</p>
+                              <p className="mt-2 text-3xl font-bold text-slate-900">{totalRoleUsers}</p>
+                              {activeRole ? (
+                                <p className="mt-2 text-sm font-medium text-slate-600">
+                                  {activeRole.role} leads at {activeRole.percentage.toFixed(1)}%
+                                </p>
+                              ) : null}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-3 lg:max-h-[26rem] lg:justify-center lg:overflow-y-auto lg:pr-1">
+                        {usersByRole.map((item, index) => (
+                          <button
+                            key={item.role}
+                            type="button"
+                            onMouseEnter={() => setActiveRoleIndex(index)}
+                            onFocus={() => setActiveRoleIndex(index)}
+                            className={`flex items-center justify-between rounded-xl border px-4 py-3 text-left transition-all ${index === activeRoleIndex
+                              ? 'border-slate-900 bg-slate-900 text-white shadow-md'
+                              : 'border-slate-200 bg-white text-slate-900 hover:border-slate-300 hover:bg-slate-50'
+                              }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <span
+                                className="h-3.5 w-3.5 rounded-full"
+                                style={{ backgroundColor: item.color }}
+                              />
+                              <div>
+                                <p className={`text-sm font-semibold ${index === activeRoleIndex ? 'text-white' : 'text-slate-900'}`}>
+                                  {item.role}
+                                </p>
+                                <p className={`text-xs ${index === activeRoleIndex ? 'text-slate-300' : 'text-slate-500'}`}>
+                                  {item.percentage.toFixed(1)}% share
+                                </p>
+                              </div>
+                            </div>
+                            <p className={`text-sm font-semibold ${index === activeRoleIndex ? 'text-white' : 'text-slate-700'}`}>
+                              {item.count}
+                            </p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   ) : (
                     <div className="h-full flex items-center justify-center text-gray-500">
                       No user distribution data available

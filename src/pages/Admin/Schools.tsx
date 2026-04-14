@@ -660,6 +660,7 @@ const Schools = () => {
                                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Guardian</th>
                                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Class</th>
                                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Status</th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Action</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-gray-200 bg-white">
@@ -688,11 +689,20 @@ const Schools = () => {
                                         </div>
                                       </td>
                                       <td className="px-4 py-3 text-sm text-gray-700">
-                                        {(student as Student & { admissionNumber?: string }).admissionNumber || student.student_id || 'N/A'}
+                                        {(student as Student & { admissionNumber?: string }).admissionNumber || 'N/A'}
                                       </td>
-                                      <td className="px-4 py-3 text-sm text-gray-700">{student.email || 'N/A'}</td>
+                                      <td className="px-4 py-3 text-sm text-gray-700">{student.email || '—'}</td>
                                       <td className="px-4 py-3 text-sm text-gray-700">
-                                        {student.guardian?.fullName || 'N/A'}
+                                        {student.guardian?.fullName ? (
+                                          <div className="space-y-0.5">
+                                            <p className="font-medium text-gray-900">{student.guardian.fullName}</p>
+                                            {student.guardian?.email && (
+                                              <p className="text-gray-600 text-xs">{student.guardian.email}</p>
+                                            )}
+                                          </div>
+                                        ) : (
+                                          'N/A'
+                                        )}
                                       </td>
                                       <td className="px-4 py-3 text-sm text-gray-700">
                                         {student.Class || student.academicDetails?.classAdmittedTo || 'N/A'}
@@ -708,7 +718,7 @@ const Schools = () => {
                                           {student.status || 'Unknown'}
                                         </span>
                                       </td>
-                                      
+                                   <td className="px-4 py-3 text-sm">{/* Placeholder for future action buttons (e.g., View, Edit) */}</td>   
                                     </tr>
                                   );
                                 })}
