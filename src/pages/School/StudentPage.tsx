@@ -906,9 +906,6 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
               <UsersIcon className="h-7 w-7 text-indigo-600" />
                 <span className="text-indigo-900">Student Management</span>
               </h1>
-              <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-amber-800">
-                Updated Student Page
-              </div>
               <button
                 onClick={() => {
                   if (registrationLink) {
