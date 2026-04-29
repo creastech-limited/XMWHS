@@ -1,0 +1,391 @@
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Bell, ChevronDown, LogOut, Settings, ShieldCheck } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import axios, { AxiosError } from 'axios';
+import { useAuth } from '../context/AuthContext';
+import type { NotificationsResponse } from '../types';
+import { getmarkNotification, getNotifications } from '../services';
+
+interface SecurityUser {
+  _id: string;
+  name?: string;
+  firstName?: string;
+  lastName?: string;
+  email: string;
+  role: string;
+  avatar?: string;
+  profilePicture?: string;
+  [key: string]: unknown;
+}
+
+interface Notification {
+  _id: string;
+  userId: string;
+  type: string;
+  title: string;
+  message: string;
+  read: boolean;
+  createdAt: string;
+  __v: number;
+}
+
+const generateInitialsAvatar = (name: string): string => {
+  const initials = name
+    .split(' ')
+    .map((word) => word.charAt(0))
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 100;
+  canvas.height = 100;
+  const ctx = canvas.getContext('2d');
+
+  if (ctx) {
+    const hash = name.split('').reduce((a, b) => {
+      a = ((a << 5) - a) + b.charCodeAt(0);
+      return a & a;
+    }, 0);
+    const hue = Math.abs(hash) % 360;
+
+    ctx.fillStyle = `hsl(${hue}, 60%, 55%)`;
+    ctx.fillRect(0, 0, 100, 100);
+    ctx.fillStyle = 'white';
+    ctx.font = 'bold 40px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(initials || 'SU', 50, 50);
+  }
+
+  return canvas.toDataURL();
+};
+
+const SecurityHeader: React.FC = () => {
+  const navigate = useNavigate();
+  const auth = useAuth();
+  const user = auth?.user as SecurityUser | null;
+  const token = auth?.token;
+  const logout = auth?.logout;
+  const isAuthenticated = !!auth?.user;
+  const authLoading = auth?.isLoading;
+
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
+  const [avatarError, setAvatarError] = useState(false);
+
+  const menuRef = useRef<HTMLDivElement>(null);
+  const notifRef = useRef<HTMLDivElement>(null);
+  const API_URL = import.meta.env.VITE_API_BASE_URL;
+
+  const fetchNotifications = useCallback(async (): Promise<void> => {
+    if (!token) return;
+
+    try {
+      setNotificationsLoading(true);
+      const data: NotificationsResponse = await getNotifications();
+
+      let notificationData: Notification[] = [];
+
+      if (Array.isArray(data)) {
+        notificationData = data;
+      } else if (data.data && Array.isArray(data.data)) {
+        notificationData = data.data;
+      } else if (data.notifications && Array.isArray(data.notifications)) {
+        notificationData = data.notifications;
+      }
+
+      setNotifications(notificationData);
+    } catch (error) {
+      console.error('Failed to fetch notifications:', error);
+
+      if (axios.isAxiosError(error) && error.response?.status === 401 && logout) {
+        logout();
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        navigate('/login');
+      }
+    } finally {
+      setNotificationsLoading(false);
+    }
+  }, [token, logout, navigate]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setIsProfileOpen(false);
+      }
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setIsNotificationOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated && !authLoading) {
+      navigate('/login');
+      return;
+    }
+
+    if (isAuthenticated && user && token) {
+      fetchNotifications();
+    }
+  }, [isAuthenticated, user, token, authLoading, navigate, fetchNotifications]);
+
+  const getFullName = (): string => {
+    if (user?.name) return user.name;
+    if (user?.firstName && user?.lastName) return `${user.firstName} ${user.lastName}`;
+    return user?.email || 'Security User';
+  };
+
+  const getUserAvatar = (): string => {
+    if (avatarError || !user) {
+      return generateInitialsAvatar(getFullName());
+    }
+
+    if (user.profilePicture) {
+      if (user.profilePicture.startsWith('/uploads/')) {
+        return `${API_URL}${user.profilePicture}`;
+      }
+      return user.profilePicture;
+    }
+
+    return generateInitialsAvatar(getFullName());
+  };
+
+  const handleAvatarError = () => {
+    setAvatarError(true);
+  };
+
+  const markNotificationAsRead = async (notificationId: string): Promise<void> => {
+    if (!token) return;
+
+    try {
+      await getmarkNotification(notificationId);
+      setNotifications((prev) =>
+        prev.map((notif) => (notif._id === notificationId ? { ...notif, read: true } : notif))
+      );
+    } catch (err) {
+      const error = err as AxiosError;
+      console.error('Failed to mark notification as read:', error);
+
+      if (error.response?.status === 401 && logout) {
+        logout();
+        navigate('/login');
+      }
+    }
+  };
+
+  const handleLogout = async (): Promise<void> => {
+    try {
+      setIsLoading(true);
+      if (logout) logout();
+    } catch (error) {
+      console.error('Logout failed:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const formatDate = (dateString: string): string => {
+    const d = new Date(dateString);
+    const now = new Date();
+
+    if (d.toDateString() === now.toDateString()) {
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    if (d.getFullYear() === now.getFullYear()) {
+      return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    }
+
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  const unreadNotificationsCount = notifications.filter((n) => !n.read).length;
+
+  if (authLoading) {
+    return (
+      <>
+        <header className="fixed top-0 left-0 right-0 lg:left-[280px] z-40 bg-white shadow-sm border-b border-gray-200">
+          <div className="flex items-center justify-center px-4 py-3 lg:px-6 lg:py-4">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+          </div>
+        </header>
+        <div className="h-16 lg:h-20"></div>
+      </>
+    );
+  }
+
+  if (!isAuthenticated || !user) {
+    return null;
+  }
+
+  return (
+    <>
+      <header className="fixed top-0 left-0 right-0 lg:left-[280px] z-40 bg-white shadow-sm border-b border-gray-200">
+        <div className="flex items-center justify-between px-4 py-3 pl-16 lg:px-6 lg:py-4 lg:pl-6">
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex rounded-2xl bg-blue-100 p-2 text-blue-700">
+              <ShieldCheck className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-sm sm:text-base font-semibold text-slate-900">{getFullName()}</h2>
+              <p className="text-xs text-blue-700">Security Portal</p>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2 lg:space-x-3">
+            <div className="relative" ref={notifRef}>
+              <button
+                onClick={() => setIsNotificationOpen(!isNotificationOpen)}
+                className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <Bell className="w-5 h-5" />
+                {unreadNotificationsCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-medium">
+                    {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
+                  </span>
+                )}
+              </button>
+
+              {isNotificationOpen && (
+                <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-200 z-20 max-h-96 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-100">
+                    <h3 className="font-semibold text-gray-900">Notifications</h3>
+                  </div>
+
+                  <div className="max-h-64 overflow-y-auto">
+                    {notificationsLoading ? (
+                      <div className="flex justify-center py-4">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                      </div>
+                    ) : notifications.length === 0 ? (
+                      <div className="px-4 py-6 text-center text-gray-500 text-sm">No notifications yet</div>
+                    ) : (
+                      notifications.map((notification) => (
+                        <div
+                          key={notification._id}
+                          className={`px-4 py-3 border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors ${
+                            !notification.read ? 'bg-blue-50' : ''
+                          }`}
+                          onClick={() => {
+                            markNotificationAsRead(notification._id);
+                            setSelectedNotification(notification);
+                            setIsNotificationOpen(false);
+                          }}
+                        >
+                          <p className="font-medium text-gray-900 text-sm">{notification.title}</p>
+                          <p className="text-gray-600 text-xs mt-1">{notification.message}</p>
+                          <p className="text-gray-400 text-xs mt-1">{formatDate(notification.createdAt)}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {notifications.length > 0 && (
+                    <div className="px-4 py-2 border-t border-gray-100">
+                      <button
+                        onClick={fetchNotifications}
+                        className="text-blue-600 text-sm hover:text-blue-800 transition-colors"
+                      >
+                        Refresh notifications
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="relative" ref={menuRef}>
+              <button
+                onClick={() => setIsProfileOpen(!isProfileOpen)}
+                className="flex items-center space-x-2 p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <img
+                  src={getUserAvatar()}
+                  alt={getFullName()}
+                  className="w-8 h-8 rounded-full object-cover ring-2 ring-blue-100"
+                  onError={handleAvatarError}
+                />
+                <ChevronDown className={`w-4 h-4 transition-transform ${isProfileOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {isProfileOpen && (
+                <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-lg border border-gray-200 py-2 z-20">
+                  <div className="px-4 py-3 border-b border-gray-100">
+                    <div className="flex items-center space-x-3">
+                      <img
+                        src={getUserAvatar()}
+                        alt={getFullName()}
+                        className="w-10 h-10 rounded-full object-cover"
+                        onError={handleAvatarError}
+                      />
+                      <div>
+                        <p className="font-medium text-gray-900 truncate">{getFullName()}</p>
+                        <p className="text-sm text-gray-500 truncate">{user.email}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="py-2">
+                    <button
+                      className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      onClick={() => navigate('/security/settings')}
+                    >
+                      <Settings className="w-4 h-4 mr-3" />
+                      Settings
+                    </button>
+                  </div>
+
+                  <div className="border-t border-gray-100 pt-2">
+                    <button
+                      onClick={handleLogout}
+                      disabled={isLoading}
+                      className="w-full flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <LogOut className="w-4 h-4 mr-3" />
+                      {isLoading ? 'Logging out...' : 'Logout'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div className="h-16 lg:h-20"></div>
+
+      {selectedNotification && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold">{selectedNotification.title}</h3>
+            <p className="text-gray-500 text-sm">{formatDate(selectedNotification.createdAt)}</p>
+            <p className="text-gray-700 my-6">{selectedNotification.message}</p>
+            <div className="flex justify-end">
+              <button
+                onClick={() => {
+                  setSelectedNotification(null);
+                  setIsNotificationOpen(false);
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
+export default SecurityHeader;

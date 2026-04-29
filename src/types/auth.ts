@@ -107,6 +107,19 @@ export interface StudentRegistrationRequest {
   schoolAddress: string;
 }
 
+export interface SecurityRegistrationRequest {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  role: string; // Should be 'security'
+  password: string;
+  schoolId: string;
+  schoolName: string;
+  schoolType: string;
+  schoolAddress: string;
+}
+
 export interface SchoolInfoResponse {
   success: boolean;
   data?: {

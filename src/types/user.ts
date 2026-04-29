@@ -64,6 +64,42 @@ export interface SchoolUser {
   phone?: string;
 }
 
+export interface SecurityUser extends SchoolUser {
+  status?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  schoolId?: string;
+  schoolName?: string;
+}
+
+export interface SecurityUsersResponse {
+  users?: SecurityUser[];
+  data?: SecurityUser[];
+  security?: SecurityUser[];
+  securities?: SecurityUser[];
+  message?: string;
+}
+
+export interface AttendanceRecord {
+  _id: string;
+  studentId?: string;
+  studentName: string;
+  studentEmail: string;
+  attendanceType: 'In' | 'Out' | string;
+  time: string;
+  location: string;
+  deviceId: string;
+  securityPersonnel: string;
+  createdAt?: string;
+}
+
+export interface AttendanceResponse {
+  data?: AttendanceRecord[];
+  attendance?: AttendanceRecord[];
+  records?: AttendanceRecord[];
+  message?: string;
+}
+
 export interface UserProfile {
   _id?: string;
   name?: string;

@@ -11,15 +11,20 @@ import {
   Cog6ToothIcon as SettingsIcon,
   ArrowLeftOnRectangleIcon as LogoutIcon,
   ChevronRightIcon,
+  ChevronDownIcon,
   Bars3Icon as MenuIcon,
   XMarkIcon as CloseIcon,
+  ShieldCheckIcon,
+  ClipboardDocumentListIcon,
 } from '@heroicons/react/24/outline';
 
 interface MenuItem {
   name: React.ReactNode;
-  path: string;
+  label: string;
+  path?: string;
   icon: React.ReactNode;
   badge?: number | null;
+  children?: MenuItem[];
 }
 
 export const Sidebar: React.FC = () => {
@@ -28,6 +33,9 @@ export const Sidebar: React.FC = () => {
   const [collapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
+    '/attendance/security': location.pathname.startsWith('/attendance'),
+  });
 
   useEffect(() => {
     const handleResize = () => {
@@ -42,21 +50,52 @@ export const Sidebar: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, [mobileMenuOpen]);
 
+  useEffect(() => {
+    if (location.pathname.startsWith('/attendance')) {
+      setOpenGroups((prev) => ({
+        ...prev,
+        '/attendance/security': true,
+      }));
+    }
+  }, [location.pathname]);
+
   // Define menu items with your provided list
   const menuItems: MenuItem[] = [
-    { name: 'Dashboard', path: '/schools', icon: <DashboardIcon className="h-5 w-5" /> },
-    { name: 'Students', path: '/students', icon: <PeopleIcon className="h-5 w-5" />, badge: 3 },
-    { name: 'Stores', path: '/stores', icon: <StorefrontIcon className="h-5 w-5" /> },
-    { name: 'School Fees', path: '/schoolfees', icon: <PaymentIcon className="h-5 w-5" /> },
+    { name: 'Dashboard', label: 'Dashboard', path: '/schools', icon: <DashboardIcon className="h-5 w-5" /> },
+       {
+      name: 'Attendance',
+      label: 'Attendance',
+      path: undefined,
+      icon: <ClipboardDocumentListIcon className="h-5 w-5" />,
+      children: [
+        {
+          name: 'Security',
+          label: 'Security',
+          path: '/attendance/security',
+          icon: <ShieldCheckIcon className="h-5 w-5" />,
+        },
+        {
+          name: 'Attendance Report',
+          label: 'Attendance Report',
+          path: '/attendance/report',
+          icon: <ClipboardDocumentListIcon className="h-5 w-5" />,
+        },
+      ],
+    },
+    { name: 'Students', label: 'Students', path: '/students', icon: <PeopleIcon className="h-5 w-5" />, badge: 3 },
+    { name: 'Stores', label: 'Stores', path: '/stores', icon: <StorefrontIcon className="h-5 w-5" /> },
+    { name: 'School Fees', label: 'School Fees', path: '/schoolfees', icon: <PaymentIcon className="h-5 w-5" /> },
   { 
+  label: 'Transfer',
   name: <span>Transfer <span className="text-[10px] font-bold text-yellow-500 relative -top-1 ml-1">PRO</span></span>, 
   path: '/schooltransfer', 
   icon: <PaymentIcon className="h-5 w-5" /> 
 },
-    { name: 'Transactions', path: '/transactions', icon: <ReceiptLongIcon className="h-5 w-5" />, badge: 12 },
-    { name: 'Withdrawal', path: '/withdrawal', icon: <AccountBalanceWalletIcon className="h-5 w-5" /> },
-    { name: 'Disputes', path: '/Sdisputes', icon: <WarningIcon className="h-5 w-5" />, badge: 2 },
-    { name: 'Settings', path: '/settings', icon: <SettingsIcon className="h-5 w-5" /> },
+    { name: 'Transactions', label: 'Transactions', path: '/transactions', icon: <ReceiptLongIcon className="h-5 w-5" />, badge: 12 },
+    { name: 'Withdrawal', label: 'Withdrawal', path: '/withdrawal', icon: <AccountBalanceWalletIcon className="h-5 w-5" /> },
+ 
+    { name: 'Disputes', label: 'Disputes', path: '/Sdisputes', icon: <WarningIcon className="h-5 w-5" />, badge: 2 },
+    { name: 'Settings', label: 'Settings', path: '/settings', icon: <SettingsIcon className="h-5 w-5" /> },
   ];
   
   const handleLogout = () => {
@@ -67,8 +106,18 @@ export const Sidebar: React.FC = () => {
 
   const getCurrentPageName = () => {
     if (location.pathname === '/') return 'Dashboard';
-    const currentItem = menuItems.find(item => location.pathname.startsWith(item.path));
-    return currentItem?.name || 'Dashboard';
+    for (const item of menuItems) {
+      if (item.children) {
+        const matchingChild = item.children.find((child) => child.path && location.pathname.startsWith(child.path));
+        if (matchingChild) return matchingChild.label;
+      }
+
+      if (item.path && location.pathname.startsWith(item.path)) {
+        return item.label;
+      }
+    }
+
+    return 'Dashboard';
   };
 
   const toggleMobileMenu = () => {
@@ -80,6 +129,23 @@ export const Sidebar: React.FC = () => {
     if (isMobile) {
       setMobileMenuOpen(false);
     }
+  };
+
+  const isItemActive = (item: MenuItem) => {
+    if (item.children?.length) {
+      return item.children.some((child) => child.path && location.pathname.startsWith(child.path));
+    }
+
+    if (!item.path) return false;
+
+    return location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path));
+  };
+
+  const toggleGroup = (path: string) => {
+    setOpenGroups((prev) => ({
+      ...prev,
+      [path]: !prev[path],
+    }));
   };
 
   return (
@@ -147,13 +213,89 @@ export const Sidebar: React.FC = () => {
         <nav className="flex-1 overflow-y-auto py-4 px-3">
           <ul className="space-y-2">
             {menuItems.map((item) => {
-              const isActive = location.pathname === item.path || 
-                (item.path !== '/' && location.pathname.startsWith(item.path));
+              const groupKey = item.path ?? item.label;
+              const isActive = isItemActive(item);
+              const isGroupOpen = openGroups[groupKey] ?? isActive;
+
+              if (item.children?.length) {
+                return (
+                  <li key={item.label}>
+                    <div
+                      className={`group relative flex items-center rounded-xl transition-all duration-300 ${
+                        isActive
+                          ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg border border-blue-400/30 backdrop-blur-sm'
+                          : 'text-blue-200 hover:text-white hover:bg-blue-800/50 hover:shadow-md hover:backdrop-blur-sm'
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => toggleGroup(groupKey)}
+                        className={`flex min-w-0 flex-1 items-center px-3 py-3 text-left transition-all duration-300 hover:scale-[1.02] ${
+                          collapsed ? 'justify-center' : 'space-x-3'
+                        }`}
+                      >
+                        <div className={`relative p-2 rounded-lg transition-colors duration-200 ${
+                          isActive
+                            ? 'bg-white/20 text-white'
+                            : 'text-blue-300 group-hover:bg-white/10 group-hover:text-white'
+                        }`}>
+                          {item.icon}
+                        </div>
+
+                        {!collapsed && (
+                          <span className="flex-1 truncate text-left font-medium">{item.name}</span>
+                        )}
+                      </button>
+
+                      {!collapsed && (
+                        <button
+                          type="button"
+                          onClick={() => toggleGroup(groupKey)}
+                          className="mr-2 rounded-lg p-2 text-blue-200 transition-colors hover:bg-white/10 hover:text-white"
+                          aria-label={isGroupOpen ? `Collapse ${item.label}` : `Expand ${item.label}`}
+                        >
+                          {isGroupOpen ? (
+                            <ChevronDownIcon className="h-4 w-4" />
+                          ) : (
+                            <ChevronRightIcon className="h-4 w-4" />
+                          )}
+                        </button>
+                      )}
+                    </div>
+
+                    {!collapsed && isGroupOpen && (
+                      <ul className="mt-2 space-y-1">
+                        {item.children.map((child) => {
+                          const childPath = child.path ?? '';
+                          const isChildActive = childPath ? location.pathname.startsWith(childPath) : false;
+
+                          return (
+                            <li key={childPath || child.label}>
+                              <Link
+                                to={childPath || '/schools'}
+                                onClick={handleMenuItemClick}
+                                className={`ml-4 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-200 ${
+                                  isChildActive
+                                    ? 'bg-white/15 text-white border border-white/10'
+                                    : 'text-blue-200/90 hover:bg-blue-800/40 hover:text-white'
+                                }`}
+                              >
+                                <span className="text-current">{child.icon}</span>
+                                <span className="font-medium">{child.name}</span>
+                              </Link>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </li>
+                );
+              }
                 
               return (
                 <li key={item.path}>
                   <Link
-                    to={item.path}
+                    to={item.path || '/schools'}
                     onClick={handleMenuItemClick}
                     className={`group relative flex items-center px-3 py-3 rounded-xl transition-all duration-300 hover:scale-[1.02] ${
                       isActive 

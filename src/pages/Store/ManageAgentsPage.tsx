@@ -64,7 +64,7 @@ const ManageAgentsPage: React.FC = () => {
   const authToken = token || localStorage.getItem('token');
 
   // Function to fetch store information from user profile
-  const fetchStoreInfoFromProfile = async () => {
+  const fetchStoreInfoFromProfile = useCallback(async () => {
     try {
       const UserData: UserResponse = await getUserDetails();
 
@@ -97,10 +97,10 @@ const ManageAgentsPage: React.FC = () => {
     } finally {
       setIsLoadingStoreInfo(false);
     }
-  };
+  }, []);
 
   // Function to fetch agents
-  const fetchAgents = async () => {
+  const fetchAgents = useCallback(async () => {
     try {
       const apiResponse: GetAgentsResponse = await getAgentsById();
       console.log('Agents API Response:', apiResponse);
@@ -134,7 +134,7 @@ const ManageAgentsPage: React.FC = () => {
         toast.error('Failed to fetch store information');
       }
     }
-  };
+  }, [storeInfo]);
 
   // Main initialization function
   const initializePage = useCallback(async () => {
@@ -156,7 +156,7 @@ const ManageAgentsPage: React.FC = () => {
       setIsLoadingAgents(false);
       setIsLoadingStoreInfo(false);
     }
-  }, [authToken]);
+  }, [authToken, fetchAgents, fetchStoreInfoFromProfile]);
 
   // Fetch user profile and store ID on component mount
   useEffect(() => {

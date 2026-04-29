@@ -23,9 +23,12 @@ import KidPayAgentPage from './pages/Student/KidPayAgentPage.js';
 import KidPaymentHistoryPage from './pages/Student/KidPaymentHistoryPage.js';
 import SchoolSignUpPage from './pages/Public Pages/SchoolSignupPage.js';
 import StudentRegistrationForm from './pages/Public Pages/StudentRegistrationForm.js';
+import SecurityRegistrationForm from './pages/Public Pages/SecurityRegistrationForm';
 import SchoolBillsPage from './pages/Student/SchoolBillsPage.js';
 import StoreRegistrationForm from './pages/Public Pages/StoreRegistrationForm.js';
 import StoreDashboard from './pages/Store/StoreDashboard.js';
+import SecurityDashboard from './pages/Security/SecurityDashboard';
+import SecuritySettingsPage from './pages/Security/SecuritySettingsPage';
 import AgentDashboard from './pages/Agent/AgentDashboard.js';
 import AgentScanQR from './pages/Agent/AgentScanOR.js';
 import AgentTransferToStore from './pages/Agent/AgentTransferToStore.js';
@@ -45,6 +48,8 @@ import Overview from './pages/Admin/overview';
 import AllUsers from './pages/Admin/AllUsers';
 import Schools from './pages/Admin/Schools';
 import SchoolTransferPage from './pages/School/schooltransfer.js';
+import SecurityPage from './pages/School/SecurityPage';
+import AttendanceReportPage from './pages/School/AttendanceReportPage';
 import ForgotPasswordPage from './pages/Public Pages/ForgotPasswordPage.js';
 import ResetPasswordPage from './pages/Public Pages/ResetPasswordPage.js';
 import PrivacyAndPolicy from './pages/Public Pages/PrivacyAndPolicy.js';
@@ -70,6 +75,7 @@ function App() {
           <Route path="/signup" element={<SignUpPage />} />
           <Route path="/schoolsignup" element={<SchoolSignUpPage />} />
           <Route path="/students/new" element={<StudentRegistrationForm />} />
+          <Route path="/attendance/security/new" element={<SecurityRegistrationForm />} />
           <Route path="/stores/new" element={<StoreRegistrationForm />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
@@ -81,6 +87,8 @@ function App() {
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/schoolfees" element={<SchoolFeesModule />} />
           <Route path="/schooltransfer" element={<SchoolTransferPage />} />
+          <Route path="/attendance/security" element={<SecurityPage />} />
+          <Route path="/attendance/report" element={<AttendanceReportPage />} />
           <Route path="/transactions" element={<TransactionModule />} />
           <Route path="/withdrawal" element={<WithdrawalPage />} />
           <Route path="/students/edit/:_id" element={<EditStudentDetails />} />
@@ -104,6 +112,10 @@ function App() {
           <Route path="/kidpaymenthistory" element={<KidPaymentHistoryPage />} />
           <Route path="/schoolbills" element={<SchoolBillsPage />} />
           <Route path="/kdispute" element={<Kdispute />} />
+
+          {/* Security Routes */}
+          <Route path="/security" element={<SecurityDashboard />} />
+          <Route path="/security/settings" element={<SecuritySettingsPage />} />
 
           {/* Store Routes */}
           <Route path="/store" element={<StoreDashboard />} />

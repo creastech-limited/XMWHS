@@ -14,6 +14,10 @@ import type {
   ChargesResponse,
   Charge,
   SchoolUser,
+  SecurityUser,
+  SecurityUsersResponse,
+  AttendanceRecord,
+  AttendanceResponse,
   Dispute,
   CreateDisputeData,
   CreateDisputeResponse,
@@ -427,6 +431,185 @@ export const getAllSchoolUsers = async (): Promise<{
     message?: string;
   }>('/api/users/getallschooluser');
   return response.data;
+};
+
+export const getSchoolSecurity = async (): Promise<SecurityUser[]> => {
+  try {
+    const response = await apiClient.get<SecurityUsersResponse | SecurityUser[]>(
+      '/api/users/getschoolsecurity'
+    );
+
+    const responseData = response.data;
+
+    if (Array.isArray(responseData)) {
+      return responseData;
+    }
+
+    if (Array.isArray(responseData?.data)) {
+      return responseData.data;
+    }
+
+    if (Array.isArray(responseData?.users)) {
+      return responseData.users;
+    }
+
+    if (Array.isArray(responseData?.security)) {
+      return responseData.security;
+    }
+
+    if (Array.isArray(responseData?.securities)) {
+      return responseData.securities;
+    }
+
+    return [];
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      const responseData = error.response.data as { message?: string } | undefined;
+      const message = (responseData?.message || '').toLowerCase();
+
+      if (message.includes('no users found in this school')) {
+        return [];
+      }
+    }
+
+    throw error;
+  }
+};
+
+const getNestedString = (record: Record<string, unknown>, keys: string[]): string => {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return '';
+};
+
+const normalizeAttendanceRecord = (entry: unknown, index: number): AttendanceRecord => {
+  const record = (entry && typeof entry === 'object' ? entry : {}) as Record<string, unknown>;
+  const student = (record.student && typeof record.student === 'object'
+    ? record.student
+    : {}) as Record<string, unknown>;
+  const security = (record.securityPersonnel && typeof record.securityPersonnel === 'object'
+    ? record.securityPersonnel
+    : record.security && typeof record.security === 'object'
+      ? record.security
+      : record.recordedBy && typeof record.recordedBy === 'object'
+        ? record.recordedBy
+        : {}) as Record<string, unknown>;
+
+  const studentName =
+    getNestedString(record, ['studentName', 'name']) ||
+    getNestedString(student, ['name', 'studentName']) ||
+    `${getNestedString(student, ['firstName'])} ${getNestedString(student, ['lastName'])}`.trim() ||
+    'Unknown Student';
+
+  const studentEmail =
+    getNestedString(record, ['studentEmail', 'email']) ||
+    getNestedString(student, ['email']) ||
+    'N/A';
+
+  const rawType =
+    getNestedString(record, ['attendanceType', 'type', 'action', 'status']) ||
+    'In';
+
+  const formattedType =
+    rawType.toLowerCase() === 'out'
+      ? 'Out'
+      : rawType.toLowerCase() === 'in'
+        ? 'In'
+        : rawType;
+
+  const time =
+    getNestedString(record, ['time', 'createdAt', 'updatedAt', 'timestamp']) ||
+    getNestedString(student, ['createdAt']) ||
+    '';
+
+  const locationValue = record.location;
+  const location =
+    typeof locationValue === 'string'
+      ? locationValue
+      : locationValue && typeof locationValue === 'object'
+        ? getNestedString(locationValue as Record<string, unknown>, ['name', 'address', 'label'])
+        : '';
+
+  const deviceId =
+    getNestedString(record, ['deviceId', 'deviceID', 'device_id']) ||
+    (record.device && typeof record.device === 'object'
+      ? getNestedString(record.device as Record<string, unknown>, ['id', 'deviceId', 'name'])
+      : '') ||
+    'N/A';
+
+  const securityPersonnel =
+    getNestedString(record, ['securityPersonnelName', 'securityPersonnel']) ||
+    getNestedString(security, ['name', 'fullName', 'email']) ||
+    `${getNestedString(security, ['firstName'])} ${getNestedString(security, ['lastName'])}`.trim() ||
+    'N/A';
+
+  return {
+    _id:
+      getNestedString(record, ['_id', 'id']) ||
+      `${studentEmail || 'attendance'}-${time || 'time'}-${index}`,
+    studentId:
+      getNestedString(record, ['studentId']) ||
+      getNestedString(student, ['_id', 'id', 'student_id']),
+    studentName,
+    studentEmail,
+    attendanceType: formattedType,
+    time,
+    location: location || 'N/A',
+    deviceId,
+    securityPersonnel,
+    createdAt: getNestedString(record, ['createdAt', 'time', 'timestamp']) || time,
+  };
+};
+
+export const getStudentAttendance = async (studentId: string): Promise<AttendanceRecord[]> => {
+  const response = await apiClient.get<AttendanceResponse | AttendanceRecord[] | { data?: { attendance?: AttendanceRecord[]; records?: AttendanceRecord[] } }>(
+    `/api/attendance/student/${encodeURIComponent(studentId)}`
+  );
+
+  const payload = response.data as
+    | AttendanceRecord[]
+    | AttendanceResponse
+    | { data?: { attendance?: AttendanceRecord[]; records?: AttendanceRecord[] } };
+  const rawAttendance = (() => {
+    if (Array.isArray(payload)) {
+      return payload;
+    }
+
+    if ('data' in payload && Array.isArray(payload.data)) {
+      return payload.data;
+    }
+
+    if ('attendance' in payload && Array.isArray(payload.attendance)) {
+      return payload.attendance;
+    }
+
+    if ('records' in payload && Array.isArray(payload.records)) {
+      return payload.records;
+    }
+
+    if ('data' in payload && payload.data && typeof payload.data === 'object' && !Array.isArray(payload.data)) {
+      const nestedData = payload.data as { attendance?: AttendanceRecord[]; records?: AttendanceRecord[] };
+
+      if (Array.isArray(nestedData.attendance)) {
+        return nestedData.attendance;
+      }
+
+      if (Array.isArray(nestedData.records)) {
+        return nestedData.records;
+      }
+    }
+
+    return [];
+  })();
+
+  return rawAttendance.map((entry: AttendanceRecord, index: number) =>
+    normalizeAttendanceRecord(entry, index)
+  );
 };
 
 // Transfer funds

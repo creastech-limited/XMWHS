@@ -5,11 +5,12 @@ import type {
   ForgotPasswordResponse,
   SchoolRegistrationRequest,
   RegistrationResponse,
-   ParentRegistrationRequest,
-   StoreRegistrationRequest,
-    StudentRegistrationRequest,
-     SchoolInfoResponse,
-        ResetPasswordResponse
+  ParentRegistrationRequest,
+  StoreRegistrationRequest,
+  StudentRegistrationRequest,
+  SecurityRegistrationRequest,
+  SchoolInfoResponse,
+  ResetPasswordResponse
 } from '../../types/auth';
 
 // Validate token by checking if user exists
@@ -66,6 +67,14 @@ export const registerStore = async (
 // Student registration
 export const registerStudent = async (
   data: StudentRegistrationRequest
+): Promise<RegistrationResponse> => {
+  const response = await apiClient.post<RegistrationResponse>('/api/users/register', data);
+  return response.data;
+};
+
+// Security registration
+export const registerSecurity = async (
+  data: SecurityRegistrationRequest
 ): Promise<RegistrationResponse> => {
   const response = await apiClient.post<RegistrationResponse>('/api/users/register', data);
   return response.data;
