@@ -467,7 +467,13 @@ export const getSchoolSecurity = async (): Promise<SecurityUser[]> => {
       const responseData = error.response.data as { message?: string } | undefined;
       const message = (responseData?.message || '').toLowerCase();
 
-      if (message.includes('no users found in this school')) {
+      if (
+        !message ||
+        message.includes('no users found in this school') ||
+        message.includes('no user found in this school') ||
+        message.includes('no users found') ||
+        message.includes('not found')
+      ) {
         return [];
       }
     }

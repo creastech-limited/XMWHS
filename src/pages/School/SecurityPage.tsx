@@ -145,7 +145,6 @@ const SecurityPage: React.FC = () => {
           'Unnamed Security',
         email: user.email || '',
         role: user.role || 'security',
-        phone: user.phone || '',
         status: user.status || 'Pending',
       }));
 
@@ -220,10 +219,10 @@ const SecurityPage: React.FC = () => {
   const filteredSecurityUsers = securityUsers.filter((user) => {
     const name = (user.name || '').toLowerCase();
     const email = (user.email || '').toLowerCase();
-    const phone = (user.phone || '').toLowerCase();
+    const role = (user.role || '').toLowerCase();
     const query = searchQuery.toLowerCase();
 
-    return name.includes(query) || email.includes(query) || phone.includes(query);
+    return name.includes(query) || email.includes(query) || role.includes(query);
   });
 
   const activeCount = securityUsers.filter((user) => (user.status || '').toLowerCase() === 'active').length;
@@ -367,7 +366,7 @@ const SecurityPage: React.FC = () => {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search by name, email or phone..."
+                  placeholder="Search by name, email or role..."
                   className="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-4 text-sm text-gray-800 focus:outline-none"
                 />
               </div>
@@ -392,7 +391,7 @@ const SecurityPage: React.FC = () => {
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Name</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Email</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Phone</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Role</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Status</th>
                     </tr>
                   </thead>
@@ -401,7 +400,7 @@ const SecurityPage: React.FC = () => {
                       <tr key={user._id}>
                         <td className="px-4 py-4 text-sm font-medium text-gray-900">{user.name}</td>
                         <td className="px-4 py-4 text-sm text-gray-700">{user.email || 'No email'}</td>
-                        <td className="px-4 py-4 text-sm text-gray-700">{user.phone || 'N/A'}</td>
+                        <td className="px-4 py-4 text-sm text-gray-700">{user.role || 'N/A'}</td>
                         <td className="px-4 py-4 text-sm">
                           <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getStatusBadgeColor(user.status)}`}>
                             {user.status || 'Pending'}
