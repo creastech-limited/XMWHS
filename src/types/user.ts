@@ -58,6 +58,7 @@ export interface SchoolUser {
   firstName: string;
   lastName: string;
   name: string;
+  fullName?: string;
   email: string;
   role: string;
   profilePicture?: string;
@@ -90,6 +91,7 @@ export interface AttendanceRecord {
   location: string;
   deviceId: string;
   securityPersonnel: string;
+  securityEmail?: string;
   createdAt?: string;
 }
 

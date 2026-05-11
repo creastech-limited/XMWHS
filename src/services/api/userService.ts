@@ -549,10 +549,16 @@ const normalizeAttendanceRecord = (entry: unknown, index: number): AttendanceRec
     'N/A';
 
   const securityPersonnel =
-    getNestedString(record, ['securityPersonnelName', 'securityPersonnel']) ||
+    getNestedString(record, ['securityName', 'securityPersonnelName', 'securityPersonnel']) ||
+    getNestedString(record, ['securityEmail']) ||
     getNestedString(security, ['name', 'fullName', 'email']) ||
     `${getNestedString(security, ['firstName'])} ${getNestedString(security, ['lastName'])}`.trim() ||
     'N/A';
+
+  const securityEmail =
+    getNestedString(record, ['securityEmail']) ||
+    getNestedString(security, ['email']) ||
+    '';
 
   return {
     _id:
@@ -568,6 +574,7 @@ const normalizeAttendanceRecord = (entry: unknown, index: number): AttendanceRec
     location: location || 'N/A',
     deviceId,
     securityPersonnel,
+    securityEmail,
     createdAt: getNestedString(record, ['createdAt', 'time', 'timestamp']) || time,
   };
 };

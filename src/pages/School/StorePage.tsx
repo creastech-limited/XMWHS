@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import {
   Store,
   Search,
@@ -55,6 +55,85 @@ export const StorePage: React.FC = () => {
   });
   const [activeStoreCount, setActiveStoreCount] = useState(0);
 
+  const normalizeStore = useCallback((store: Partial<StoreType> & Record<string, unknown>, index: number): StoreType => {
+    const fallbackId =
+      (typeof store._id === 'string' && store._id) ||
+      (typeof store.id === 'string' && store.id) ||
+      (typeof store.store_id === 'string' && store.store_id) ||
+      (typeof store.email === 'string' && store.email) ||
+      `store-${schoolId || 'school'}-${index}`;
+
+    const normalizedStoreName =
+      (typeof store.storeName === 'string' && store.storeName) ||
+      (typeof store.name === 'string' && store.name) ||
+      (typeof store.email === 'string' && store.email.split('@')[0]) ||
+      'Unnamed Store';
+
+    const locationValue = store.location;
+    const normalizedLocation =
+      typeof locationValue === 'string'
+        ? locationValue
+        : locationValue && typeof locationValue === 'object'
+          ? (() => {
+              const locationRecord = locationValue as {
+                type?: string;
+                coordinates?: unknown;
+                address?: string;
+                label?: string;
+                name?: string;
+              };
+
+              if (typeof locationRecord.address === 'string' && locationRecord.address) {
+                return locationRecord.address;
+              }
+
+              if (typeof locationRecord.label === 'string' && locationRecord.label) {
+                return locationRecord.label;
+              }
+
+              if (typeof locationRecord.name === 'string' && locationRecord.name) {
+                return locationRecord.name;
+              }
+
+              if (Array.isArray(locationRecord.coordinates) && locationRecord.coordinates.length >= 2) {
+                const [longitude, latitude] = locationRecord.coordinates;
+                return `Coordinates (${String(latitude)}, ${String(longitude)})`;
+              }
+
+              if (typeof locationRecord.type === 'string' && locationRecord.type) {
+                return locationRecord.type;
+              }
+
+              return 'N/A';
+            })()
+          : 'N/A';
+
+    return {
+      _id: fallbackId,
+      storeName: normalizedStoreName,
+      storeType:
+        (typeof store.storeType === 'string' && store.storeType) ||
+        (typeof store.type === 'string' && store.type) ||
+        'General',
+      location: normalizedLocation,
+      email:
+        (typeof store.email === 'string' && store.email) ||
+        'No email',
+      phone:
+        (typeof store.phone === 'string' && store.phone) ||
+        'N/A',
+      status:
+        (typeof store.status === 'string' && store.status) ||
+        'Pending',
+      createdAt:
+        (typeof store.createdAt === 'string' && store.createdAt) ||
+        (typeof store.registrationDate === 'string' && store.registrationDate) ||
+        new Date().toISOString(),
+      schoolId:
+        (typeof store.schoolId === 'string' && store.schoolId) || undefined,
+    };
+  }, [schoolId]);
+
   // 1) Fetch user profile to get schoolId and storeLink
   useEffect(() => {
     if (!authToken) return;
@@ -107,8 +186,14 @@ export const StorePage: React.FC = () => {
       try {
         const storeData = await getStoresBySchoolId(schoolId);
         console.log('Stores API response:', storeData);
-        
-        setStores(storeData);
+
+        const normalizedStores = Array.isArray(storeData)
+          ? storeData
+              .filter((store) => !!store && typeof store === 'object')
+              .map((store, index) => normalizeStore(store as Partial<StoreType> & Record<string, unknown>, index))
+          : [];
+
+        setStores(normalizedStores);
       } catch (err) {
         console.error('Fetch error:', err);
         setStores([]);
@@ -119,7 +204,7 @@ export const StorePage: React.FC = () => {
     };
 
     fetchStores();
-  }, [authToken, schoolId]);
+  }, [authToken, schoolId, normalizeStore]);
 
   // 3) Fetch store count for this schoolId
   useEffect(() => {
@@ -151,9 +236,7 @@ export const StorePage: React.FC = () => {
   const filteredStores = stores.filter((store) => {
     if (!store) return false;
     const matchesSearch =
-      (store.storeName?.toLowerCase() || '').includes(
-        searchQuery.toLowerCase()
-      ) ||
+      (store.storeName?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
       (store.email?.toLowerCase() || '').includes(searchQuery.toLowerCase());
     const matchesStatus =
       statusFilter === 'all' ||
@@ -339,9 +422,10 @@ export const StorePage: React.FC = () => {
   };
 
   // Get unique store types for filtering
-  const storeTypes = [
-    ...new Set(stores.map((store) => store?.storeType).filter(Boolean)),
-  ];
+  const storeTypes = useMemo(
+    () => [...new Set(stores.map((store) => store?.storeType).filter(Boolean))],
+    [stores]
+  );
 
   // Get status badge color
   const getStatusBadgeColor = (status: string) => {
@@ -614,14 +698,14 @@ export const StorePage: React.FC = () => {
                             <td className="px-4 py-3 md:px-6 md:py-4 whitespace-nowrap">
                               <div className="flex items-center">
                                 <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-500">
-                                  {store.storeName.charAt(0).toUpperCase()}
+                                  {(store.storeName || 'S').charAt(0).toUpperCase()}
                                 </div>
                                 <div className="ml-4">
                                   <div className="text-sm font-medium text-gray-900">
-                                    {store.storeName}
+                                    {store.storeName || 'Unnamed Store'}
                                   </div>
                                   <div className="text-xs text-gray-500">
-                                    ID: {store._id.substring(0, 8)}...
+                                    ID: {(store._id || 'store').substring(0, 8)}...
                                   </div>
                                 </div>
                               </div>
@@ -630,14 +714,14 @@ export const StorePage: React.FC = () => {
                               <span
                                 className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getTypeBadgeColor(store.storeType)}`}
                               >
-                                {store.storeType}
+                                {store.storeType || 'General'}
                               </span>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="flex items-center text-sm text-gray-500">
                                 <MapPin className="h-4 w-4 mr-1 flex-shrink-0" />
                                 <span className="truncate max-w-xs">
-                                  {store.location}
+                                  {store.location || 'N/A'}
                                 </span>
                               </div>
                             </td>
@@ -646,12 +730,12 @@ export const StorePage: React.FC = () => {
                                 <div className="flex items-center mb-1">
                                   <Mail className="h-3 w-3 mr-1 text-gray-400" />
                                   <span className="truncate max-w-xs">
-                                    {store.email}
+                                    {store.email || 'No email'}
                                   </span>
                                 </div>
                                 <div className="flex items-center">
                                   <Phone className="h-3 w-3 mr-1 text-gray-400" />
-                                  <span>{store.phone}</span>
+                                  <span>{store.phone || 'N/A'}</span>
                                 </div>
                               </div>
                             </td>
@@ -659,11 +743,11 @@ export const StorePage: React.FC = () => {
                               <span
                                 className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeColor(store.status)}`}
                               >
-                                {store.status}
+                                {store.status || 'Pending'}
                               </span>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              {new Date(store.createdAt).toLocaleDateString()}
+                              {store.createdAt ? new Date(store.createdAt).toLocaleDateString() : 'N/A'}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium relative">
                               <button
@@ -700,13 +784,13 @@ export const StorePage: React.FC = () => {
                                   <div className="border-t border-gray-100 my-1"></div>
                                   <button
                                     className={`flex items-center gap-3 px-4 py-2 text-sm hover:bg-gray-50 w-full text-left ${
-                                      menuStore.status.toLowerCase() === 'active'
+                                      (menuStore.status || '').toLowerCase() === 'active'
                                         ? 'text-red-600'
                                         : 'text-green-600'
                                     }`}
                                     onClick={() => handleActivateDeactivate(menuStore)}
                                   >
-                                    {menuStore.status.toLowerCase() === 'active' ? (
+                                    {(menuStore.status || '').toLowerCase() === 'active' ? (
                                       <>
                                         <XCircle className="h-4 w-4" />
                                         Deactivate Store
@@ -859,3 +943,5 @@ export const StorePage: React.FC = () => {
     </div>
   );
 };
+
+export default StorePage;

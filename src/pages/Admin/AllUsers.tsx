@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import AdminSidebar from '../../components/Adminsidebar';
 import AdminHeader from '../../components/AdminHeader';
-import { getAllParents, getAllUsers } from '../../services';
+import { getAllUsers } from '../../services';
 import type { UserData } from '../../types'; // Use the imported type
 
 const AllUsers = () => {
@@ -68,12 +68,13 @@ const AllUsers = () => {
 
 const fetchUsers = useCallback(async () => {
   try {
-    const data = sectionConfig.defaultRole === 'parent'
-      ? await getAllParents()
-      : await getAllUsers();
+    const data = await getAllUsers();
+    const scopedData = sectionConfig.defaultRole === 'all'
+      ? data
+      : data.filter((userData) => userData.user?.role === sectionConfig.defaultRole);
 
     setUsers(data);
-    setFilteredUsers(data);
+    setFilteredUsers(scopedData);
   } catch (error) {
     console.error('Error fetching users:', error);
   }

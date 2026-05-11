@@ -111,14 +111,15 @@ const ManageAgentsPage: React.FC = () => {
       // Extract store data
       const storeData = apiResponse.data?.store || null;
 
-      // Only update store info if we don't already have it from user profile
-      if (storeData && !storeInfo) {
-        if (storeData.store_id) {
-          storeData.schoolId = storeData.schoolId ||
-            (storeData.store_id ? storeData.store_id.split('/')[0] : '');
-          setStoreInfo(storeData);
-          console.log('Store info from agents endpoint:', storeData);
-        }
+      // Use the agents endpoint as a fallback without making this callback depend on storeInfo.
+      if (storeData?.store_id) {
+        const fallbackStoreInfo = {
+          ...storeData,
+          schoolId: storeData.schoolId || storeData.store_id.split('/')[0] || '',
+        };
+
+        setStoreInfo(prevStoreInfo => prevStoreInfo ?? fallbackStoreInfo);
+        console.log('Store info from agents endpoint:', fallbackStoreInfo);
       }
 
       setAgents(Array.isArray(agentsData) ? agentsData : []);
@@ -129,12 +130,9 @@ const ManageAgentsPage: React.FC = () => {
       setAgents([]);
       setAgentCount(0);
 
-      // Only show error toast if we also don't have store info
-      if (!storeInfo) {
-        toast.error('Failed to fetch store information');
-      }
+      toast.error('Failed to fetch store information');
     }
-  }, [storeInfo]);
+  }, []);
 
   // Main initialization function
   const initializePage = useCallback(async () => {

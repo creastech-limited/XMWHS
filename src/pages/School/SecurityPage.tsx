@@ -140,6 +140,7 @@ const SecurityPage: React.FC = () => {
         lastName: user.lastName || '',
         name:
           user.name ||
+          user.fullName ||
           `${user.firstName || ''} ${user.lastName || ''}`.trim() ||
           user.email ||
           'Unnamed Security',
