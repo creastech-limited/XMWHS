@@ -56,6 +56,7 @@ import PrivacyAndPolicy from './pages/Public Pages/PrivacyAndPolicy.js';
 import IDCardGenerator from './pages/Admin/IDCardGenerator.js';
 import GetCharges from './pages/Admin/GetCharges.js';
 import Userwallets from './pages/Admin/Userwallets.js';
+import SuccessPage from './pages/Public Pages/SuccessPage.js';
 
 
 function App() {
@@ -66,11 +67,14 @@ function App() {
 
           <Route path="/privacyAndPolicy" element={<PrivacyAndPolicy />} />
           <Route path="/terms" element={<PrivacyAndPolicy />} />
+           <Route path="/success" element={<SuccessPage />} />
+
 
           {/* Redirect root to login */}
           <Route path="/" element={<Navigate to="/login" replace />} />
 
           {/* Public Routes */}
+
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignUpPage />} />
           <Route path="/schoolsignup" element={<SchoolSignUpPage />} />
@@ -79,7 +83,7 @@ function App() {
           <Route path="/stores/new" element={<StoreRegistrationForm />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
-
+         
           {/* School Routes */}
           <Route path="/schools" element={<SchoolsPage />} />
           <Route path="/students" element={<StudentPage />} />

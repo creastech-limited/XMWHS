@@ -88,6 +88,7 @@ const isPublicPath = (pathname: string): boolean => {
     '/forgot-password',
     '/terms',
     '/privacyAndPolicy',
+    '/success',
   ];
   
   // Check exact matches first
