@@ -1,9 +1,7 @@
-import { useContext, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { AuthContext } from '../context/AuthContext';
-import type { AuthContextType } from '../types/auth.js';
+import { useAuth } from '../context/AuthContext'; // import from AuthContext now
 
-// Define role-based routes
 const ROLE_ROUTES: Record<string, string> = {
   school: '/schools',
   parent: '/parent',
@@ -14,15 +12,6 @@ const ROLE_ROUTES: Record<string, string> = {
   admin: '/admin',
 };
 
-export const useAuth = (): AuthContextType => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
-
-// Helper hook for role-based access control
 export const useRoleAccess = (allowedRoles: string[]) => {
   const { user } = useAuth();
   const navigate = useNavigate();
