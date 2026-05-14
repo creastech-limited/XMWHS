@@ -1,6 +1,5 @@
 import React, {
   createContext,
-  useContext,
   useState,
   useEffect,
   useCallback,
@@ -11,7 +10,7 @@ import type { AuthContextType, AuthProviderProps } from '../types/auth.js';
 import { validateToken } from '../services/api/authService';
 import axios from 'axios';
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 
 // Define role-based routes
@@ -239,26 +238,4 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   );
 };
 
-export const useAuth = (): AuthContextType => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
 
-// Helper hook for role-based access control
-export const useRoleAccess = (allowedRoles: string[]) => {
-  const { user } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  useEffect(() => {
-    if (user && !allowedRoles.includes(user.role)) {
-      const roleRoute = ROLE_ROUTES[user.role] || '/';
-      navigate(roleRoute);
-    }
-  }, [user, allowedRoles, navigate, location.pathname]);
-
-  return { hasAccess: user ? allowedRoles.includes(user.role) : false };
-};
