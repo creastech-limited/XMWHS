@@ -306,6 +306,8 @@ const normalizeAdminStudent = (student: Student, index: number): Student => {
   };
 };
 
+
+// Get students in a school by admin
 export const getStudentsInSchoolByAdmin = async (
   schoolId: string
 ): Promise<StudentsInSchoolResponse> => {

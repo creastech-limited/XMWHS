@@ -10,15 +10,17 @@ import {
   Search,
   Filter,
   Eye,
+  Edit2,
   Clock,
   CheckCircle,
   XCircle,
   FileText,
   ChevronDown,
   ChevronUp,
+  RefreshCw,
   Trash2
 } from 'lucide-react';
-import { createDisputeApi, getUserDetails, getUserDisputes } from '../../services';
+import { createDisputeApi, getUserDetails, getUserDisputes, updateDisputeStatus } from '../../services';
 import type { CreateDisputeData, CreateDisputeResponse, Dispute, FetchDisputesResponse, FetchUserDetailsResponse, UserProfile } from '../../types';
 
 interface StatusColorMap {
@@ -44,6 +46,13 @@ const DisputePage = () => {
     key: 'createdAt',
     direction: 'desc'
   });
+
+  // Update-status modal state
+  const [updateTarget, setUpdateTarget] = useState<Dispute | null>(null);
+  const [newStatus, setNewStatus] = useState('');
+  const [updating, setUpdating] = useState(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
+  const [updateSuccess, setUpdateSuccess] = useState<string | null>(null);
 
   // Form state for creating new dispute
   const [formData, setFormData] = useState({
@@ -318,6 +327,43 @@ useEffect(() => {
     }
   };
 
+  // Open update-status modal
+  const handleOpenUpdate = (dispute: Dispute) => {
+    setUpdateTarget(dispute);
+    setNewStatus(dispute.status || 'Pending');
+    setUpdateError(null);
+    setUpdateSuccess(null);
+  };
+
+  const handleCloseUpdate = () => {
+    setUpdateTarget(null);
+    setNewStatus('');
+    setUpdateError(null);
+    setUpdateSuccess(null);
+  };
+
+  const handleSubmitUpdate = async () => {
+    if (!updateTarget?._id || !newStatus) return;
+    try {
+      setUpdating(true);
+      setUpdateError(null);
+      await updateDisputeStatus(updateTarget._id, newStatus);
+      setUpdateSuccess('Status updated successfully!');
+      // Refresh list
+      const refreshed = await fetchDisputes();
+      setDisputes(refreshed);
+      setFilteredDisputes(refreshed);
+      setTimeout(() => {
+        handleCloseUpdate();
+      }, 1200);
+    } catch (err) {
+      console.error('Failed to update dispute status:', err);
+      setUpdateError('Failed to update status. Please try again.');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   // Get status badge color
   const getStatusColor = (status: string | undefined): string => {
     const statusColorMap: StatusColorMap = {
@@ -570,18 +616,29 @@ useEffect(() => {
                           {dispute.createdAt ? new Date(dispute.createdAt).toLocaleDateString() : 'N/A'}
                         </td>
                         <td className="px-6 py-4">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedDispute(dispute);
-                              setShowDetails(true);
-                            }}
-                            className="text-blue-600 hover:text-blue-900 flex items-center gap-1 transition-colors"
-                            title="View dispute details"
-                          >
-                            <Eye className="w-4 h-4" />
-                            View
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedDispute(dispute);
+                                setShowDetails(true);
+                              }}
+                              className="text-blue-600 hover:text-blue-900 flex items-center gap-1 transition-colors text-sm"
+                              title="View dispute details"
+                            >
+                              <Eye className="w-4 h-4" />
+                              View
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenUpdate(dispute)}
+                              className="text-amber-600 hover:text-amber-800 flex items-center gap-1 transition-colors text-sm"
+                              title="Update dispute status"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                              Update
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -821,7 +878,7 @@ useEffect(() => {
       {/* View Dispute Details Modal */}
       {showDetails && selectedDispute && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-bold text-gray-900">Dispute Details</h3>
@@ -962,7 +1019,18 @@ useEffect(() => {
                 )}
               </div>
 
-              <div className="flex justify-end pt-6 border-t mt-6">
+              <div className="flex items-center justify-between pt-6 border-t mt-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selectedDispute) handleOpenUpdate(selectedDispute);
+                    setShowDetails(false);
+                  }}
+                  className="inline-flex items-center gap-2 px-5 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors font-medium"
+                >
+                  <Edit2 className="w-4 h-4" />
+                  Update Status
+                </button>
                 <button
                   onClick={() => setShowDetails(false)}
                   className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
@@ -972,6 +1040,105 @@ useEffect(() => {
                   Close
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Update Status Modal ── */}
+      {updateTarget && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl w-full max-w-md shadow-2xl">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Update Dispute Status</h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  #{updateTarget._id?.slice(-8) || 'N/A'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseUpdate}
+                disabled={updating}
+                className="text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50"
+                aria-label="Close"
+              >
+                <XCircle className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 py-5 space-y-4">
+              {/* Current status pill */}
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-gray-600">Current status:</span>
+                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(updateTarget.status)}`}>
+                  {getStatusIcon(updateTarget.status)}
+                  {updateTarget.status || 'N/A'}
+                </span>
+              </div>
+
+              {/* New status select */}
+              <div>
+                <label
+                  htmlFor="sd-new-status-select"
+                  className="block text-sm font-medium text-gray-700 mb-1.5"
+                >
+                  New Status
+                </label>
+                <select
+                  id="sd-new-status-select"
+                  value={newStatus}
+                  onChange={(e) => setNewStatus(e.target.value)}
+                  disabled={updating}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent text-gray-900 bg-white disabled:opacity-60"
+                >
+                  {statuses.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Feedback */}
+              {updateError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+                  {updateError}
+                </div>
+              )}
+              {updateSuccess && (
+                <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-2.5 text-sm text-green-700 flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4" />
+                  {updateSuccess}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={handleCloseUpdate}
+                disabled={updating}
+                className="px-5 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmitUpdate}
+                disabled={updating || !newStatus || newStatus === updateTarget.status}
+                className="inline-flex items-center gap-2 px-5 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {updating ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Saving…
+                  </>
+                ) : (
+                  'Save Status'
+                )}
+              </button>
             </div>
           </div>
         </div>
