@@ -654,6 +654,22 @@ export const transferFunds = async (payload: {
   }
 };
 
+const normalizeDisputeList = (
+  payload: Dispute[] | { disputes?: Dispute[]; data?: Dispute[]; message?: string } | unknown
+): Dispute[] => {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (payload && typeof payload === 'object') {
+    const record = payload as { disputes?: Dispute[]; data?: Dispute[] };
+    if (Array.isArray(record.disputes)) return record.disputes;
+    if (Array.isArray(record.data)) return record.data;
+  }
+
+  return [];
+};
+
 // Get user disputes
 export const getUserDisputes = async (): Promise<{
   disputes?: Dispute[];
@@ -665,6 +681,27 @@ export const getUserDisputes = async (): Promise<{
     data?: Dispute[];
     message?: string;
   }>('/api/dispute/getuserdispute');
+  return response.data;
+};
+
+// Get all disputes for admin management
+export const getAllDisputes = async (): Promise<Dispute[]> => {
+  const response = await apiClient.get<
+    Dispute[] | { disputes?: Dispute[]; data?: Dispute[]; message?: string }
+  >('/api/dispute/getalldispute');
+
+  return normalizeDisputeList(response.data);
+};
+
+// Update dispute status
+export const updateDisputeStatus = async (
+  disputeId: string,
+  status: string
+): Promise<{ message: string; dispute?: Dispute; data?: Dispute }> => {
+  const response = await apiClient.put<{ message: string; dispute?: Dispute; data?: Dispute }>(
+    `/api/dispute/updatedispute/${disputeId}`,
+    { status }
+  );
   return response.data;
 };
 
