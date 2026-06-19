@@ -1,12 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { 
-  Users, 
-  Search, 
+import {
+  Users,
+  Search,
   Eye,
-  Edit,
-  Trash2,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -19,7 +17,9 @@ import {
 } from 'lucide-react';
 import AdminSidebar from '../../components/Adminsidebar';
 import AdminHeader from '../../components/AdminHeader';
-import { getAllUsers } from '../../services';
+import { getAllUsers,
+  activateUser,
+  deactivateUser } from '../../services';
 import type { UserData } from '../../types'; // Use the imported type
 
 const AllUsers = () => {
@@ -34,7 +34,43 @@ const AllUsers = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [roleFilter, setRoleFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
+  const [itemsPerPage] = useState(10); const [selectedUser, setSelectedUser] = useState<UserData['user'] | null>(null);
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  const handleViewUser = (user: UserData['user']) => {
+    setSelectedUser(user);
+    setShowUserModal(true);
+  };
+
+  const closeUserModal = () => {
+    setSelectedUser(null);
+    setShowUserModal(false);
+  };
+ const handleStatusToggle = async (userId: string, currentStatus?: string) => {
+  const action =
+    currentStatus === 'Active' ? 'deactivate' : 'activate';
+
+  if (!window.confirm(`Are you sure you want to ${action} this account?`)) {
+    return;
+  }
+
+  try {
+    setActionLoading(userId);
+
+    if (currentStatus === 'Active') {
+      await deactivateUser(userId);
+    } else {
+      await activateUser(userId);
+    }
+
+    await fetchUsers();
+  } catch (error) {
+    console.error(error);
+  } finally {
+    setActionLoading(null);
+  }
+};
 
   const sectionConfig = (() => {
     if (location.pathname.endsWith('/schools')) {
@@ -66,28 +102,28 @@ const AllUsers = () => {
     };
   })();
 
-const fetchUsers = useCallback(async () => {
-  try {
-    const data = await getAllUsers();
-    const scopedData = sectionConfig.defaultRole === 'all'
-      ? data
-      : data.filter((userData) => userData.user?.role === sectionConfig.defaultRole);
+  const fetchUsers = useCallback(async () => {
+    try {
+      const data = await getAllUsers();
+      const scopedData = sectionConfig.defaultRole === 'all'
+        ? data
+        : data.filter((userData) => userData.user?.role === sectionConfig.defaultRole);
 
-    setUsers(data);
-    setFilteredUsers(scopedData);
-  } catch (error) {
-    console.error('Error fetching users:', error);
-  }
-}, [sectionConfig.defaultRole]);
+      setUsers(data);
+      setFilteredUsers(scopedData);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    }
+  }, [sectionConfig.defaultRole]);
 
   useEffect(() => {
     const initializeData = async () => {
       try {
         setLoading(true);
-        
+
         // Get token from authUser or localStorage
         const token = authUser?.token || localStorage.getItem('token');
-        
+
         // Check if token exists and is a string
         if (!token) {
           console.log('No token found');
@@ -136,7 +172,7 @@ const fetchUsers = useCallback(async () => {
       result = result.filter(userData => {
         const user = userData.user;
         if (!user) return false;
-        
+
         return (
           user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -276,7 +312,7 @@ const fetchUsers = useCallback(async () => {
 
   return (
     <div className="flex h-screen bg-gray-100">
-      <AdminSidebar 
+      <AdminSidebar
         sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}
         activeMenu={activeMenu}
@@ -284,7 +320,7 @@ const fetchUsers = useCallback(async () => {
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <AdminHeader 
+        <AdminHeader
           sidebarOpen={sidebarOpen}
           setSidebarOpen={setSidebarOpen}
           activeMenu={activeMenu}
@@ -324,7 +360,7 @@ const fetchUsers = useCallback(async () => {
                   </div>
                 </div>
               </div>
-              
+
               <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
                 <div className="flex items-center">
                   <div className="bg-green-100 p-2 rounded-lg">
@@ -338,7 +374,7 @@ const fetchUsers = useCallback(async () => {
                   </div>
                 </div>
               </div>
-              
+
               <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
                 <div className="flex items-center">
                   <div className="bg-orange-100 p-2 rounded-lg">
@@ -352,7 +388,7 @@ const fetchUsers = useCallback(async () => {
                   </div>
                 </div>
               </div>
-              
+
               <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
                 <div className="flex items-center">
                   <div className="bg-purple-100 p-2 rounded-lg">
@@ -383,7 +419,7 @@ const fetchUsers = useCallback(async () => {
                     />
                   </div>
                 </div>
-                
+
                 <div className="flex space-x-3">
                   <select
                     className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
@@ -396,7 +432,7 @@ const fetchUsers = useCallback(async () => {
                     <option value="Suspended">Suspended</option>
                     <option value="Pending">Pending</option>
                   </select>
-                  
+
                   {sectionConfig.defaultRole === 'all' && (
                     <select
                       className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
@@ -446,7 +482,7 @@ const fetchUsers = useCallback(async () => {
                       currentUsers.map((userData) => {
                         const user = userData.user;
                         if (!user) return null;
-                        
+
                         return (
                           <tr key={user._id} className="hover:bg-gray-50">
                             <td className="px-6 py-4 whitespace-nowrap">
@@ -488,16 +524,29 @@ const fetchUsers = useCallback(async () => {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                               <div className="flex items-center justify-end space-x-2">
-                                <button className="text-blue-600 hover:text-blue-900 p-1">
-                                  <Eye size={16} />
-                                </button>
-                                <button className="text-gray-600 hover:text-gray-900 p-1">
-                                  <Edit size={16} />
-                                </button>
-                                <button className="text-red-600 hover:text-red-900 p-1">
-                                  <Trash2 size={16} />
-                                </button>
-                              </div>
+  <button
+    onClick={() => handleViewUser(user)}
+    className="text-blue-600 hover:text-blue-900 p-1"
+  >
+    <Eye size={16} />
+  </button>
+
+  <button
+    onClick={() => handleStatusToggle(user._id, user.status)}
+    disabled={actionLoading === user._id}
+    className={`px-3 py-1 rounded-md text-xs font-medium ${
+      user.status === 'Active'
+        ? 'bg-red-100 text-red-700 hover:bg-red-200'
+        : 'bg-green-100 text-green-700 hover:bg-green-200'
+    }`}
+  >
+    {actionLoading === user._id
+      ? 'Processing...'
+      : user.status === 'Active'
+      ? 'Deactivate'
+      : 'Activate'}
+  </button>
+</div>
                             </td>
                           </tr>
                         );
@@ -536,7 +585,7 @@ const fetchUsers = useCallback(async () => {
                       >
                         <ChevronLeft size={16} />
                       </button>
-                      
+
                       {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
                         let pageNum = i + 1;
                         if (totalPages > 5) {
@@ -551,17 +600,16 @@ const fetchUsers = useCallback(async () => {
                           <button
                             key={pageNum}
                             onClick={() => setCurrentPage(pageNum)}
-                            className={`px-3 py-1 border rounded-md text-sm ${
-                              currentPage === pageNum
-                                ? 'bg-blue-600 text-white border-blue-600'
-                                : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                            }`}
+                            className={`px-3 py-1 border rounded-md text-sm ${currentPage === pageNum
+                              ? 'bg-blue-600 text-white border-blue-600'
+                              : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                              }`}
                           >
                             {pageNum}
                           </button>
                         ) : null;
                       })}
-                      
+
                       <button
                         onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                         disabled={currentPage === totalPages}
@@ -575,6 +623,143 @@ const fetchUsers = useCallback(async () => {
               )}
             </div>
           </div>
+          {/* User Details Modal */}
+          {showUserModal && selectedUser && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+              <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden">
+                {/* Header */}
+                <div className="flex items-center justify-between px-6 py-4 border-b">
+                  <h2 className="text-xl font-bold text-gray-900">
+                    User Details
+                  </h2>
+
+                  <button
+                    onClick={closeUserModal}
+                    className="text-gray-500 hover:text-gray-700 text-2xl"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                {/* Content */}
+                <div className="p-6 space-y-6">
+
+                  <div className="flex items-center gap-4">
+                    <div className="h-16 w-16 rounded-full bg-blue-600 flex items-center justify-center">
+                      <span className="text-white text-lg font-bold">
+                        {getUserInitials(selectedUser)}
+                      </span>
+                    </div>
+
+                    <div>
+                      <h3 className="text-xl font-semibold text-gray-900">
+                        {selectedUser.name || 'N/A'}
+                      </h3>
+
+                      <div className="mt-2">
+                        {getRoleBadge(selectedUser.role)}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500">
+                        First Name
+                      </label>
+                      <p className="text-gray-900">
+                        {selectedUser.firstName || 'N/A'}
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500">
+                        Last Name
+                      </label>
+                      <p className="text-gray-900">
+                        {selectedUser.lastName || 'N/A'}
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500">
+                        Email
+                      </label>
+                      <p className="text-gray-900 break-all">
+                        {selectedUser.email || 'N/A'}
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500">
+                        Phone Number
+                      </label>
+                      <p className="text-gray-900">
+                        {selectedUser.phone || 'N/A'}
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500">
+                        Role
+                      </label>
+                      <p className="text-gray-900 capitalize">
+                        {selectedUser.role || 'N/A'}
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500">
+                        Status
+                      </label>
+                      <div className="mt-1">
+                        {getStatusBadge(selectedUser.status)}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500">
+                        User ID
+                      </label>
+                      <p className="text-gray-900 break-all">
+                        {selectedUser._id || 'N/A'}
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500">
+                        Date Joined
+                      </label>
+                      <p className="text-gray-900">
+                        {formatDate(selectedUser.createdAt)}
+                      </p>
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-500">
+                        School Address
+                      </label>
+                      <p className="text-gray-900">
+                        {selectedUser.schoolAddress || 'N/A'}
+                      </p>
+                    </div>
+
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="px-6 py-4 border-t bg-gray-50 flex justify-end">
+                  <button
+                    onClick={closeUserModal}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </main>
       </div>
     </div>
