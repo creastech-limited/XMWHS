@@ -31,15 +31,23 @@ export const updateGuardian = async (guardianEmail: string, kidEmail: string): P
   return response.data;
 };
 
-// Activate student
-export const activateStudent = async (studentId: string): Promise<{ message: string; status?: string }> => {
-  const response = await apiClient.put<{ message: string; status?: string }>(`/api/users/active/${studentId}`);
+export const activateUser = async (
+  userId: string
+): Promise<{ message: string; status?: string }> => {
+  const response = await apiClient.put<{ message: string; status?: string }>(
+    `/api/users/active/${userId}`
+  );
+
   return response.data;
 };
 
-// Deactivate student
-export const deactivateStudent = async (studentId: string): Promise<{ message: string; status?: string }> => {
-  const response = await apiClient.put<{ message: string; status?: string }>(`/api/users/deactive/${studentId}`);
+export const deactivateUser = async (
+  userId: string
+): Promise<{ message: string; status?: string }> => {
+  const response = await apiClient.put<{ message: string; status?: string }>(
+    `/api/users/deactive/${userId}`
+  );
+
   return response.data;
 };
 

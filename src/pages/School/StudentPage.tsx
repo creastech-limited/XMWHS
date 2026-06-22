@@ -30,11 +30,11 @@ import {
   getStudentsBySchoolId, 
   getParents,
   updateGuardian,
-  activateStudent,
-  deactivateStudent,
+activateUser,
   setStudentPin,
   updateStudentPin,
-  bulkUploadStudents
+  bulkUploadStudents,
+  deactivateUser
 } from '../../services';
 
 // Import types
@@ -575,8 +575,8 @@ const handleActivateDeactivate = useCallback(async (student: Student) => {
   try {
     // Store the API response
     const response = isActive 
-      ? await deactivateStudent(student._id)
-      : await activateStudent(student._id);
+      ? await deactivateUser(student._id)
+      : await activateUser(student._id);
 
     // Determine the new status based on the action
     const newStatus: 'Active' | 'Inactive' | 'Pending' = isActive ? 'Inactive' : 'Active';
