@@ -75,7 +75,10 @@ const ROLE_SPECIFIC_ROUTES: Record<string, string[]> = {
     '/agent/transfertostore',
     '/agent/transactions',
   ],
-  admin: ['/admin'],
+  admin: [
+    '/admin',
+    '/admin/disputes'
+  ],
 };
 
 // Helper function to check if a path is public
@@ -90,17 +93,17 @@ const isPublicPath = (pathname: string): boolean => {
     '/privacyAndPolicy',
     '/success',
   ];
-  
+
   // Check exact matches first
   if (publicPaths.includes(pathname)) {
     return true;
   }
-  
+
   // Check for reset password route with token parameter
   if (pathname.startsWith('/reset-password/')) {
     return true;
   }
-  
+
   return false;
 };
 
@@ -111,7 +114,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
- 
+
 
   const logout = useCallback(() => {
     localStorage.removeItem('user');
@@ -138,9 +141,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     const checkAuthStatus = async () => {
       setIsLoading(true);
-      
+
       const currentPath = location.pathname;
-      
+
       // If user is on a public page, allow access without authentication
       if (isPublicPath(currentPath)) {
         setIsLoading(false);
@@ -189,10 +192,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (isLoading || !user) return;
 
     const currentPath = location.pathname;
-    
+
     // Allow access to public pages
     if (isPublicPath(currentPath)) return;
-    
+
     const allowedRoutes = ROLE_SPECIFIC_ROUTES[user.role] || [];
 
     // Redirect if user tries to access non-authorized route
