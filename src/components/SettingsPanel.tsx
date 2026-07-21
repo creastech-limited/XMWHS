@@ -14,6 +14,8 @@ import {
   Megaphone,
   Check,
   X,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { getUserDetails, requestPinReset, setAccountPin, updateAccountPin, updateNotificationPreferences, updateUserPassword, updateUserProfile, uploadProfileImage, verifyPinOtp, } from '../services';
 import type { UpdateUserPayload } from '../types';
@@ -27,6 +29,7 @@ interface UserData {
   profilePicture: string;
   createdAt?: string;
   isPinSet?: boolean;
+  role?: string;
   wallet?: {
     balance: number;
     currency: string;
@@ -90,6 +93,17 @@ const SettingsPanel = () => {
   const [avatarError, setAvatarError] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [resetStep, setResetStep] = useState<'pin' | 'otp'>('pin');
+  const [showPassword, setShowPassword] = useState({
+    current: false,
+    new: false,
+    confirm: false,
+  });
+  const [showPin, setShowPin] = useState({
+    current: false,
+    new: false,
+    confirm: false,
+    modal: false,
+  });
 
 
   const [otpValue, setOtpValue] = useState('');
@@ -336,65 +350,65 @@ const SettingsPanel = () => {
   };
 
   // STEP 1: Request Reset (Backend sends OTP to email)
- const handleRequestOtp = async () => {
-  if (pinData.pin.length < 4) {
-    setSnackbar({ open: true, message: "Please enter a 4-digit PIN", severity: 'error' });
-    return;
-  }
-
-  setIsLoading(true);
-  try {
-    await requestPinReset(pinData.pin);
-    setResetStep('otp');
-    setSnackbar({ open: true, message: "OTP sent to your email!", severity: 'success' });
-  } catch (error: unknown) {
-    let msg = "Failed to send OTP";
-    
-    if (axios.isAxiosError(error)) {
-      msg = error.response?.data?.error || error.response?.data?.message || msg;
-    } else if (error instanceof Error) {
-      msg = error.message;
+  const handleRequestOtp = async () => {
+    if (pinData.pin.length < 4) {
+      setSnackbar({ open: true, message: "Please enter a 4-digit PIN", severity: 'error' });
+      return;
     }
 
-    setSnackbar({ open: true, message: msg, severity: 'error' });
-  } finally {
-    setIsLoading(false);
-  }
-};
+    setIsLoading(true);
+    try {
+      await requestPinReset(pinData.pin);
+      setResetStep('otp');
+      setSnackbar({ open: true, message: "OTP sent to your email!", severity: 'success' });
+    } catch (error: unknown) {
+      let msg = "Failed to send OTP";
+
+      if (axios.isAxiosError(error)) {
+        msg = error.response?.data?.error || error.response?.data?.message || msg;
+      } else if (error instanceof Error) {
+        msg = error.message;
+      }
+
+      setSnackbar({ open: true, message: msg, severity: 'error' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // STEP 2: Verify OTP and Finalize Reset
   const handleFinalReset = async (e: React.FormEvent) => {
-  e.preventDefault();
-  
-  if (otpValue.length < 6) {
-    setSnackbar({ open: true, message: "Please enter the 6-digit OTP", severity: 'error' });
-    return;
-  }
+    e.preventDefault();
 
-  setIsLoading(true);
-  try {
-    await verifyPinOtp(otpValue, pinData.pin);
-
-    setSnackbar({ open: true, message: "PIN reset successfully!", severity: 'success' });
-    setIsModalOpen(false);
-    setResetStep('pin');
-    setPinData({ ...pinData, pin: '' });
-    setOtpValue('');
-    setUser(prev => prev ? { ...prev, isPinSet: true } : null);
-  } catch (error: unknown) {
-    let msg = "Verification failed";
-
-    if (axios.isAxiosError(error)) {
-      msg = error.response?.data?.error || error.response?.data?.message || msg;
-    } else if (error instanceof Error) {
-      msg = error.message;
+    if (otpValue.length < 6) {
+      setSnackbar({ open: true, message: "Please enter the 6-digit OTP", severity: 'error' });
+      return;
     }
 
-    setSnackbar({ open: true, message: msg, severity: 'error' });
-  } finally {
-    setIsLoading(false);
-  }
-};
+    setIsLoading(true);
+    try {
+      await verifyPinOtp(otpValue, pinData.pin);
+
+      setSnackbar({ open: true, message: "PIN reset successfully!", severity: 'success' });
+      setIsModalOpen(false);
+      setResetStep('pin');
+      setPinData({ ...pinData, pin: '' });
+      setOtpValue('');
+      setUser(prev => prev ? { ...prev, isPinSet: true } : null);
+    } catch (error: unknown) {
+      let msg = "Verification failed";
+
+      if (axios.isAxiosError(error)) {
+        msg = error.response?.data?.error || error.response?.data?.message || msg;
+      } else if (error instanceof Error) {
+        msg = error.message;
+      }
+
+      setSnackbar({ open: true, message: msg, severity: 'error' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Profile Picture Upload Handler
   const handleProfilePicUpload = async () => {
@@ -587,10 +601,10 @@ const SettingsPanel = () => {
                     <input
                       type="text"
                       value={profile.name}
-                      onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-                      className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed"
                       placeholder="Full Name"
-                      disabled={!isEditing}
+                      disabled
+                      readOnly
                     />
                   </div>
                   <div>
@@ -600,10 +614,10 @@ const SettingsPanel = () => {
                     <input
                       type="email"
                       value={profile.email}
-                      onChange={(e) => setProfile({ ...profile, email: e.target.value })}
-                      className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed"
                       placeholder="Email Address"
-                      disabled={!isEditing}
+                      disabled
+                      readOnly
                     />
                   </div>
                   <div>
@@ -666,38 +680,110 @@ const SettingsPanel = () => {
                     <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
                       Current Password
                     </label>
-                    <input
-                      type="password"
-                      value={passwordData.currentPassword}
-                      onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
-                      className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                      placeholder="Current Password"
-                    />
+                    <div className="relative">
+                      <input
+                        type={showPassword.confirm ? "text" : "password"}
+                        value={passwordData.confirmPassword}
+                        onChange={(e) =>
+                          setPasswordData({
+                            ...passwordData,
+                            confirmPassword: e.target.value,
+                          })
+                        }
+                        className="w-full px-4 py-2 pr-12 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        placeholder="Confirm Password"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setShowPassword({
+                            ...showPassword,
+                            confirm: !showPassword.confirm,
+                          })
+                        }
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-indigo-600"
+                      >
+                        {showPassword.confirm ? (
+                          <EyeOff className="w-5 h-5" />
+                        ) : (
+                          <Eye className="w-5 h-5" />
+                        )}
+                      </button>
+                    </div>
                   </div>
                   <div className="grid grid-cols-1 gap-y-6 gap-x-6 sm:grid-cols-2">
                     <div>
                       <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
                         New Password
                       </label>
-                      <input
-                        type="password"
-                        value={passwordData.newPassword}
-                        onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                        className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                        placeholder="New Password"
-                      />
+                      <div className="relative">
+                        <input
+                          type={showPassword.new ? "text" : "password"}
+                          value={passwordData.newPassword}
+                          onChange={(e) =>
+                            setPasswordData({
+                              ...passwordData,
+                              newPassword: e.target.value,
+                            })
+                          }
+                          className="w-full px-4 py-2 pr-12 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                          placeholder="New Password"
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setShowPassword({
+                              ...showPassword,
+                              new: !showPassword.new,
+                            })
+                          }
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-indigo-600"
+                        >
+                          {showPassword.new ? (
+                            <EyeOff className="w-5 h-5" />
+                          ) : (
+                            <Eye className="w-5 h-5" />
+                          )}
+                        </button>
+                      </div>
                     </div>
                     <div>
                       <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
                         Confirm Password
                       </label>
-                      <input
-                        type="password"
-                        value={passwordData.confirmPassword}
-                        onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
-                        className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                        placeholder="Confirm Password"
-                      />
+                      <div className="relative">
+                        <input
+                          type={showPassword.new ? "text" : "password"}
+                          value={passwordData.newPassword}
+                          onChange={(e) =>
+                            setPasswordData({
+                              ...passwordData,
+                              newPassword: e.target.value,
+                            })
+                          }
+                          className="w-full px-4 py-2 pr-12 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                          placeholder="New Password"
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setShowPassword({
+                              ...showPassword,
+                              new: !showPassword.new,
+                            })
+                          }
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-indigo-600"
+                        >
+                          {showPassword.new ? (
+                            <EyeOff className="w-5 h-5" />
+                          ) : (
+                            <Eye className="w-5 h-5" />
+                          )}
+                        </button>
+                      </div>
                     </div>
                   </div>
                   <div className="flex justify-end">
@@ -713,164 +799,254 @@ const SettingsPanel = () => {
               </div>
 
               {/* PIN Management Section */}
-              <div className="pt-8 sm:pt-10 border-t border-gray-200">
-                <h3 className="text-lg sm:text-xl font-semibold text-gray-900 flex items-center mb-4 sm:mb-6">
-                  <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6 mr-2 sm:mr-3 text-indigo-500" />
-                  {user?.isPinSet ? 'Update Security PIN' : 'Set Up Security PIN'}
-                </h3>
+              {user?.role !== 'admin' && (
+                <div className="pt-8 sm:pt-10 border-t border-gray-200">
+                  <h3 className="text-lg sm:text-xl font-semibold text-gray-900 flex items-center mb-4 sm:mb-6">
+                    <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6 mr-2 sm:mr-3 text-indigo-500" />
+                    {user?.isPinSet ? 'Update Security PIN' : 'Set Up Security PIN'}
+                  </h3>
 
-                <div className="mb-4 p-3 bg-blue-50 rounded-lg">
-                  <p className="text-sm text-blue-800">
-                    {user?.isPinSet
-                      ? 'You have a security PIN set. Enter your current PIN and create a new 4-digit PIN to update it.'
-                      : 'Enhance your account security by setting up a 4-digit PIN. This PIN will be required for sensitive operations.'
-                    }
-                  </p>
-                </div>
+                  <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+                    <p className="text-sm text-blue-800">
+                      {user?.isPinSet
+                        ? 'You have a security PIN set. Enter your current PIN and create a new 4-digit PIN to update it.'
+                        : 'Enhance your account security by setting up a 4-digit PIN. This PIN will be required for sensitive operations.'
+                      }
+                    </p>
+                  </div>
 
-                <form className="space-y-6 sm:space-y-8" onSubmit={handlePinUpdate}>
-                  {user?.isPinSet ? (
-                    // UPDATE PIN FORM (when user has existing PIN)
-                    <>
-                      <div>
-                        <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
-                          Current PIN *
-                        </label>
-                        <input
-                          type="password"
-                          value={pinData.currentPin}
-                          onChange={(e) => {
-                            // Only allow numeric input and limit to 4 digits
-                            const value = e.target.value.replace(/\D/g, '').slice(0, 4);
-                            setPinData({ ...pinData, currentPin: value });
-                          }}
-                          className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                          placeholder="Enter your current 4-digit PIN"
-                          maxLength={4}
-                          disabled={isLoading}
-                          required
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
-                          New PIN *
-                        </label>
-                        <input
-                          type="password"
-                          value={pinData.pin}
-                          onChange={(e) => {
-                            // Only allow numeric input and limit to 4 digits
-                            const value = e.target.value.replace(/\D/g, '').slice(0, 4);
-                            setPinData({ ...pinData, pin: value });
-                          }}
-                          className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                          placeholder="Enter new 4-digit PIN"
-                          maxLength={4}
-                          disabled={isLoading}
-                          required
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
-                          Confirm New PIN *
-                        </label>
-                        <input
-                          type="password"
-                          value={pinData.newPin}
-                          onChange={(e) => {
-                            // Only allow numeric input and limit to 4 digits
-                            const value = e.target.value.replace(/\D/g, '').slice(0, 4);
-                            setPinData({ ...pinData, newPin: value });
-                          }}
-                          className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                          placeholder="Confirm new 4-digit PIN"
-                          maxLength={4}
-                          disabled={isLoading}
-                          required
-                        />
-                      </div>
-
-                      <div className="flex justify-end">
-                        {user?.isPinSet && (
-                          <button
-                            type="button"
-                            onClick={handleOpenResetModal}
-                            className="text-sm text-indigo-600 hover:text-indigo-800 hover:bg-indigo-600 font-medium underline underline-offset-4 justify-end"
-                          >
-                            Forgot PIN?
-                          </button>
-                        )}
-                        <button
-                          type="submit"
-                          disabled={isLoading || pinData.currentPin.length !== 4 || pinData.pin.length !== 4 || pinData.newPin.length !== 4}
-                          className="px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {isLoading ? 'Updating PIN...' : 'Update PIN'}
-                        </button>
-                      </div>
-
-                    </>
-                  ) : (
-                    // SET NEW PIN FORM (when user doesn't have PIN) - keep this as is
-                    <>
-                      <div className="grid grid-cols-1 gap-y-6 gap-x-6 sm:grid-cols-2">
+                  <form className="space-y-6 sm:space-y-8" onSubmit={handlePinUpdate}>
+                    {user?.isPinSet ? (
+                      // UPDATE PIN FORM (when user has existing PIN)
+                      <>
                         <div>
                           <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
-                            Create PIN *
+                            Current PIN *
                           </label>
-                          <input
-                            type="password"
-                            value={pinData.pin}
-                            onChange={(e) => {
-                              // Only allow numeric input and limit to 4 digits
-                              const value = e.target.value.replace(/\D/g, '').slice(0, 4);
-                              setPinData({ ...pinData, pin: value });
-                            }}
-                            className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                            placeholder="Create 4-digit PIN"
-                            maxLength={4}
-                            disabled={isLoading}
-                            required
-                          />
-                          <p className="text-xs sm:text-sm text-gray-500 mt-1">Choose a secure 4-digit PIN</p>
+
+                          <div className="relative">
+                            <input
+                              type={showPin.current ? "text" : "password"}
+                              inputMode="numeric"
+                              value={pinData.currentPin}
+                              onChange={(e) => {
+                                const value = e.target.value.replace(/\D/g, "").slice(0, 4);
+                                setPinData({ ...pinData, currentPin: value });
+                              }}
+                              className="w-full pr-12 px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                              placeholder="Enter current 4-digit PIN"
+                              maxLength={4}
+                              disabled={isLoading}
+                              required
+                            />
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setShowPin((prev) => ({
+                                  ...prev,
+                                  current: !prev.current,
+                                }))
+                              }
+                              className="absolute inset-y-0 right-3 flex items-center text-gray-500 hover:text-indigo-600"
+                            >
+                              {showPin.current ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
+                          </div>
+
+                          <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                            Enter your current 4-digit PIN
+                          </p>
                         </div>
+
+                        <div>
+                          <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
+                            New PIN *
+                          </label>
+
+                          <div className="relative">
+                            <input
+                              type={showPin.new ? "text" : "password"}
+                              inputMode="numeric"
+                              value={pinData.pin}
+                              onChange={(e) => {
+                                const value = e.target.value.replace(/\D/g, "").slice(0, 4);
+                                setPinData({ ...pinData, pin: value });
+                              }}
+                              className="w-full pr-12 px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                              placeholder="Enter new 4-digit PIN"
+                              maxLength={4}
+                              disabled={isLoading}
+                              required
+                            />
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setShowPin((prev) => ({
+                                  ...prev,
+                                  new: !prev.new,
+                                }))
+                              }
+                              className="absolute inset-y-0 right-3 flex items-center text-gray-500 hover:text-indigo-600"
+                            >
+                              {showPin.new ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
+                          </div>
+
+                          <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                            Choose a secure 4-digit PIN
+                          </p>
+                        </div>
+
                         <div>
                           <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
                             Confirm PIN *
                           </label>
-                          <input
-                            type="password"
-                            value={pinData.newPin}
-                            onChange={(e) => {
-                              // Only allow numeric input and limit to 4 digits
-                              const value = e.target.value.replace(/\D/g, '').slice(0, 4);
-                              setPinData({ ...pinData, newPin: value });
-                            }}
-                            className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                            placeholder="Confirm 4-digit PIN"
-                            maxLength={4}
-                            disabled={isLoading}
-                            required
-                          />
-                          <p className="text-xs sm:text-sm text-gray-500 mt-1">Re-enter your PIN to confirm</p>
-                        </div>
-                      </div>
 
-                      <div className="flex justify-end">
-                        <button
-                          type="submit"
-                          disabled={isLoading || pinData.pin.length !== 4 || pinData.newPin.length !== 4}
-                          className="px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {isLoading ? 'Setting PIN...' : 'Set PIN'}
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </form>
-              </div>
+                          <div className="relative">
+                            <input
+                              type={showPin.confirm ? "text" : "password"}
+                              inputMode="numeric"
+                              value={pinData.newPin}
+                              onChange={(e) => {
+                                const value = e.target.value.replace(/\D/g, "").slice(0, 4);
+                                setPinData({ ...pinData, newPin: value });
+                              }}
+                              className="w-full pr-12 px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                              placeholder="Confirm 4-digit PIN"
+                              maxLength={4}
+                              disabled={isLoading}
+                              required
+                            />
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setShowPin((prev) => ({
+                                  ...prev,
+                                  confirm: !prev.confirm,
+                                }))
+                              }
+                              className="absolute inset-y-0 right-3 flex items-center text-gray-500 hover:text-indigo-600"
+                            >
+                              {showPin.confirm ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
+                          </div>
+
+                          <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                            Re-enter your PIN to confirm
+                          </p>
+                        </div>
+
+                        <div className="flex justify-between items-center mt-6">
+                          {user?.isPinSet && (
+                            <button
+                              type="button"
+                              onClick={handleOpenResetModal}
+                              className="text-sm text-indigo-600 hover:text-indigo-800 font-medium underline underline-offset-4"
+                            >
+                              Forgot PIN?
+                            </button>
+                          )}
+                          <button
+                            type="submit"
+                            disabled={isLoading || pinData.currentPin.length !== 4 || pinData.pin.length !== 4 || pinData.newPin.length !== 4}
+                            className="px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed ml-auto"
+                          >
+                            {isLoading ? 'Updating PIN...' : 'Update PIN'}
+                          </button>
+                        </div>
+
+                      </>
+                    ) : (
+                      // SET NEW PIN FORM (when user doesn't have PIN)
+                      <>
+                        <div className="grid grid-cols-1 gap-y-6 gap-x-6 sm:grid-cols-2">
+                          <div>
+                            <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
+                              Create PIN *
+                            </label>
+                            <div className="relative">
+                              <input
+                                type={showPin.new ? "text" : "password"}
+                                value={pinData.pin}
+                                onChange={(e) => {
+                                  // Only allow numeric input and limit to 4 digits
+                                  const value = e.target.value.replace(/\D/g, '').slice(0, 4);
+                                  setPinData({ ...pinData, pin: value });
+                                }}
+                                className="w-full pr-12 px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                placeholder="Create 4-digit PIN"
+                                maxLength={4}
+                                disabled={isLoading}
+                                required
+                              />
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setShowPin((prev) => ({
+                                    ...prev,
+                                    new: !prev.new,
+                                  }))
+                                }
+                                className="absolute inset-y-0 right-3 flex items-center text-gray-500 hover:text-indigo-600"
+                              >
+                                {showPin.new ? <EyeOff size={18} /> : <Eye size={18} />}
+                              </button>
+                            </div>
+                            <p className="text-xs sm:text-sm text-gray-500 mt-1">Choose a secure 4-digit PIN</p>
+                          </div>
+                          <div>
+                            <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
+                              Confirm PIN *
+                            </label>
+                            <div className="relative">
+                              <input
+                                type={showPin.confirm ? "text" : "password"}
+                                value={pinData.newPin}
+                                onChange={(e) => {
+                                  // Only allow numeric input and limit to 4 digits
+                                  const value = e.target.value.replace(/\D/g, '').slice(0, 4);
+                                  setPinData({ ...pinData, newPin: value });
+                                }}
+                                className="w-full pr-12 px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                placeholder="Confirm 4-digit PIN"
+                                maxLength={4}
+                                disabled={isLoading}
+                                required
+                              />
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setShowPin((prev) => ({
+                                    ...prev,
+                                    confirm: !prev.confirm,
+                                  }))
+                                }
+                                className="absolute inset-y-0 right-3 flex items-center text-gray-500 hover:text-indigo-600"
+                              >
+                                {showPin.confirm ? <EyeOff size={18} /> : <Eye size={18} />}
+                              </button>
+                            </div>
+                            <p className="text-xs sm:text-sm text-gray-500 mt-1">Re-enter your PIN to confirm</p>
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end">
+                          <button
+                            type="submit"
+                            disabled={isLoading || pinData.pin.length !== 4 || pinData.newPin.length !== 4}
+                            className="px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isLoading ? 'Setting PIN...' : 'Set PIN'}
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </form>
+                </div>
+              )}
             </div>
           )}
 
@@ -1008,9 +1184,32 @@ const SettingsPanel = () => {
                 ${pinData.pin.length === i ? 'border-indigo-600 bg-indigo-50 scale-105' : 'border-slate-100 bg-slate-50'}
                 ${pinData.pin[i] ? 'border-slate-800 bg-white text-slate-800' : 'text-slate-300'}`}
                     >
-                      {pinData.pin[i] ? '●' : ''} {/* Use dots for security or pinData.pin[i] for visibility */}
+                      {pinData.pin[i] ? (showPin.modal ? pinData.pin[i] : '●') : ''}
                     </div>
                   ))}
+                </div>
+
+                <div className="flex justify-end pr-1 -mt-4">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setShowPin((prev) => ({
+                        ...prev,
+                        modal: !prev.modal,
+                      }))
+                    }
+                    className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1"
+                  >
+                    {showPin.modal ? (
+                      <>
+                        <EyeOff size={14} /> Hide PIN
+                      </>
+                    ) : (
+                      <>
+                        <Eye size={14} /> Show PIN
+                      </>
+                    )}
+                  </button>
                 </div>
 
                 <input

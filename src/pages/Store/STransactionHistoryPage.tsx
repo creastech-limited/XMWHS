@@ -25,6 +25,7 @@ import { getUserDetails, getUserTransactions } from '../../services';
 
 
 type Transaction = {
+    category?: string;
     id: string;
     date: string;
     amount: number;
@@ -57,6 +58,10 @@ const STransactionHistoryPage = () => {
     const [error, setError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeReceiptTx, setActiveReceiptTx] = useState<Transaction | null>(null);
+    const [showFilters, setShowFilters] = useState(false);
+    const [statusFilter, setStatusFilter] = useState("all");
+    const [typeFilter, setTypeFilter] = useState("all");
+
 
     // Handle authentication errors
     const handleAuthError = useCallback((message: string) => {
@@ -153,12 +158,12 @@ const STransactionHistoryPage = () => {
                         });
                     }
                 }
-
                 return {
                     id: String(t.id || t._id || `TX${1000 + index}`),
                     date: formattedDate,
                     amount: Math.abs(Number(t.amount) || 0),
                     status,
+                    category: String(t.category || "").toLowerCase(),
                     agent: String(
                         t.metadata?.senderEmail ||
                         t.senderWalletId?.email ||
@@ -307,18 +312,42 @@ const STransactionHistoryPage = () => {
 
     // Filter transactions based on search query
     useEffect(() => {
-        if (!searchQuery.trim()) {
-            setFilteredTransactions(transactions);
-        } else {
-            const filtered = transactions.filter(txn =>
-                txn.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                txn.agent.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                txn.date.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                txn.status.toLowerCase().includes(searchQuery.toLowerCase())
+        let filtered = [...transactions];
+
+        // Search
+        if (searchQuery.trim()) {
+            const search = searchQuery.toLowerCase();
+
+            filtered = filtered.filter((txn) =>
+                txn.id.toLowerCase().includes(search) ||
+                txn.agent.toLowerCase().includes(search) ||
+                txn.status.toLowerCase().includes(search)
             );
-            setFilteredTransactions(filtered);
         }
-    }, [searchQuery, transactions]);
+
+        // Status
+        if (statusFilter !== "all") {
+            filtered = filtered.filter(
+                (txn) => txn.status.toLowerCase() === statusFilter.toLowerCase()
+            );
+        }
+
+        // Transaction Type
+        if (typeFilter !== "all") {
+            filtered = filtered.filter(
+                (txn) =>
+                    txn.category?.toLowerCase() ===
+                    typeFilter.toLowerCase()
+            );
+        }
+
+        setFilteredTransactions(filtered);
+    }, [
+        transactions,
+        searchQuery,
+        statusFilter,
+        typeFilter,
+    ]);
 
     // Retry function for failed requests
     const retryFetch = async () => {
@@ -449,12 +478,53 @@ const STransactionHistoryPage = () => {
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                     />
                                 </div>
+                                {showFilters && (
+                                    <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
+                                            {/* Status */}
+                                            <div>
+                                                <label className="mb-2 block text-sm font-medium text-gray-700">
+                                                    Status
+                                                </label>
+
+                                                <select
+                                                    value={statusFilter}
+                                                    onChange={(e) => setStatusFilter(e.target.value)}
+                                                    className="w-full rounded-lg border border-gray-300 px-3 py-2"
+                                                >
+                                                    <option value="all">All Status</option>
+                                                    <option value="Completed">Completed</option>
+                                                    <option value="Pending">Pending</option>
+                                                    <option value="Failed">Failed</option>
+                                                </select>
+                                            </div>
+
+                                            {/* Type */}
+                                            <div>
+                                                <label className="mb-2 block text-sm font-medium text-gray-700">
+                                                    Transaction Type
+                                                </label>
+
+                                                <select
+                                                    value={typeFilter}
+                                                    onChange={(e) => setTypeFilter(e.target.value)}
+                                                    className="w-full rounded-lg border border-gray-300 px-3 py-2"
+                                                >
+                                                    <option value="all">All Types</option>
+                                                    <option value="credit">Credit</option>
+                                                    <option value="debit">Debit</option>
+                                                </select>
+                                            </div>
+
+                                        </div>
+                                    </div>
+                                )}
                                 <div className="flex gap-2">
                                     <button
                                         type="button"
+                                        onClick={() => setShowFilters(!showFilters)}
                                         className="inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
-                                        title="Filter Transactions"
                                     >
                                         <Filter className="h-4 w-4" />
                                         Filters

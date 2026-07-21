@@ -3,7 +3,7 @@ import type {
   UserResponse,
   StoreCountResponse,
   ClassesResponse,
-  TransactionsResponse,  Store, StoreDetails, StoreProfileFormData,
+  TransactionsResponse, Store, StoreDetails, StoreProfileFormData,
   StoreAgent,
   AgentCountResponse,
   GetAgentsResponse,
@@ -64,9 +64,9 @@ export const getStoresBySchoolId = async (schoolId: string): Promise<Store[]> =>
   const response = await apiClient.get<Store[] | { data: Store[] } | { stores: Store[] }>(
     `/api/users/getstorebyid?id=${encodeURIComponent(schoolId)}`
   );
-  
+
   const responseData = response.data;
-  
+
   // Handle different API response structures
   if (Array.isArray(responseData)) {
     return responseData;
@@ -75,7 +75,7 @@ export const getStoresBySchoolId = async (schoolId: string): Promise<Store[]> =>
   } else if (responseData && 'stores' in responseData && Array.isArray(responseData.stores)) {
     return responseData.stores;
   }
-  
+
   return [];
 };
 
@@ -104,14 +104,14 @@ export const getStoresInSchoolByAdmin = async (schoolId: string): Promise<Store[
 
 // Get store count by school ID
 export const getStoreCountBySchoolId = async (schoolId: string, status?: string): Promise<number> => {
-  const url = status 
+  const url = status
     ? `/api/users/getstorebyidcount?id=${encodeURIComponent(schoolId)}&status=${status}`
     : `/api/users/getstorebyidcount?id=${encodeURIComponent(schoolId)}`;
-  
+
   const response = await apiClient.get<StoreCountResponse | number>(url);
-  
+
   const responseData = response.data;
-  
+
   if (typeof responseData === 'number') {
     return responseData;
   } else if (responseData?.data !== undefined && responseData.data !== null) {
@@ -119,7 +119,7 @@ export const getStoreCountBySchoolId = async (schoolId: string, status?: string)
   } else if (responseData?.count !== undefined) {
     return responseData.count;
   }
-  
+
   return 0;
 };
 
@@ -147,9 +147,9 @@ export const getStoreById = async (storeId: string): Promise<StoreDetails> => {
     user?: { data?: StoreDetails } | StoreDetails;
     data?: StoreDetails;
   }>(`/api/users/getuser/${storeId}`);
-  
+
   const responseData = response.data;
-  
+
   // Handle different API response structures
   if (responseData.user) {
     if ('data' in responseData.user && responseData.user.data) {
@@ -158,17 +158,17 @@ export const getStoreById = async (storeId: string): Promise<StoreDetails> => {
       return responseData.user as StoreDetails;
     }
   }
-  
+
   if (responseData.data) {
     return responseData.data;
   }
-  
+
   throw new Error('Invalid response structure from server');
 };
 
 // Update store profile
 export const updateStoreProfile = async (
-  storeId: string, 
+  storeId: string,
   profileData: StoreProfileFormData
 ): Promise<{ message: string; data?: StoreDetails }> => {
   const response = await apiClient.put<{ message: string; data?: StoreDetails }>(
@@ -187,17 +187,17 @@ export const getNotifications = async (): Promise<NotificationsResponse> => {
 
 // Mark notification as read
 export const getmarkNotification = async (notificationId: string): Promise<{ message: string }> => {
-const response = await apiClient.put<{ message: string }>(
-`/api/notifications/markasread/${notificationId}`
-);
-return response.data;
+  const response = await apiClient.put<{ message: string }>(
+    `/api/notifications/markasread/${notificationId}`
+  );
+  return response.data;
 };
 
 // Mark all notifications as read
 export const markAllNotificationsAsRead = async (): Promise<{ message: string }> => {
-  
+
   const response = await apiClient.put<{ message: string }>(
-    '/api/notifications/mark-all-read' 
+    '/api/notifications/mark-all-read'
   );
   return response.data;
 };
@@ -205,9 +205,9 @@ export const markAllNotificationsAsRead = async (): Promise<{ message: string }>
 // Get agent count
 export const getAgentCount = async (): Promise<number> => {
   const response = await apiClient.get<AgentCountResponse>('/api/users/getagentbyidcount');
-  
+
   const responseData = response.data;
-  
+
   if (typeof responseData === 'number') {
     return responseData;
   } else if (responseData?.data !== undefined && responseData.data !== null) {
@@ -215,16 +215,16 @@ export const getAgentCount = async (): Promise<number> => {
   } else if (responseData) {
     return responseData.data;
   }
-  
+
   return 0;
 };
 
 // Fetch agents by ID
 export const getAgentsById = async (schoolId?: string): Promise<GetAgentsResponse> => {
-  const url = schoolId 
+  const url = schoolId
     ? `/api/users/getagentbyid?id=${encodeURIComponent(schoolId)}`
     : '/api/users/getagentbyid';
-  
+
   const response = await apiClient.get<GetAgentsResponse>(url);
   return response.data;
 };
@@ -234,17 +234,17 @@ export const getAgentsInStoreByAdmin = async (storeId: string): Promise<StoreAge
   const response = await apiClient.get<
     | StoreAgent[]
     | {
-        data?:
-          | StoreAgent[]
-          | {
-              agent?: StoreAgent[];
-              data?: {
-                agent?: StoreAgent[];
-              };
-            };
+      data?:
+      | StoreAgent[]
+      | {
         agent?: StoreAgent[];
-        agents?: StoreAgent[];
-      }
+        data?: {
+          agent?: StoreAgent[];
+        };
+      };
+      agent?: StoreAgent[];
+      agents?: StoreAgent[];
+    }
   >(`/api/users/getagentinstorebyadmin/${encodeURIComponent(storeId)}`);
 
   const responseData = response.data;
@@ -300,13 +300,29 @@ export const getAgentsInStoreByAdmin = async (storeId: string): Promise<StoreAge
 export const registerAgent = async (
   agentData: AgentRegistrationData
 ): Promise<AgentRegistrationResponse> => {
-  const response = await apiClient.post<AgentRegistrationResponse>(
-    '/api/users/register',
-    agentData
-  );
-  return response.data;
-};
+  try {
+    const response = await apiClient.post<AgentRegistrationResponse>(
+      "/api/users/register",
+      agentData
+    );
 
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const message =
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        (Array.isArray(error.response?.data?.errors)
+          ? error.response?.data?.errors[0]
+          : null) ||
+        "Failed to create agent.";
+
+      throw new Error(message);
+    }
+
+    throw new Error("Failed to create agent.");
+  }
+}
 
 // Banks API
 export const getBanks = async (): Promise<ApiBankData[]> => {
@@ -316,7 +332,7 @@ export const getBanks = async (): Promise<ApiBankData[]> => {
 
 // Resolve Account API
 export const resolveAccount = async (
-  accountNumber: string, 
+  accountNumber: string,
   bankCode: string
 ): Promise<{ account_name: string; data?: { account_name: string } }> => {
   const response = await apiClient.get<{ account_name: string; data?: { account_name: string } }>(
@@ -405,17 +421,17 @@ export const deleteFeeBill = async (billId: string): Promise<{ message: string }
 
 export const getAllCharges = async (): Promise<Charge[]> => {
   const response = await apiClient.get<ChargesResponse | Charge[]>('/api/charge/getallcharges');
-  
+
   // Handle different response structures
   if (Array.isArray(response.data)) {
     return response.data;
   }
-  
+
   if (response.data && typeof response.data === 'object' && 'data' in response.data) {
     const chargesData = (response.data as ChargesResponse).data;
     return Array.isArray(chargesData) ? chargesData : [];
   }
-  
+
   return [];
 };
 
@@ -729,9 +745,9 @@ export const getUserWallet = async (): Promise<WalletResponse> => {
 };
 
 export const updateUserProfile = async (userId: string, profileData: UpdateUserPayload): Promise<UserResponse> => {
-  
+
   const response = await apiClient.put<UserResponse>(
-    `/api/users/update-user/${userId}`, 
+    `/api/users/update-user/${userId}`,
     profileData
   );
   return response.data;
@@ -760,11 +776,11 @@ export const uploadProfileImage = async (profile: File) => {
   formData.append('profile', profile);
 
   const response = await apiClient.post<{ profilePicture: string }>(
-    '/api/users/upload-profile', 
-    formData, 
+    '/api/users/upload-profile',
+    formData,
     {
-      headers: { 
-        'Content-Type': 'multipart/form-data' 
+      headers: {
+        'Content-Type': 'multipart/form-data'
       }
     }
   );
@@ -772,7 +788,7 @@ export const uploadProfileImage = async (profile: File) => {
 };
 
 // Service to update user notification preferences
- 
+
 
 
 export const updateNotificationPreferences = async (
@@ -780,7 +796,7 @@ export const updateNotificationPreferences = async (
   preferences: NotificationPreferences
 ) => {
   const response = await apiClient.post(
-    `/api/users/update-notifications/${userId}`, 
+    `/api/users/update-notifications/${userId}`,
     preferences
   );
   return response.data;
@@ -790,7 +806,7 @@ export const updateNotificationPreferences = async (
 
 export const getAllUsers = async (): Promise<UserData[]> => {
   const response = await apiClient.get('/api/users/getallUsers');
-  
+
   // We extract the array from response.data.data
   // and tell TypeScript it matches our UserData array.
   return (response.data.data || []) as UserData[];

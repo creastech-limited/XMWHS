@@ -1351,7 +1351,7 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
       {isMenuOpen && menuStudent && (
         <>
           <div
-            className="fixed inset-0 z-10"
+            className="fixed inset-0 z-20"
             onClick={handleMenuClose}
           />
           
