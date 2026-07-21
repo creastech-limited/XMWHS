@@ -563,6 +563,16 @@ const StudentPage: React.FC = () => {
     setMenuStudent(null);
   }, []);
 
+  useEffect(() => {
+  if (!isMenuOpen) return;
+
+  const handleScroll = () => handleMenuClose();
+
+window.addEventListener('scroll', handleScroll, true);
+  return () => window.removeEventListener('scroll', handleScroll, true);
+}, [isMenuOpen, handleMenuClose]);
+
+
 const handleActivateDeactivate = useCallback(async (student: Student) => {
   if (!authToken) {
     setSnackbar({ open: true, message: 'Authentication required', severity: 'error' });
@@ -1355,13 +1365,13 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
             onClick={handleMenuClose}
           />
           
-          <div
-            className="fixed z-20 bg-white rounded-lg shadow-lg py-2 w-56 border border-gray-200"
-            style={{
-              top: Math.min(menuPosition.top, window.innerHeight - 200),
-              left: Math.min(menuPosition.left - 100, window.innerWidth - 224),
-            }}
-          >
+        <div
+  className="fixed z-20 bg-white rounded-lg shadow-lg py-2 w-56 border border-gray-200 max-h-[70vh] overflow-y-auto overscroll-contain"
+  style={{
+    top: Math.min(menuPosition.top, window.innerHeight - Math.min(window.innerHeight * 0.7, 400) - 16),
+    left: Math.min(menuPosition.left - 100, window.innerWidth - 224),
+  }}
+>
             <button
               className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
               onClick={() => {

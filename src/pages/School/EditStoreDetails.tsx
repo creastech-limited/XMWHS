@@ -227,21 +227,20 @@ const EditStoreDetails = () => {
                   className="space-y-6"
                 >
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Store Name
-                      </label>
-                      <input
-                        type="text"
-                        value={profile.name}
-                        onChange={(e) =>
-                          setProfile({ ...profile, name: e.target.value })
-                        }
-                        className="w-full px-4 py-2.5 text-sm text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100"
-                        placeholder="Store Name"
-                        disabled={!isEditing}
-                      />
-                    </div>
+   <div>
+  <label className="block text-sm font-medium text-gray-700 mb-2">
+    Store Name
+  </label>
+  <input
+    type="text"
+    value={profile.name}
+    readOnly
+    disabled
+    className="w-full px-4 py-2.5 text-sm text-gray-500 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed"
+    placeholder="Store Name"
+    title="Store name cannot be edited here"
+  />
+</div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Store Type
@@ -264,21 +263,20 @@ const EditStoreDetails = () => {
                         <option value="Supplies">Supplies</option>
                       </select>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Email Address
-                      </label>
-                      <input
-                        type="email"
-                        value={profile.email}
-                        onChange={(e) =>
-                          setProfile({ ...profile, email: e.target.value })
-                        }
-                        className="w-full px-4 py-2.5 text-sm text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100"
-                        placeholder="Email Address"
-                        disabled={!isEditing}
-                      />
-                    </div>
+                  <div>
+  <label className="block text-sm font-medium text-gray-700 mb-2">
+    Email Address
+  </label>
+  <input
+    type="email"
+    value={profile.email}
+    readOnly
+    disabled
+    className="w-full px-4 py-2.5 text-sm text-gray-500 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed"
+    placeholder="Email Address"
+    title="Email cannot be edited here"
+  />
+</div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Store Location

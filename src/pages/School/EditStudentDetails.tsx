@@ -344,37 +344,32 @@ const EditStudentDetails = () => {
                       <form onSubmit={handleProfileUpdate} className="space-y-6 sm:space-y-8">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Full Name *
-                            </label>
-                            <input
-                              type="text"
-                              value={profile.name}
-                              onChange={e => setProfile({ ...profile, name: e.target.value })}
-                              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 transition-colors text-black"
-                              disabled={isLoading}
-                              required
-                              maxLength={100}
-                              title="Enter the student's full name"
-                            />
-                          </div>
+  <label className="block text-sm font-medium text-gray-700 mb-1">
+    Full Name
+  </label>
+  <input
+    type="text"
+    value={profile.name}
+    readOnly
+    disabled
+    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 bg-gray-100 text-gray-500 cursor-not-allowed"
+    title="Name cannot be edited here"
+  />
+</div>
 
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Email Address *
-                            </label>
-                            <input
-                              type="email"
-                              value={profile.email}
-                              onChange={e => setProfile({ ...profile, email: e.target.value })}
-                              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 transition-colors text-black"
-                              disabled={isLoading}
-                              required
-                              maxLength={100}
-                              title="Enter the student's email address"
-                            />
-                          </div>
-
+                        <div>
+  <label className="block text-sm font-medium text-gray-700 mb-1">
+    Email Address
+  </label>
+  <input
+    type="email"
+    value={profile.email}
+    readOnly
+    disabled
+    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 bg-gray-100 text-gray-500 cursor-not-allowed"
+    title="Email cannot be edited here"
+  />
+</div>
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                               Phone Number

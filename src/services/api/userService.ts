@@ -28,7 +28,6 @@ import type {
   UpdatePinPayload,
   SetPinPayload,
   NotificationPreferences,
-
   UserData,
   WalletResponse,
   TransferResponse,
@@ -134,6 +133,8 @@ export const activateStore = async (storeId: string): Promise<{ message: string;
   const response = await apiClient.put<{ message: string; status?: string }>(`/api/users/active/${storeId}`);
   return response.data;
 };
+
+
 
 // Deactivate store
 export const deactivateStore = async (storeId: string): Promise<{ message: string; status?: string }> => {
@@ -898,5 +899,23 @@ export const removeBeneficiary = async (studentId: string) => {
 
 export const verifyPinOtp = async (otp: string, newPin: string) => {
   const response = await apiClient.post('/api/pin/verifyotp', { otp, newPin });
+  return response.data;
+};
+
+//Admin Activate user
+export const activateUser = async (userId: string): Promise<{ message: string; status?: string }> => {
+  const response = await apiClient.patch<{ message: string; status?: string }>(`/api/admin/v1/activate-user/${userId}`);
+  return response.data;
+};
+
+//Admin Deactivate user
+export const deactivateUser = async (userId: string): Promise<{ message: string; status?: string }> => {
+  const response = await apiClient.patch<{ message: string; status?: string }>(`/api/admin/v1/deactivate-user/${userId}`);
+  return response.data;
+};
+
+//Admin Update user
+export const updateUser = async (userId: string): Promise<{ message: string; status?: string }> => {
+  const response = await apiClient.put<{ message: string; status?: string }>(`/api/admin/v1/updateusers/${userId}`);
   return response.data;
 };

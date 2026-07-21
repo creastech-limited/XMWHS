@@ -15,12 +15,14 @@ import {
   Shield,
   CheckCircle,
   XCircle,
-  User
+  User,
+  Save,
+  X
 } from 'lucide-react';
 import AdminSidebar from '../../components/Adminsidebar';
 import AdminHeader from '../../components/AdminHeader';
-import { getAllUsers } from '../../services';
-import type { UserData } from '../../types'; // Use the imported type
+import { getAllUsers, activateUser, deactivateUser, updateUser } from '../../services';
+import type { UserData } from '../../types';
 
 const AllUsers = () => {
   const { user: authUser } = useAuth() ?? {};
@@ -35,6 +37,19 @@ const AllUsers = () => {
   const [roleFilter, setRoleFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
+  
+  // Edit modal states
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<UserData['user'] | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    role: '',
+    status: ''
+  });
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const sectionConfig = (() => {
     if (location.pathname.endsWith('/schools')) {
@@ -66,36 +81,35 @@ const AllUsers = () => {
     };
   })();
 
-const fetchUsers = useCallback(async () => {
-  try {
-    const data = await getAllUsers();
-    const scopedData = sectionConfig.defaultRole === 'all'
-      ? data
-      : data.filter((userData) => userData.user?.role === sectionConfig.defaultRole);
+  const fetchUsers = useCallback(async () => {
+    try {
+      const data = await getAllUsers();
+      const scopedData = sectionConfig.defaultRole === 'all'
+        ? data
+        : data.filter((userData) => userData.user?.role === sectionConfig.defaultRole);
 
-    setUsers(data);
-    setFilteredUsers(scopedData);
-  } catch (error) {
-    console.error('Error fetching users:', error);
-  }
-}, [sectionConfig.defaultRole]);
+      setUsers(data);
+      setFilteredUsers(scopedData);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      setMessage({ type: 'error', text: 'Failed to fetch users' });
+      setTimeout(() => setMessage(null), 3000);
+    }
+  }, [sectionConfig.defaultRole]);
 
   useEffect(() => {
     const initializeData = async () => {
       try {
         setLoading(true);
         
-        // Get token from authUser or localStorage
         const token = authUser?.token || localStorage.getItem('token');
         
-        // Check if token exists and is a string
         if (!token) {
           console.log('No token found');
           setLoading(false);
           return;
         }
 
-        // Ensure token is a string
         if (typeof token !== 'string') {
           console.log('Invalid token type');
           setLoading(false);
@@ -111,7 +125,6 @@ const fetchUsers = useCallback(async () => {
       }
     };
 
-    // Only initialize if we have a valid auth context or token
     if (authUser !== undefined) {
       initializeData();
     }
@@ -125,13 +138,11 @@ const fetchUsers = useCallback(async () => {
     setCurrentPage(1);
   }, [sectionConfig.menuId]);
 
-  // Filter users based on search term and filters
   useEffect(() => {
     let result = sectionConfig.defaultRole === 'all'
       ? users
       : users.filter((userData) => userData.user?.role === sectionConfig.defaultRole);
 
-    // Apply search filter
     if (searchTerm) {
       result = result.filter(userData => {
         const user = userData.user;
@@ -146,30 +157,95 @@ const fetchUsers = useCallback(async () => {
       });
     }
 
-    // Apply status filter
     if (statusFilter !== 'all') {
       result = result.filter(userData => userData.user?.status === statusFilter);
     }
 
-    // Apply role filter
     if (roleFilter !== 'all') {
       result = result.filter(userData => userData.user?.role === roleFilter);
     }
 
     setFilteredUsers(result);
-    setCurrentPage(1); // Reset to first page when filters change
+    setCurrentPage(1);
   }, [users, searchTerm, statusFilter, roleFilter, sectionConfig.defaultRole]);
 
   const scopedUsers = sectionConfig.defaultRole === 'all'
     ? users
     : users.filter((userData) => userData.user?.role === sectionConfig.defaultRole);
 
-  // Pagination
   const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
   const currentUsers = filteredUsers.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
+
+  // Activate user handler
+  const handleActivateUser = async (userId: string) => {
+    try {
+      const response = await activateUser(userId);
+      setMessage({ type: 'success', text: response.message || 'User activated successfully' });
+      await fetchUsers();
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error) {
+      console.error('Error activating user:', error);
+      setMessage({ type: 'error', text: 'Failed to activate user' });
+      setTimeout(() => setMessage(null), 3000);
+    }
+  };
+
+  // Deactivate user handler
+  const handleDeactivateUser = async (userId: string) => {
+    try {
+      const response = await deactivateUser(userId);
+      setMessage({ type: 'success', text: response.message || 'User deactivated successfully' });
+      await fetchUsers();
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error) {
+      console.error('Error deactivating user:', error);
+      setMessage({ type: 'error', text: 'Failed to deactivate user' });
+      setTimeout(() => setMessage(null), 3000);
+    }
+  };
+
+  // Open edit modal
+  const handleEditClick = (user: UserData['user']) => {
+    if (!user) return;
+    setSelectedUser(user);
+    setEditFormData({
+      name: user.name || '',
+      email: user.email || '',
+      phone: user.phone || '',
+      role: user.role || '',
+      status: user.status || ''
+    });
+    setIsEditModalOpen(true);
+  };
+
+  // Handle edit form input changes
+  const handleEditInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setEditFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  // Update user handler
+  const handleUpdateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUser?._id) return;
+
+    setIsUpdating(true);
+    try {
+      const response = await updateUser(selectedUser._id);
+      setMessage({ type: 'success', text: response.message || 'User updated successfully' });
+      await fetchUsers();
+      setIsEditModalOpen(false);
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error) {
+      console.error('Error updating user:', error);
+      setMessage({ type: 'error', text: 'Failed to update user' });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
   const getStatusBadge = (status: string = 'Inactive') => {
     const statusConfig = {
@@ -196,7 +272,8 @@ const fetchUsers = useCallback(async () => {
       student: 'bg-blue-100 text-blue-800',
       teacher: 'bg-orange-100 text-orange-800',
       staff: 'bg-indigo-100 text-indigo-800',
-      parent: 'bg-pink-100 text-pink-800'
+      parent: 'bg-pink-100 text-pink-800',
+      school: 'bg-teal-100 text-teal-800'
     };
 
     return (
@@ -292,6 +369,15 @@ const fetchUsers = useCallback(async () => {
 
         <main className="flex-1 overflow-y-auto bg-gray-50 p-6">
           <div className="max-w-7xl mx-auto space-y-6">
+            {/* Message Toast */}
+            {message && (
+              <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg ${
+                message.type === 'success' ? 'bg-green-500' : 'bg-red-500'
+              } text-white`}>
+                {message.text}
+              </div>
+            )}
+
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -488,13 +574,43 @@ const fetchUsers = useCallback(async () => {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                               <div className="flex items-center justify-end space-x-2">
-                                <button className="text-blue-600 hover:text-blue-900 p-1">
+                                <button 
+                                  onClick={() => handleEditClick(user)}
+                                  className="text-blue-600 hover:text-blue-900 p-1"
+                                  title="View Details"
+                                >
                                   <Eye size={16} />
                                 </button>
-                                <button className="text-gray-600 hover:text-gray-900 p-1">
+                                <button 
+                                  onClick={() => handleEditClick(user)}
+                                  className="text-gray-600 hover:text-gray-900 p-1"
+                                  title="Edit User"
+                                >
                                   <Edit size={16} />
                                 </button>
-                                <button className="text-red-600 hover:text-red-900 p-1">
+                                
+                                {user.status === 'Active' ? (
+                                  <button 
+                                    onClick={() => handleDeactivateUser(user._id)}
+                                    className="text-orange-600 hover:text-orange-900 p-1"
+                                    title="Deactivate User"
+                                  >
+                                    <XCircle size={16} />
+                                  </button>
+                                ) : (
+                                  <button 
+                                    onClick={() => handleActivateUser(user._id)}
+                                    className="text-green-600 hover:text-green-900 p-1"
+                                    title="Activate User"
+                                  >
+                                    <CheckCircle size={16} />
+                                  </button>
+                                )}
+                                
+                                <button 
+                                  className="text-red-600 hover:text-red-900 p-1"
+                                  title="Delete User"
+                                >
                                   <Trash2 size={16} />
                                 </button>
                               </div>
@@ -577,6 +693,142 @@ const fetchUsers = useCallback(async () => {
           </div>
         </main>
       </div>
+
+   {/* Edit User Modal */}
+      {isEditModalOpen && selectedUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-gray-900 bg-opacity-60"
+            onClick={() => setIsEditModalOpen(false)}
+          />
+
+          {/* Modal Panel */}
+          <div className="relative z-10 bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="px-6 pt-6 pb-4">
+              {/* Modal Header */}
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-lg font-semibold text-gray-900">Edit User</h3>
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Form */}
+              <form onSubmit={handleUpdateUser}>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Name
+                    </label>
+                    <input
+                      type="text"
+                      name="name"
+                      value={editFormData.name}
+                      onChange={handleEditInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      name="email"
+                      value={editFormData.email}
+                      onChange={handleEditInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Phone
+                    </label>
+                    <input
+                      type="tel"
+                      name="phone"
+                      value={editFormData.phone}
+                      onChange={handleEditInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Role
+                    </label>
+                    <select
+                      name="role"
+                      value={editFormData.role}
+                      onChange={handleEditInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                    >
+                      <option value="student">Student</option>
+                      <option value="admin">Admin</option>
+                      <option value="staff">Staff</option>
+                      <option value="school">School</option>
+                      <option value="parent">Parent</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Status
+                    </label>
+                    <select
+                      name="status"
+                      value={editFormData.status}
+                      onChange={handleEditInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                    >
+                      <option value="Active">Active</option>
+                      <option value="Inactive">Inactive</option>
+                      <option value="Pending">Pending</option>
+                      <option value="Suspended">Suspended</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="mt-6 flex justify-end space-x-3 pb-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditModalOpen(false)}
+                    className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isUpdating}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center transition-colors"
+                  >
+                    {isUpdating ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save size={16} className="mr-2" />
+                        Save Changes
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
