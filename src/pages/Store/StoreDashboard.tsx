@@ -16,6 +16,7 @@ import { useAuth } from '../../context/AuthContext';
 import type { Agent, DashboardData, Notification, NotificationsResponse, Transaction, TransactionsResponse, User, UserResponse, Wallet } from '../../types';
 import { getAgentCount, getmarkNotification, getNotifications, getUserDetails, getUserTransactions } from '../../services';
 import { FaWallet } from 'react-icons/fa';
+import { Link } from 'react-router-dom';
 
 
 const StoreDashboard: React.FC = () => {
@@ -41,6 +42,8 @@ const StoreDashboard: React.FC = () => {
     notifications: [],
   });
   const [error, setError] = useState<string | null>(null);
+
+  
 
   // Helper function to set user in localStorage
   const setUser = (profile: User | null) => {
@@ -681,12 +684,12 @@ const fetchUserTransactions = useCallback(
               </div>
 
               <div className="p-6 border-t border-gray-200 text-center">
-                <a
-                  href="/stransactions"
+                <Link
+                  to="/stransactions"
                   className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
                 >
                   <span className="text-white">View All Transactions</span>
-                </a>
+                </Link>
               </div>
             </div>
           </div>

@@ -56,8 +56,10 @@ import PrivacyAndPolicy from './pages/Public Pages/PrivacyAndPolicy.js';
 import IDCardGenerator from './pages/Admin/IDCardGenerator.js';
 import GetCharges from './pages/Admin/GetCharges.js';
 import Userwallets from './pages/Admin/Userwallets.js';
-import SuccessPage from './pages/Public Pages/SuccessPage.js';
+import SystemWallet from './pages/Admin/SystemWallet';
 import Getdisputes from './pages/Admin/Disputse.js';
+import SuccessPage from './pages/Public Pages/SuccessPage.js';
+import AdminSettingsPage from './pages/Admin/Settings';
 
 
 function App() {
@@ -145,7 +147,9 @@ function App() {
           <Route path="/admin/id-cards" element={<IDCardGenerator />} />
           <Route path="/admin/get-charges" element={<GetCharges  />} />
           <Route path="/admin/user-wallets" element={<Userwallets  />} />
+          <Route path="/admin/wallet/system" element={<SystemWallet />} />
           <Route path="/admin/disputes" element={<Getdisputes/>} />
+          <Route path="/admin/settings" element={<AdminSettingsPage />} />
 
 
 

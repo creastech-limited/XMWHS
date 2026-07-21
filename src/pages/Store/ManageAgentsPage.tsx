@@ -130,7 +130,12 @@ const ManageAgentsPage: React.FC = () => {
       setAgents([]);
       setAgentCount(0);
 
-      toast.error('Failed to fetch store information');
+      const errorMessage = (error as { response?: { data?: { message?: string } } }).response?.data?.message;
+      if (errorMessage === "No agent found in this school") {
+        toast.info('No agent registered');
+      } else {
+        toast.error('Failed to fetch store information');
+      }
     }
   }, []);
 
