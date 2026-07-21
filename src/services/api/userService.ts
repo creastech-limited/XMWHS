@@ -34,6 +34,7 @@ import type {
 } from '../../types/user';
 import axios from 'axios';
 
+
 // Get user details
 export const getUserDetails = async (): Promise<UserResponse> => {
   const response = await apiClient.get<UserResponse>('/api/users/getuserone');
@@ -956,19 +957,19 @@ export const verifyPinOtp = async (otp: string, newPin: string) => {
 };
 
 //Admin Activate user
-export const activateUser = async (userId: string): Promise<{ message: string; status?: string }> => {
+export const adminActivateUser = async (userId: string): Promise<{ message: string; status?: string }> => {
   const response = await apiClient.patch<{ message: string; status?: string }>(`/api/admin/v1/activate-user/${userId}`);
   return response.data;
 };
 
 //Admin Deactivate user
-export const deactivateUser = async (userId: string): Promise<{ message: string; status?: string }> => {
+export const adminDeactivateUser = async (userId: string): Promise<{ message: string; status?: string }> => {
   const response = await apiClient.patch<{ message: string; status?: string }>(`/api/admin/v1/deactivate-user/${userId}`);
   return response.data;
 };
 
 //Admin Update user
-export const updateUser = async (userId: string): Promise<{ message: string; status?: string }> => {
+export const adminUpdateUser = async (userId: string): Promise<{ message: string; status?: string }> => {
   const response = await apiClient.put<{ message: string; status?: string }>(`/api/admin/v1/updateusers/${userId}`);
   return response.data;
 };
