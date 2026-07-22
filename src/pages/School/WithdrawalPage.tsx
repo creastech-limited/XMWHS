@@ -40,7 +40,22 @@ interface SnackbarState {
 const steps = ['Select Bank', 'Account Details', 'Verify OTP'];
 
 const WithdrawalPage: React.FC = () => {
-  // States for bank setup modal
+  // ============================================================
+  // CONFIRMED bank details — the ONLY source of truth for what is
+  // actually saved in the backend. This drives the display card AND
+  // is what withdrawals are submitted against. It only changes once,
+  // inside handleSetBank(), after the OTP verify call succeeds.
+  // ============================================================
+  const [confirmedBank, setConfirmedBank] = useState<string>('');
+  const [confirmedBankCode, setConfirmedBankCode] = useState<string>('');
+  const [confirmedAccountNumber, setConfirmedAccountNumber] = useState<string>('');
+  const [confirmedAccountName, setConfirmedAccountName] = useState<string>('');
+
+  // ============================================================
+  // DRAFT state — scratch space used ONLY while the "Set/Edit Bank"
+  // modal is open. Always reset when the modal closes (cancelled or
+  // completed), so a half-finished edit can never leak into the page.
+  // ============================================================
   const [openModal, setOpenModal] = useState<boolean>(false);
   const [selectedBank, setSelectedBank] = useState<string>('');
   const [selectedBankCode, setSelectedBankCode] = useState<string>('');
@@ -146,18 +161,21 @@ const userData: User = {
           setUser(userData);
           setUserHasPin(!!userInfo.isPinSet);
 
-          // Pre-populate bank details if they exist
+          // Pre-populate CONFIRMED bank details if they exist.
+          // NOTE: this feeds confirmedBank/confirmedAccountNumber/confirmedAccountName —
+          // the display state — NOT the modal's draft state. The draft only
+          // gets filled in when the user opens the modal (see handleOpenModal).
         const bankName = userInfo.bankDetails?.bankName || userInfo.withdrawalBank;
-const accountNumber = userInfo.bankDetails?.accountNumber || userInfo.withdrawalAccountNumber;
-const accountName = userInfo.bankDetails?.accountName || userInfo.withdrawalAccountName;
+const accountNumberFromApi = userInfo.bankDetails?.accountNumber || userInfo.withdrawalAccountNumber;
+const accountNameFromApi = userInfo.bankDetails?.accountName || userInfo.withdrawalAccountName;
 const bankCode = userInfo.bankDetails?.bankCode;
 
-if (bankName && accountNumber && accountName) {
-  setSelectedBank(bankName);
-  setAccountNumber(accountNumber);
-  setAccountName(accountName);
+if (bankName && accountNumberFromApi && accountNameFromApi) {
+  setConfirmedBank(bankName);
+  setConfirmedAccountNumber(accountNumberFromApi);
+  setConfirmedAccountName(accountNameFromApi);
   if (bankCode) {
-    setSelectedBankCode(bankCode);
+    setConfirmedBankCode(bankCode);
   }
   setIsBankSet(true);
 }
@@ -175,15 +193,36 @@ if (bankName && accountNumber && accountName) {
 
   const availableBalance = user?.wallet?.balance || 0;
 
+  // Opening the modal seeds the DRAFT from the CONFIRMED (saved) values,
+  // so an edit starts from what's actually on record.
   const handleOpenModal = () => {
-    setOpenModal(true);
+    setSelectedBank(confirmedBank);
+    setSelectedBankCode(confirmedBankCode);
+    setAccountNumber(confirmedAccountNumber);
+    setAccountName(confirmedAccountName);
+    setOtp('');
+    setOtpSent(false);
+    setVerificationStatus(null);
     setActiveStep(0);
+    setOpenModal(true);
   };
 
+  // Closing the modal ALWAYS discards the draft — whether the user
+  // finished all steps or bailed out halfway. Nothing counts as
+  // "saved" unless handleSetBank() actually completed. If they had
+  // unverified progress, let them know it was cancelled.
   const handleCloseModal = () => {
+    const hadUnsavedProgress = activeStep > 0 || verificationStatus === 'success' || otpSent;
+
     setOpenModal(false);
-    if (!isBankSet) {
-      resetModalForm();
+    resetModalForm();
+
+    if (hadUnsavedProgress) {
+      setSnackbar({
+        open: true,
+        message: 'Bank update cancelled — no changes were saved.',
+        severity: 'info',
+      });
     }
   };
 
@@ -223,7 +262,9 @@ if (bankName && accountNumber && accountName) {
       console.log (accountNumber, selectedBankCode);
       if (response.ok) {
         const data = await response.json();
-        // Assuming the API returns account_name in the response
+        // Assuming the API returns account_name in the response.
+        // This only updates the DRAFT (accountName) — a resolved
+        // preview name, nothing is saved to backend yet.
         setAccountName(data.account_name || data.data?.account_name);
         setVerificationStatus('success');
       } else {
@@ -270,7 +311,9 @@ if (bankName && accountNumber && accountName) {
     }
   };
 
-  // Update bank details with OTP verification using new API
+  // Update bank details with OTP verification using new API.
+  // This is the ONLY place CONFIRMED bank state is allowed to change —
+  // and only after the backend confirms the OTP (response.ok).
   const handleSetBank = async () => {
     if (!selectedBank || !accountNumber || !otp || !accountName) {
       alert('Please fill in all fields and enter the OTP.');
@@ -297,7 +340,15 @@ if (bankName && accountNumber && accountName) {
       
       if (response.ok) {
         await response.json();
+
+        // Backend confirmed the OTP — NOW it's safe to promote the
+        // draft values into confirmed (saved) state.
+        setConfirmedBank(selectedBank);
+        setConfirmedBankCode(selectedBankCode);
+        setConfirmedAccountNumber(accountNumber);
+        setConfirmedAccountName(accountName);
         setIsBankSet(true);
+
         setOpenModal(false);
         resetModalForm();
         setSnackbar({
@@ -305,19 +356,11 @@ if (bankName && accountNumber && accountName) {
           message: 'Withdrawal bank details updated successfully!',
           severity: 'success',
         });
-        
-        // Update the user state to reflect the new bank details
-        if (user) {
-          setUser({
-            ...user,
-            withdrawalBank: selectedBank,
-            withdrawalAccountNumber: accountNumber,
-            withdrawalAccountName: accountName,
-          });
-        }
       } else {
         const errorData = await response.json();
         alert(errorData.message || 'Failed to verify OTP and set bank details.');
+        // Explicitly do nothing to confirmed* state here — a failed
+        // OTP must never touch what's displayed or used for withdrawals.
       }
     } catch (error) {
       console.error('Error verifying OTP:', error);
@@ -342,6 +385,9 @@ const handlePinConfirmation = async () => {
     const token = localStorage.getItem('token');
     const amount = parseFloat(withdrawalAmount);
 
+    // IMPORTANT: submit against CONFIRMED (saved) bank details, never
+    // the modal draft — the draft may be empty/stale if the modal
+    // hasn't been opened this session.
     const response = await fetch(`${API_BASE_URL}/api/transaction/withdraw`, {
       method: 'POST',
       headers: {
@@ -352,9 +398,9 @@ const handlePinConfirmation = async () => {
         amount,
         description: withdrawalNote,
         pin: withdrawalPin,
-        account_name: accountName,
-        account_number: accountNumber,
-        bank_code : selectedBankCode,
+        account_name: confirmedAccountName,
+        account_number: confirmedAccountNumber,
+        bank_code : confirmedBankCode,
       }),
     });
 
@@ -459,14 +505,15 @@ const handleWithdrawalSubmit = async () => {
     // First validate the withdrawal to get charges
     const validationData = await validateWithdrawal(amount);
     
-    // Ensure we have all required fields
+    // Ensure we have all required fields — use CONFIRMED bank details
+    // as the fallback, since that's what will actually be paid out to.
     const validationResult = {
       amount: validationData.amount || amount,
       charge: validationData.charge || 0,
       total: (validationData.amount || amount) + (validationData.charge || 0),
-      account_name: accountName || '',
-      account_number: accountNumber || '',
-      bank_name: selectedBank || '',
+      account_name: confirmedAccountName || '',
+      account_number: confirmedAccountNumber || '',
+      bank_name: confirmedBank || '',
     };
     
     setWithdrawalValidation(validationResult);
@@ -513,7 +560,7 @@ const handleWithdrawalSubmit = async () => {
               </div>
             </div>
 
-            {/* Bank Details Card */}
+            {/* Bank Details Card — always reads from CONFIRMED (saved) state */}
             <div className="md:col-span-8">
               <div className="bg-white rounded-lg shadow p-6">
                 <div className="flex justify-between items-center mb-4">
@@ -552,19 +599,19 @@ const handleWithdrawalSubmit = async () => {
                     <div>
                       <p className="text-sm text-gray-500">Bank Name</p>
                       <p className="text-gray-800 font-medium">
-                        {selectedBank ? selectedBank : 'Not set'}
+                        {confirmedBank ? confirmedBank : 'Not set'}
                       </p>
                     </div>
                     <div>
                       <p className="text-sm text-gray-500">Account Number</p>
                       <p className="text-gray-800 font-medium">
-                        {accountNumber ? accountNumber : 'Not set'}
+                        {confirmedAccountNumber ? confirmedAccountNumber : 'Not set'}
                       </p>
                     </div>
                     <div className="md:col-span-2">
                       <p className="text-sm text-gray-500">Account Name</p>
                       <p className="text-gray-800 font-medium">
-                        {accountName ? accountName : 'Not set'}
+                        {confirmedAccountName ? confirmedAccountName : 'Not set'}
                       </p>
                     </div>
                   </div>
@@ -691,7 +738,7 @@ const handleWithdrawalSubmit = async () => {
               </div>
             </div>
           </div>
-       /* PIN Verification Modal */
+       {/* PIN Verification Modal */}
 {showPinModal && (
   <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
     <div className="bg-white rounded-lg w-full max-w-sm p-6">
@@ -774,7 +821,7 @@ const handleWithdrawalSubmit = async () => {
       </div>
       <Footer />
 
-      {/* Bank Setup Modal */}
+      {/* Bank Setup Modal — uses DRAFT state only */}
       {openModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg w-full max-w-md p-6">
