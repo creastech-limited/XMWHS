@@ -380,6 +380,7 @@ export interface StoreAgent {
   avatarColor?: string;
   avatarInitial?: string;
   schoolId: string;
+    status?: 'active' | 'inactive';
 }
 
 export interface Agent {
