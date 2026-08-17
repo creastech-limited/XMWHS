@@ -27,9 +27,9 @@ const SecurityRegistrationForm: React.FC = () => {
   const navigate = useNavigate();
 
   const schoolId = searchParams.get('schoolId')?.trim() || '';
-  const fallbackSchoolName = decodeURIComponent(searchParams.get('schoolName')?.trim() || '');
-  const fallbackSchoolType = decodeURIComponent(searchParams.get('schoolType')?.trim() || '');
-  const fallbackSchoolAddress = decodeURIComponent(searchParams.get('schoolAddress')?.trim() || '');
+  const fallbackSchoolName = searchParams.get('schoolName')?.trim() || '';
+  const fallbackSchoolType = searchParams.get('schoolType')?.trim() || '';
+  const fallbackSchoolAddress = searchParams.get('schoolAddress')?.trim() || '';
 
   const [schoolInfo, setSchoolInfo] = useState<SchoolInfo | null>(null);
   const [loadingSchool, setLoadingSchool] = useState(true);
@@ -60,19 +60,35 @@ const SecurityRegistrationForm: React.FC = () => {
         setLoadingSchool(true);
         const response: SchoolInfoResponse = await getSchoolById(schoolId);
 
-        if (!response.success || !response.data) {
+        if (response.success && response.data) {
+          setSchoolInfo({
+            _id: response.data._id,
+            schoolName: response.data.schoolName || fallbackSchoolName,
+            schoolType: response.data.schoolType || fallbackSchoolType,
+            schoolAddress: response.data.schoolAddress || fallbackSchoolAddress,
+          });
+        } else if (fallbackSchoolName) {
+          setSchoolInfo({
+            _id: schoolId,
+            schoolName: fallbackSchoolName,
+            schoolType: fallbackSchoolType,
+            schoolAddress: fallbackSchoolAddress,
+          });
+        } else {
           throw new Error(response.message || 'Could not load school information');
         }
-
-        setSchoolInfo({
-          _id: response.data._id,
-          schoolName: response.data.schoolName || fallbackSchoolName,
-          schoolType: response.data.schoolType || fallbackSchoolType,
-          schoolAddress: response.data.schoolAddress || fallbackSchoolAddress,
-        });
       } catch (error) {
         console.error('Security school lookup failed', error);
-        setErrorMessage(error instanceof Error ? error.message : 'Could not load school information.');
+        if (fallbackSchoolName) {
+          setSchoolInfo({
+            _id: schoolId,
+            schoolName: fallbackSchoolName,
+            schoolType: fallbackSchoolType,
+            schoolAddress: fallbackSchoolAddress,
+          });
+        } else {
+          setErrorMessage(error instanceof Error ? error.message : 'Could not load school information.');
+        }
       } finally {
         setLoadingSchool(false);
       }

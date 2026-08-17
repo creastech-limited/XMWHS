@@ -14,7 +14,7 @@ import StoreHeader from '../../components/StoreHeader';
 import Footer from '../../components/Footer';
 import { useAuth } from '../../context/AuthContext';
 import type { Agent, DashboardData, Notification, NotificationsResponse, Transaction, TransactionsResponse, User, UserResponse, Wallet } from '../../types';
-import { getAgentCount, getmarkNotification, getNotifications, getUserDetails, getUserTransactions } from '../../services';
+import { getAgentsById, getmarkNotification, getNotifications, getUserDetails, getUserTransactions } from '../../services';
 import { FaWallet } from 'react-icons/fa';
 import { Link } from 'react-router-dom';
 
@@ -104,6 +104,19 @@ const StoreDashboard: React.FC = () => {
           storeName: profile.storeName || "",
           storeType: profile.storeType || "",
           schoolName: profile.schoolName || "",
+          schoolId: typeof profile.schoolId === 'string'
+            ? profile.schoolId
+            : typeof profile.school_id === 'string'
+            ? profile.school_id
+            : typeof profile.store_id === 'string'
+            ? profile.store_id.split('/')[0]
+            : '',
+          store_id:
+            typeof profile.store_id === 'string'
+              ? profile.store_id
+              : typeof profile.storeId === 'string'
+              ? profile.storeId
+              : '',
           balance: walletData?.balance || 0,
         };
 
@@ -259,12 +272,15 @@ const fetchUserTransactions = useCallback(
     }
   }, [token, fetchNotifications]);
 
-  // Fetch agent count
+  // Fetch agent count by store using the same store-compatible agent list endpoint
   const fetchAgentCount = useCallback(
     async (): Promise<number> => {
       try {
-        const count = await getAgentCount();
-        return count;
+        const response = await getAgentsById();
+        const agents = Array.isArray(response.data?.agent)
+          ? response.data.agent
+          : [];
+        return agents.length;
       } catch (error) {
         console.error('Failed to fetch agent count:', error);
         return 0;
@@ -353,7 +369,7 @@ const fetchUserTransactions = useCallback(
         console.log('Fetched transactions:', transactions);
         console.log('Agent count:', agentCount);
 
-        const topAgents = await fetchAgentPerformance(transactions);
+        const topAgents = agentCount > 0 ? await fetchAgentPerformance(transactions) : [];
 
         const today = new Date();
         const todayISO = today.toISOString().split('T')[0];

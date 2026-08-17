@@ -49,6 +49,7 @@ export interface User {
   // Vendor/Store details
   storeName?: string;
   storeType?: string;
+  store_id?: string;
   Link?: string;
   [key: string]: unknown;
 }
@@ -332,6 +333,7 @@ export interface Store {
   status: string;
   createdAt: string;
   schoolId?: string;
+  isStandAlone?: boolean;
 }
 
 export interface StoreDetails {
@@ -351,6 +353,7 @@ export interface StoreDetails {
 
   schoolId?: string;
   store_id: string;
+  isStandAlone?: boolean;
 }
 
 export interface StoreProfileFormData {
@@ -380,7 +383,8 @@ export interface StoreAgent {
   avatarColor?: string;
   avatarInitial?: string;
   schoolId: string;
-    status?: 'active' | 'inactive';
+  status?: 'active' | 'inactive';
+  isStandAlone?: boolean;
 }
 
 export interface Agent {
@@ -400,7 +404,8 @@ export interface GetAgentsResponse {
 }
 
 export interface AgentCountResponse {
-  data: number;
+  data?: number;
+  count?: number;
   message?: string;
 }
 

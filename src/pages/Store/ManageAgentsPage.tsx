@@ -212,7 +212,7 @@ const ManageAgentsPage: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // Prepare data for registration
+      const isStandAlone = storeInfo.schoolId === 'FFZ960384' || storeInfo.store_id.split('/')[0] === 'FFZ960384';
       const registrationData = {
         firstName: agentData.firstName,
         lastName: agentData.lastName,
@@ -222,6 +222,7 @@ const ManageAgentsPage: React.FC = () => {
         role: "agent",
         store_id: storeInfo.store_id,
         schoolId: storeInfo.schoolId || storeInfo.store_id.split('/')[0] || '',
+        isStandAlone: isStandAlone,
       };
 
       console.log('Registration data:', registrationData);
@@ -598,6 +599,11 @@ const ManageAgentsPage: React.FC = () => {
                             <p className="text-sm text-gray-500 capitalize truncate">
                               {agent.role}
                             </p>
+                            {(agent.isStandAlone || agent.schoolId === 'FFZ960384' || storeInfo?.schoolId === 'FFZ960384') && (
+                              <span className="mt-1 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-purple-100 text-purple-800 border border-purple-200">
+                                Standalone
+                              </span>
+                            )}
                           </div>
                         </div>
 

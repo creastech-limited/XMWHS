@@ -202,18 +202,38 @@ export const markAllNotificationsAsRead = async (): Promise<{ message: string }>
   return response.data;
 };
 
-// Get agent count
+// Get agent count for the current store or school
 export const getAgentCount = async (): Promise<number> => {
-  const response = await apiClient.get<AgentCountResponse>('/api/users/getagentbyidcount');
+  try {
+    const agentsResponse = await getAgentsById();
+    const rawAgents = Array.isArray(agentsResponse.data?.agent)
+      ? agentsResponse.data.agent
+      : Array.isArray((agentsResponse as unknown as { agent?: unknown }).agent)
+      ? (agentsResponse as unknown as { agent?: StoreAgent[] }).agent
+      : [];
 
+    const agents: StoreAgent[] = Array.isArray(rawAgents) ? rawAgents : [];
+
+    if (agents.length > 0) {
+      return agents.length;
+    }
+  } catch (error) {
+    console.error('Failed to fetch agents via store-compatible endpoint:', error);
+  }
+
+  const response = await apiClient.get<AgentCountResponse>('/api/users/getagentbyidcount');
   const responseData = response.data;
 
   if (typeof responseData === 'number') {
     return responseData;
-  } else if (responseData?.data !== undefined && responseData.data !== null) {
+  }
+
+  if (responseData?.data !== undefined && responseData.data !== null) {
     return responseData.data;
-  } else if (responseData) {
-    return responseData.data;
+  }
+
+  if (responseData?.count !== undefined && responseData.count !== null) {
+    return responseData.count;
   }
 
   return 0;
@@ -229,7 +249,7 @@ export const getAgentsById = async (schoolId?: string): Promise<GetAgentsRespons
   return response.data;
 };
 
-// Get agents in a store for admin
+// Get agents in a store by store ID
 export const getAgentsInStoreByAdmin = async (storeId: string): Promise<StoreAgent[]> => {
   const response = await apiClient.get<
     | StoreAgent[]
@@ -245,7 +265,7 @@ export const getAgentsInStoreByAdmin = async (storeId: string): Promise<StoreAge
       agent?: StoreAgent[];
       agents?: StoreAgent[];
     }
-  >(`/api/users/getagentinstorebyadmin/${encodeURIComponent(storeId)}`);
+  >(`/api/users/getagentbyid?id=${encodeURIComponent(storeId)}`);
 
   const responseData = response.data;
 

@@ -85,10 +85,15 @@ export interface StoreRegistrationRequest {
   storeType: string;
   phone: string;
   location: string;
+  latitude?: number;
+  longitude?: number;
+  gpsAccuracy?: number;
+  geoTagged?: boolean;
   description: string;
   schoolId?: string;
   schoolName?: string;
   school?: string;
+  isStandAlone?: boolean;
 }
 
 export interface StudentRegistrationRequest {
@@ -103,7 +108,7 @@ export interface StudentRegistrationRequest {
   };
   schoolId: string;
   schoolName: string;
-  schoolType: string;
+  schoolType: SchoolType;
   schoolAddress: string;
 }
 

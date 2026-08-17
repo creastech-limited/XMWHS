@@ -14,7 +14,7 @@ interface User {
   email: string;
   role: string;
   schoolId?: string;
-  status: string;  // Remove the ? to make it required
+  status: string; 
   createdAt?: string;
   updatedAt?: string;
   data?: {

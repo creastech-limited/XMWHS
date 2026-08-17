@@ -60,7 +60,22 @@ export const registerParent = async (
 export const registerStore = async (
   data: StoreRegistrationRequest
 ): Promise<RegistrationResponse> => {
+  // Log outgoing registration payload for debugging
+  try {
+    console.log('registerStore: payload =>', data);
+  } catch {
+    // ignore
+  }
+
   const response = await apiClient.post<RegistrationResponse>('/api/users/register', data);
+
+  // Log response for debugging
+  try {
+    console.log('registerStore: response =>', response?.data);
+  } catch {
+    // ignore
+  }
+
   return response.data;
 };
 
