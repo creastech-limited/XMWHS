@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { AlertCircle, FileText, DollarSign, User, ChevronDown, CheckCircle, XCircle, Calendar, School, Plus, Trash2, RefreshCw } from 'lucide-react';
 import { getUserDetails } from '../services';
 
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 // Types
@@ -350,6 +351,14 @@ const RaiseDispute: React.FC = () => {
     initializeAuth();
   }, [auth]);
 
+  // 🆕 NEW: Fetch disputes immediately when token is available (shows count in tab right away)
+  useEffect(() => {
+    if (token) {
+      loadUserDisputes();
+    }
+  }, [token, loadUserDisputes]);
+
+  // Refresh disputes when user explicitly switches to the List tab
   useEffect(() => {
     if (token && activeTab === 'list') {
       loadUserDisputes();
@@ -764,7 +773,6 @@ const RaiseDispute: React.FC = () => {
                   Amount (₦) <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
-                  <DollarSign className="absolute left-4 top-3.5 h-5 w-5 text-gray-500" />
                   <input
                     type="number"
                     id="amount"
@@ -774,7 +782,7 @@ const RaiseDispute: React.FC = () => {
                     required
                     min="0"
                     step="0.01"
-                    className="w-full pl-12 pr-4 py-3 text-base border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 transition-all duration-200"
+                    className="w-full pl-4 pr-4 py-3 text-base border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 transition-all duration-200"
                     placeholder="0.00"
                   />
                 </div>

@@ -1,4 +1,4 @@
-/*import { useState } from 'react';
+import { useState } from 'react';
 import {
   Wallet,
   ShieldCheck,
@@ -212,4 +212,5 @@ const SystemWallet = () => {
   );
 };
 
-export default SystemWallet;*/
+export default SystemWallet;
+
