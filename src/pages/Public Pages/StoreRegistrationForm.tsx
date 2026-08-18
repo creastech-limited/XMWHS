@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { JSX } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { registerStore } from '../../services';
@@ -45,6 +45,12 @@ interface FormData {
   password: string;
   confirmPassword: string;
   description: string;
+}
+
+interface GeoLocationState {
+  latitude: number;
+  longitude: number;
+  accuracy: number;
 }
 
 interface SnackbarState {
@@ -103,7 +109,7 @@ const SelectField: React.FC<{
   name: string;
   value: string;
   onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
-  options: string[];
+  options: Array<string | { value: string; label: string }>;
   required?: boolean;
   icon?: React.ReactNode;
 }> = ({ label, name, value, onChange, options, required = false, icon }) => (
@@ -127,11 +133,16 @@ const SelectField: React.FC<{
         className={`w-full px-4 py-3 ${icon ? 'pl-12' : ''} border border-gray-300 rounded-xl bg-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent hover:border-gray-400 text-black`}
       >
         <option value="">Select {label}</option>
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
+        {options.map((option) => {
+          const optionValue = typeof option === 'string' ? option : option.value;
+          const optionLabel = typeof option === 'string' ? option : option.label;
+
+          return (
+            <option key={optionValue} value={optionValue}>
+              {optionLabel}
+            </option>
+          );
+        })}
       </select>
     </div>
   </div>
@@ -168,14 +179,15 @@ const StoreRegistrationForm: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   
-  const schoolId = searchParams.get("schoolId") || "";
+  const schoolId = searchParams.get("schoolId")?.trim() || "";
   const displaySchool = searchParams.get("schoolName") || "";
+  const isStandaloneSchool = schoolId === 'FFZ960384';
 
   const [formData, setFormData] = useState<FormData>({
     firstName: '',
     lastName: '',
     storeName: '',
-    storeType: '',
+    storeType: isStandaloneSchool ? 'Standalone' : '',
     email: '',
     phone: '',
     location: '',
@@ -192,9 +204,84 @@ const StoreRegistrationForm: React.FC = () => {
   });
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [geoLocation, setGeoLocation] = useState<GeoLocationState | null>(null);
+  const [isFetchingLocation, setIsFetchingLocation] = useState<boolean>(false);
+
+  // If this registration is for the FFZ960384 school, force store type to 'Standalone'
+  useEffect(() => {
+    if (schoolId === 'FFZ960384' && formData.storeType !== 'Standalone') {
+      setFormData(prev => ({ ...prev, storeType: 'Standalone' }));
+    }
+  }, [schoolId, formData.storeType]);
+
+  // Provide store type options depending on schoolId
+  const availableStoreTypes = isStandaloneSchool ? ['Standalone'] : storeTypes;
+  const locationOptions = geoLocation
+    ? [
+        ...locations,
+        {
+          value: `${geoLocation.latitude.toFixed(6)}, ${geoLocation.longitude.toFixed(6)}`,
+          label: `Current GPS location (${geoLocation.latitude.toFixed(5)}, ${geoLocation.longitude.toFixed(5)})`
+        }
+      ]
+    : locations;
 
   const handleChange = (field: keyof FormData) => (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    if (field === 'storeType' && isStandaloneSchool) {
+      return;
+    }
+
+    if (field === 'location') {
+      setGeoLocation(null);
+    }
+
     setFormData({ ...formData, [field]: event.target.value });
+  };
+
+  const handleUseCurrentLocation = () => {
+    if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
+      setSnackbar({
+        open: true,
+        message: 'Geolocation is not supported on this browser.',
+        severity: 'error'
+      });
+      return;
+    }
+
+    setIsFetchingLocation(true);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude, accuracy } = position.coords;
+        const locationValue = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+
+        setGeoLocation({ latitude, longitude, accuracy });
+        setFormData((prev) => ({ ...prev, location: locationValue }));
+        setSnackbar({
+          open: true,
+          message: `Location captured: ${locationValue}`,
+          severity: 'success'
+        });
+        setIsFetchingLocation(false);
+      },
+      (error) => {
+        const message = error.code === error.PERMISSION_DENIED
+          ? 'Location access was denied. You can still select a location manually.'
+          : 'Unable to capture your current location right now. Please try again or enter a location manually.';
+
+        setSnackbar({
+          open: true,
+          message,
+          severity: 'error'
+        });
+        setIsFetchingLocation(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 20000,
+        maximumAge: 0,
+      }
+    );
   };
 
   const isStepValid = (): boolean => {
@@ -258,23 +345,35 @@ const StoreRegistrationForm: React.FC = () => {
  
 
   try {
-  const registrationData: StoreRegistrationRequest = {
-    firstName: formData.firstName,
-    lastName: formData.lastName,
-    email: formData.email,
-    password: formData.password,
-    role: "store",
-    storeName: formData.storeName,
-    storeType: formData.storeType,
-    phone: formData.phone,
-    location: formData.location,
-    description: formData.description,
-    schoolId: schoolId,
-    schoolName: displaySchool,
-    school: schoolId,
-  };
+    const registrationData: StoreRegistrationRequest = {
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      email: formData.email,
+      password: formData.password,
+      role: "store",
+      storeName: formData.storeName,
+      storeType: isStandaloneSchool ? 'Standalone' : formData.storeType,
+      phone: formData.phone,
+      location: formData.location,
+      latitude: geoLocation?.latitude,
+      longitude: geoLocation?.longitude,
+      gpsAccuracy: geoLocation?.accuracy,
+      geoTagged: !!geoLocation,
+      description: formData.description,
+      schoolId: schoolId,
+      schoolName: displaySchool,
+      school: schoolId,
+      isStandAlone:true
+    };
 
-  const result = await registerStore(registrationData);
+    // Debug: log the exact payload before sending
+    try {
+      console.log('StoreRegistrationForm: submitting payload', registrationData);
+    } catch {
+      // ignore console errors
+    }
+
+    const result = await registerStore(registrationData);
 
  if (result.user || result.message === 'Registration successful') {
     setSnackbar({
@@ -295,6 +394,7 @@ const StoreRegistrationForm: React.FC = () => {
       confirmPassword: '',
       description: ''
     });
+    setGeoLocation(null);
      setTimeout(() => {
         navigate('/login', { replace: true });
       }, 800);
@@ -362,10 +462,15 @@ const StoreRegistrationForm: React.FC = () => {
               name="storeType"
               value={formData.storeType}
               onChange={handleChange('storeType')}
-              options={storeTypes}
+              options={availableStoreTypes}
               required
               icon={<Building size={20} />}
             />
+            {isStandaloneSchool && (
+              <p className="text-sm text-purple-700 mt-1">
+                Store type is set to Standalone for this school.
+              </p>
+            )}
             <TextareaField
               label="Store Description"
               name="description"
@@ -399,15 +504,39 @@ const StoreRegistrationForm: React.FC = () => {
               icon={<Phone size={20} />}
               placeholder="Enter your phone number"
             />
-            <SelectField
-              label="Store Location"
-              name="location"
-              value={formData.location}
-              onChange={handleChange('location')}
-              options={locations}
-              required
-              icon={<MapPin size={20} />}
-            />
+            <div className="space-y-3">
+              <SelectField
+                label="Store Location"
+                name="location"
+                value={formData.location}
+                onChange={handleChange('location')}
+                options={locationOptions}
+                required
+                icon={<MapPin size={20} />}
+              />
+
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <button
+                  type="button"
+                  onClick={handleUseCurrentLocation}
+                  disabled={isFetchingLocation}
+                  className={`inline-flex items-center justify-center rounded-xl border px-4 py-2 text-sm font-medium transition-all duration-200 ${
+                    isFetchingLocation
+                      ? 'cursor-not-allowed border-indigo-200 bg-indigo-100 text-indigo-700'
+                      : 'border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+                  }`}
+                >
+                  <MapPin size={16} className="mr-2" />
+                  {isFetchingLocation ? 'Capturing location...' : 'Use my current location'}
+                </button>
+
+                {geoLocation && (
+                  <span className="text-xs font-medium text-emerald-700 bg-emerald-100 border border-emerald-200 rounded-full px-3 py-1">
+                    Geo-tagged: {geoLocation.latitude.toFixed(5)}, {geoLocation.longitude.toFixed(5)}
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
         );
       case 2:
@@ -474,8 +603,13 @@ const StoreRegistrationForm: React.FC = () => {
             </div>
             <h1 className="text-4xl font-bold text-gray-900 mb-2">Store Registration</h1>
             {displaySchool && (
-              <p className="text-gray-600 text-lg">
-                Registering new store for <span className="font-semibold text-indigo-600">{displaySchool}</span>
+              <p className="text-gray-600 text-lg flex items-center justify-center gap-2 flex-wrap">
+                <span>Registering new store for <span className="font-semibold text-indigo-600">{displaySchool}</span></span>
+                {schoolId === 'FFZ960384' && (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-800 border border-purple-200">
+                    Standalone Store
+                  </span>
+                )}
               </p>
             )}
           </div>

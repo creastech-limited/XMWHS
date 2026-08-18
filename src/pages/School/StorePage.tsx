@@ -131,6 +131,10 @@ export const StorePage: React.FC = () => {
         new Date().toISOString(),
       schoolId:
         (typeof store.schoolId === 'string' && store.schoolId) || undefined,
+      isStandAlone:
+        Boolean(store.isStandAlone) ||
+        Boolean(store.isStandalone) ||
+        ((typeof store.schoolId === 'string' ? store.schoolId : schoolId) === 'FFZ960384'),
     };
   }, [schoolId]);
 
@@ -701,8 +705,15 @@ export const StorePage: React.FC = () => {
                                   {(store.storeName || 'S').charAt(0).toUpperCase()}
                                 </div>
                                 <div className="ml-4">
-                                  <div className="text-sm font-medium text-gray-900">
-                                    {store.storeName || 'Unnamed Store'}
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-medium text-gray-900">
+                                      {store.storeName || 'Unnamed Store'}
+                                    </span>
+                                    {(store.isStandAlone || store.schoolId === 'FFZ960384' || schoolId === 'FFZ960384') && (
+                                      <span className="px-2 py-0.5 text-[11px] font-semibold rounded-full bg-purple-100 text-purple-800 border border-purple-200">
+                                        Standalone
+                                      </span>
+                                    )}
                                   </div>
                                   <div className="text-xs text-gray-500">
                                     ID: {(store._id || 'store').substring(0, 8)}...

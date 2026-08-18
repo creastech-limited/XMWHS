@@ -146,6 +146,7 @@ try {
                 type="email"
                 name="email"
                 value={formValues.email}
+                id="email"
                 onChange={handleChange}
                 placeholder="Email address"
                 className={`w-full pl-10 pr-4 py-3 border ${
@@ -168,6 +169,7 @@ try {
                 type={showPassword ? 'text' : 'password'}
                 name="password"
                 value={formValues.password}
+                id="email"
                 onChange={handleChange}
                 placeholder="Password"
                 className={`w-full pl-10 pr-12 py-3 border ${
@@ -178,6 +180,7 @@ try {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
+                id='email'
                 className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-indigo-700 focus:outline-none transition-colors duration-200"
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
