@@ -328,6 +328,11 @@ export interface Store {
   storeName: string;
   storeType: string;
   location: string;
+  latitude?: number;
+  longitude?: number;
+  gpsAccuracy?: number;
+  geoAddress?: string;
+  geoTagged?: boolean;
   email: string;
   phone: string;
   status: string;

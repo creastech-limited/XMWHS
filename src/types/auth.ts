@@ -88,6 +88,7 @@ export interface StoreRegistrationRequest {
   latitude?: number;
   longitude?: number;
   gpsAccuracy?: number;
+  geoAddress?: string;
   geoTagged?: boolean;
   description: string;
   schoolId?: string;
