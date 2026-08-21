@@ -27,6 +27,17 @@ import { getUserDetails, getStoresBySchoolId, getStoreCountBySchoolId, resetPass
 import type { Store as StoreType, UserResponse, SnackbarState } from '../../types/user';
 import axios from 'axios';
 
+const toFiniteNumber = (value: unknown): number | undefined => {
+  const numericValue =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string'
+        ? Number(value)
+        : NaN;
+
+  return Number.isFinite(numericValue) ? numericValue : undefined;
+};
+
 export const StorePage: React.FC = () => {
   // Auth context for getting token
   const authContext = useAuth();
@@ -69,44 +80,73 @@ export const StorePage: React.FC = () => {
       (typeof store.email === 'string' && store.email.split('@')[0]) ||
       'Unnamed Store';
 
+    const geoAddress =
+      (typeof store.geoAddress === 'string' && store.geoAddress) ||
+      (typeof store.formattedAddress === 'string' && store.formattedAddress) ||
+      (typeof store.address === 'string' && store.address) ||
+      '';
     const locationValue = store.location;
+    const locationRecord =
+      locationValue && typeof locationValue === 'object'
+        ? locationValue as {
+            type?: string;
+            coordinates?: unknown;
+            address?: string;
+            label?: string;
+            name?: string;
+            latitude?: unknown;
+            longitude?: unknown;
+          }
+        : null;
+    const locationCoordinates = Array.isArray(locationRecord?.coordinates)
+      ? locationRecord.coordinates
+      : [];
+    const coordinateLongitude = toFiniteNumber(locationCoordinates[0]);
+    const coordinateLatitude = toFiniteNumber(locationCoordinates[1]);
+    const normalizedLatitude =
+      toFiniteNumber(store.latitude) ??
+      toFiniteNumber(store.lat) ??
+      toFiniteNumber(locationRecord?.latitude) ??
+      coordinateLatitude;
+    const normalizedLongitude =
+      toFiniteNumber(store.longitude) ??
+      toFiniteNumber(store.lng) ??
+      toFiniteNumber(store.lon) ??
+      toFiniteNumber(locationRecord?.longitude) ??
+      coordinateLongitude;
+    const normalizedGpsAccuracy =
+      toFiniteNumber(store.gpsAccuracy) ??
+      toFiniteNumber(store.accuracy) ??
+      toFiniteNumber(store.locationAccuracy);
     const normalizedLocation =
-      typeof locationValue === 'string'
+      geoAddress ||
+      (typeof locationValue === 'string'
         ? locationValue
         : locationValue && typeof locationValue === 'object'
           ? (() => {
-              const locationRecord = locationValue as {
-                type?: string;
-                coordinates?: unknown;
-                address?: string;
-                label?: string;
-                name?: string;
-              };
-
-              if (typeof locationRecord.address === 'string' && locationRecord.address) {
+              if (typeof locationRecord?.address === 'string' && locationRecord.address) {
                 return locationRecord.address;
               }
 
-              if (typeof locationRecord.label === 'string' && locationRecord.label) {
+              if (typeof locationRecord?.label === 'string' && locationRecord.label) {
                 return locationRecord.label;
               }
 
-              if (typeof locationRecord.name === 'string' && locationRecord.name) {
+              if (typeof locationRecord?.name === 'string' && locationRecord.name) {
                 return locationRecord.name;
               }
 
-              if (Array.isArray(locationRecord.coordinates) && locationRecord.coordinates.length >= 2) {
-                const [longitude, latitude] = locationRecord.coordinates;
-                return `Coordinates (${String(latitude)}, ${String(longitude)})`;
+              if (normalizedLatitude !== undefined && normalizedLongitude !== undefined) {
+                return `${normalizedLatitude.toFixed(6)}, ${normalizedLongitude.toFixed(6)}`;
               }
 
-              if (typeof locationRecord.type === 'string' && locationRecord.type) {
+              if (typeof locationRecord?.type === 'string' && locationRecord.type) {
                 return locationRecord.type;
               }
 
               return 'N/A';
             })()
-          : 'N/A';
+          : 'N/A');
 
     return {
       _id: fallbackId,
@@ -129,6 +169,13 @@ export const StorePage: React.FC = () => {
         (typeof store.createdAt === 'string' && store.createdAt) ||
         (typeof store.registrationDate === 'string' && store.registrationDate) ||
         new Date().toISOString(),
+      latitude: normalizedLatitude,
+      longitude: normalizedLongitude,
+      gpsAccuracy: normalizedGpsAccuracy,
+      geoAddress: geoAddress || undefined,
+      geoTagged:
+        Boolean(store.geoTagged) ||
+        (normalizedLatitude !== undefined && normalizedLongitude !== undefined),
       schoolId:
         (typeof store.schoolId === 'string' && store.schoolId) || undefined,
       isStandAlone:
@@ -353,6 +400,14 @@ export const StorePage: React.FC = () => {
   const handleMenuClose = () => {
     setDropdownOpen(null);
     setMenuStore(null);
+  };
+
+  const getStoreMapUrl = (store: StoreType) => {
+    if (store.latitude === undefined || store.longitude === undefined) {
+      return '';
+    }
+
+    return `https://www.google.com/maps?q=${store.latitude},${store.longitude}`;
   };
 
   // Handle Reset Password
@@ -729,11 +784,33 @@ export const StorePage: React.FC = () => {
                               </span>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex items-center text-sm text-gray-500">
-                                <MapPin className="h-4 w-4 mr-1 flex-shrink-0" />
-                                <span className="truncate max-w-xs">
-                                  {store.location || 'N/A'}
-                                </span>
+                              <div className="flex flex-col gap-1 text-sm text-gray-500">
+                                <div className="flex items-center">
+                                  <MapPin className="h-4 w-4 mr-1 flex-shrink-0" />
+                                  <span className="truncate max-w-xs">
+                                    {store.location || 'N/A'}
+                                  </span>
+                                </div>
+                                {store.geoTagged && store.latitude !== undefined && store.longitude !== undefined && (
+                                  <div className="flex flex-wrap items-center gap-2 pl-5">
+                                    <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                                      Geo-tagged
+                                    </span>
+                                    <a
+                                      href={getStoreMapUrl(store)}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-xs font-medium text-indigo-600 hover:text-indigo-800"
+                                    >
+                                      View map
+                                    </a>
+                                    {store.gpsAccuracy !== undefined && (
+                                      <span className="text-[11px] text-gray-400">
+                                        +/- {Math.round(store.gpsAccuracy)}m
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">

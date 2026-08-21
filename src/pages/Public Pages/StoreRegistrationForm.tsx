@@ -51,6 +51,7 @@ interface GeoLocationState {
   latitude: number;
   longitude: number;
   accuracy: number;
+  address?: string;
 }
 
 interface SnackbarState {
@@ -58,6 +59,27 @@ interface SnackbarState {
   message: string;
   severity: 'success' | 'error' | 'warning' | 'info';
 }
+
+const getCoordinateLabel = (latitude: number, longitude: number) =>
+  `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+
+const getAddressFromCoordinates = async (latitude: number, longitude: number): Promise<string> => {
+  const response = await fetch(
+    `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
+    {
+      headers: {
+        Accept: 'application/json',
+      },
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error('Unable to resolve address');
+  }
+
+  const data = await response.json() as { display_name?: string; name?: string };
+  return data.display_name || data.name || '';
+};
 
 // Move InputField component outside of the main component to prevent re-renders
 const InputField: React.FC<{
@@ -216,12 +238,17 @@ const StoreRegistrationForm: React.FC = () => {
 
   // Provide store type options depending on schoolId
   const availableStoreTypes = isStandaloneSchool ? ['Standalone'] : storeTypes;
+  const geoLocationValue = geoLocation
+    ? geoLocation.address || getCoordinateLabel(geoLocation.latitude, geoLocation.longitude)
+    : '';
   const locationOptions = geoLocation
     ? [
         ...locations,
         {
-          value: `${geoLocation.latitude.toFixed(6)}, ${geoLocation.longitude.toFixed(6)}`,
-          label: `Current GPS location (${geoLocation.latitude.toFixed(5)}, ${geoLocation.longitude.toFixed(5)})`
+          value: geoLocationValue,
+          label: geoLocation.address
+            ? `Current address: ${geoLocation.address}`
+            : `Current GPS location (${geoLocation.latitude.toFixed(5)}, ${geoLocation.longitude.toFixed(5)})`
         }
       ]
     : locations;
@@ -231,7 +258,7 @@ const StoreRegistrationForm: React.FC = () => {
       return;
     }
 
-    if (field === 'location') {
+    if (field === 'location' && event.target.value !== geoLocationValue) {
       setGeoLocation(null);
     }
 
@@ -251,16 +278,29 @@ const StoreRegistrationForm: React.FC = () => {
     setIsFetchingLocation(true);
 
     navigator.geolocation.getCurrentPosition(
-      (position) => {
+      async (position) => {
         const { latitude, longitude, accuracy } = position.coords;
-        const locationValue = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+        const coordinateLabel = getCoordinateLabel(latitude, longitude);
+        let locationValue = coordinateLabel;
+        let resolvedAddress = '';
 
-        setGeoLocation({ latitude, longitude, accuracy });
+        try {
+          resolvedAddress = await getAddressFromCoordinates(latitude, longitude);
+          if (resolvedAddress) {
+            locationValue = resolvedAddress;
+          }
+        } catch (addressError) {
+          console.error('Reverse geocoding failed:', addressError);
+        }
+
+        setGeoLocation({ latitude, longitude, accuracy, address: resolvedAddress || undefined });
         setFormData((prev) => ({ ...prev, location: locationValue }));
         setSnackbar({
           open: true,
-          message: `Location captured: ${locationValue}`,
-          severity: 'success'
+          message: resolvedAddress
+            ? 'Current address captured.'
+            : `Location captured: ${coordinateLabel}. Address lookup was unavailable.`,
+          severity: resolvedAddress ? 'success' : 'warning'
         });
         setIsFetchingLocation(false);
       },
@@ -358,6 +398,7 @@ const StoreRegistrationForm: React.FC = () => {
       latitude: geoLocation?.latitude,
       longitude: geoLocation?.longitude,
       gpsAccuracy: geoLocation?.accuracy,
+      geoAddress: geoLocation?.address,
       geoTagged: !!geoLocation,
       description: formData.description,
       schoolId: schoolId,
@@ -531,9 +572,16 @@ const StoreRegistrationForm: React.FC = () => {
                 </button>
 
                 {geoLocation && (
-                  <span className="text-xs font-medium text-emerald-700 bg-emerald-100 border border-emerald-200 rounded-full px-3 py-1">
-                    Geo-tagged: {geoLocation.latitude.toFixed(5)}, {geoLocation.longitude.toFixed(5)}
-                  </span>
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 sm:max-w-md">
+                    <div className="font-semibold">Geo-tagged address</div>
+                    <div className="mt-1 text-emerald-700">
+                      {geoLocation.address || 'Address lookup unavailable'}
+                    </div>
+                    <div className="mt-1 text-xs text-emerald-600">
+                      {geoLocation.latitude.toFixed(5)}, {geoLocation.longitude.toFixed(5)}
+                      {' '}+/- {Math.round(geoLocation.accuracy)}m
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
