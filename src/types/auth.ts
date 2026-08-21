@@ -109,7 +109,7 @@ export interface StudentRegistrationRequest {
   };
   schoolId: string;
   schoolName: string;
-  schoolType: SchoolType;
+  schoolType: SchoolType | string;
   schoolAddress: string;
 }
 

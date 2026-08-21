@@ -129,9 +129,8 @@ export interface UserData {
   balance?: number;
   lastTransactions?: Transaction[];
   recentTransfers?: Transfer[];
-  
-
 }     
+
 /* ----------------------- WALLET ----------------------- */
 export interface Wallet {
   id: string;
@@ -182,7 +181,6 @@ export interface UserResponse {
   [key: string]: unknown;
 }
 
-
 export interface FetchUserDetailsResponse {
   user?: {
     data?: UserProfile;
@@ -191,6 +189,7 @@ export interface FetchUserDetailsResponse {
   data?: UserProfile;
   [key: string]: unknown;
 }
+
 /* ====================== TRANSACTION TYPES ====================== */
 
 export interface WalletInfo {
@@ -231,7 +230,7 @@ export interface Transaction {
   description: string;
   createdAt: string;
   date?: string; 
-   store?: string;
+  store?: string;
   customer?: string;
   reference?: string;
   recipientName?: string;
@@ -274,8 +273,6 @@ export interface TransactionStats {
   };
 }
 
-
-
 /* ====================== CLASS TYPES ====================== */
 export interface Class {
   _id: string;
@@ -287,7 +284,6 @@ export interface Class {
   updatedAt: string;
   [key: string]: unknown;
 }
-
 
 export interface ClassItem {
   _id: string;
@@ -388,7 +384,7 @@ export interface StoreAgent {
   avatarColor?: string;
   avatarInitial?: string;
   schoolId: string;
-  status?: 'active' | 'inactive';
+  status?: string;
   isStandAlone?: boolean;
 }
 
@@ -425,7 +421,7 @@ export interface AgentRegistrationData {
 
 export interface AgentRegistrationResponse {
   message: string;
-  data?:unknown;
+  data?: unknown;
 }
 
 export interface DeleteAgentResponse {
@@ -734,8 +730,6 @@ export interface FormErrors {
   password?: string;
 }
 
-
-
 export interface SetPinPayload {
   pin: string;
 }
@@ -745,7 +739,7 @@ export interface UpdatePinPayload {
   newPin: string;
 }
 
-export  interface Transfer {
+export interface Transfer {
   id: number;
   kidName: string;
   amount: number;

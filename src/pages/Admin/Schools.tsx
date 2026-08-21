@@ -18,7 +18,7 @@ import { getAgentsInStoreByAdmin, getAllSchools, getStoresInSchoolByAdmin, getSt
 import type { Store, StoreAgent, Student, School as AdminSchool, SchoolsResponse, StudentsInSchoolResponse } from '../../types';
 
 type ResourceTab = 'students' | 'agents' | 'stores';
-type AdminAgent = StoreAgent & { storeId?: string; storeName?: string; status?: string };
+type AdminAgent = Omit<StoreAgent, 'status'> & { storeId?: string; storeName?: string; status?: string };
 
 interface SchoolResourceState {
   students: Student[];
@@ -749,9 +749,9 @@ const Schools = () => {
                                       </div>
                                     </div>
                                     <span className={`text-xs px-2 py-1 rounded-full ${
-                                      agent.status === 'Active'
+                                      agent.status === 'Active' || agent.status === 'active'
                                         ? 'bg-green-100 text-green-700'
-                                        : agent.status === 'Pending'
+                                        : agent.status === 'Pending' || agent.status === 'pending'
                                           ? 'bg-yellow-100 text-yellow-700'
                                           : 'bg-gray-100 text-gray-700'
                                     }`}>
