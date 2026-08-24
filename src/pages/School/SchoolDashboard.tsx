@@ -1,433 +1,34 @@
-import React, { useState, useEffect, useCallback } from 'react';
+// src/pages/School/SchoolDashboard.tsx
+import React from 'react';
+import { FaWallet, FaUsers, FaStore } from 'react-icons/fa';
 import { Header } from '../../components/Header';
 import { Sidebar as Asidebar } from '../../components/Sidebar';
 import Footer from '../../components/Footer';
-import { useAuth } from '../../context/AuthContext';
-import {
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip as RechartTooltip,
-  Legend,
-  BarChart,
-  Bar,
-  CartesianGrid,
-  XAxis,
-  YAxis,
-  ResponsiveContainer,
-} from 'recharts';
-import Calendar from 'react-calendar';
-import 'react-calendar/dist/Calendar.css';
-import { FaWallet, FaUsers, FaStore, FaCalendarAlt } from 'react-icons/fa';
+import { useSchoolDashboard } from '../../hooks/useSchoolDashboard';
+import { StatCard } from '../../components/shared/StatCard';
+import { LoadingScreen } from '../../components/shared/LoadingScreen';
+import { Snackbar } from '../../components/shared/Snackbar';
+import { ChartCard } from '../../components/shared/ChartCard';
+import { TransactionList } from '../../components/shared/TransactionList';
+import { CalendarWidget } from '../../components/shared/CalendarWidget';
 
-// Import services
-import {
-  getUserDetails,
-  getStoreCount,
-  getClasses,
-  getUserTransactions,
-  getStudentsBySchoolId, // ✅ ADDED
-} from '../../services';
+const SchoolDashboard: React.FC = () => {
+  const {
+    user,
+    loading,
+    stats,
+    pieData,
+    barData,
+    transactions,
+    calendarDate,
+    snackbar,
+    setCalendarDate,
+    closeSnackbar,
+  } = useSchoolDashboard();
 
-// Import types
-import type {
-  User,
-  UserResponse,
-  StoreCountResponse,
-  ClassesResponse,
-  TransactionsResponse,
-  Transaction as TransactionType,
-  ClassItem
-} from '../../types/user';
-
-const calendarStyles = `
-  .react-calendar {
-    background: white;
-    border: none !important;
-    font-family: inherit;
+  if (loading) {
+    return <LoadingScreen message="Loading dashboard..." />;
   }
-  
-  .react-calendar__navigation {
-    background: #6366f1;
-    margin-bottom: 1em;
-    border-radius: 0.5rem 0.5rem 0 0;
-  }
-  
-  .react-calendar__navigation button {
-    color: white;
-    font-weight: 600;
-    font-size: 1rem;
-    background: none;
-    border: none;
-    padding: 0.75rem;
-  }
-  
-  .react-calendar__navigation button:hover {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 0.25rem;
-  }
-  
-  .react-calendar__month-view__weekdays {
-    background: #f8fafc;
-    padding: 0.5rem 0;
-  }
-  
-  .react-calendar__month-view__weekdays__weekday {
-    color: #6366f1;
-    font-weight: 600;
-    font-size: 0.875rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-  
-  .react-calendar__tile {
-    background: white;
-    border: 1px solid #e2e8f0;
-    color: #374151;
-    font-weight: 500;
-    padding: 0.75rem 0.5rem;
-    transition: all 0.2s ease;
-  }
-  
-  .react-calendar__tile:hover {
-    background: #ede9fe;
-    color: #6366f1;
-    transform: scale(1.05);
-  }
-  
-  .react-calendar__tile--active {
-    background: #6366f1 !important;
-    color: white !important;
-    border-color: #6366f1;
-  }
-  
-  .react-calendar__tile--now {
-    background: #fef3c7;
-    color: #d97706;
-    border-color: #f59e0b;
-  }
-  
-  .react-calendar__tile--now:hover {
-    background: #fde68a;
-  }
-`;
-
-interface Stats {
-  balance: number;
-  totalStudents: number;
-  totalStores: number;
-}
-
-interface PieDataEntry {
-  name: string;
-  value: number;
-  color: string;
-}
-
-interface BarDataEntry {
-  month: string;
-  fees: number;
-}
-
-type SnackbarSeverity = 'success' | 'error';
-
-interface Transaction {
-  id: string;
-  _id?: string;
-  date: string;
-  createdAt?: string;
-  description: string;
-  amount: number;
-  type: 'credit' | 'debit' | 'pending';
-  category?: string;
-  direction?: string;
-  status?: string;
-}
-
-const Dashboard: React.FC = () => {
-  const auth = useAuth();
-  const [user, setUser] = useState<User | null>(auth?.user || null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [authError, setAuthError] = useState<string | null>(null);
-
-  // ✅ ADDED: schoolId state
-  const [schoolId, setSchoolId] = useState<string>('');
-
-  const [stats, setStats] = useState<Stats>({
-    balance: 0,
-    totalStudents: 0,
-    totalStores: 0,
-  });
-
-  const [pieData, setPieData] = useState<PieDataEntry[]>([]);
-  const [barData, setBarData] = useState<BarDataEntry[]>([]);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-
-  const [calendarDate, setCalendarDate] = useState<Date>(new Date());
-  const [snackbar, setSnackbar] = useState<{
-    open: boolean;
-    message: string;
-    severity: SnackbarSeverity;
-  }>({
-    open: false,
-    message: '',
-    severity: 'success',
-  });
-
-  // Show error and logout
-  const handleAuthError = useCallback(
-    (message: string) => {
-      setAuthError(message);
-      setSnackbar({ open: true, message, severity: 'error' });
-      auth?.logout?.();
-      setUser(null);
-    },
-    [auth]
-  );
-
-  // ✅ UPDATED: fetchUserDetails now also captures and stores schoolId
-  const fetchUserDetails = useCallback(async (): Promise<User> => {
-    try {
-      const data: UserResponse = await getUserDetails();
-
-      console.log('User details response:', data);
-
-      let profile: User | undefined;
-      let userBalance: number = 0;
-
-      if (data.user?.data) {
-        profile = data.user.data;
-        if (data.user.wallet?.balance !== undefined) userBalance = data.user.wallet.balance;
-      } else if (data.data) {
-        profile = data.data;
-        if (data.wallet?.balance !== undefined) userBalance = data.wallet.balance;
-      } else if (data.user) {
-        profile = data.user as User;
-        if (data.user.wallet?.balance !== undefined) userBalance = data.user.wallet.balance;
-      } else {
-        profile = data as User;
-        if (data.wallet?.balance !== undefined) userBalance = data.wallet.balance;
-      }
-
-      if (typeof userBalance === 'string') userBalance = parseFloat(userBalance) || 0;
-      if (!profile?._id) throw new Error('Invalid user payload');
-
-      const updatedProfile = { ...profile, balance: userBalance };
-      setUser(updatedProfile);
-
-      // Use profile._id — classes store the school's _id as their schoolId field
-      const extractedSchoolId = profile._id || '';
-
-
-      if (extractedSchoolId) {
-        setSchoolId(extractedSchoolId);
-      }
-
-      setStats(prevStats => ({ ...prevStats, balance: userBalance }));
-      return updatedProfile;
-    } catch (error) {
-      console.error('Error fetching user details:', error);
-      throw error;
-    }
-  }, []);
-
-  // Fetch store count data
-  const fetchStoreCount = useCallback(async () => {
-    try {
-      const data: StoreCountResponse = await getStoreCount();
-
-      let storeCount = 0;
-      if (typeof data.data === 'number') {
-        storeCount = data.data;
-      } else if (data.count !== undefined) {
-        storeCount = data.count;
-      } else if (data.totalStores !== undefined) {
-        storeCount = data.totalStores;
-      }
-
-      setStats(prev => ({ ...prev, totalStores: storeCount }));
-    } catch (error) {
-      console.error('Error fetching store count:', error);
-      setSnackbar({ open: true, message: 'Failed to load store count', severity: 'error' });
-    }
-  }, []);
-
-  // Fetch students and build pie chart for THIS school only
-  const fetchStudentsData = useCallback(async (id: string) => {
-    if (!id) return;
-
-    try {
-      // Fetch real students for this school — same as StudentPage
-      const studentsData = await getStudentsBySchoolId(id);
-
-      if (studentsData?.data && Array.isArray(studentsData.data)) {
-        // Set correct total student count
-        setStats(prev => ({ ...prev, totalStudents: (studentsData.data?.length ?? 0) }));
-        const classesData: ClassesResponse = await getClasses();
-
-        if (classesData?.data && Array.isArray(classesData.data)) {
-          const pieColors = ['#42a5f5', '#66bb6a', '#ffca28', '#ef5350', '#ab47bc', '#26c6da'];
-
-          const schoolClasses = (classesData.data as ClassItem[]).filter(
-            (classItem: ClassItem) => classItem.schoolId === id
-          );
-
-          const pieChartData: PieDataEntry[] = schoolClasses
-            .filter((classItem: ClassItem) => classItem.className)
-            .map((classItem: ClassItem, index: number): PieDataEntry => ({
-              name: classItem.className,
-              value: classItem.students?.length || 0,
-              color: pieColors[index % pieColors.length],
-            }));
-
-          setPieData(pieChartData);
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching students data:', error);
-      setSnackbar({ open: true, message: 'Failed to load student data', severity: 'error' });
-    }
-  }, []);
-
-  // Fetch transactions data
-  const fetchTransactionsData = useCallback(async () => {
-    try {
-      const data: TransactionsResponse = await getUserTransactions();
-
-      if (data.data && Array.isArray(data.data)) {
-        const recentTransactions = data.data
-          .slice(0, 4)
-          .map((tx: TransactionType) => {
-            let transactionType: 'credit' | 'debit' | 'pending' = 'debit';
-
-            if (tx.status === 'pending') {
-              transactionType = 'pending';
-            } else if (tx.category === 'credit') {
-              transactionType = 'credit';
-            } else if (tx.category === 'debit') {
-              transactionType = 'debit';
-            }
-
-            return {
-              id: tx._id,
-              date: tx.createdAt,
-              description: tx.description || tx.category || 'Transaction',
-              category: tx.category || 'Transaction',
-              amount: tx.amount,
-              type: transactionType,
-              status: tx.status,
-            };
-          });
-
-        setTransactions(recentTransactions);
-
-        const now = new Date();
-        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-        const last6Months = Array.from({ length: 6 }, (_, i) => {
-          const date = new Date(now);
-          date.setMonth(date.getMonth() - i);
-          return {
-            month: monthNames[date.getMonth()],
-            year: date.getFullYear(),
-            monthIndex: date.getMonth(),
-          };
-        }).reverse();
-
-        const feeData = last6Months.map(({ month, year, monthIndex }) => {
-          const monthlyTotal = (data.data ?? [])
-            .filter((tx: TransactionType) => {
-              const txDate = new Date(tx.createdAt ?? '');
-              const isCredit = tx.category === 'credit';
-              return txDate.getMonth() === monthIndex && txDate.getFullYear() === year && isCredit;
-            })
-            .reduce((sum: number, tx: TransactionType) => sum + (tx.amount || 0), 0);
-
-          return { month, fees: monthlyTotal };
-        });
-
-        setBarData(feeData);
-      }
-    } catch (error) {
-      console.error('Error fetching transactions:', error);
-      setSnackbar({ open: true, message: 'Failed to load transaction data', severity: 'error' });
-    }
-  }, []);
-
-  // ✅ UPDATED: initializeAuth passes schoolId from profile into fetchStudentsData
-  useEffect(() => {
-    const initializeAuth = async () => {
-      try {
-        setLoading(true);
-
-        const storedToken = localStorage.getItem('token');
-        if (!storedToken && !auth?.token) {
-          throw new Error('No authentication token found');
-        }
-
-        const profile = await fetchUserDetails();
-
-        // Use profile._id — this is what classes store as their schoolId
-        const id = profile._id || '';
-
-        if (profile._id) {
-          await Promise.all([
-            fetchStudentsData(id),   // ✅ pass id so it fetches THIS school's students
-            fetchTransactionsData(),
-            fetchStoreCount(),
-          ]);
-        }
-      } catch (error) {
-        console.error('Auth initialization error:', error);
-        handleAuthError('Authentication error. Please login again.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    initializeAuth();
-  }, [auth?.token, fetchUserDetails, fetchStudentsData, fetchTransactionsData, fetchStoreCount, handleAuthError]);
-
-  // Debug effects
-  useEffect(() => { console.log('Stats updated:', stats); }, [stats]);
-  useEffect(() => { console.log('User updated:', user); }, [user]);
-  useEffect(() => { console.log('SchoolId updated:', schoolId); }, [schoolId]);
-
-  // Auto-hide snackbar
-  useEffect(() => {
-    if (!snackbar.open) return;
-    const t = setTimeout(() => setSnackbar((s) => ({ ...s, open: false })), 6000);
-    return () => clearTimeout(t);
-  }, [snackbar.open]);
-
-  // Redirect on error
-  useEffect(() => {
-    if (authError) setTimeout(() => (window.location.href = '/login'), 3000);
-  }, [authError]);
-
-  useEffect(() => {
-    const styleElement = document.createElement('style');
-    styleElement.textContent = calendarStyles;
-    document.head.appendChild(styleElement);
-    return () => { document.head.removeChild(styleElement); };
-  }, []);
-
-  if (loading)
-    return (
-      <div className="flex flex-col min-h-screen bg-gray-50">
-        <Header PsettingsPage="/settings" />
-        <div className="flex flex-grow">
-          <div className="hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-white shadow z-10">
-            <Asidebar />
-          </div>
-          <main className="flex-1 p-4 text-center">
-            <div className="animate-spin h-12 w-12 border-4 border-indigo-600 border-r-transparent rounded-full mx-auto"></div>
-            <p className="mt-4 text-indigo-800">Loading...</p>
-          </main>
-        </div>
-        <Footer />
-      </div>
-    );
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
@@ -438,7 +39,7 @@ const Dashboard: React.FC = () => {
         </aside>
 
         <main className="flex-grow p-4 md:p-8 md:ml-64">
-          {/* Top Section */}
+          {/* Header */}
           <div className="mb-6">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4">
               <div>
@@ -446,8 +47,7 @@ const Dashboard: React.FC = () => {
                   School Dashboard
                 </h1>
                 <p className="text-gray-600">
-                  Welcome back,{' '}
-                  {user && user.name ? user.name : 'Administrator'}
+                  Welcome back, {user && user.name ? user.name : 'Administrator'}
                 </p>
               </div>
             </div>
@@ -455,269 +55,73 @@ const Dashboard: React.FC = () => {
 
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100 hover:shadow-md transition-all duration-300 flex items-start">
-              <div className="p-3 rounded-full bg-indigo-100 text-indigo-600 mr-4">
-                <FaWallet className="text-xl" />
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-gray-500">Wallet Balance</h3>
-                <p className="text-2xl font-bold text-gray-800">
-                  ₦{stats.balance.toLocaleString()}
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100 hover:shadow-md transition-all duration-300 flex items-start">
-              <div className="p-3 rounded-full bg-green-100 text-green-600 mr-4">
-                <FaUsers className="text-xl" />
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-gray-500">Total Students</h3>
-                {/* ✅ Now shows the correct count from getStudentsBySchoolId */}
-                <p className="text-2xl font-bold text-gray-800">
-                  {stats.totalStudents.toLocaleString()}
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100 hover:shadow-md transition-all duration-300 flex items-start">
-              <div className="p-3 rounded-full bg-amber-100 text-amber-600 mr-4">
-                <FaStore className="text-xl" />
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-gray-500">Total Stores</h3>
-                <p className="text-2xl font-bold text-gray-800">
-                  {stats.totalStores.toLocaleString()}
-                </p>
-              </div>
-            </div>
+            <StatCard
+              icon={<FaWallet className="text-xl" />}
+              iconBgColor="bg-indigo-100"
+              iconTextColor="text-indigo-600"
+              title="Wallet Balance"
+              value={`₦${stats.balance.toLocaleString()}`}
+            />
+            <StatCard
+              icon={<FaUsers className="text-xl" />}
+              iconBgColor="bg-green-100"
+              iconTextColor="text-green-600"
+              title="Total Students"
+              value={stats.totalStudents.toLocaleString()}
+            />
+            <StatCard
+              icon={<FaStore className="text-xl" />}
+              iconBgColor="bg-amber-100"
+              iconTextColor="text-amber-600"
+              title="Total Stores"
+              value={stats.totalStores.toLocaleString()}
+            />
           </div>
 
-          {/* Main Charts */}
+          {/* Charts */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">Student Distribution</h3>
-                <select
-                  className="text-sm border border-gray-300 rounded p-1 bg-white text-gray-600"
-                  aria-label="Student distribution period"
-                >
-                  <option>This Year</option>
-                  <option>Last Year</option>
-                </select>
-              </div>
-              <div className="w-full h-64">
-                {pieData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={pieData}
-                        dataKey="value"
-                        nameKey="name"
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={80}
-                        paddingAngle={5}
-                        label={({ name, percent }) =>
-                          `${name} ${(percent * 100).toFixed(0)}%`
-                        }
-                      >
-                        {pieData.map((entry, idx) => (
-                          <Cell key={idx} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <RechartTooltip
-                        content={({ active, payload }) => {
-                          if (active && payload && payload.length) {
-                            const data = payload[0].payload;
-                            return (
-                              <div className="bg-white p-3 shadow-lg rounded-lg border text-sm">
-                                <p className="font-semibold text-gray-800">{data.name}</p>
-                                <p className="text-indigo-600">
-                                  Students: <span className="font-bold">{data.value}</span>
-                                </p>
-                              </div>
-                            );
-                          }
-                          return null;
-                        }}
-                      />
-                      <Legend verticalAlign="bottom" layout="horizontal" />
-                    </PieChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <p className="text-gray-500">No student data available</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">Fee Collection Trend</h3>
-                <select
-                  className="text-sm border border-gray-300 rounded p-1 bg-white text-gray-600"
-                  aria-label="Fee collection period"
-                >
-                  <option>Last 6 Months</option>
-                  <option>This Year</option>
-                </select>
-              </div>
-              <div className="w-full h-64">
-                {barData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={barData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="month" axisLine={false} tickLine={false} />
-                      <YAxis axisLine={false} tickLine={false} />
-                      <RechartTooltip />
-                      <Bar dataKey="fees" fill="#6366f1" radius={[6, 6, 0, 0]} barSize={20} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <p className="text-gray-500">No fee data available</p>
-                  </div>
-                )}
-              </div>
-            </div>
+            <ChartCard
+              title="Student Distribution"
+              type="pie"
+              data={pieData}
+              colors={['#42a5f5', '#66bb6a', '#ffca28', '#ef5350', '#ab47bc', '#26c6da']}
+              emptyMessage="No student data available"
+            />
+            <ChartCard
+              title="Fee Collection Trend"
+              type="bar"
+              data={barData}
+              emptyMessage="No fee data available"
+            />
           </div>
 
           {/* Transactions & Calendar */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">Recent Transactions</h3>
-                <button
-                  onClick={() => (window.location.href = '/transactions')}
-                  className="text-indigo-600 text-sm font-medium"
-                >
-                  View All
-                </button>
-              </div>
-              <div className="overflow-y-auto max-h-72">
-                {transactions.length > 0 ? (
-                  <div className="space-y-3">
-                    {transactions.map((transaction) => (
-                      <div
-                        key={transaction.id}
-                        className="flex justify-between items-center p-3 hover:bg-gray-50 rounded"
-                      >
-                        <div className="flex items-center">
-                          <div
-                            className={`p-2 rounded-full mr-3 ${
-                              transaction.category === 'credit'
-                                ? 'bg-green-100 text-green-600'
-                                : transaction.status === 'pending'
-                                ? 'bg-yellow-100 text-yellow-600'
-                                : 'bg-red-100 text-red-600'
-                            }`}
-                          >
-                            <FaWallet className="text-sm" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-gray-800">
-                              {transaction.category}
-                            </p>
-                            <div className="flex items-center">
-                              <p className="text-xs text-gray-500">
-                                {new Date(transaction.date).toLocaleDateString()}
-                              </p>
-                              <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
-                                {transaction.type.replace(/_/g, ' ')}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p
-                            className={`font-medium ${
-                              transaction.category === 'credit'
-                                ? 'text-green-600'
-                                : transaction.status === 'pending'
-                                ? 'text-yellow-600'
-                                : 'text-red-600'
-                            }`}
-                          >
-                            {transaction.category === 'credit' ? '+' : '-'}₦
-                            {(Number(transaction.amount) || 0).toLocaleString()}
-                          </p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {transaction.status === 'success'
-                              ? 'Completed'
-                              : transaction.status === 'failed'
-                              ? 'Failed'
-                              : 'Pending'}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-600 text-center py-8">
-                    No transactions available.
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">School Calendar</h3>
-                <div className="p-2 rounded-full bg-indigo-100 text-indigo-600">
-                  <FaCalendarAlt className="text-sm" />
-                </div>
-              </div>
-              <div className="flex justify-center">
-                <Calendar
-                  onChange={(value) => {
-                    if (value instanceof Date) {
-                      setCalendarDate(value);
-                    } else if (Array.isArray(value) && value[0] instanceof Date) {
-                      setCalendarDate(value[0]);
-                    }
-                  }}
-                  value={calendarDate}
-                  className="react-calendar rounded-lg w-full shadow-sm"
-                />
-              </div>
-            </div>
+            <TransactionList
+              transactions={transactions}
+              title="Recent Transactions"
+              viewAllLink="/transactions"
+              emptyMessage="No transactions available."
+            />
+            <CalendarWidget
+              value={calendarDate}
+              onChange={setCalendarDate}
+            />
           </div>
         </main>
       </div>
       <Footer />
 
       {/* Snackbar */}
-      {snackbar.open && (
-        <div
-          className={`fixed bottom-4 right-4 bg-white p-4 rounded-lg shadow-lg border-l-4 ${
-            snackbar.severity === 'success' ? 'border-green-500' : 'border-red-500'
-          } transition-all duration-300 z-50`}
-        >
-          <div className="flex items-center">
-            <div
-              className={`p-2 rounded-full mr-3 ${
-                snackbar.severity === 'success'
-                  ? 'bg-green-100 text-green-600'
-                  : 'bg-red-100 text-red-600'
-              }`}
-            >
-              {snackbar.severity === 'success' ? '✓' : '✕'}
-            </div>
-            <p className="text-sm text-gray-800">{snackbar.message}</p>
-          </div>
-          <button
-            onClick={() => setSnackbar((s) => ({ ...s, open: false }))}
-            className="absolute top-2 right-2 text-gray-400 hover:text-gray-600"
-          >
-            ×
-          </button>
-        </div>
-      )}
+      <Snackbar
+        open={snackbar.open}
+        message={snackbar.message}
+        severity={snackbar.severity}
+        onClose={closeSnackbar}
+        position="bottom-right"
+      />
     </div>
   );
 };
 
-export default Dashboard;
+export default SchoolDashboard;

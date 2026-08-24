@@ -682,16 +682,16 @@ const SettingsPanel = () => {
                     </label>
                     <div className="relative">
                       <input
-                        type={showPassword.confirm ? "text" : "password"}
-                        value={passwordData.confirmPassword}
+                        type={showPassword.current ? "text" : "password"}
+                        value={passwordData.currentPassword}
                         onChange={(e) =>
                           setPasswordData({
                             ...passwordData,
-                            confirmPassword: e.target.value,
+                            currentPassword: e.target.value,
                           })
                         }
                         className="w-full px-4 py-2 pr-12 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                        placeholder="Confirm Password"
+                        placeholder="Current Password"
                       />
 
                       <button
@@ -699,12 +699,12 @@ const SettingsPanel = () => {
                         onClick={() =>
                           setShowPassword({
                             ...showPassword,
-                            confirm: !showPassword.confirm,
+                            current: !showPassword.current,
                           })
                         }
                         className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-indigo-600"
                       >
-                        {showPassword.confirm ? (
+                        {showPassword.current ? (
                           <EyeOff className="w-5 h-5" />
                         ) : (
                           <Eye className="w-5 h-5" />
@@ -755,16 +755,16 @@ const SettingsPanel = () => {
                       </label>
                       <div className="relative">
                         <input
-                          type={showPassword.new ? "text" : "password"}
-                          value={passwordData.newPassword}
+                          type={showPassword.confirm ? "text" : "password"}
+                          value={passwordData.confirmPassword}
                           onChange={(e) =>
                             setPasswordData({
                               ...passwordData,
-                              newPassword: e.target.value,
+                              confirmPassword: e.target.value,
                             })
                           }
                           className="w-full px-4 py-2 pr-12 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                          placeholder="New Password"
+                          placeholder="Confirm New Password"
                         />
 
                         <button
@@ -772,12 +772,12 @@ const SettingsPanel = () => {
                           onClick={() =>
                             setShowPassword({
                               ...showPassword,
-                              new: !showPassword.new,
+                              confirm: !showPassword.confirm,
                             })
                           }
                           className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-indigo-600"
                         >
-                          {showPassword.new ? (
+                          {showPassword.confirm ? (
                             <EyeOff className="w-5 h-5" />
                           ) : (
                             <Eye className="w-5 h-5" />
