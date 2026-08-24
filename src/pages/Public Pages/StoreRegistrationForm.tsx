@@ -212,8 +212,13 @@ const StoreRegistrationForm: React.FC = () => {
             </div>
             <h1 className="text-4xl font-bold text-gray-900 mb-2">Store Registration</h1>
             {displaySchool && (
-              <p className="text-gray-600 text-lg">
-                Registering new store for <span className="font-semibold text-indigo-600">{displaySchool}</span>
+              <p className="text-gray-600 text-lg flex items-center justify-center gap-2 flex-wrap">
+                <span>Registering new store for <span className="font-semibold text-indigo-600">{displaySchool}</span></span>
+                {schoolId === 'FFZ960384' && (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-800 border border-purple-200">
+                    Standalone Store
+                  </span>
+                )}
               </p>
             )}
           </div>

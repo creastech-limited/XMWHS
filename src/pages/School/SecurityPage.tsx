@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Header } from '../../components/Header';
 import { Sidebar } from '../../components/Sidebar';
@@ -20,6 +21,7 @@ import type { SchoolProfile } from '../../types/student';
 import type { SecurityUser, SnackbarState, User, UserResponse } from '../../types/user';
 
 const SecurityPage: React.FC = () => {
+  const navigate = useNavigate();
   const authContext = useAuth();
   const token = authContext?.token || localStorage.getItem('token');
   const authToken = token;
@@ -60,12 +62,23 @@ const SecurityPage: React.FC = () => {
       const getId = (): string => {
         if (!userProfile || typeof userProfile !== 'object') return '';
 
-        if ('schoolId' in userProfile) {
-          return (userProfile as User).schoolId || '';
+        const record = userProfile as Record<string, unknown>;
+
+        if (typeof record.schoolId === 'string' && record.schoolId) {
+          return record.schoolId;
+        }
+        if (typeof record._id === 'string' && record._id) {
+          return record._id;
+        }
+        if (typeof record.id === 'string' && record.id) {
+          return record.id;
         }
 
-        if ('data' in userProfile && userProfile.data && typeof userProfile.data === 'object' && 'schoolId' in userProfile.data) {
-          return (userProfile.data as User).schoolId || '';
+        if (record.data && typeof record.data === 'object') {
+          const inner = record.data as Record<string, unknown>;
+          if (typeof inner.schoolId === 'string' && inner.schoolId) return inner.schoolId;
+          if (typeof inner._id === 'string' && inner._id) return inner._id;
+          if (typeof inner.id === 'string' && inner.id) return inner.id;
         }
 
         return '';
@@ -105,9 +118,9 @@ const SecurityPage: React.FC = () => {
 
       const params = new URLSearchParams();
       if (id) params.append('schoolId', id);
-      params.append('schoolName', encodeURIComponent(schoolName));
-      params.append('schoolType', encodeURIComponent(schoolType));
-      if (schoolAddress) params.append('schoolAddress', encodeURIComponent(schoolAddress));
+      if (schoolName) params.append('schoolName', schoolName);
+      if (schoolType) params.append('schoolType', schoolType);
+      if (schoolAddress) params.append('schoolAddress', schoolAddress);
 
       setRegistrationLink(`${window.location.origin}/attendance/security/new?${params.toString()}`);
     } catch (error) {
@@ -206,8 +219,16 @@ const SecurityPage: React.FC = () => {
   }, [registrationLink]);
 
   const handleCreateSecurity = useCallback(() => {
-    if (registrationLink) {
-      window.location.href = registrationLink;
+    if (schoolId) {
+      const params = new URLSearchParams();
+      params.append('schoolId', schoolId);
+      if (schoolProfile?.schoolName) params.append('schoolName', schoolProfile.schoolName);
+      if (schoolProfile?.schoolType) params.append('schoolType', schoolProfile.schoolType);
+
+      navigate(`/attendance/security/new?${params.toString()}`);
+    } else if (registrationLink) {
+      const relativePath = registrationLink.replace(window.location.origin, '');
+      navigate(relativePath);
     } else {
       setSnackbar({
         open: true,
@@ -215,7 +236,7 @@ const SecurityPage: React.FC = () => {
         severity: 'error',
       });
     }
-  }, [registrationLink]);
+  }, [schoolId, schoolProfile, registrationLink, navigate]);
 
   const filteredSecurityUsers = securityUsers.filter((user) => {
     const name = (user.name || '').toLowerCase();

@@ -373,6 +373,7 @@ const TransactionModule: React.FC = () => {
                           <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
                           <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Recipient</th>
                           <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden lg:table-cell">Reference</th>
+                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden xl:table-cell">Txn ID</th>
                           <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                           <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
                         </tr>
@@ -406,6 +407,9 @@ const TransactionModule: React.FC = () => {
                                 <td className="px-3 py-4 whitespace-nowrap text-xs text-gray-400 font-mono hidden lg:table-cell">
                                   {transaction.reference || '—'}
                                 </td>
+                                <td className="px-3 py-4 whitespace-nowrap text-xs text-gray-400 font-mono hidden xl:table-cell">
+                                  {transaction._id || '—'}
+                                </td>
                                 <td className="px-3 py-4 whitespace-nowrap text-sm">
                                   <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(transaction.status)}`}>
                                     {transaction.status}
@@ -425,7 +429,7 @@ const TransactionModule: React.FC = () => {
                           })
                         ) : (
                           <tr>
-                            <td colSpan={7} className="px-3 py-8 text-center text-gray-400">No transactions found</td>
+                            <td colSpan={8} className="px-3 py-8 text-center text-gray-400">No transactions found</td>
                           </tr>
                         )}
                       </tbody>
@@ -471,7 +475,6 @@ const TransactionModule: React.FC = () => {
                 </div>
 
                 <h2 className="text-xl font-bold text-gray-900 tracking-tight">TRANSACTION RECEIPT</h2>
-                <p className="text-xs text-gray-500 font-mono mt-1 uppercase">Ref: {selectedTxn.reference}</p>
               </div>
 
               <div className="py-5 space-y-3">
