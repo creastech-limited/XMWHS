@@ -1,243 +1,43 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
-import {
-  DocumentTextIcon,
-  CalendarIcon,
-  CheckCircleIcon,
-  ExclamationCircleIcon,
-  UserIcon,
-} from '@heroicons/react/24/outline';
+// src/pages/School/ViewStudentTransactions.tsx
+import React from 'react';
+import { DocumentTextIcon } from '@heroicons/react/24/outline';
 import { Header } from '../../components/Header';
 import { Sidebar } from '../../components/Sidebar';
 import Footer from '../../components/Footer';
-import { useAuth } from '../../context/AuthContext';
-
-// Import services
-import { getStudentById, getFeesForStudent } from '../../services';
-
-// Import types
-import type { Student, SchoolFee, Bill, TransactionSummary } from '../../types/student';
-import type { SnackbarState } from '../../types';
+import { LoadingScreen } from '../../components/shared/LoadingScreen';
+import { Snackbar } from '../../components/shared/Snackbar';
+import { useViewStudentTransactions } from '../../hooks/useViewStudentTransactions';
+import StudentHeader from '../../components/student/StudentHeader';
+import TransactionSummaryCards from '../../components/student/TransactionSummaryCards';
+import TransactionList from '../../components/student/TransactionList';
 
 const ViewStudentTransactions: React.FC = () => {
-  const { _id: studentIdFromUrl } = useParams<{ _id: string }>();
-  const [student, setStudent] = useState<(Student & { fullName?: string }) | null>(null);
-  const [bills, setBills] = useState<Bill[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [loadingFees, setLoadingFees] = useState<boolean>(false);
-  const [snackbar, setSnackbar] = useState<SnackbarState>({
-    open: false,
-    message: '',
-    severity: 'success',
-  });
-
-  const auth = useAuth();
-
-  // Show snackbar message
-  const showSnackbar = useCallback(
-    (message: string, severity: SnackbarState['severity'] = 'info') => {
-      setSnackbar({ open: true, message, severity });
-      setTimeout(() => {
-        setSnackbar((prev) => ({ ...prev, open: false }));
-      }, 5000);
-    },
-    [] // Added missing dependency array
-  );
-
-  // Get authentication token
-  const getAuthToken = useCallback((): string => {
-    try {
-      if (auth?.token) {
-        return auth.token;
-      }
-
-      const storedToken = localStorage.getItem('token');
-      if (storedToken) {
-        return storedToken;
-      }
-
-      throw new Error('No authentication token found');
-    } catch (error) {
-      console.error('Token retrieval error:', error);
-      showSnackbar(
-        'Authentication token not found. Please login again.',
-        'error'
-      );
-      return '';
-    }
-  }, [auth?.token, showSnackbar]);
-
-  // Transform fees to bills format
-  const transformFeesToBills = useCallback((fees: SchoolFee[]): Bill[] => {
-    return fees.map((fee) => {
-      const amount = fee.amount || 0;
-      const amountPaid = fee.amountPaid || 0;
-
-      return {
-        id: fee._id,
-        _id: fee._id,
-        feeId: fee.feeId,
-        description: fee.feeType || 'School Fee',
-        amount: amount,
-        amountPaid: amountPaid,
-        // Calculate remaining amount once
-        remainingAmount: amount - amountPaid,
-        dueDate: fee.paymentDate
-          ? new Date(fee.paymentDate).toLocaleDateString()
-          : 'N/A',
-        status: fee.status?.toLowerCase() === 'paid' ? 'paid' : 'unpaid',
-        term: fee.term || 'N/A',
-        session: fee.session || 'N/A',
-        transactionId: fee.transactionId || 'N/A',
-      };
-    });
-  }, []);
-
-  // Load fees for student
-  const loadStudentFees = useCallback(
-    async (studentData: Student) => {
-      try {
-        console.log(`Loading fees for student:`, studentData);
-
-        if (!studentData.email) {
-          console.error('Student email not found');
-          showSnackbar('Student email not found. Cannot fetch fees.', 'error');
-          return;
-        }
-
-        setLoadingFees(true);
-
-        const studentFees = await getFeesForStudent(studentData.email);
-        console.log('Fetched fees for student:', studentFees);
-
-        const transformedBills = transformFeesToBills(studentFees);
-        console.log('Transformed bills:', transformedBills);
-
-        setBills(transformedBills);
-
-        if (transformedBills.length === 0) {
-          showSnackbar(`No fees found for ${studentData.firstName} ${studentData.lastName}`, 'info');
-        } else {
-          showSnackbar(
-            `Loaded ${transformedBills.length} transactions for ${studentData.firstName} ${studentData.lastName}`,
-            'success'
-          );
-        }
-      } catch (error) {
-        console.error('Error loading student fees:', error);
-        showSnackbar('Failed to load student transactions', 'error');
-      } finally {
-        setLoadingFees(false);
-      }
-    },
-    [transformFeesToBills, showSnackbar]
-  );
-
-  // Initialize data
- useEffect(() => {
-  const initializeData = async () => {
-    try {
-      setLoading(true);
-      console.log('Starting data initialization...');
-
-      const authToken = getAuthToken();
-      if (!authToken) {
-        throw new Error('No authentication token found');
-      }
-
-      // Only fetch if we have a student ID in the URL
-      if (studentIdFromUrl) {
-        // Using the getStudentById service function
-        const studentData = await getStudentById(studentIdFromUrl);
-        
-        // Process the student data for display
-        if (studentData) {
-          // Create processed student object with only fields that exist in StudentDetails
-          const processedStudent: Student & { fullName: string } = {
-            _id: studentData._id,
-            name: studentData.name || `${studentData.firstName || ''} ${studentData.lastName || ''}`.trim(),
-            firstName: studentData.firstName || '',
-            lastName: studentData.lastName || '',
-            fullName: studentData.name || `${studentData.firstName || ''} ${studentData.lastName || ''}`.trim(),
-            email: studentData.email || '',
-            phone: studentData.phone || '',
-            status: (studentData.status as 'Active' | 'Inactive' | 'Pending') || 'Pending',
-            // Required Student fields - using available data or defaults
-            student_id: studentData._id, // Use _id as student_id
-            schoolId: '', // Not available in StudentDetails
-            Class: studentData.class || '', // Use class field
-            classAdmittedTo: studentData.academicDetails?.classAdmittedTo || studentData.class || '',
-            academicDetails: studentData.academicDetails || { classAdmittedTo: '' },
-            createdAt: studentData.createdAt || '',
-            updatedAt: '', 
-            registrationDate: '', // Not available in StudentDetails
-            isPinSet: false, // Not available in StudentDetails
-            isFirstLogin: false, // Not available in StudentDetails
-            studentCanTopup: false, // Not available in StudentDetails
-            studentCanTransfer: false, // Not available in StudentDetails
-            studentCanWithdraw: false, // Not available in StudentDetails
-            studentCanPayBill: false, // Not available in StudentDetails
-          };
-          
-          setStudent(processedStudent);
-          await loadStudentFees(processedStudent);
-        } else {
-          showSnackbar('Student not found', 'error');
-        }
-      } else {
-        showSnackbar('No student ID provided', 'error');
-      }
-    } catch (error) {
-      console.error('Data initialization error:', error);
-      showSnackbar('Failed to load data. Please login again.', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Only initialize if we haven't already loaded the student
-  if (!student && studentIdFromUrl) {
-    initializeData();
-  }
-}, [studentIdFromUrl, getAuthToken, loadStudentFees, showSnackbar, student]);
-  // Calculate summary
-  const calculateSummary = (): TransactionSummary => {
-    const total = bills.reduce((sum, bill) => sum + bill.amount, 0);
-    const paid = bills.reduce((sum, bill) => sum + bill.amountPaid, 0);
-
-    return {
-      total,
-      paid,
-      remaining: total - paid,
-    };
-  };
-
-  const summary = calculateSummary();
+  const {
+    student,
+    bills,
+    loading,
+    loadingFees,
+    error,
+    summary,
+    snackbar,
+    closeSnackbar,
+  } = useViewStudentTransactions();
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading student transactions...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen message="Loading student transactions..." />;
   }
 
-  if (!student) {
+  if (error && !student) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <div className="min-h-screen bg-gray-50 flex flex-col">
+        <div className="flex flex-col min-h-screen bg-gray-50">
           <Header PsettingsPage="/settings" />
-
           <div className="flex flex-grow overflow-hidden">
             <Sidebar />
-
             <div className="flex-grow md:ml-64 overflow-y-auto">
               <div className="bg-white rounded-2xl shadow-sm p-8 mb-8">
                 <div className="flex flex-col items-center justify-center py-16">
-                  <UserIcon className="h-16 w-16 text-red-300 mb-4" />
+                  <DocumentTextIcon className="h-16 w-16 text-red-300 mb-4" />
                   <p className="text-gray-500 text-lg">Student not found</p>
                   <p className="text-sm text-gray-400 mt-2">
                     Please check the student ID and try again
@@ -246,8 +46,8 @@ const ViewStudentTransactions: React.FC = () => {
               </div>
             </div>
           </div>
+          <Footer />
         </div>
-        <Footer />
       </div>
     );
   }
@@ -277,166 +77,19 @@ const ViewStudentTransactions: React.FC = () => {
 
             {student && !loadingFees && (
               <>
-                <div className="mb-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center">
-                      <UserIcon className="h-6 w-6 text-indigo-600" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-indigo-900">
-                        {student.name || `${student.firstName} ${student.lastName}`.trim()}
-                      </h3>
-                      <p className="text-sm text-indigo-600">
-                        Class: {student.academicDetails?.classAdmittedTo || student.classAdmittedTo || 'Not Assigned'}
-                      </p>
-                      {student.email && (
-                        <p className="text-xs text-indigo-500">
-                          {student.email}
-                        </p>
-                      )}
-                      {student.status && (
-                        <p className="text-xs text-indigo-400 mt-1">
-                          Status: <span className="capitalize">{student.status.toLowerCase()}</span>
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                  <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-                    <p className="text-sm text-gray-500 mb-1">Total Bills</p>
-                    <p className="text-2xl font-bold text-gray-800">
-                      ₦{summary.total.toLocaleString()}
-                    </p>
-                    <p className="text-sm text-gray-500 mt-2">
-                      {bills.length} transaction(s)
-                    </p>
-                  </div>
-                  <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-                    <p className="text-sm text-gray-500 mb-1">Paid</p>
-                    <p className="text-2xl font-bold text-green-600">
-                      ₦{summary.paid.toLocaleString()}
-                    </p>
-                    <p className="text-sm text-gray-500 mt-2">
-                      {summary.total > 0
-                        ? ((summary.paid / summary.total) * 100).toFixed(0)
-                        : 0}
-                      % of total
-                    </p>
-                  </div>
-                  <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-                    <p className="text-sm text-gray-500 mb-1">Remaining</p>
-                    <p className="text-2xl font-bold text-red-600">
-                      ₦{summary.remaining.toLocaleString()}
-                    </p>
-                    <p className="text-sm text-gray-500 mt-2">
-                      Outstanding balance
-                    </p>
-                  </div>
-                </div>
-
+                <StudentHeader student={student} />
+                <TransactionSummaryCards
+                  summary={summary}
+                  transactionCount={bills.length}
+                />
                 <h2 className="text-xl font-semibold text-gray-800 mb-2">
                   {student.name || `${student.firstName} ${student.lastName}`.trim()}'s Transactions
                 </h2>
                 <hr className="mb-6" />
-
-                {bills.length > 0 ? (
-                  <div className="grid grid-cols-1 gap-6">
-                    {bills.map((bill) => (
-                      <div
-                        key={bill.id}
-                        className={`bg-white rounded-xl shadow-sm p-6 transition-all duration-200 hover:shadow-md
-                            ${bill.status === 'paid' ? 'border-2 border-green-500' : 'border border-gray-100'}`}
-                      >
-                        <div className="flex justify-between items-start mb-4">
-                          <div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <DocumentTextIcon className="h-5 w-5 text-indigo-600" />
-                              <h3 className="text-lg font-semibold text-gray-800">
-                                {bill.description}
-                              </h3>
-                            </div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <CalendarIcon className="h-4 w-4 text-gray-500" />
-                              <p className="text-sm text-gray-500">
-                                {bill.status === 'paid' ? 'Paid on' : 'Due'}:{' '}
-                                {bill.dueDate}
-                              </p>
-                            </div>
-                            <p className="text-xs text-gray-400">
-                              {bill.term} - {bill.session}
-                            </p>
-                          </div>
-                          <span
-                            className={`
-                              px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1
-                              ${
-                                bill.status === 'paid'
-                                  ? 'bg-green-100 text-green-800'
-                                  : 'bg-red-100 text-red-800'
-                              }
-                            `}
-                          >
-                            {bill.status === 'paid' ? (
-                              <>
-                                <CheckCircleIcon className="h-3 w-3" /> Paid
-                              </>
-                            ) : (
-                              <>
-                                <ExclamationCircleIcon className="h-3 w-3" />{' '}
-                                Unpaid
-                              </>
-                            )}
-                          </span>
-                        </div>
-                        <hr className="my-4" />
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <div>
-                            <p className="text-sm text-gray-500">
-                              Total Amount
-                            </p>
-                            <p className="text-lg font-semibold text-gray-800">
-                              ₦{bill.amount.toLocaleString()}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-500">Amount Paid</p>
-                            <p className="text-lg font-semibold text-green-600">
-                              ₦{bill.amountPaid.toLocaleString()}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-500">Remaining</p>
-                            <p className="text-lg font-semibold text-orange-600">
-                              ₦{bill.remainingAmount.toLocaleString()}
-                            </p>
-                          </div>
-                        </div>
-                        {bill.transactionId !== 'N/A' && (
-                          <div className="mt-4">
-                            <p className="text-sm text-gray-500">
-                              Transaction ID
-                            </p>
-                            <p className="text-sm font-mono text-gray-700">
-                              {bill.transactionId}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-16">
-                    <DocumentTextIcon className="h-16 w-16 text-gray-300 mb-4" />
-                    <p className="text-gray-500 text-lg">
-                      No transactions found for {student.name || `${student.firstName} ${student.lastName}`.trim()}
-                    </p>
-                    <p className="text-sm text-gray-400 mt-2">
-                      Transactions will appear here when payments are made
-                    </p>
-                  </div>
-                )}
+                <TransactionList
+                  bills={bills}
+                  studentName={student.name || `${student.firstName} ${student.lastName}`.trim()}
+                />
               </>
             )}
           </div>
@@ -445,36 +98,13 @@ const ViewStudentTransactions: React.FC = () => {
 
       <Footer />
 
-      {snackbar.open && (
-        <div
-          className={`fixed bottom-4 right-4 rounded-lg shadow-lg px-6 py-4 z-50 max-w-md
-          ${
-            snackbar.severity === 'success'
-              ? 'bg-green-500'
-              : snackbar.severity === 'error'
-                ? 'bg-red-500'
-                : snackbar.severity === 'warning'
-                  ? 'bg-yellow-500'
-                  : 'bg-blue-500'
-          } 
-          text-white flex items-center gap-2 animate-slide-in`}
-        >
-          <div className="flex items-center gap-2 flex-1">
-            {snackbar.severity === 'success' ? (
-              <CheckCircleIcon className="h-5 w-5 flex-shrink-0" />
-            ) : (
-              <ExclamationCircleIcon className="h-5 w-5 flex-shrink-0" />
-            )}
-            <p className="text-sm">{snackbar.message}</p>
-          </div>
-          <button
-            onClick={() => setSnackbar({ ...snackbar, open: false })}
-            className="ml-2 text-white hover:text-gray-200 flex-shrink-0 text-lg font-bold"
-          >
-            ×
-          </button>
-        </div>
-      )}
+      <Snackbar
+        open={snackbar.open}
+        message={snackbar.message}
+        severity={snackbar.severity}
+        onClose={closeSnackbar}
+        position="bottom-right"
+      />
     </div>
   );
 };
