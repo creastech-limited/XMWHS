@@ -18,8 +18,8 @@ import {
 import AdminSidebar from '../../components/Adminsidebar';
 import AdminHeader from '../../components/AdminHeader';
 import { getAllUsers,
-  activateUser,
-  deactivateUser } from '../../services';
+  adminActivateUser,
+  adminDeactivateUser } from '../../services';
 import type { UserData } from '../../types'; // Use the imported type
 
 const AllUsers = () => {
@@ -59,9 +59,9 @@ const AllUsers = () => {
     setActionLoading(userId);
 
     if (currentStatus === 'Active') {
-      await deactivateUser(userId);
+      await adminDeactivateUser(userId);
     } else {
-      await activateUser(userId);
+      await adminActivateUser(userId);
     }
 
     await fetchUsers();

@@ -91,7 +91,7 @@ const AgentScanQR: React.FC = () => {
   
   // Use refs for buffer to avoid re-renders
   const accumulatedBufferRef = useRef<string>('');
-  const bufferTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const bufferTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const colors = {
     primary: '#3f51b5',

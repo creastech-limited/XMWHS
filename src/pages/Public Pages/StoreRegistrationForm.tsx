@@ -1,329 +1,43 @@
-import React, { useState, useEffect } from 'react';
-import type { JSX } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
-import { registerStore } from '../../services';
-import type { StoreRegistrationRequest } from '../../types/auth';
+// src/pages/Public Pages/StoreRegistrationForm.tsx
+import React from 'react';
 import { 
   Store, 
-  ArrowRight, 
-  ArrowLeft, 
-  Check, 
   User, 
   Mail, 
   Phone, 
   MapPin, 
-  Lock,
-  Building,
-  AlertCircle,
-  X,
-  EyeOff,
-  Eye,
+  Building
 } from 'lucide-react';
-
+import { useStoreRegistration } from '../../hooks/useStoreRegistration';
+import { FormInput } from '../../components/shared/FormInput';
+import { PasswordInput } from '../../components/shared/PasswordInput';
+import { SelectInput } from '../../components/shared/SelectInput';
+import { Textarea } from '../../components/shared/Textarea';
+import { Stepper } from '../../components/shared/Stepper';
+import { FormNavigation } from '../../components/shared/FormNavigation';
+import { Snackbar } from '../../components/shared/Snackbar';
 import bgImage from '../bg.jpeg';
 
-
-
-// Define steps for the stepper
-const steps = ['Store Information', 'Contact Details', 'Security'];
-
-// Define available locations for the dropdown
-const locations = ['Block A', 'Block B', 'Block C', 'Block D'];
-
-// Define store types
-const storeTypes = ['Cafeteria', 'Bookstore', 'Uniform', 'Supplies'];
-
-// TypeScript interfaces
-interface FormData {
-  firstName: string;
-  lastName: string;
-  storeName: string;
-  storeType: string;
-  email: string;
-  phone: string;
-  location: string;
-  password: string;
-  confirmPassword: string;
-  description: string;
-}
-
-interface GeoLocationState {
-  latitude: number;
-  longitude: number;
-  accuracy: number;
-  address?: string;
-}
-
-interface SnackbarState {
-  open: boolean;
-  message: string;
-  severity: 'success' | 'error' | 'warning' | 'info';
-}
-
-const getCoordinateLabel = (latitude: number, longitude: number) =>
-  `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
-
-const getAddressFromCoordinates = async (latitude: number, longitude: number): Promise<string> => {
-  const response = await fetch(
-    `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
-    {
-      headers: {
-        Accept: 'application/json',
-      },
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error('Unable to resolve address');
-  }
-
-  const data = await response.json() as { display_name?: string; name?: string };
-  return data.display_name || data.name || '';
-};
-
-// Move InputField component outside of the main component to prevent re-renders
-const InputField: React.FC<{
-  label: string;
-  type?: string;
-  name: string;
-  value: string;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  required?: boolean;
-  icon?: React.ReactNode;
-  error?: boolean;
-  helperText?: string;
-  placeholder?: string;
-}> = ({ label, type = "text", name, value, onChange, required = false, icon, error = false, helperText, placeholder }) => (
-  <div className="space-y-2">
-    <label className="block text-sm font-medium text-gray-700">
-      {label} {required && <span className="text-red-500">*</span>}
-    </label>
-    <div className="relative">
-      {icon && (
-        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <div className="text-gray-400">
-            {icon}
-          </div>
-        </div>
-      )}
-      <input
-        type={type}
-        name={name}
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-        className={`w-full px-4 py-3 ${icon ? 'pl-12' : ''} border rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-black placeholder-gray-500 ${
-          error ? 'border-red-300 bg-red-50' : 'border-gray-300 hover:border-gray-400'
-        }`}
-      />
-    </div>
-    {helperText && (
-      <p className={`text-sm ${error ? 'text-red-600' : 'text-gray-500'}`}>
-        {helperText}
-      </p>
-    )}
-  </div>
-);
-
-// Move SelectField component outside
-const SelectField: React.FC<{
-  label: string;
-  name: string;
-  value: string;
-  onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
-  options: Array<string | { value: string; label: string }>;
-  required?: boolean;
-  icon?: React.ReactNode;
-}> = ({ label, name, value, onChange, options, required = false, icon }) => (
-  <div className="space-y-2">
-    <label className="block text-sm font-medium text-gray-700">
-      {label} {required && <span className="text-red-500">*</span>}
-    </label>
-    <div className="relative">
-      {icon && (
-        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <div className="text-gray-400">
-            {icon}
-          </div>
-        </div>
-      )}
-      <select
-        name={name}
-        value={value}
-        onChange={onChange}
-        aria-label={label}
-        className={`w-full px-4 py-3 ${icon ? 'pl-12' : ''} border border-gray-300 rounded-xl bg-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent hover:border-gray-400 text-black`}
-      >
-        <option value="">Select {label}</option>
-        {options.map((option) => {
-          const optionValue = typeof option === 'string' ? option : option.value;
-          const optionLabel = typeof option === 'string' ? option : option.label;
-
-          return (
-            <option key={optionValue} value={optionValue}>
-              {optionLabel}
-            </option>
-          );
-        })}
-      </select>
-    </div>
-  </div>
-);
-
-
-
-// Move TextareaField component outside
-const TextareaField: React.FC<{
-  label: string;
-  name: string;
-  value: string;
-  onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
-  required?: boolean;
-  rows?: number;
-  placeholder?: string;
-}> = ({ label, name, value, onChange, required = false, rows = 4, placeholder }) => (
-  <div className="space-y-2">
-    <label className="block text-sm font-medium text-gray-700">
-      {label} {required && <span className="text-red-500">*</span>}
-    </label>
-    <textarea
-      name={name}
-      value={value}
-      onChange={onChange}
-      rows={rows}
-      placeholder={placeholder}
-      className="w-full px-4 py-3 border border-gray-300 rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent hover:border-gray-400 resize-none text-black placeholder-gray-500"
-    />
-  </div>
-);
-
 const StoreRegistrationForm: React.FC = () => {
-  const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
-  
-  const schoolId = searchParams.get("schoolId")?.trim() || "";
-  const displaySchool = searchParams.get("schoolName") || "";
-  const isStandaloneSchool = schoolId === 'FFZ960384';
+  const {
+    formData,
+    errors,
+    activeStep,
+    isSubmitting,
+    snackbar,
+    showPassword,
+    locations,
+    storeTypes,
+    steps,
+    displaySchool,
+    setShowPassword,
+    handleChange,
+    handleNext,
+    handleBack,
+    closeSnackbar,
+  } = useStoreRegistration();
 
-  const [formData, setFormData] = useState<FormData>({
-    firstName: '',
-    lastName: '',
-    storeName: '',
-    storeType: isStandaloneSchool ? 'Standalone' : '',
-    email: '',
-    phone: '',
-    location: '',
-    password: '',
-    confirmPassword: '',
-    description: ''
-  });
-
-  const [activeStep, setActiveStep] = useState<number>(0);
-  const [snackbar, setSnackbar] = useState<SnackbarState>({ 
-    open: false, 
-    message: '', 
-    severity: 'success' 
-  });
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [showPassword, setShowPassword] = useState<boolean>(false);
-  const [geoLocation, setGeoLocation] = useState<GeoLocationState | null>(null);
-  const [isFetchingLocation, setIsFetchingLocation] = useState<boolean>(false);
-
-  // If this registration is for the FFZ960384 school, force store type to 'Standalone'
-  useEffect(() => {
-    if (schoolId === 'FFZ960384' && formData.storeType !== 'Standalone') {
-      setFormData(prev => ({ ...prev, storeType: 'Standalone' }));
-    }
-  }, [schoolId, formData.storeType]);
-
-  // Provide store type options depending on schoolId
-  const availableStoreTypes = isStandaloneSchool ? ['Standalone'] : storeTypes;
-  const geoLocationValue = geoLocation
-    ? geoLocation.address || getCoordinateLabel(geoLocation.latitude, geoLocation.longitude)
-    : '';
-  const locationOptions = geoLocation
-    ? [
-        ...locations,
-        {
-          value: geoLocationValue,
-          label: geoLocation.address
-            ? `Current address: ${geoLocation.address}`
-            : `Current GPS location (${geoLocation.latitude.toFixed(5)}, ${geoLocation.longitude.toFixed(5)})`
-        }
-      ]
-    : locations;
-
-  const handleChange = (field: keyof FormData) => (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    if (field === 'storeType' && isStandaloneSchool) {
-      return;
-    }
-
-    if (field === 'location' && event.target.value !== geoLocationValue) {
-      setGeoLocation(null);
-    }
-
-    setFormData({ ...formData, [field]: event.target.value });
-  };
-
-  const handleUseCurrentLocation = () => {
-    if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
-      setSnackbar({
-        open: true,
-        message: 'Geolocation is not supported on this browser.',
-        severity: 'error'
-      });
-      return;
-    }
-
-    setIsFetchingLocation(true);
-
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude, accuracy } = position.coords;
-        const coordinateLabel = getCoordinateLabel(latitude, longitude);
-        let locationValue = coordinateLabel;
-        let resolvedAddress = '';
-
-        try {
-          resolvedAddress = await getAddressFromCoordinates(latitude, longitude);
-          if (resolvedAddress) {
-            locationValue = resolvedAddress;
-          }
-        } catch (addressError) {
-          console.error('Reverse geocoding failed:', addressError);
-        }
-
-        setGeoLocation({ latitude, longitude, accuracy, address: resolvedAddress || undefined });
-        setFormData((prev) => ({ ...prev, location: locationValue }));
-        setSnackbar({
-          open: true,
-          message: resolvedAddress
-            ? 'Current address captured.'
-            : `Location captured: ${coordinateLabel}. Address lookup was unavailable.`,
-          severity: resolvedAddress ? 'success' : 'warning'
-        });
-        setIsFetchingLocation(false);
-      },
-      (error) => {
-        const message = error.code === error.PERMISSION_DENIED
-          ? 'Location access was denied. You can still select a location manually.'
-          : 'Unable to capture your current location right now. Please try again or enter a location manually.';
-
-        setSnackbar({
-          open: true,
-          message,
-          severity: 'error'
-        });
-        setIsFetchingLocation(false);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 20000,
-        maximumAge: 0,
-      }
-    );
-  };
-
+  // Check if current step is valid
   const isStepValid = (): boolean => {
     switch (activeStep) {
       case 0:
@@ -337,195 +51,72 @@ const StoreRegistrationForm: React.FC = () => {
     }
   };
 
-  const handleNext = (e: React.FormEvent) => { 
-    e.preventDefault();
-    if (activeStep === steps.length - 1) {
-      handleSubmit(e);
-    } else {
-      setActiveStep(activeStep + 1);
-    }
-  };
-
-  const handleBack = () => {
-    setActiveStep(activeStep - 1);
-  };
-
-  
-
-  const handleSubmit = async (e: React.FormEvent) => {
-      e.preventDefault();
-    if (formData.password !== formData.confirmPassword) {
-      setSnackbar({
-        open: true,
-        message: 'Passwords do not match!',
-        severity: 'error'
-      });
-      return;
-    }
- // Check for weak password
-  // Example: at least 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char
-  const weakPassword =
-    formData.password.length < 8 ||
-    !/[A-Z]/.test(formData.password) ||
-    !/[a-z]/.test(formData.password) ||
-    !/[0-9]/.test(formData.password) ||
-    !/[!@#$%^&*()_+=-]/.test(formData.password);
-
-  if (weakPassword) {
-    setSnackbar({
-      open: true,
-      message: 'Password must be at least 8 characters and include uppercase, lowercase, a number, and a special character.',
-      severity: 'error'
-    });
-    return;
-  }
-
-  setIsSubmitting(true);
-
- 
-
-  try {
-    const registrationData: StoreRegistrationRequest = {
-      firstName: formData.firstName,
-      lastName: formData.lastName,
-      email: formData.email,
-      password: formData.password,
-      role: "store",
-      storeName: formData.storeName,
-      storeType: isStandaloneSchool ? 'Standalone' : formData.storeType,
-      phone: formData.phone,
-      location: formData.location,
-      latitude: geoLocation?.latitude,
-      longitude: geoLocation?.longitude,
-      gpsAccuracy: geoLocation?.accuracy,
-      geoAddress: geoLocation?.address,
-      geoTagged: !!geoLocation,
-      description: formData.description,
-      schoolId: schoolId,
-      schoolName: displaySchool,
-      school: schoolId,
-      isStandAlone:true
-    };
-
-    // Debug: log the exact payload before sending
-    try {
-      console.log('StoreRegistrationForm: submitting payload', registrationData);
-    } catch {
-      // ignore console errors
-    }
-
-    const result = await registerStore(registrationData);
-
- if (result.user || result.message === 'Registration successful') {
-    setSnackbar({
-      open: true,
-      message: result.message || `Store "${formData.storeName}" registered successfully!`,
-      severity: "success"
-    });
-    
-    setFormData({
-      firstName: '',
-      lastName: '',
-      storeName: '',
-      storeType: '',
-      email: '',
-      phone: '',
-      location: '',
-      password: '',
-      confirmPassword: '',
-      description: ''
-    });
-    setGeoLocation(null);
-     setTimeout(() => {
-        navigate('/login', { replace: true });
-      }, 800);
-
-      return;
-   
-  } else {
-    setSnackbar({
-      open: true,
-      message: result.message || "Registration failed",
-      severity: "error"
-    });
-  }
-} catch (error) {
-  console.error("Error during registration:", error);
-  const errorMessage = error instanceof Error && 'response' in error 
-    ? (((error as Record<string, unknown>).response as Record<string, unknown>)?.data as Record<string, unknown>)?.message as string
-    : "Network error. Please check your connection and try again.";
-  setSnackbar({
-    open: true,
-    message: (errorMessage as string) || "Network error. Please check your connection and try again.",
-    severity: "error"
-  });
-} finally {
-  setIsSubmitting(false);
-}
-  };
-
-  const getStepContent = (step: number): JSX.Element => {
+  // Get step content
+  const getStepContent = (step: number): React.ReactNode => {
     switch (step) {
       case 0:
         return (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <InputField
+              <FormInput
                 label="First Name"
+                type="text"
                 name="firstName"
                 value={formData.firstName}
                 onChange={handleChange('firstName')}
                 required
                 icon={<User size={20} />}
                 placeholder="Enter your first name"
+                error={errors.firstName}
               />
-              <InputField
+              <FormInput
                 label="Last Name"
+                type="text"
                 name="lastName"
                 value={formData.lastName}
                 onChange={handleChange('lastName')}
                 required
                 icon={<User size={20} />}
                 placeholder="Enter your last name"
+                error={errors.lastName}
               />
             </div>
-            <InputField
+            <FormInput
               label="Store Name"
+              type="text"
               name="storeName"
               value={formData.storeName}
               onChange={handleChange('storeName')}
               required
               icon={<Store size={20} />}
               placeholder="Enter your store name"
+              error={errors.storeName}
             />
-            <SelectField
+            <SelectInput
               label="Store Type"
               name="storeType"
               value={formData.storeType}
               onChange={handleChange('storeType')}
-              options={availableStoreTypes}
+              options={storeTypes.map(type => ({ value: type, label: type }))}
               required
               icon={<Building size={20} />}
+              error={errors.storeType}
             />
-            {isStandaloneSchool && (
-              <p className="text-sm text-purple-700 mt-1">
-                Store type is set to Standalone for this school.
-              </p>
-            )}
-            <TextareaField
+            <Textarea
               label="Store Description"
               name="description"
               value={formData.description}
               onChange={handleChange('description')}
               required
               placeholder="Describe your store and what products/services you offer..."
+              error={errors.description}
             />
           </div>
         );
       case 1:
         return (
           <div className="space-y-6">
-            <InputField
+            <FormInput
               label="Email Address"
               type="email"
               name="email"
@@ -534,8 +125,9 @@ const StoreRegistrationForm: React.FC = () => {
               required
               icon={<Mail size={20} />}
               placeholder="Enter your email address"
+              error={errors.email}
             />
-            <InputField
+            <FormInput
               label="Phone Number"
               type="tel"
               name="phone"
@@ -544,92 +136,65 @@ const StoreRegistrationForm: React.FC = () => {
               required
               icon={<Phone size={20} />}
               placeholder="Enter your phone number"
+              error={errors.phone}
             />
-            <div className="space-y-3">
-              <SelectField
-                label="Store Location"
-                name="location"
-                value={formData.location}
-                onChange={handleChange('location')}
-                options={locationOptions}
-                required
-                icon={<MapPin size={20} />}
-              />
-
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <button
-                  type="button"
-                  onClick={handleUseCurrentLocation}
-                  disabled={isFetchingLocation}
-                  className={`inline-flex items-center justify-center rounded-xl border px-4 py-2 text-sm font-medium transition-all duration-200 ${
-                    isFetchingLocation
-                      ? 'cursor-not-allowed border-indigo-200 bg-indigo-100 text-indigo-700'
-                      : 'border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
-                  }`}
-                >
-                  <MapPin size={16} className="mr-2" />
-                  {isFetchingLocation ? 'Capturing location...' : 'Use my current location'}
-                </button>
-
-                {geoLocation && (
-                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 sm:max-w-md">
-                    <div className="font-semibold">Geo-tagged address</div>
-                    <div className="mt-1 text-emerald-700">
-                      {geoLocation.address || 'Address lookup unavailable'}
-                    </div>
-                    <div className="mt-1 text-xs text-emerald-600">
-                      {geoLocation.latitude.toFixed(5)}, {geoLocation.longitude.toFixed(5)}
-                      {' '}+/- {Math.round(geoLocation.accuracy)}m
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+            <SelectInput
+              label="Store Location"
+              name="location"
+              value={formData.location}
+              onChange={handleChange('location')}
+              options={locations.map(loc => ({ value: loc, label: loc }))}
+              required
+              icon={<MapPin size={20} />}
+              error={errors.location}
+            />
           </div>
         );
       case 2:
         return (
-            <div className="space-y-6">
-            <div className="relative">
-              <InputField
+          <div className="space-y-6">
+            <PasswordInput
               label="Password"
-              type={showPassword ? 'text' : 'password'}
               name="password"
               value={formData.password}
-              onChange={handleChange('password')}
-              required
-              icon={<Lock size={20} />}
-              helperText="Password must be at least 8 characters"
+              onChange={(value) => {
+                const event = {
+                  target: { name: 'password', value }
+                } as React.ChangeEvent<HTMLInputElement>;
+                handleChange('password')(event);
+              }}
               placeholder="Create a secure password"
-              />
-              <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-13 transform -translate-y-1/2 text-gray-500 hover:text-indigo-700 focus:outline-none transition-colors duration-200"
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
-              tabIndex={-1}
-              >
-              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
-            </div>
-            <InputField
+              error={errors.password}
+              showPassword={showPassword}
+              onToggleShow={() => setShowPassword(!showPassword)}
+              helperText="Password must be at least 8 characters with uppercase, lowercase, number, and special character"
+              required
+            />
+            <PasswordInput
               label="Confirm Password"
-              type={showPassword ? 'text' : 'password'}
               name="confirmPassword"
               value={formData.confirmPassword}
-              onChange={handleChange('confirmPassword')}
-              required
-              icon={<Lock size={20} />}
-              error={formData.password !== formData.confirmPassword && formData.confirmPassword !== ''}
-              helperText={formData.password !== formData.confirmPassword && formData.confirmPassword !== '' ? "Passwords don't match" : 'Re-enter your password to confirm'}
+              onChange={(value) => {
+                const event = {
+                  target: { name: 'confirmPassword', value }
+                } as React.ChangeEvent<HTMLInputElement>;
+                handleChange('confirmPassword')(event);
+              }}
               placeholder="Confirm your password"
+              error={errors.confirmPassword}
+              showPassword={showPassword}
+              onToggleShow={() => setShowPassword(!showPassword)}
+              helperText={formData.password !== formData.confirmPassword && formData.confirmPassword ? "Passwords don't match" : 'Re-enter your password to confirm'}
+              required
             />
-            </div>
+          </div>
         );
       default:
         return <div>Unknown step</div>;
     }
   };
+
+  const stepConfig = steps.map(label => ({ label }));
 
   return (
     <div 
@@ -638,10 +203,6 @@ const StoreRegistrationForm: React.FC = () => {
         backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url(${bgImage})`
       }}
     >
-      {/* Background Overlay */}
-      <div className="absolute inset-0 bg-black bg-opacity-50"></div>
-      
-      {/* Main Content */}
       <div className="relative z-10 w-full max-w-4xl">
         <div className="bg-white bg-opacity-95 backdrop-blur-lg rounded-3xl shadow-2xl p-8">
           {/* Header */}
@@ -662,104 +223,40 @@ const StoreRegistrationForm: React.FC = () => {
             )}
           </div>
 
-          {/* Progress Stepper */}
-          <div className="mb-12">
-            <div className="flex items-center justify-center space-x-8">
-              {steps.map((step, index) => (
-                <div key={step} className="flex items-center">
-                  <div className={`flex items-center justify-center w-12 h-12 rounded-full border-2 transition-all duration-300 ${
-                    index <= activeStep 
-                      ? 'bg-indigo-600 border-indigo-600 text-white' 
-                      : 'border-gray-300 text-gray-400'
-                  }`}>
-                    {index < activeStep ? (
-                      <Check size={20} />
-                    ) : (
-                      <span className="text-sm font-semibold">{index + 1}</span>
-                    )}
-                  </div>
-                  <div className="ml-4 hidden sm:block">
-                    <p className={`text-sm font-medium transition-colors duration-300 ${
-                      index <= activeStep ? 'text-indigo-600' : 'text-gray-400'
-                    }`}>
-                      {step}
-                    </p>
-                  </div>
-                  {index < steps.length - 1 && (
-                    <div className={`hidden md:block w-24 h-1 mx-8 rounded transition-colors duration-300 ${
-                      index < activeStep ? 'bg-indigo-600' : 'bg-gray-200'
-                    }`} />
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
+          {/* Stepper */}
+          <Stepper
+            steps={stepConfig}
+            activeStep={activeStep}
+          />
 
           {/* Form Content */}
           <div className="bg-gray-50 rounded-2xl p-8 mb-8">
             {getStepContent(activeStep)}
           </div>
 
-          {/* Navigation Buttons */}
-          <div className="flex justify-between items-center">
-            <button
-              onClick={handleBack}
-              disabled={activeStep === 0 || isSubmitting}
-              className={`flex items-center space-x-2 px-6 py-3 rounded-xl font-medium transition-all duration-200 ${
-                activeStep === 0 || isSubmitting
-                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300 hover:shadow-md'
-              }`}
-            >
-              <ArrowLeft size={20} />
-              <span>Back</span>
-            </button>
-
-            <button
-              onClick={handleNext}
-              disabled={!isStepValid() || isSubmitting}
-              className={`flex items-center space-x-2 px-8 py-3 rounded-xl font-medium transition-all duration-200 ${
-                !isStepValid() || isSubmitting
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 hover:shadow-lg transform hover:-translate-y-0.5'
-              }`}
-            >
-              <span>
-                {isSubmitting 
-                  ? 'Processing...' 
-                  : (activeStep === steps.length - 1 ? 'Complete Registration' : 'Next')
-                }
-              </span>
-              {activeStep === steps.length - 1 ? <Check size={20} /> : <ArrowRight size={20} />}
-            </button>
-          </div>
+          {/* Navigation */}
+          <FormNavigation
+            activeStep={activeStep}
+            totalSteps={steps.length}
+            isSubmitting={isSubmitting}
+            isValid={isStepValid()}
+            onBack={handleBack}
+            onNext={handleNext}
+            nextLabel="Next"
+            backLabel="Back"
+            submitLabel="Complete Registration"
+          />
         </div>
       </div>
 
-      {/* Custom Snackbar */}
-      {snackbar.open && (
-        <div className="fixed top-4 right-4 z-50">
-          <div className={`flex items-center space-x-3 px-6 py-4 rounded-xl shadow-lg transition-all duration-300 ${
-            snackbar.severity === 'success' 
-              ? 'bg-green-500 text-white' 
-              : snackbar.severity === 'error'
-              ? 'bg-red-500 text-white'
-              : 'bg-blue-500 text-white'
-          }`}>
-            {snackbar.severity === 'error' && <AlertCircle size={20} />}
-            {snackbar.severity === 'success' && <Check size={20} />}
-            <span className="font-medium">{snackbar.message}</span>
-            <button
-              onClick={() => setSnackbar({ ...snackbar, open: false })}
-              className="ml-2 hover:bg-black hover:bg-opacity-20 rounded-full p-1 transition-colors duration-200"
-              aria-label="Close notification"
-              title="Close notification"
-            >
-              <X size={16} />
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Snackbar */}
+      <Snackbar
+        open={snackbar.open}
+        message={snackbar.message}
+        severity={snackbar.severity}
+        onClose={closeSnackbar}
+        position="top-right"
+      />
     </div>
   );
 };

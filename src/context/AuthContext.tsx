@@ -249,19 +249,3 @@ export const useAuth = (): AuthContextType => {
   }
   return context;
 };
-
-// Helper hook for role-based access control
-export const useRoleAccess = (allowedRoles: string[]) => {
-  const { user } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  useEffect(() => {
-    if (user && !allowedRoles.includes(user.role)) {
-      const roleRoute = ROLE_ROUTES[user.role] || '/';
-      navigate(roleRoute);
-    }
-  }, [user, allowedRoles, navigate, location.pathname]);
-
-  return { hasAccess: user ? allowedRoles.includes(user.role) : false };
-};

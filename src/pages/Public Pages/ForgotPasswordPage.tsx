@@ -1,81 +1,24 @@
-import React, { useState } from 'react';
-import type { FormEvent } from 'react';
-import type { AxiosError } from 'axios';
-import { useNavigate, Link as RouterLink } from 'react-router-dom';
-import { AlertCircle, Mail } from 'lucide-react';
-import { forgotPassword } from '../../services';
+import React from 'react';
+import { Link as RouterLink } from 'react-router-dom';
+import { Mail } from 'lucide-react';
+import { useForgotPassword } from '../../hooks/useForgotPassword';
+import { FormInput } from '../../components/shared/FormInput';
+import { SubmitButton } from '../../components/shared/SubmitButton';
+import { ErrorAlert } from '../../components/shared/ErrorAlert';
+import { SuccessAlert } from '../../components/shared/SuccessAlert';
 import logo from '../5.png';
 import bgImage from '../bg.jpeg';
 
 const ForgotPasswordPage: React.FC = () => {
-  const [email, setEmail] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [message, setMessage] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
-  const [formError, setFormError] = useState('');
-
-  const navigate = useNavigate();
-
-  const validateForm = () => {
-    if (!email) {
-      setFormError('Email is required');
-      return false;
-    } else if (!/\S+@\S+\.\S+/.test(email)) {
-      setFormError('Please enter a valid email address');
-      return false;
-    }
-    setFormError('');
-    return true;
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setEmail(e.target.value);
-    
-    // Clear error when user starts typing
-    if (formError) {
-      setFormError('');
-    }
-    if (errorMessage) {
-      setErrorMessage('');
-    }
-    if (message) {
-      setMessage('');
-    }
-  };
-
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    
-    if (!validateForm()) {
-      return;
-    }
-    
-    setIsLoading(true);
-    setErrorMessage('');
-    setMessage('');
-
-  try {
-  const data = await forgotPassword(email);
-  
-  // Assuming your API returns success: true on success
-  if (data.success) {
-    setMessage(data.message || 'Password reset link has been sent to your email!');
-    setEmail('');
-    setTimeout(() => {
-      navigate('/login');
-    }, 3000);
-  } else {
-    setErrorMessage(data.message || 'Failed to send reset link. Please try again.');
-  }
-}  catch (error) {
-  const axiosError = error as AxiosError<{ message: string }>;
-  console.error('Forgot password error:', error);
-  setErrorMessage(axiosError.response?.data?.message || 'Network error. Please check your connection and try again.');
-} finally {
-  setIsLoading(false);
-}
-  };
-
+  const {
+    email,
+    isLoading,
+    message,
+    errorMessage,
+    formError,
+    handleChange,
+    handleSubmit
+  } = useForgotPassword();
 
   return (
     <div
@@ -85,6 +28,7 @@ const ForgotPasswordPage: React.FC = () => {
       <div className="absolute inset-0 bg-gradient-to-r from-black/70 to-indigo-900/60 z-0" />
 
       <div className="z-10 w-full max-w-md p-8 bg-white bg-opacity-95 rounded-xl shadow-2xl backdrop-blur-md transition-all duration-300 hover:shadow-indigo-200">
+        {/* Header */}
         <div className="flex flex-col items-center">
           <div className="w-28 h-28 rounded-full bg-white flex items-center justify-center shadow-lg mb-6 border-4 border-indigo-100">
             <img src={logo} alt="Logo" className="w-20 h-20 object-contain" />
@@ -95,63 +39,31 @@ const ForgotPasswordPage: React.FC = () => {
           </p>
         </div>
 
-        {errorMessage && (
-          <div className="bg-red-50 text-red-700 px-4 py-3 rounded-lg mb-6 flex items-center gap-2 border border-red-200">
-            <AlertCircle size={18} />
-            <span>{errorMessage}</span>
-          </div>
-        )}
+        {/* Alerts */}
+        <ErrorAlert message={errorMessage} />
+        <SuccessAlert message={message} />
 
-        {message && (
-          <div className="bg-green-50 text-green-700 px-4 py-3 rounded-lg mb-6 flex items-center gap-2 border border-green-200">
-            <AlertCircle size={18} />
-            <span>{message}</span>
-          </div>
-        )}
-
+        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-5">
-          <div className="space-y-1">
-            <div className="relative">
-              <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
-                <Mail size={18} />
-              </div>
-              <input
-                type="email"
-                name="email"
-                value={email}
-                onChange={handleChange}
-                placeholder="Email address"
-                className={`w-full pl-10 pr-4 py-3 border ${
-                  formError ? 'border-red-500' : 'border-gray-300'
-                } rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-200 text-black`}
-                aria-describedby="email-error"
-                disabled={isLoading}
-              />
-            </div>
-            {formError && (
-              <p id="email-error" className="text-red-600 text-sm ml-1">{formError}</p>
-            )}
-          </div>
+          <FormInput
+            type="email"
+            name="email"
+            value={email}
+            onChange={handleChange}
+            placeholder="Email address"
+            error={formError}
+            icon={<Mail size={18} />}
+            className={isLoading ? 'opacity-70' : ''}
+          />
 
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full bg-indigo-900 text-white py-3 px-4 rounded-lg hover:bg-indigo-800 focus:ring-4 focus:ring-indigo-300 focus:outline-none transition transform hover:-translate-y-1 shadow-lg disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none"
-          >
-            {isLoading ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Sending...
-              </span>
-            ) : (
-              'Send Reset Link'
-            )}
-          </button>
+          <SubmitButton
+            isLoading={isLoading}
+            loadingText="Sending..."
+            defaultText="Send Reset Link"
+          />
         </form>
 
+        {/* Back to Login */}
         <div className="mt-6 text-center">
           <RouterLink
             to="/login"

@@ -28,12 +28,12 @@ import type {
   UpdatePinPayload,
   SetPinPayload,
   NotificationPreferences,
-
   UserData,
   WalletResponse,
   TransferResponse,
 } from '../../types/user';
 import axios from 'axios';
+
 
 // Get user details
 export const getUserDetails = async (): Promise<UserResponse> => {
@@ -134,6 +134,8 @@ export const activateStore = async (storeId: string): Promise<{ message: string;
   const response = await apiClient.put<{ message: string; status?: string }>(`/api/users/active/${storeId}`);
   return response.data;
 };
+
+
 
 // Deactivate store
 export const deactivateStore = async (storeId: string): Promise<{ message: string; status?: string }> => {
@@ -971,5 +973,23 @@ export const removeBeneficiary = async (studentId: string) => {
 
 export const verifyPinOtp = async (otp: string, newPin: string) => {
   const response = await apiClient.post('/api/pin/verifyotp', { otp, newPin });
+  return response.data;
+};
+
+//Admin Activate user
+export const adminActivateUser = async (userId: string): Promise<{ message: string; status?: string }> => {
+  const response = await apiClient.patch<{ message: string; status?: string }>(`/api/admin/v1/activate-user/${userId}`);
+  return response.data;
+};
+
+//Admin Deactivate user
+export const adminDeactivateUser = async (userId: string): Promise<{ message: string; status?: string }> => {
+  const response = await apiClient.patch<{ message: string; status?: string }>(`/api/admin/v1/deactivate-user/${userId}`);
+  return response.data;
+};
+
+//Admin Update user
+export const adminUpdateUser = async (userId: string): Promise<{ message: string; status?: string }> => {
+  const response = await apiClient.put<{ message: string; status?: string }>(`/api/admin/v1/updateusers/${userId}`);
   return response.data;
 };
