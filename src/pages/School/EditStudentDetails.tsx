@@ -1,288 +1,50 @@
+// src/pages/School/EditStudentDetails.tsx
 import React from 'react';
+import { UsersIcon } from 'lucide-react';
 import { Header } from '../../components/Header';
 import { Sidebar } from '../../components/Sidebar';
 import Footer from '../../components/Footer';
-import { UsersIcon } from 'lucide-react';
-import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../../context/AuthContext';
-import { useParams } from 'react-router-dom';
+import { LoadingScreen } from '../../components/shared/LoadingScreen';
+import { ErrorDisplay } from '../../components/shared/ErrorDisplay';
+import { useEditStudent } from '../../hooks/useEditStudent';
+import StudentEditForm from '../../components/student/StudentEditForm';
 
-// Import services
-import { getStudentById, updateStudentProfile } from '../../services';
+const EditStudentDetails: React.FC = () => {
+  const {
+    user,
+    profile,
+    fetchLoading,
+    isLoading,
+    error,
+    // Remove _id from destructuring since it's not used
+    handleProfileChange,
+    handleProfileUpdate,
+    handleRetry,
+  } = useEditStudent();
 
-// Import types
-import type { StudentDetails, StudentProfileFormData } from '../../types/student';
-import type { User } from '../../types/user';
-
-const EditStudentDetails = () => {
-  const auth = useAuth();
-  const { _id } = useParams<{ _id: string }>();
-
-  // State management
-  const [user, setUser] = useState<StudentDetails | null>(null);
-  const [fetchLoading, setFetchLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-
-  // Profile State
-  const [profile, setProfile] = useState<StudentProfileFormData>({
-    name: '',
-    email: '',
-    phone: '',
-    class: '',
-    address: '',
-  });
-
-  // Handle fetch errors
-  const handleFetchError = useCallback((error: unknown) => {
-    if (error instanceof Error) {
-      const errorMessage = error.message;
-
-      if (errorMessage.includes('401') || errorMessage.includes('unauthorized')) {
-        setError('Session expired. Please login again.');
-        auth?.logout?.();
-        localStorage.removeItem('token');
-      } else if (errorMessage.includes('404')) {
-        setError('Student not found. The student may have been deleted or the ID is invalid.');
-      } else if (errorMessage.includes('403')) {
-        setError('Access denied. You do not have permission to view this student.');
-      } else if (errorMessage.includes('Invalid response structure')) {
-        setError('Server returned an unexpected response format.');
-      } else {
-        setError(errorMessage || 'Failed to fetch student data');
-      }
-    } else {
-      setError('An unexpected error occurred while fetching student data');
-    }
-  }, [auth]);
-
-  // Get token from auth context or localStorage
-  const getAuthToken = useCallback(() => {
-    return auth?.token || localStorage.getItem('token');
-  }, [auth?.token]);
-
-  // Fetch student data
-  const fetchStudentData = useCallback(async () => {
-    if (!_id) {
-      setError('Student ID is missing from URL parameters');
-      setFetchLoading(false);
-      return;
-    }
-
-    const token = getAuthToken();
-    if (!token) {
-      setError('Authentication required. Please login to continue.');
-      setFetchLoading(false);
-      return;
-    }
-
-    try {
-      setFetchLoading(true);
-      setError(null);
-
-      const studentData = await getStudentById(_id);
-
-      setUser(studentData);
-      setProfile({
-        name: studentData.name || `${studentData.firstName || ''} ${studentData.lastName || ''}`.trim(),
-        class: studentData.academicDetails?.classAdmittedTo || studentData.class || '',
-        email: studentData.email || '',
-        phone: studentData.phone || '',
-        address: studentData.address || '',
-      });
-
-    } catch (error: unknown) {
-      handleFetchError(error);
-    } finally {
-      setFetchLoading(false);
-    }
-  }, [_id, getAuthToken, handleFetchError]);
-
-  // Main initialization effect
-  useEffect(() => {
-    fetchStudentData();
-  }, [fetchStudentData]);
-
-  // Profile Update Handler
-  const handleProfileUpdate = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!_id) {
-      setError('Missing student ID');
-      return;
-    }
-
-    const token = getAuthToken();
-    if (!token) {
-      setError('Authentication required. Please login to continue.');
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    // Enhanced validation
-    const trimmedProfile: StudentProfileFormData = {
-      name: profile.name.trim(),
-      email: profile.email.trim(),
-      phone: profile.phone.trim(),
-      address: profile.address.trim(),
-      class: profile.class.trim(),
-    };
-
-    if (!trimmedProfile.name) {
-      setError('Name is required');
-      setIsLoading(false);
-      return;
-    }
-
-    if (!trimmedProfile.email) {
-      setError('Email is required');
-      setIsLoading(false);
-      return;
-    }
-
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(trimmedProfile.email)) {
-      setError('Please enter a valid email address');
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      const result = await updateStudentProfile(_id, trimmedProfile);
-
-      if (result.message) {
-        // Update local state with returned data if available
-        if (result.data) {
-          setUser(result.data);
-        } else {
-          // Update with form data if no data returned
-          const updatedData = { ...user, ...trimmedProfile } as StudentDetails;
-          setUser(updatedData);
-        }
-        setProfile(trimmedProfile);
-
-        // Update auth context if editing current user
-        if (auth?.user?._id === _id) {
-            const updatedUserData = result.data || { ...user, ...trimmedProfile };
-  
-           const userWithRole: User = {
-    ...auth.user,
-    _id: _id,
-    name: updatedUserData.name || '',
-    email: updatedUserData.email || '',
-    role: user?.role ?? 'student',
-    status: user?.status || 'Active',
-    createdAt: user?.createdAt || new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    firstName: user?.firstName,
-    lastName: user?.lastName,
-    phone: updatedUserData.phone,
-  };
-  
-  auth?.login?.(userWithRole, token);
-}
-        
-        alert('Profile updated successfully!');
-      }
-    } catch (error: unknown) {
-      handleUpdateError(error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Handle update errors
-  const handleUpdateError = (error: unknown) => {
-    if (error instanceof Error) {
-      const errorMessage = error.message;
-
-      if (errorMessage.includes('401') || errorMessage.includes('unauthorized')) {
-        setError('Session expired. Please login again.');
-        auth?.logout?.();
-        localStorage.removeItem('token');
-      } else if (errorMessage.includes('404')) {
-        setError('Student not found. Unable to update profile.');
-      } else if (errorMessage.includes('403')) {
-        setError('Access denied. You do not have permission to update this student.');
-      } else {
-        setError(errorMessage || 'Failed to update profile');
-      }
-    } else {
-      setError('An unexpected error occurred while updating profile');
-    }
-  };
-
-  // Retry function for failed requests
-  const handleRetry = () => {
-    fetchStudentData();
-  };
-
-  // Loading state component
   if (fetchLoading) {
-    return (
-      <div className="overflow-hidden flex flex-col min-h-screen bg-gray-50">
-    <Header PsettingsPage="/settings" />
-        <div className="flex flex-grow">
-          <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-64 bg-none">
-            <Sidebar />
-          </aside>
-          <main className="flex-1 p-4 md:p-6 overflow-hidden md:ml-64">
-            <div className="flex justify-center items-center h-64">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-              <p className="ml-4 text-gray-600">Loading student data...</p>
-            </div>
-          </main>
-        </div>
-        <Footer />
-      </div>
-    );
+    return <LoadingScreen message="Loading student data..." />;
   }
 
-  // Error state component
   if (error && !user) {
     return (
-      <div className="flex flex-col min-h-screen bg-gray-50">
-        <Header PsettingsPage="/settings" />
-        <div className="flex flex-grow">
-          <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-64 bg-none">
-            <Sidebar />
-          </aside>
-          <main className="flex-1 p-4 md:p-6 overflow-hidden md:ml-64">
-            <div className="flex flex-col justify-center items-center h-64">
-              <div className="text-red-500 text-center max-w-md">
-                <p className="text-lg font-semibold mb-2">Error Loading Student Data</p>
-                <p className="text-sm mb-4">{error}</p>
-                {error.includes('Session expired') || error.includes('Authentication required') ? (
-                  <button
-                    onClick={() => window.location.href = '/login'}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-                  >
-                    Go to Login
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleRetry}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-                  >
-                    Retry
-                  </button>
-                )}
-              </div>
-            </div>
-          </main>
-        </div>
-        <Footer />
-      </div>
+      <ErrorDisplay
+        title="Error Loading Student Data"
+        message={error}
+        onRetry={error.includes('Session expired') || error.includes('Authentication required') 
+          ? undefined 
+          : handleRetry}
+        onLogin={error.includes('Session expired') || error.includes('Authentication required')
+          ? () => window.location.href = '/login'
+          : undefined}
+      />
     );
   }
 
   return (
     <div className="overflow-hidden flex flex-col min-h-screen bg-gray-50">
       <Header PsettingsPage="/settings" />
-   
+      
       <div className="flex flex-grow">
         <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-64 bg-none">
           <Sidebar />
@@ -308,136 +70,17 @@ const EditStudentDetails = () => {
 
                   {user ? (
                     <div className="px-5 pb-8">
-                      {/* Student Info Display */}
-                      <div className="mb-8 p-4 bg-gray-50 rounded-lg">
-                        <h2 className="text-lg font-semibold text-gray-800 mb-3">Student Information</h2>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <p className="text-sm font-medium text-gray-600">Student ID:</p>
-                            <p className="text-gray-800 break-all">{user._id}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-gray-600">Status:</p>
-                            <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${user.status?.toLowerCase() === 'active'
-                                ? 'bg-green-100 text-green-800'
-                                : user.status?.toLowerCase() === 'pending'
-                                  ? 'bg-yellow-100 text-yellow-800'
-                                  : 'bg-red-100 text-red-800'
-                              }`}>
-                              {user.status || 'Unknown'}
-                            </span>
-                          </div>
-                          {user.createdAt && (
-                            <div>
-                              <p className="text-sm font-medium text-gray-600">Joined:</p>
-                              <p className="text-gray-800">{new Date(user.createdAt).toLocaleDateString()}</p>
-                            </div>
-                          )}
-                          <div>
-                            <p className="text-sm font-medium text-gray-600">Role:</p>
-                            <p className="text-gray-800 capitalize">{user.role || 'Student'}</p>
-                          </div>
-                        </div>
+                      <div className="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                        <h2 className="text-lg font-semibold text-gray-800">Student Information</h2>
+                        <p className="mt-2 text-gray-600">Name: {user.name}</p>
                       </div>
-
-                      {/* Editable Form */}
-                      <form onSubmit={handleProfileUpdate} className="space-y-6 sm:space-y-8">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <div>
-  <label className="block text-sm font-medium text-gray-700 mb-1">
-    Full Name
-  </label>
-  <input
-    type="text"
-    value={profile.name}
-    readOnly
-    disabled
-    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 bg-gray-100 text-gray-500 cursor-not-allowed"
-    title="Name cannot be edited here"
-  />
-</div>
-
-                        <div>
-  <label className="block text-sm font-medium text-gray-700 mb-1">
-    Email Address
-  </label>
-  <input
-    type="email"
-    value={profile.email}
-    readOnly
-    disabled
-    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 bg-gray-100 text-gray-500 cursor-not-allowed"
-    title="Email cannot be edited here"
-  />
-</div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Phone Number
-                            </label>
-                            <input
-                              type="tel"
-                              value={profile.phone}
-                              onChange={e => setProfile({ ...profile, phone: e.target.value })}
-                              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 transition-colors text-black"
-                              disabled={isLoading}
-                              maxLength={20}
-                              title="Enter the student's phone number"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Class
-                            </label>
-                            <input
-                              type="text"
-                              value={profile.class}
-                              onChange={e => setProfile({ ...profile, class: e.target.value })}
-                              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 transition-colors text-black"
-                              disabled={isLoading}
-                              maxLength={50}
-                              title="Enter the student's class"
-                            />
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Address
-                          </label>
-                          <textarea
-                            value={profile.address}
-                            onChange={e => setProfile({ ...profile, address: e.target.value })}
-                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 transition-colors text-black"
-                            rows={3}
-                            disabled={isLoading}
-                            maxLength={200}
-                            placeholder="Enter student address"
-                          />
-                        </div>
-
-                        <div className="flex flex-col sm:flex-row gap-4">
-                          <button
-                            type="submit"
-                            className={`flex-1 py-3 px-4 rounded-lg text-white font-semibold transition-colors ${isLoading
-                                ? 'bg-indigo-300 cursor-not-allowed'
-                                : 'bg-indigo-600 hover:bg-indigo-700'
-                              }`}
-                            disabled={isLoading}
-                          >
-                            {isLoading ? 'Updating...' : 'Update Profile'}
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => window.history.back()}
-                            className="flex-1 py-3 px-4 rounded-lg border border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 transition-colors"
-                            disabled={isLoading}
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </form>
+                      <StudentEditForm
+                        profile={profile}
+                        isLoading={isLoading}
+                        onProfileChange={handleProfileChange}
+                        onSubmit={handleProfileUpdate}
+                        onCancel={() => window.history.back()}
+                      />
                     </div>
                   ) : (
                     <div className="flex justify-center items-center h-64">

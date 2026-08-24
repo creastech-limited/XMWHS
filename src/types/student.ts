@@ -247,3 +247,17 @@ export interface ZipUploadResponse {
   message: string;
   updated: number;
 }
+
+export interface TransactionSummary {
+  total: number;
+  paid: number;
+  remaining: number;
+}
+
+export interface ViewStudentTransactionsState {
+  student: (Student & { fullName?: string }) | null;
+  bills: Bill[];
+  loading: boolean;
+  loadingFees: boolean;
+  error: string | null;
+}
