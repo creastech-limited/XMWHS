@@ -3,6 +3,7 @@ import type {
   UserResponse,
   StoreCountResponse,
   ClassesResponse,
+  Transaction,
   TransactionsResponse, Store, StoreDetails, StoreProfileFormData,
   StoreAgent,
   AgentCountResponse,
@@ -86,20 +87,49 @@ export const getStoresInSchoolByAdmin = async (schoolId: string): Promise<Store[
   );
 
   const responseData = response.data;
+  let rawStores: unknown[] = [];
 
   if (Array.isArray(responseData)) {
-    return responseData;
+    rawStores = responseData;
+  } else if (Array.isArray(responseData?.data)) {
+    rawStores = responseData.data;
+  } else if (Array.isArray(responseData?.stores)) {
+    rawStores = responseData.stores;
   }
 
-  if (Array.isArray(responseData?.data)) {
-    return responseData.data;
-  }
+  return rawStores.map((store: unknown, index: number) => {
+    const s = (store || {}) as Record<string, unknown>;
+    const rawStatus = String(s.status || s.storeStatus || s.userStatus || '').toLowerCase().trim();
+    let status = 'Active';
+    if (
+      rawStatus === 'inactive' ||
+      rawStatus === 'deactive' ||
+      rawStatus === 'deactivated' ||
+      rawStatus === 'disabled' ||
+      s.isActive === false ||
+      s.is_active === false
+    ) {
+      status = 'Inactive';
+    } else if (rawStatus === 'pending') {
+      status = 'Pending';
+    }
 
-  if (Array.isArray(responseData?.stores)) {
-    return responseData.stores;
-  }
+    const storeId =
+      (s._id as string) ||
+      (s.storeId as string) ||
+      (s.id as string) ||
+      (s.store_id as string) ||
+      (s.userId as string) ||
+      `store-${schoolId}-${index}`;
 
-  return [];
+    return {
+      ...(s as unknown as Store),
+      _id: storeId,
+      storeId: (s.storeId as string) || storeId,
+      id: (s.id as string) || storeId,
+      status: status
+    };
+  });
 };
 
 // Get store count by school ID
@@ -241,78 +271,174 @@ export const getAgentCount = async (): Promise<number> => {
   return 0;
 };
 
-// Fetch agents by ID
-export const getAgentsById = async (schoolId?: string): Promise<GetAgentsResponse> => {
-  const url = schoolId
-    ? `/api/users/getagentbyid?id=${encodeURIComponent(schoolId)}`
-    : '/api/users/getagentbyid';
+// Fetch agents by ID (supports school ID or store ID)
+export const getAgentsById = async (schoolOrStoreId?: string): Promise<GetAgentsResponse> => {
+  if (!schoolOrStoreId) {
+    const response = await apiClient.get<GetAgentsResponse>('/api/users/getagentbyid');
+    return response.data;
+  }
 
-  const response = await apiClient.get<GetAgentsResponse>(url);
-  return response.data;
+  const encodedId = encodeURIComponent(schoolOrStoreId);
+  const candidateUrls = [
+    `/api/users/getagentbyid?storeId=${encodedId}&schoolId=${encodedId}`,
+    `/api/users/getagentbyid?storeId=${encodedId}`,
+    `/api/users/getagentbyid?schoolId=${encodedId}`,
+    `/api/users/getagentbyid?store_id=${encodedId}&school_id=${encodedId}`,
+    `/api/users/getagentbyid?id=${encodedId}`,
+    `/api/users/getagentbyid/${encodedId}`
+  ];
+
+  for (const url of candidateUrls) {
+    try {
+      const response = await apiClient.get<GetAgentsResponse>(url);
+      if (response.data) {
+        return response.data;
+      }
+    } catch {
+      // Continue to next candidate
+    }
+  }
+
+  const fallback = await apiClient.get<GetAgentsResponse>(`/api/users/getagentbyid?storeId=${encodedId}&schoolId=${encodedId}`);
+  return fallback.data;
 };
 
 // Get agents in a store by store ID
 export const getAgentsInStoreByAdmin = async (storeId: string): Promise<StoreAgent[]> => {
-  const response = await apiClient.get<
-    | StoreAgent[]
-    | {
-      data?:
-      | StoreAgent[]
-      | {
-        agent?: StoreAgent[];
-        data?: {
-          agent?: StoreAgent[];
-        };
-      };
-      agent?: StoreAgent[];
-      agents?: StoreAgent[];
-    }
-  >(`/api/users/getagentbyid?id=${encodeURIComponent(storeId)}`);
+  const encodedId = encodeURIComponent(storeId);
+  const endpoints = [
+    `/api/users/getagentbyid?storeId=${encodedId}&schoolId=${encodedId}`,
+    `/api/users/getagentbyid?storeId=${encodedId}`,
+    `/api/users/getagentbyid?schoolId=${encodedId}`,
+    `/api/users/getagentbyid?store_id=${encodedId}&school_id=${encodedId}`,
+    `/api/users/getagentbyid?id=${encodedId}`,
+    `/api/users/getagentbyid/${encodedId}`,
+    `/api/users/getagentinstorebyadmin/${encodedId}`,
+    `/api/users/getagentinschoolbyadmin/${encodedId}`
+  ];
 
-  const responseData = response.data;
+  let responseData: unknown = null;
+
+  for (const endpoint of endpoints) {
+    try {
+      const response = await apiClient.get(endpoint);
+      if (response.data) {
+        responseData = response.data;
+        break;
+      }
+    } catch {
+      // Try next endpoint candidate
+    }
+  }
 
   const rawAgents = (() => {
+    if (!responseData) return [];
+
     if (Array.isArray(responseData)) {
       return responseData;
     }
 
-    if (Array.isArray(responseData?.data)) {
-      return responseData.data;
+    const dataObj = responseData as {
+      data?: StoreAgent[] | { agent?: StoreAgent[]; data?: { agent?: StoreAgent[] } };
+      agent?: StoreAgent[];
+      agents?: StoreAgent[];
+    };
+
+    if (Array.isArray(dataObj.data)) {
+      return dataObj.data;
     }
 
-    if (Array.isArray(responseData?.agent)) {
-      return responseData.agent;
+    if (Array.isArray(dataObj.agent)) {
+      return dataObj.agent;
     }
 
-    if (Array.isArray(responseData?.agents)) {
-      return responseData.agents;
+    if (Array.isArray(dataObj.agents)) {
+      return dataObj.agents;
     }
 
-    if (responseData?.data && !Array.isArray(responseData.data)) {
-      if (Array.isArray(responseData.data.agent)) {
-        return responseData.data.agent;
+    if (dataObj.data && typeof dataObj.data === 'object' && !Array.isArray(dataObj.data)) {
+      if (Array.isArray(dataObj.data.agent)) {
+        return dataObj.data.agent;
       }
 
-      if (responseData.data.data && Array.isArray(responseData.data.data.agent)) {
-        return responseData.data.data.agent;
+      if (dataObj.data.data && Array.isArray(dataObj.data.data.agent)) {
+        return dataObj.data.data.agent;
       }
     }
 
     return [];
   })();
 
-  return rawAgents.map((agent, index) => {
-    const normalizedAgent = agent as StoreAgent & {
-      _id?: string;
-      status?: string;
-    };
+  return rawAgents.map((agent: unknown, index: number) => {
+    const raw = (agent || {}) as Record<string, unknown>;
+    const nestedUser = (raw.user && typeof raw.user === 'object') ? raw.user as Record<string, unknown> : undefined;
+
+    // Also check extra nested containers the backend may wrap agents in
+    const nestedAgent = (raw.agent && typeof raw.agent === 'object') ? raw.agent as Record<string, unknown> : undefined;
+    const nestedAgentData = (raw.agentData && typeof raw.agentData === 'object') ? raw.agentData as Record<string, unknown> : undefined;
+    const nestedUserData = (raw.userData && typeof raw.userData === 'object') ? raw.userData as Record<string, unknown> : undefined;
+
+    // Resolve MongoDB _id — never fall back to email
+    const resolvedId =
+      (raw._id as string) ||
+      (raw.agentId as string) ||
+      (raw.agent_id as string) ||
+      (raw.userId as string) ||
+      (raw.user_id as string) ||
+      (raw.id as string) ||
+      (nestedUser?._id as string) ||
+      (nestedUser?.id as string) ||
+      (nestedUser?.userId as string) ||
+      (nestedUser?.agentId as string) ||
+      (nestedAgent?._id as string) ||
+      (nestedAgent?.id as string) ||
+      (nestedAgentData?._id as string) ||
+      (nestedAgentData?.id as string) ||
+      (nestedUserData?._id as string) ||
+      (nestedUserData?.id as string) ||
+      '';
+
+    // Normalize status: treat 'deactive', 'inactive', 'deactivated', 'disabled', 'pending'
+    // and isActive=false as 'Inactive'; anything 'active' as 'Active'
+    const rawStatus = String(
+      raw.status ||
+      nestedUser?.status ||
+      ''
+    ).toLowerCase().trim();
+
+    const isActiveBool =
+      raw.isActive ?? raw.is_active ?? raw.active ??
+      nestedUser?.isActive ?? nestedUser?.is_active ?? null;
+
+    let normalizedStatus: 'Active' | 'Inactive' | 'Pending' = 'Active';
+    if (rawStatus === 'active' || rawStatus === 'activated' || rawStatus === 'enabled') {
+      normalizedStatus = 'Active';
+    } else if (
+      rawStatus === 'inactive' ||
+      rawStatus === 'deactive' ||
+      rawStatus === 'deactivated' ||
+      rawStatus === 'disabled'
+    ) {
+      normalizedStatus = 'Inactive';
+    } else if (rawStatus === 'pending') {
+      normalizedStatus = 'Pending';
+    } else if (isActiveBool === false) {
+      normalizedStatus = 'Inactive';
+    } else if (isActiveBool === true) {
+      normalizedStatus = 'Active';
+    }
+
+    const normalizedAgent = raw as unknown as StoreAgent & { _id?: string; status?: string };
 
     return {
       ...normalizedAgent,
-      id: normalizedAgent.id || normalizedAgent._id || normalizedAgent.email || `agent-${storeId}-${index}`,
+      id: resolvedId || `agent-${storeId}-${index}`,
+      status: normalizedStatus,
       fullName:
-        normalizedAgent.fullName ||
-        `${normalizedAgent.firstName || ''} ${normalizedAgent.lastName || ''}`.trim() ||
+        (raw.fullName as string) ||
+        `${(raw.firstName as string) || ''} ${(raw.lastName as string) || ''}`.trim() ||
+        (nestedUser?.fullName as string) ||
+        `${(nestedUser?.firstName as string) || ''} ${(nestedUser?.lastName as string) || ''}`.trim() ||
         'Unnamed Agent'
     };
   });
@@ -976,20 +1102,50 @@ export const verifyPinOtp = async (otp: string, newPin: string) => {
   return response.data;
 };
 
-//Admin Activate user
-export const adminActivateUser = async (userId: string): Promise<{ message: string; status?: string }> => {
-  const response = await apiClient.patch<{ message: string; status?: string }>(`/api/admin/v1/activate-user/${userId}`);
-  return response.data;
-};
 
-//Admin Deactivate user
-export const adminDeactivateUser = async (userId: string): Promise<{ message: string; status?: string }> => {
-  const response = await apiClient.patch<{ message: string; status?: string }>(`/api/admin/v1/deactivate-user/${userId}`);
-  return response.data;
-};
 
-//Admin Update user
-export const adminUpdateUser = async (userId: string): Promise<{ message: string; status?: string }> => {
-  const response = await apiClient.put<{ message: string; status?: string }>(`/api/admin/v1/updateusers/${userId}`);
-  return response.data;
+
+
+// Admin Fetch all platform transactions across all user roles (Student, School, Parent, Agent, Store)
+export const getAllTransactionsForAdmin = async (): Promise<Transaction[]> => {
+  const endpoints = [
+    '/api/transaction/getalltransactions',
+    '/api/transaction/getalltransaction',
+    '/api/transaction/all',
+    '/api/transaction/getusertransaction',
+    '/api/charge/getAllCharges'
+  ];
+
+  for (const endpoint of endpoints) {
+    try {
+      const response = await apiClient.get(endpoint);
+      const data = response.data;
+      if (Array.isArray(data)) {
+        return data as Transaction[];
+      }
+      if (data && typeof data === 'object') {
+        const record = data as {
+          data?: Transaction[];
+          transactions?: Transaction[];
+          history?: Transaction[];
+          charges?: Transaction[];
+        };
+        const list = record.data || record.transactions || record.history || record.charges;
+        if (Array.isArray(list) && list.length > 0) {
+          return list;
+        }
+      }
+    } catch {
+      // Continue trying next endpoint
+      console.warn(`Admin transactions endpoint ${endpoint} failed, trying next...`);
+    }
+  }
+
+  // Fallback to getUserTransactions
+  try {
+    const res = await getUserTransactions();
+    return res.data || res.transactions || [];
+  } catch {
+    return [];
+  }
 };

@@ -145,16 +145,52 @@ const TransactionModule: React.FC = () => {
   };
 
   const getTransactionName = (transaction: Transaction) => {
+    const raw = transaction as unknown as Record<string, unknown>;
+    const nestedRecipient = (typeof raw.recipient === 'object' && raw.recipient !== null ? raw.recipient : undefined) as Record<string, unknown> | undefined;
+    const nestedCustomer = (typeof raw.customer === 'object' && raw.customer !== null ? raw.customer : undefined) as Record<string, unknown> | undefined;
+    const nestedStudent = (typeof raw.student === 'object' && raw.student !== null ? raw.student : undefined) as Record<string, unknown> | undefined;
+    const nestedUser = (typeof raw.user === 'object' && raw.user !== null ? raw.user : undefined) as Record<string, unknown> | undefined;
+
     if (transaction.receiverWalletId && typeof transaction.receiverWalletId === 'object') {
-      return `${transaction.receiverWalletId.firstName} ${transaction.receiverWalletId.lastName}`;
+      const fn = `${transaction.receiverWalletId.firstName || ''} ${transaction.receiverWalletId.lastName || ''}`.trim();
+      if (fn) return fn;
     }
+    if (nestedStudent?.fullName || nestedStudent?.name) return String(nestedStudent.fullName || nestedStudent.name);
+    if (nestedStudent && (nestedStudent.firstName || nestedStudent.lastName)) {
+      return `${nestedStudent.firstName || ''} ${nestedStudent.lastName || ''}`.trim();
+    }
+    if (nestedRecipient?.name || nestedRecipient?.fullName) return String(nestedRecipient.name || nestedRecipient.fullName);
+    if (nestedCustomer?.name || nestedCustomer?.fullName) return String(nestedCustomer.name || nestedCustomer.fullName);
+    if (nestedUser?.name || nestedUser?.fullName) return String(nestedUser.name || nestedUser.fullName);
+    if (raw.recipientName) return String(raw.recipientName);
+    if (raw.customerName) return String(raw.customerName);
+    if (raw.studentName) return String(raw.studentName);
+    if (raw.accountName) return String(raw.accountName);
+    if (raw.storeName) return String(raw.storeName);
     return 'Recipient Not Specified';
   };
 
   const getSenderName = (transaction: Transaction) => {
+    const raw = transaction as unknown as Record<string, unknown>;
+    const nestedSender = (typeof raw.sender === 'object' && raw.sender !== null ? raw.sender : undefined) as Record<string, unknown> | undefined;
+    const nestedUser = (typeof raw.user === 'object' && raw.user !== null ? raw.user : undefined) as Record<string, unknown> | undefined;
+    const nestedStudent = (typeof raw.student === 'object' && raw.student !== null ? raw.student : undefined) as Record<string, unknown> | undefined;
+
     if (transaction.senderWalletId && typeof transaction.senderWalletId === 'object') {
-      return `${transaction.senderWalletId.firstName} ${transaction.senderWalletId.lastName}`;
+      const fn = `${transaction.senderWalletId.firstName || ''} ${transaction.senderWalletId.lastName || ''}`.trim();
+      if (fn) return fn;
     }
+    if (nestedStudent?.fullName || nestedStudent?.name) return String(nestedStudent.fullName || nestedStudent.name);
+    if (nestedStudent && (nestedStudent.firstName || nestedStudent.lastName)) {
+      return `${nestedStudent.firstName || ''} ${nestedStudent.lastName || ''}`.trim();
+    }
+    if (nestedSender?.name || nestedSender?.fullName) return String(nestedSender.name || nestedSender.fullName);
+    if (nestedUser?.name || nestedUser?.fullName) return String(nestedUser.name || nestedUser.fullName);
+    if (raw.senderName) return String(raw.senderName);
+    if (raw.userName) return String(raw.userName);
+    if (raw.studentName) return String(raw.studentName);
+    if (raw.storeName) return String(raw.storeName);
+    if (raw.email) return String(raw.email);
     return 'System/External';
   };
 

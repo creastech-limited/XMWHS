@@ -25,8 +25,6 @@ interface DisputeDisplayData extends Dispute {
   formattedUpdatedAt?: string;
 }
 
-const ITEMS_PER_PAGE = 10;
-
 const STATUS_OPTIONS = ['all', 'Pending', 'Under Investigation', 'Resolved', 'Closed'];
 const TYPE_OPTIONS = ['all', 'Billing Issue', 'Account Discrepancy', 'Transaction Error', 'Service Concern', 'Other'];
 
@@ -133,6 +131,7 @@ const DisputePage = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
   const [selectedDispute, setSelectedDispute] = useState<DisputeDisplayData | null>(null);
   const [showDetails, setShowDetails] = useState(false);
 
@@ -211,9 +210,9 @@ const DisputePage = () => {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, typeFilter]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredDisputes.length / ITEMS_PER_PAGE));
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const currentDisputes = filteredDisputes.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const totalPages = Math.max(1, Math.ceil(filteredDisputes.length / itemsPerPage));
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const currentDisputes = filteredDisputes.slice(startIndex, startIndex + itemsPerPage);
 
   const stats = useMemo(() => {
     const total = disputes.length;
@@ -575,35 +574,78 @@ const DisputePage = () => {
                     </table>
                   </div>
 
-                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 px-6 py-4 bg-gray-50 border-t border-gray-200">
-                    <div className="text-sm text-gray-600">
-                      Showing {startIndex + 1} to {Math.min(startIndex + ITEMS_PER_PAGE, filteredDisputes.length)} of{' '}
-                      {filteredDisputes.length} disputes
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-6 py-4 bg-gray-50 border-t border-gray-200">
+                    <div className="flex items-center space-x-4">
+                      <div className="text-sm text-gray-700">
+                        Showing <span className="font-semibold">{filteredDisputes.length > 0 ? startIndex + 1 : 0}</span> to{' '}
+                        <span className="font-semibold">{Math.min(startIndex + itemsPerPage, filteredDisputes.length)}</span> of{' '}
+                        <span className="font-semibold">{filteredDisputes.length}</span> disputes
+                      </div>
+
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs text-gray-500">Rows per page:</span>
+                        <select
+                          value={itemsPerPage}
+                          onChange={(e) => {
+                            setItemsPerPage(Number(e.target.value));
+                            setCurrentPage(1);
+                          }}
+                          className="border border-gray-300 rounded-md text-xs px-2 py-1 bg-white text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        >
+                          <option value={10}>10</option>
+                          <option value={50}>50</option>
+                          <option value={100}>100</option>
+                        </select>
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-2 text-gray-600">
-                      <button
-                        onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                        disabled={currentPage === 1}
-                        className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                      >
-                        <ChevronLeft className="w-4 h-4" />
-                        Previous
-                      </button>
+                    {totalPages > 1 && (
+                      <div className="flex items-center space-x-2">
+                        <button
+                          type="button"
+                          onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                          disabled={currentPage === 1}
+                          className="px-3 py-1 border text-gray-700 border-gray-300 rounded-md text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                        >
+                          <ChevronLeft size={16} />
+                        </button>
 
-                      <span className="text-sm text-gray-600 px-2">
-                        Page {currentPage} of {totalPages}
-                      </span>
+                        {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                          let pageNum = i + 1;
+                          if (totalPages > 5) {
+                            if (currentPage > 3) {
+                              pageNum = currentPage - 3 + i;
+                            }
+                            if (currentPage > totalPages - 2) {
+                              pageNum = totalPages - 4 + i;
+                            }
+                          }
+                          return pageNum <= totalPages ? (
+                            <button
+                              key={pageNum}
+                              type="button"
+                              onClick={() => setCurrentPage(pageNum)}
+                              className={`px-3 py-1 border rounded-md text-sm transition ${
+                                currentPage === pageNum
+                                  ? 'bg-blue-600 text-white border-blue-600 font-semibold'
+                                  : 'border-gray-300 text-gray-700 hover:bg-gray-100'
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          ) : null;
+                        })}
 
-                      <button
-                        onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-                        disabled={currentPage === totalPages}
-                        className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                      >
-                        Next
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
-                    </div>
+                        <button
+                          type="button"
+                          onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                          disabled={currentPage === totalPages}
+                          className="px-3 py-1 text-gray-700 border border-gray-300 rounded-md text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                        >
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </>
               ) : (

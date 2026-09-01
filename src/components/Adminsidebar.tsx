@@ -1,22 +1,22 @@
-import { 
-  LayoutDashboard, 
-  Wallet, 
-  CreditCard, 
-  Vault, 
-  Users, 
+import {
+  LayoutDashboard,
+  Wallet,
+  CreditCard,
+  Users,
   LogOut,
   ChevronDown,
   ChevronRight,
-  Home,
-  X,
   Settings,
   AlertCircle,
   UserCog,
   User,
-  IdCard
+  IdCard,
+  ArrowLeftRight,
+  Home,
+  X
 } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { getUserDetails } from '../services';
 
 interface MenuItem {
@@ -40,110 +40,119 @@ interface UserProfile {
   email: string;
   firstName: string;
   lastName: string;
-  role?: string;
-  phone?: string;
-  accountNumber?: string;
   name?: string;
+  role: string;
 }
 
 
-const AdminSidebar = ({ sidebarOpen, setSidebarOpen, activeMenu, setActiveMenu }: AdminSidebarProps) => {
-  const [openSubMenus, setOpenSubMenus] = useState<Record<string, boolean>>({});
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const navigate = useNavigate();
+const getStoredSubMenus = (): Record<string, boolean> => {
+  try {
+    const saved = sessionStorage.getItem('admin_open_submenus');
+    if (saved) return JSON.parse(saved);
+  } catch (error) {
+    console.debug('Failed to read submenus from session storage', error);
+  }
+  return { wallet: true, management: true };
+};
 
-  const toggleSubMenu = (menuId: string) => {
-    setOpenSubMenus(prev => ({
-      ...prev,
-      [menuId]: !prev[menuId]
-    }));
-  };
-  
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    navigate('/login');
-  };
+const saveStoredSubMenus = (menus: Record<string, boolean>) => {
+  try {
+    sessionStorage.setItem('admin_open_submenus', JSON.stringify(menus));
+  } catch (error) {
+    console.debug('Failed to save submenus to session storage', error);
+  }
+};
+
+const AdminSidebar = ({ sidebarOpen, setSidebarOpen, activeMenu, setActiveMenu }: AdminSidebarProps) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const [openSubMenus, setOpenSubMenus] = useState<Record<string, boolean>>(() => getStoredSubMenus());
+
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
   useEffect(() => {
-    const fetchUserProfile = async () => {
+    const fetchProfile = async () => {
       try {
-          
-
-        const data = await getUserDetails();
-
-        // Extract user data from the API response
-        if (data.user && data.user.data) {
-          const userData = data.user.data;
-          const profile: UserProfile = {
-            _id: userData._id || '',
-            email: userData.email || '',
-            firstName: userData.firstName || '',
-            lastName: userData.lastName || '',
-            role: userData.role || '',
-            phone: userData.phone || '',
-            accountNumber: userData.accountNumber || '',
-            name: userData.name || `${userData.firstName || ''} ${userData.lastName || ''}`.trim()
-          };
-          setUserProfile(profile);
+        const response = await getUserDetails();
+        const data = response.data;
+        if (data) {
+          setUserProfile({
+            _id: data._id || '',
+            email: data.email || '',
+            firstName: data.firstName || '',
+            lastName: data.lastName || '',
+            name: data.name,
+            role: data.role || 'Admin'
+          });
         }
       } catch (error) {
-        console.error('Error fetching user profile:', error);
+        console.error('Error fetching admin profile:', error);
       }
     };
 
-    fetchUserProfile();
+    fetchProfile();
   }, []);
 
-  const getInitials = (firstName?: string, lastName?: string, email?: string) => {
-    if (firstName && lastName) {
-      return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
-    } else if (firstName) {
-      return firstName.substring(0, 2).toUpperCase();
-    } else if (email) {
-      return email.substring(0, 2).toUpperCase();
+  const toggleSubMenu = (menuId: string) => {
+    setOpenSubMenus(prev => {
+      const updated = {
+        ...prev,
+        [menuId]: !prev[menuId]
+      };
+      saveStoredSubMenus(updated);
+      return updated;
+    });
+  };
+
+  const handleMenuClick = (item: MenuItem) => {
+    if (item.hasSubMenu || item.subItems) {
+      toggleSubMenu(item.id);
+    } else if (item.path) {
+      setActiveMenu(item.id);
+      navigate(item.path);
+      if (window.innerWidth < 1024) {
+        setSidebarOpen(false);
+      }
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    sessionStorage.clear();
+    navigate('/login');
+  };
+
+  const getUserInitials = () => {
+    if (userProfile?.firstName && userProfile?.lastName) {
+      return `${userProfile.firstName.charAt(0)}${userProfile.lastName.charAt(0)}`.toUpperCase();
+    }
+    if (userProfile?.name) {
+      const names = userProfile.name.split(' ');
+      return names.length > 1
+        ? `${names[0].charAt(0)}${names[names.length - 1].charAt(0)}`.toUpperCase()
+        : names[0].charAt(0).toUpperCase();
+    }
+    if (userProfile?.email) {
+      return userProfile.email.charAt(0).toUpperCase();
     }
     return 'AD';
   };
 
-  const getDisplayName = () => {
+  const getUserDisplayName = () => {
     if (userProfile?.firstName && userProfile?.lastName) {
       return `${userProfile.firstName} ${userProfile.lastName}`;
-    } else if (userProfile?.name) {
+    }
+    if (userProfile?.name) {
       return userProfile.name;
-    } else if (userProfile?.firstName) {
-      return userProfile.firstName;
-    } else if (userProfile?.email) {
+    }
+    if (userProfile?.email) {
       return userProfile.email.split('@')[0];
     }
     return 'Admin';
   };
 
-  const itemHasActiveDescendant = (item: MenuItem, targetId: string): boolean => {
-    return item.subItems?.some((subItem) => {
-      if (subItem.id === targetId) return true;
-      return itemHasActiveDescendant(subItem, targetId);
-    }) ?? false;
-  };
-
-  const getAncestorIds = (items: MenuItem[], targetId: string, trail: string[] = []): string[] => {
-    for (const item of items) {
-      const nextTrail = [...trail, item.id];
-      if (item.id === targetId) {
-        return trail;
-      }
-
-      if (item.subItems?.length) {
-        const foundTrail = getAncestorIds(item.subItems, targetId, nextTrail);
-        if (foundTrail.length) {
-          return foundTrail;
-        }
-      }
-    }
-
-    return [];
-  };
-
-  const menuItems: MenuItem[] = [
+  const menuItems: MenuItem[] = useMemo(() => [
     {
       id: 'overview',
       label: 'Overview',
@@ -152,24 +161,24 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, activeMenu, setActiveMenu }
     },
     {
       id: 'wallet',
-      label: 'Wallet',
+      label: 'Wallet Management',
       icon: Wallet,
       hasSubMenu: true,
       subItems: [
-        { id: 'charge-wallet', label: 'Charge Wallet', icon: CreditCard, path: '/admin/get-charges' },
-        { id: 'user-wallet', label: 'User Wallet', icon: Users, path: '/admin/user-wallets' },
-        { id: 'system-wallet', label: 'System Wallet', icon: Vault, path: '/admin/wallet/system' }
+        { id: 'transactions', label: 'Transactions', icon: ArrowLeftRight, path: '/admin/transactions' },
+        { id: 'charges', label: 'Charges', icon: CreditCard, path: '/admin/get-charges' },
+        { id: 'user-wallet', label: 'Wallets', icon: Users, path: '/admin/user-wallets' },
       ]
     },
     {
       id: 'management',
-      label: 'Management',
+      label: 'User Management',
       icon: UserCog,
       hasSubMenu: true,
       subItems: [
-        { id: 'all-users', label: 'All Users', icon: Users, path: '/admin/management/all-users' },
-        { id: 'schools', label: 'Schools', icon: Users, path: '/admin/management/schools' },
-        { id: 'parents', label: 'Parents', icon: User, path: '/admin/management/parents' }
+        { id: 'all-users', label: 'All Users', icon: Users, path: '/admin/users' },
+        { id: 'schools', label: 'Schools', icon: Users, path: '/admin/schools' },
+        { id: 'parents', label: 'Parents', icon: User, path: '/admin/parents' }
       ]
     },
     {
@@ -190,50 +199,61 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, activeMenu, setActiveMenu }
       icon: Settings,
       path: '/admin/settings'
     }
-  ];
+  ], []);
+
+  const itemHasActiveDescendant = useCallback((item: MenuItem): boolean => {
+    return item.subItems?.some((subItem) => {
+      if (subItem.path && location.pathname === subItem.path) return true;
+      if (subItem.id === activeMenu) return true;
+      return itemHasActiveDescendant(subItem);
+    }) ?? false;
+  }, [activeMenu, location.pathname]);
 
   useEffect(() => {
-    if (!activeMenu) return;
+    const matchedParentIds: string[] = [];
 
-    const ancestorIds = getAncestorIds(menuItems, activeMenu);
-    if (!ancestorIds.length) return;
-
-    setOpenSubMenus((prev) => {
-      const next = { ...prev };
-      ancestorIds.forEach((id) => {
-        next[id] = true;
-      });
-      return next;
+    menuItems.forEach((parent) => {
+      if (parent.subItems?.length) {
+        const hasMatch = parent.subItems.some(
+          sub => (sub.path && location.pathname === sub.path) || sub.id === activeMenu || (sub.path && location.pathname.startsWith(sub.path))
+        );
+        if (hasMatch) {
+          matchedParentIds.push(parent.id);
+        }
+      }
     });
-  }, [activeMenu]);
+
+    if (matchedParentIds.length) {
+      setOpenSubMenus((prev) => {
+        const next = { ...prev };
+        matchedParentIds.forEach((id) => {
+          next[id] = true;
+        });
+        saveStoredSubMenus(next);
+        return next;
+      });
+    }
+  }, [location.pathname, activeMenu, menuItems]);
 
   const MenuItemComponent = ({ item, depth = 0 }: { item: MenuItem; depth?: number }) => {
     const Icon = item.icon;
-    const isActive = activeMenu === item.id;
-    const isParentOfActive = itemHasActiveDescendant(item, activeMenu);
+    const isActive = (item.path ? location.pathname === item.path : false) || activeMenu === item.id;
+    const isParentOfActive = itemHasActiveDescendant(item);
     const hasSubMenu = item.hasSubMenu || Boolean(item.subItems?.length);
-    const isSubMenuOpen = openSubMenus[item.id];
+    const isSubMenuOpen = Boolean(openSubMenus[item.id]);
     const isNestedItem = depth > 0;
 
     return (
       <div className={isNestedItem ? 'ml-4' : ''}>
         <div
-          onClick={() => {
-            if (hasSubMenu) {
-              toggleSubMenu(item.id);
-            } else if (item.path) {
-              setActiveMenu(item.id);
-              navigate(item.path);
-              setSidebarOpen(false);
-            }
-          }}
+          onClick={() => handleMenuClick(item)}
           className={`
             flex items-center justify-between px-4 py-3 rounded-lg cursor-pointer transition-all duration-200
-            ${isActive 
-              ? 'bg-blue-600 text-white shadow-lg' 
+            ${isActive
+              ? 'bg-blue-600 text-white shadow-lg'
               : isParentOfActive
                 ? 'bg-gray-700 text-white'
-              : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                : 'text-gray-300 hover:bg-gray-700 hover:text-white'
             }
             ${isNestedItem ? 'py-2 text-sm' : ''}
           `}
@@ -248,7 +268,7 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, activeMenu, setActiveMenu }
             </div>
           )}
         </div>
-        
+
         {hasSubMenu && isSubMenuOpen && (
           <div className="mt-2 space-y-1 animate-in slide-in-from-top-2 duration-200">
             {item.subItems?.map((subItem) => (
@@ -264,7 +284,7 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, activeMenu, setActiveMenu }
     <>
       {/* Mobile Overlay */}
       {sidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
@@ -307,12 +327,12 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, activeMenu, setActiveMenu }
           <div className="flex items-center space-x-3 p-3 bg-gray-700 rounded-lg mb-4">
             <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
               <span className="text-white font-medium text-sm">
-                {getInitials(userProfile?.firstName, userProfile?.lastName, userProfile?.email)}
+                {getUserInitials()}
               </span>
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-white font-medium text-sm truncate">
-                {getDisplayName()}
+                {getUserDisplayName()}
               </p>
               <p className="text-gray-400 text-xs truncate">
                 {userProfile?.email || 'Loading...'}
@@ -320,7 +340,7 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, activeMenu, setActiveMenu }
             </div>
           </div>
           <button onClick={handleLogout}
-           className="w-full flex items-center space-x-3 px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white rounded-lg transition-all duration-200">
+            className="w-full flex items-center space-x-3 px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white rounded-lg transition-all duration-200">
             <LogOut size={20} />
             <span>Logout</span>
           </button>

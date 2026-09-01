@@ -26,6 +26,7 @@ type Transaction = {
   description: string;
   date: string;
   status?: string;
+  reference?: string;
 };
 
 interface RawTransaction {
@@ -243,14 +244,21 @@ const AgentTransactionHistory = () => {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
             <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in duration-200">
               <div ref={receiptRef}>
-                <div className="bg-blue-600 p-8 text-center text-white relative">
-                  <button onClick={() => setSelectedTxn(null)} className="absolute right-4 top-4 p-2 hover:bg-white/20 rounded-full">
-                    <X className="w-5 h-5" />
+                {/* Receipt Header */}
+                <div className="bg-white p-6 text-center border-b border-dashed border-gray-200 relative">
+                  <button onClick={() => setSelectedTxn(null)} className="absolute right-4 top-4 p-2 hover:bg-gray-100 rounded-full">
+                    <X className="w-5 h-5 text-gray-400" />
                   </button>
-                  <div className="bg-white w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4">
-                    {selectedTxn.status === 'failed' ? <AlertCircle className="w-8 h-8 text-red-500" /> : <CheckCircle2 className="w-8 h-8 text-green-500" />}
+                  <div className="flex justify-center mb-3">
+                    <img src="/xpay.jpeg" alt="XPAY Logo" className="h-14 w-auto object-contain rounded-xl" />
                   </div>
-                  <h2 className="text-xl font-bold italic tracking-tighter">XPAY RECEIPT</h2>
+                  <h2 className="text-sm font-black uppercase tracking-widest text-gray-500">Transaction Receipt</h2>
+                  <div className="flex justify-center mt-2">
+                    {selectedTxn.status === 'failed'
+                      ? <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-red-50 text-red-600 border border-red-100"><AlertCircle className="w-3.5 h-3.5" /> FAILED</span>
+                      : <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-600 border border-emerald-100"><CheckCircle2 className="w-3.5 h-3.5" /> SUCCESSFUL</span>
+                    }
+                  </div>
                 </div>
 
                 <div className="p-6 bg-white">
@@ -271,9 +279,13 @@ const AgentTransactionHistory = () => {
                       <span className="font-semibold text-gray-800">{new Date(selectedTxn.date).toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-400">Ref</span>
-                      <span className="font-mono text-xs text-gray-800 uppercase">#TXN-{selectedTxn.id.toString().slice(-6)}</span>
+                      <span className="text-gray-400">Reference</span>
+                      <span className="font-mono text-xs text-gray-800 uppercase">{selectedTxn.reference || `#TXN-${selectedTxn.id?.toString().slice(-6)}`}</span>
                     </div>
+                  </div>
+
+                  <div className="mt-6 pt-4 border-t border-dashed border-gray-100 text-center">
+                    <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Official XPAY Digital Receipt</p>
                   </div>
                 </div>
               </div>

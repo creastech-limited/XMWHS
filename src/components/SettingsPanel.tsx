@@ -16,7 +16,12 @@ import {
   X,
   Eye,
   EyeOff,
+  Palette,
+  Sparkles,
+  RotateCcw,
+  Brush,
 } from 'lucide-react';
+import { useSchoolTheme, SCHOOL_COLOR_PRESETS, PRIMARY_PALETTE, SECONDARY_PALETTE } from '../context/SchoolThemeContext';
 import { getUserDetails, requestPinReset, setAccountPin, updateAccountPin, updateNotificationPreferences, updateUserPassword, updateUserProfile, uploadProfileImage, verifyPinOtp, } from '../services';
 import type { UpdateUserPayload } from '../types';
 
@@ -41,6 +46,7 @@ const TABS = [
   { label: 'Profile', icon: <User className="w-4 h-4 sm:w-5 sm:h-5 mr-2" /> },
   { label: 'Security', icon: <Lock className="w-4 h-4 sm:w-5 sm:h-5 mr-2" /> },
   { label: 'Notifications', icon: <Bell className="w-4 h-4 sm:w-5 sm:h-5 mr-2" /> },
+  { label: 'Branding & Colors', icon: <Palette className="w-4 h-4 sm:w-5 sm:h-5 mr-2" /> },
 ];
 
 // Generate initials-based avatar to avoid loading non-existent default-avatar.png
@@ -82,6 +88,16 @@ const generateInitialsAvatar = (name: string): string => {
 const SettingsPanel = () => {
   const authContext = useAuth();
   const token = authContext?.token;
+  const {
+    primaryColor,
+    secondaryColor,
+    setPrimaryColor,
+    setSecondaryColor,
+    applyPreset,
+    saveColors,
+    resetColors,
+    isCustomized
+  } = useSchoolTheme();
   const [user, setUser] = useState<UserData | null>(null);
   const [activeTab, setActiveTab] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
@@ -1150,6 +1166,227 @@ const SettingsPanel = () => {
                   </button>
                 </div>
               </form>
+            </div>
+          )}
+
+          {/* Branding & Colors Tab */}
+          {activeTab === 3 && (
+            <div className="p-4 sm:p-10 space-y-8">
+              {/* Header Info */}
+              <div className="border-b border-gray-100 pb-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl">
+                    <Brush className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900">School Branding & Theme Colors</h2>
+                    <p className="text-sm text-gray-500 mt-0.5">
+                      Customize your school's primary and secondary colors. These colors represent your institution and customize your dashboard interface, cards, and branding.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Color Pickers Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Primary Color Picker */}
+                <div className="bg-gray-50 rounded-2xl p-6 border border-gray-200/80 space-y-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                        <span className="w-3.5 h-3.5 rounded-full inline-block shadow-sm" style={{ backgroundColor: primaryColor }} />
+                        Primary Color
+                      </h3>
+                      <p className="text-xs text-gray-500 mt-0.5">Main branding color for headers, navigation, and key actions</p>
+                    </div>
+                    <span className="text-xs font-mono font-bold px-2.5 py-1 bg-white rounded-lg border border-gray-200 text-gray-700">
+                      {primaryColor.toUpperCase()}
+                    </span>
+                  </div>
+
+                  {/* Input & Swatch */}
+                  <div className="flex items-center gap-4 bg-white p-3 rounded-xl border border-gray-200">
+                    <input
+                      type="color"
+                      value={primaryColor}
+                      onChange={(e) => setPrimaryColor(e.target.value)}
+                      className="w-12 h-12 rounded-lg cursor-pointer border-0 p-0 bg-transparent"
+                      title="Pick custom primary color"
+                    />
+                    <div className="flex-1">
+                      <label className="text-xs font-medium text-gray-500 block mb-1">HEX Code</label>
+                      <input
+                        type="text"
+                        value={primaryColor}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val.startsWith('#') || val === '') {
+                            setPrimaryColor(val);
+                          } else {
+                            setPrimaryColor(`#${val}`);
+                          }
+                        }}
+                        placeholder="#1E40AF"
+                        maxLength={7}
+                        className="w-full font-mono text-sm font-semibold text-gray-800 uppercase px-2 py-1 bg-gray-50 rounded border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Preset Swatches */}
+                  <div>
+                    <span className="text-xs font-medium text-gray-600 block mb-2">Curated Primary Colors:</span>
+                    <div className="flex flex-wrap gap-2">
+                      {PRIMARY_PALETTE.map((hex) => (
+                        <button
+                          key={hex}
+                          type="button"
+                          onClick={() => setPrimaryColor(hex)}
+                          className={`w-7 h-7 rounded-lg transition-transform hover:scale-110 flex items-center justify-center shadow-sm ${
+                            primaryColor.toLowerCase() === hex.toLowerCase() ? 'ring-2 ring-offset-2 ring-indigo-600 scale-110' : ''
+                          }`}
+                          style={{ backgroundColor: hex }}
+                          title={hex}
+                        >
+                          {primaryColor.toLowerCase() === hex.toLowerCase() && (
+                            <Check className="w-3.5 h-3.5 text-white drop-shadow" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Secondary Color Picker */}
+                <div className="bg-gray-50 rounded-2xl p-6 border border-gray-200/80 space-y-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                        <span className="w-3.5 h-3.5 rounded-full inline-block shadow-sm" style={{ backgroundColor: secondaryColor }} />
+                        Secondary Color
+                      </h3>
+                      <p className="text-xs text-gray-500 mt-0.5">Accent color for highlights, badges, and secondary buttons</p>
+                    </div>
+                    <span className="text-xs font-mono font-bold px-2.5 py-1 bg-white rounded-lg border border-gray-200 text-gray-700">
+                      {secondaryColor.toUpperCase()}
+                    </span>
+                  </div>
+
+                  {/* Input & Swatch */}
+                  <div className="flex items-center gap-4 bg-white p-3 rounded-xl border border-gray-200">
+                    <input
+                      type="color"
+                      value={secondaryColor}
+                      onChange={(e) => setSecondaryColor(e.target.value)}
+                      className="w-12 h-12 rounded-lg cursor-pointer border-0 p-0 bg-transparent"
+                      title="Pick custom secondary color"
+                    />
+                    <div className="flex-1">
+                      <label className="text-xs font-medium text-gray-500 block mb-1">HEX Code</label>
+                      <input
+                        type="text"
+                        value={secondaryColor}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val.startsWith('#') || val === '') {
+                            setSecondaryColor(val);
+                          } else {
+                            setSecondaryColor(`#${val}`);
+                          }
+                        }}
+                        placeholder="#F59E0B"
+                        maxLength={7}
+                        className="w-full font-mono text-sm font-semibold text-gray-800 uppercase px-2 py-1 bg-gray-50 rounded border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Preset Swatches */}
+                  <div>
+                    <span className="text-xs font-medium text-gray-600 block mb-2">Curated Secondary Colors:</span>
+                    <div className="flex flex-wrap gap-2">
+                      {SECONDARY_PALETTE.map((hex) => (
+                        <button
+                          key={hex}
+                          type="button"
+                          onClick={() => setSecondaryColor(hex)}
+                          className={`w-7 h-7 rounded-lg transition-transform hover:scale-110 flex items-center justify-center shadow-sm ${
+                            secondaryColor.toLowerCase() === hex.toLowerCase() ? 'ring-2 ring-offset-2 ring-indigo-600 scale-110' : ''
+                          }`}
+                          style={{ backgroundColor: hex }}
+                          title={hex}
+                        >
+                          {secondaryColor.toLowerCase() === hex.toLowerCase() && (
+                            <Check className="w-3.5 h-3.5 text-white drop-shadow" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Theme Combinations / Presets */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-amber-500" />
+                  <h3 className="font-bold text-gray-900">Academic Preset Combinations</h3>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {SCHOOL_COLOR_PRESETS.map((preset) => (
+                    <button
+                      key={preset.name}
+                      type="button"
+                      onClick={() => applyPreset(preset)}
+                      className="p-3.5 rounded-xl border border-gray-200 hover:border-indigo-400 bg-white hover:shadow-md transition-all text-left group"
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-6 h-6 rounded-lg shadow-sm" style={{ backgroundColor: preset.primary }} />
+                        <div className="w-6 h-6 rounded-lg shadow-sm" style={{ backgroundColor: preset.secondary }} />
+                        <span className="text-xs font-bold text-gray-800 ml-1 group-hover:text-indigo-600 transition-colors">
+                          {preset.name}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-gray-500 leading-snug">{preset.description}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+            
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    resetColors();
+                    setSnackbar({ open: true, message: 'Colors reset to default academic theme', severity: 'success' });
+                  }}
+                  disabled={!isCustomized}
+                  className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-gray-600 hover:text-gray-900 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Reset to Default Colors
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const success = saveColors();
+                    if (success) {
+                      setSnackbar({ open: true, message: 'School primary & secondary colors saved successfully!', severity: 'success' });
+                    } else {
+                      setSnackbar({ open: true, message: 'Failed to save colors. Please try again.', severity: 'error' });
+                    }
+                  }}
+                  className="flex items-center gap-2 px-6 py-3 text-base font-bold text-white rounded-xl shadow-lg hover:shadow-xl transition-all"
+                  style={{ backgroundColor: primaryColor }}
+                >
+                  <Check className="w-5 h-5" />
+                  Save School Colors
+                </button>
+              </div>
             </div>
           )}
         </div>

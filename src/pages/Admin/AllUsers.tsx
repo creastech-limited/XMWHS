@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
   Users,
   Search,
-  Eye,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -13,18 +12,23 @@ import {
   Shield,
   CheckCircle,
   XCircle,
-  User
+  User,
+  MoreVertical,
+  Mail,
+  ArrowLeftRight
 } from 'lucide-react';
 import AdminSidebar from '../../components/Adminsidebar';
 import AdminHeader from '../../components/AdminHeader';
 import { getAllUsers,
-  adminActivateUser,
-  adminDeactivateUser } from '../../services';
+  activateUser,
+  deactivateUser,
+  resetStorePassword } from '../../services';
 import type { UserData } from '../../types'; // Use the imported type
 
 const AllUsers = () => {
   const { user: authUser } = useAuth() ?? {};
   const location = useLocation();
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeMenu, setActiveMenu] = useState('all-users');
   const [loading, setLoading] = useState(true);
@@ -34,9 +38,57 @@ const AllUsers = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [roleFilter, setRoleFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10); const [selectedUser, setSelectedUser] = useState<UserData['user'] | null>(null);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
+  const [selectedUser, setSelectedUser] = useState<UserData['user'] | null>(null);
   const [showUserModal, setShowUserModal] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  // Action Menu state
+  const [menuUser, setMenuUser] = useState<UserData['user'] | null>(null);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+
+  const handleMenuOpen = (e: React.MouseEvent, user: UserData['user']) => {
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    setMenuPosition({
+      top: rect.bottom + window.scrollY,
+      left: rect.left + window.scrollX,
+    });
+    setMenuUser(user);
+    setIsMenuOpen(true);
+  };
+
+  const handleMenuClose = () => {
+    setIsMenuOpen(false);
+    setMenuUser(null);
+  };
+
+  const handleViewTransactions = (userId: string, role?: string) => {
+    handleMenuClose();
+    navigate(`/admin/transactions?user=${encodeURIComponent(userId)}${role ? `&role=${encodeURIComponent(role.toLowerCase())}` : ''}`);
+  };
+
+  const handleResetPassword = async (email?: string) => {
+    if (!email) {
+      alert('No email address available for this user.');
+      return;
+    }
+    if (!window.confirm(`Send password reset email to ${email}?`)) {
+      return;
+    }
+    try {
+      setActionLoading(email);
+      await resetStorePassword(email);
+      alert(`Password reset instructions have been sent to ${email}`);
+    } catch (error) {
+      console.error('Error sending password reset:', error);
+      alert('Failed to send password reset email.');
+    } finally {
+      setActionLoading(null);
+      handleMenuClose();
+    }
+  };
 
   const handleViewUser = (user: UserData['user']) => {
     setSelectedUser(user);
@@ -47,30 +99,37 @@ const AllUsers = () => {
     setSelectedUser(null);
     setShowUserModal(false);
   };
- const handleStatusToggle = async (userId: string, currentStatus?: string) => {
-  const action =
-    currentStatus === 'Active' ? 'deactivate' : 'activate';
 
-  if (!window.confirm(`Are you sure you want to ${action} this account?`)) {
-    return;
-  }
+  const handleStatusToggle = async (userId: string, currentStatus?: string) => {
+    // Guard: ensure we have a valid ID
+    if (!userId || userId === 'undefined' || userId === 'null') {
+      alert('Cannot update status: User ID is missing.');
+      return;
+    }
+    const isCurrentlyActive = currentStatus?.toLowerCase() === 'active';
+    const action = isCurrentlyActive ? 'deactivate' : 'activate';
 
-  try {
-    setActionLoading(userId);
-
-    if (currentStatus === 'Active') {
-      await adminDeactivateUser(userId);
-    } else {
-      await adminActivateUser(userId);
+    if (!window.confirm(`Are you sure you want to ${action} this account?`)) {
+      return;
     }
 
-    await fetchUsers();
-  } catch (error) {
-    console.error(error);
-  } finally {
-    setActionLoading(null);
-  }
-};
+    try {
+      setActionLoading(userId);
+
+      if (isCurrentlyActive) {
+        await deactivateUser(userId);
+      } else {
+        await activateUser(userId);
+      }
+
+      await fetchUsers();
+    } catch (error) {
+      console.error(`Error ${action}ing account:`, error);
+      alert(`Failed to ${action} account. Please try again.`);
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   const sectionConfig = (() => {
     if (location.pathname.endsWith('/schools')) {
@@ -96,7 +155,7 @@ const AllUsers = () => {
     return {
       menuId: 'all-users',
       title: 'User Management',
-      description: 'Manage all platform users',
+      description: 'Manage all platform users (Students, Stores, Agents, Schools, Parents)',
       defaultRole: 'all',
       totalLabel: 'Total Users'
     };
@@ -107,7 +166,7 @@ const AllUsers = () => {
       const data = await getAllUsers();
       const scopedData = sectionConfig.defaultRole === 'all'
         ? data
-        : data.filter((userData) => userData.user?.role === sectionConfig.defaultRole);
+        : data.filter((userData) => userData.user?.role?.toLowerCase() === sectionConfig.defaultRole.toLowerCase());
 
       setUsers(data);
       setFilteredUsers(scopedData);
@@ -121,25 +180,13 @@ const AllUsers = () => {
       try {
         setLoading(true);
 
-        // Get token from authUser or localStorage
         const token = authUser?.token || localStorage.getItem('token');
-
-        // Check if token exists and is a string
-        if (!token) {
-          console.log('No token found');
-          setLoading(false);
-          return;
-        }
-
-        // Ensure token is a string
-        if (typeof token !== 'string') {
-          console.log('Invalid token type');
+        if (!token || typeof token !== 'string') {
           setLoading(false);
           return;
         }
 
         await fetchUsers();
-
       } catch (error) {
         console.error('Error initializing data:', error);
       } finally {
@@ -147,7 +194,6 @@ const AllUsers = () => {
       }
     };
 
-    // Only initialize if we have a valid auth context or token
     if (authUser !== undefined) {
       initializeData();
     }
@@ -165,63 +211,72 @@ const AllUsers = () => {
   useEffect(() => {
     let result = sectionConfig.defaultRole === 'all'
       ? users
-      : users.filter((userData) => userData.user?.role === sectionConfig.defaultRole);
+      : users.filter((userData) => userData.user?.role?.toLowerCase() === sectionConfig.defaultRole.toLowerCase());
 
     // Apply search filter
     if (searchTerm) {
+      const lowerSearch = searchTerm.toLowerCase();
       result = result.filter(userData => {
         const user = userData.user;
         if (!user) return false;
 
         return (
-          user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          user.name?.toLowerCase().includes(lowerSearch) ||
+          user.firstName?.toLowerCase().includes(lowerSearch) ||
+          user.lastName?.toLowerCase().includes(lowerSearch) ||
+          user.email?.toLowerCase().includes(lowerSearch) ||
           user.phone?.includes(searchTerm) ||
-          user.role?.toLowerCase().includes(searchTerm.toLowerCase())
+          user.role?.toLowerCase().includes(lowerSearch) ||
+          user._id?.toLowerCase().includes(lowerSearch)
         );
       });
     }
 
     // Apply status filter
     if (statusFilter !== 'all') {
-      result = result.filter(userData => userData.user?.status === statusFilter);
+      result = result.filter(userData => userData.user?.status?.toLowerCase() === statusFilter.toLowerCase());
     }
 
     // Apply role filter
     if (roleFilter !== 'all') {
-      result = result.filter(userData => userData.user?.role === roleFilter);
+      result = result.filter(userData => userData.user?.role?.toLowerCase() === roleFilter.toLowerCase());
     }
 
     setFilteredUsers(result);
-    setCurrentPage(1); // Reset to first page when filters change
+    setCurrentPage(1);
   }, [users, searchTerm, statusFilter, roleFilter, sectionConfig.defaultRole]);
 
   const scopedUsers = sectionConfig.defaultRole === 'all'
     ? users
-    : users.filter((userData) => userData.user?.role === sectionConfig.defaultRole);
+    : users.filter((userData) => userData.user?.role?.toLowerCase() === sectionConfig.defaultRole.toLowerCase());
 
   // Pagination
-  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / itemsPerPage));
   const currentUsers = filteredUsers.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
 
   const getStatusBadge = (status: string = 'Inactive') => {
-    const statusConfig = {
-      Active: { color: 'bg-green-100 text-green-800', icon: CheckCircle },
-      Inactive: { color: 'bg-gray-100 text-gray-800', icon: XCircle },
-      Suspended: { color: 'bg-red-100 text-red-800', icon: XCircle },
-      Pending: { color: 'bg-yellow-100 text-yellow-800', icon: Shield }
-    };
+    const norm = status?.toLowerCase();
+    const isAct = norm === 'active';
+    const isPend = norm === 'pending';
+    const isSusp = norm === 'suspended';
 
-    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.Inactive;
-    const Icon = config.icon;
+    const color = isAct 
+      ? 'bg-green-100 text-green-800'
+      : isPend
+        ? 'bg-yellow-100 text-yellow-800'
+        : isSusp
+          ? 'bg-red-100 text-red-800'
+          : 'bg-gray-100 text-gray-800';
+
+    const Icon = isAct ? CheckCircle : isPend ? Shield : XCircle;
 
     return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
+      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${color}`}>
         <Icon size={12} className="mr-1" />
-        {status}
+        {status || 'Inactive'}
       </span>
     );
   };
@@ -230,13 +285,18 @@ const AllUsers = () => {
     const roleColors: Record<string, string> = {
       admin: 'bg-purple-100 text-purple-800',
       student: 'bg-blue-100 text-blue-800',
+      store: 'bg-amber-100 text-amber-800',
+      agent: 'bg-emerald-100 text-emerald-800',
       teacher: 'bg-orange-100 text-orange-800',
       staff: 'bg-indigo-100 text-indigo-800',
-      parent: 'bg-pink-100 text-pink-800'
+      parent: 'bg-pink-100 text-pink-800',
+      school: 'bg-cyan-100 text-cyan-800'
     };
 
+    const normRole = role?.toLowerCase() || 'user';
+
     return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${roleColors[role] || 'bg-gray-100 text-gray-800'}`}>
+      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium uppercase tracking-wider ${roleColors[normRole] || 'bg-gray-100 text-gray-800'}`}>
         {role}
       </span>
     );
@@ -255,7 +315,7 @@ const AllUsers = () => {
     if (!user) return '?';
     const first = user.firstName?.charAt(0) || '';
     const last = user.lastName?.charAt(0) || '';
-    return first + last || user.name?.charAt(0) || '?';
+    return (first + last).toUpperCase() || user.name?.charAt(0)?.toUpperCase() || '?';
   };
 
   const escapeCsvValue = (value: unknown) => {
@@ -264,20 +324,23 @@ const AllUsers = () => {
   };
 
   const handleExport = () => {
-    if (sectionConfig.defaultRole !== 'parent' || filteredUsers.length === 0) {
+    if (filteredUsers.length === 0) {
+      alert('No user records available to export.');
       return;
     }
 
-    const headers = ['Parent ID', 'Name', 'Email', 'Phone', 'Status', 'Address', 'Date Joined'];
+    const headers = ['User ID', 'Name', 'Email', 'Phone', 'Role', 'Status', 'School / Address', 'Date Joined'];
     const rows = filteredUsers.map((userData) => {
       const user = userData.user;
+      const displayName = user?.name || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'N/A';
       return [
         user?._id || '',
-        user?.name || '',
+        displayName,
         user?.email || '',
         user?.phone || '',
-        user?.status || '',
-        user?.schoolAddress || '',
+        user?.role || '',
+        user?.status || 'Inactive',
+        user?.schoolAddress || user?.schoolName || '',
         formatDate(user?.createdAt)
       ];
     });
@@ -290,10 +353,11 @@ const AllUsers = () => {
     const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
     const downloadUrl = URL.createObjectURL(blob);
     const link = document.createElement('a');
+    const rolePrefix = sectionConfig.defaultRole === 'all' ? 'all-users' : sectionConfig.defaultRole;
     const dateStamp = new Date().toISOString().slice(0, 10);
 
     link.href = downloadUrl;
-    link.download = `parents-${dateStamp}.csv`;
+    link.download = `${rolePrefix}-${dateStamp}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -338,11 +402,11 @@ const AllUsers = () => {
                 <button
                   type="button"
                   onClick={handleExport}
-                  disabled={sectionConfig.defaultRole !== 'parent' || filteredUsers.length === 0}
-                  className="bg-white border border-gray-300 rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={filteredUsers.length === 0}
+                  className="bg-white border border-gray-300 rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition"
                 >
-                  <Download size={16} className="mr-2" />
-                  {sectionConfig.defaultRole === 'parent' ? 'Export CSV' : 'Export'}
+                  <Download size={16} className="mr-2 text-blue-600" />
+                  Export CSV ({filteredUsers.length})
                 </button>
               </div>
             </div>
@@ -369,7 +433,7 @@ const AllUsers = () => {
                   <div className="ml-4">
                     <p className="text-sm text-gray-600">Active Accounts</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {scopedUsers.filter(u => u.user?.status === 'Active').length}
+                      {scopedUsers.filter(u => u.user?.status?.toLowerCase() === 'active').length}
                     </p>
                   </div>
                 </div>
@@ -383,7 +447,7 @@ const AllUsers = () => {
                   <div className="ml-4">
                     <p className="text-sm text-gray-600">Pending Accounts</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {scopedUsers.filter(u => u.user?.status === 'Pending').length}
+                      {scopedUsers.filter(u => u.user?.status?.toLowerCase() === 'pending').length}
                     </p>
                   </div>
                 </div>
@@ -397,7 +461,7 @@ const AllUsers = () => {
                   <div className="ml-4">
                     <p className="text-sm text-gray-600">Inactive Accounts</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {scopedUsers.filter(u => u.user?.status === 'Inactive').length}
+                      {scopedUsers.filter(u => u.user?.status?.toLowerCase() === 'inactive' || !u.user?.status).length}
                     </p>
                   </div>
                 </div>
@@ -406,23 +470,23 @@ const AllUsers = () => {
 
             {/* Filters and Search */}
             <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
-              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0 gap-3">
                 <div className="flex-1">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                     <input
                       type="text"
-                      placeholder="Search users by name, email, phone, or role..."
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Search users by name, email, phone, role, ID..."
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black text-sm"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                     />
                   </div>
                 </div>
 
-                <div className="flex space-x-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <select
-                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
+                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black bg-white"
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
                   >
@@ -435,16 +499,18 @@ const AllUsers = () => {
 
                   {sectionConfig.defaultRole === 'all' && (
                     <select
-                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
+                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black bg-white"
                       value={roleFilter}
                       onChange={(e) => setRoleFilter(e.target.value)}
                     >
                       <option value="all">All Roles</option>
                       <option value="student">Student</option>
-                      <option value="admin">Admin</option>
-                      <option value="staff">Staff</option>
+                      <option value="agent">Agent</option>
+                      <option value="store">Store</option>
                       <option value="school">School</option>
                       <option value="parent">Parent</option>
+                      <option value="staff">Staff</option>
+                      <option value="admin">Admin</option>
                     </select>
                   )}
                 </div>
@@ -455,7 +521,7 @@ const AllUsers = () => {
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         User
@@ -484,28 +550,29 @@ const AllUsers = () => {
                         if (!user) return null;
 
                         return (
-                          <tr key={user._id} className="hover:bg-gray-50">
+                          <tr key={user._id} className="hover:bg-gray-50 transition-colors">
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="flex items-center">
                                 <div className="h-10 w-10 flex-shrink-0">
-                                  <div className="h-10 w-10 rounded-full bg-blue-600 flex items-center justify-center">
-                                    <span className="text-white font-medium text-sm">
+                                  <div className="h-10 w-10 rounded-full bg-blue-600 flex items-center justify-center shadow-sm">
+                                    <span className="text-white font-semibold text-sm">
                                       {getUserInitials(user)}
                                     </span>
                                   </div>
                                 </div>
                                 <div className="ml-4">
-                                  <div className="text-sm font-medium text-gray-900">
-                                    {user.name}
+                                  <div className="text-sm font-semibold text-gray-900">
+                                    {user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Unnamed User'}
                                   </div>
+                                  <div className="text-xs text-gray-400">ID: {user._id}</div>
                                 </div>
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">{user.email}</div>
+                              <div className="text-sm text-gray-900">{user.email || 'No email'}</div>
                               {user.phone && (
-                                <div className="text-sm text-gray-500 flex items-center">
-                                  <Phone size={12} className="mr-1" />
+                                <div className="text-xs text-gray-500 flex items-center mt-0.5">
+                                  <Phone size={11} className="mr-1 text-gray-400" />
                                   {user.phone}
                                 </div>
                               )}
@@ -517,47 +584,31 @@ const AllUsers = () => {
                               {getStatusBadge(user.status)}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              <div className="flex items-center">
-                                <Calendar size={12} className="mr-1" />
+                              <div className="flex items-center text-xs">
+                                <Calendar size={12} className="mr-1 text-gray-400" />
                                 {formatDate(user.createdAt)}
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                              <div className="flex items-center justify-end space-x-2">
-  <button
-    onClick={() => handleViewUser(user)}
-    className="text-blue-600 hover:text-blue-900 p-1"
-  >
-    <Eye size={16} />
-  </button>
-
-  <button
-    onClick={() => handleStatusToggle(user._id, user.status)}
-    disabled={actionLoading === user._id}
-    className={`px-3 py-1 rounded-md text-xs font-medium ${
-      user.status === 'Active'
-        ? 'bg-red-100 text-red-700 hover:bg-red-200'
-        : 'bg-green-100 text-green-700 hover:bg-green-200'
-    }`}
-  >
-    {actionLoading === user._id
-      ? 'Processing...'
-      : user.status === 'Active'
-      ? 'Deactivate'
-      : 'Activate'}
-  </button>
-</div>
+                              <button
+                                onClick={(e) => handleMenuOpen(e, user)}
+                                className="text-gray-400 hover:text-gray-600 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                                title="Open actions menu"
+                                aria-label="Open actions menu"
+                              >
+                                <MoreVertical size={18} />
+                              </button>
                             </td>
                           </tr>
                         );
                       })
                     ) : (
                       <tr>
-                        <td colSpan={6} className="px-6 py-8 text-center">
+                        <td colSpan={6} className="px-6 py-12 text-center">
                           <div className="text-gray-500">
                             <Users size={48} className="mx-auto mb-4 text-gray-300" />
-                            <p className="text-lg font-medium">No users found</p>
-                            <p className="text-sm">Try adjusting your search or filters</p>
+                            <p className="text-lg font-medium text-gray-800">No users found</p>
+                            <p className="text-sm text-gray-500">Try adjusting your search or filters</p>
                           </div>
                         </td>
                       </tr>
@@ -566,22 +617,41 @@ const AllUsers = () => {
                 </table>
               </div>
 
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
-                  <div className="flex items-center justify-between">
+              {/* Pagination Bar with Page Size Dropdown */}
+              <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center space-x-4">
                     <div className="text-sm text-gray-700">
-                      Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to{' '}
-                      <span className="font-medium">
+                      Showing <span className="font-semibold">{filteredUsers.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0}</span> to{' '}
+                      <span className="font-semibold">
                         {Math.min(currentPage * itemsPerPage, filteredUsers.length)}
                       </span> of{' '}
-                      <span className="font-medium">{filteredUsers.length}</span> users
+                      <span className="font-semibold">{filteredUsers.length}</span> users
                     </div>
-                    <div className="flex space-x-2">
+
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs text-gray-500">Rows per page:</span>
+                      <select
+                        value={itemsPerPage}
+                        onChange={(e) => {
+                          setItemsPerPage(Number(e.target.value));
+                          setCurrentPage(1);
+                        }}
+                        className="border border-gray-300 rounded-md text-xs px-2 py-1 bg-white text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value={10}>10</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {totalPages > 1 && (
+                    <div className="flex items-center space-x-2">
                       <button
                         onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                         disabled={currentPage === 1}
-                        className="px-3 py-1 border text-black border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-3 py-1 border text-gray-700 border-gray-300 rounded-md text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
                       >
                         <ChevronLeft size={16} />
                       </button>
@@ -600,10 +670,11 @@ const AllUsers = () => {
                           <button
                             key={pageNum}
                             onClick={() => setCurrentPage(pageNum)}
-                            className={`px-3 py-1 border rounded-md text-sm ${currentPage === pageNum
-                              ? 'bg-blue-600 text-white border-blue-600'
-                              : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                              }`}
+                            className={`px-3 py-1 border rounded-md text-sm transition ${
+                              currentPage === pageNum
+                                ? 'bg-blue-600 text-white border-blue-600 font-semibold'
+                                : 'border-gray-300 text-gray-700 hover:bg-gray-100'
+                            }`}
                           >
                             {pageNum}
                           </button>
@@ -613,16 +684,98 @@ const AllUsers = () => {
                       <button
                         onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                         disabled={currentPage === totalPages}
-                        className="px-3 py-1 text-black border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-3 py-1 text-gray-700 border border-gray-300 rounded-md text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
                       >
                         <ChevronRight size={16} />
                       </button>
                     </div>
-                  </div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
           </div>
+
+          {/* Action Menu Dropdown */}
+          {isMenuOpen && menuUser && (
+            <>
+              <div className="fixed inset-0 z-30" onClick={handleMenuClose} />
+              <div
+                className="fixed z-30 bg-white rounded-xl shadow-2xl py-2 w-56 border border-gray-200 text-left animate-in fade-in zoom-in-95 duration-150"
+                style={{
+                  top: Math.min(menuPosition.top, window.innerHeight - 240),
+                  left: Math.min(menuPosition.left - 180, window.innerWidth - 240),
+                }}
+              >
+                <button
+                  className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 w-full text-left font-medium transition-colors"
+                  onClick={() => {
+                    const u = menuUser;
+                    handleMenuClose();
+                    handleViewUser(u);
+                  }}
+                >
+                  <User size={16} className="text-gray-500" />
+                  View Details
+                </button>
+
+                <button
+                  className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 w-full text-left font-medium transition-colors"
+                  onClick={() => handleViewTransactions(menuUser._id, menuUser.role)}
+                >
+                  <ArrowLeftRight size={16} className="text-gray-500" />
+                  Transaction Info
+                </button>
+
+                {menuUser.email && (
+                  <button
+                    className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 w-full text-left font-medium transition-colors"
+                    onClick={() => handleResetPassword(menuUser.email)}
+                  >
+                    <Mail size={16} className="text-gray-500" />
+                    Reset Password
+                  </button>
+                )}
+
+                <div className="border-t border-gray-100 my-1" />
+
+                <button
+                  disabled={actionLoading === menuUser._id}
+                  className={`flex items-center gap-3 px-4 py-2.5 text-sm w-full text-left font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 ${
+                    (menuUser.status || '').toLowerCase() === 'active' ? 'text-red-600' : 'text-green-600'
+                  }`}
+                  onClick={() => {
+                    const u = menuUser;
+                    const uRecord = u as unknown as Record<string, unknown>;
+                    // Resolve best available ID across all user roles
+                    const resolvedId =
+                      u._id ||
+                      (uRecord.id as string) ||
+                      (uRecord.student_id as string) ||
+                      (uRecord.store_id as string) ||
+                      (uRecord.parent_id as string) ||
+                      '';
+                    handleMenuClose();
+                    handleStatusToggle(resolvedId, u.status);
+                  }}
+                >
+                  {actionLoading === menuUser._id ? (
+                    'Updating...'
+                  ) : (menuUser.status || '').toLowerCase() === 'active' ? (
+                    <>
+                      <XCircle size={16} />
+                      Deactivate {menuUser.role ? menuUser.role.charAt(0).toUpperCase() + menuUser.role.slice(1) : 'Account'}
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={16} />
+                      Activate {menuUser.role ? menuUser.role.charAt(0).toUpperCase() + menuUser.role.slice(1) : 'Account'}
+                    </>
+                  )}
+                </button>
+              </div>
+            </>
+          )}
+
           {/* User Details Modal */}
           {showUserModal && selectedUser && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">

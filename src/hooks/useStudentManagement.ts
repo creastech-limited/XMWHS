@@ -12,6 +12,8 @@ import {
   updateStudentPin,
   bulkUploadStudents,
   deactivateUser,
+  extractStudentName,
+  extractStudentEmail,
 } from '../services';
 import type {
   Student,
@@ -153,10 +155,15 @@ export const useStudentManagement = () => {
 
   // ===== STUDENT HELPER FUNCTIONS =====
   const getStudentDisplayName = useCallback((student: Student): string => {
+    // Use the service-level extractor for consistency across all pages
+    const extracted = extractStudentName(student as unknown as Record<string, unknown>);
+    if (extracted && extracted !== 'Unknown Student') return extracted;
+    // Fallback chain
     return (
-      student.name ||
       student.fullName ||
+      student.name ||
       `${student.firstName || ''} ${student.lastName || ''}`.trim() ||
+      student.email?.split('@')[0] ||
       'Unknown'
     );
   }, []);
@@ -341,16 +348,26 @@ export const useStudentManagement = () => {
         return;
       }
 
+      // getStudentsBySchoolId now returns normalized data via normalizeStudentData
+      // so data.data should already be normalized. Use it directly, with a safety fallback.
       let studentArray: Student[] = [];
-      if (data && Array.isArray(data.data)) {
-        studentArray = data.data.map((student: Student) => {
-          const classValue = student.academicDetails?.classAdmittedTo || 'Not Assigned';
+      const rawList = data.data || (data as any).students || [];
+      if (Array.isArray(rawList)) {
+        studentArray = rawList.map((student: Student) => {
+          const email = extractStudentEmail(student as unknown as Record<string, unknown>) || student.email || '';
+          const name = extractStudentName(student as unknown as Record<string, unknown>);
+          const classValue =
+            student.classAdmittedTo ||
+            student.academicDetails?.classAdmittedTo ||
+            student.Class ||
+            'Not Assigned';
           return {
             ...student,
             firstName: student.firstName || '',
             lastName: student.lastName || '',
-            name: student.name || `${student.firstName || ''} ${student.lastName || ''}`.trim() || 'Unknown',
-            email: student.email || '',
+            name: name,
+            fullName: student.fullName || name,
+            email: email,
             phone: student.phone || '',
             status: student.status || 'Pending',
             classAdmittedTo: classValue,
@@ -397,22 +414,29 @@ export const useStudentManagement = () => {
       return;
     }
 
+    // Resolve the best available ID to pass to the API
+    const resolvedId = student._id || (student as any).id || student.student_id || '';
+    if (!resolvedId) {
+      setSnackbar({ open: true, message: 'Cannot determine student ID for status update', severity: 'error' });
+      return;
+    }
+
     const currentStatus = (student.status || 'Pending').toLowerCase();
     const isActive = currentStatus === 'active';
 
     try {
-      const response = isActive 
-        ? await deactivateUser(student._id)
-        : await activateUser(student._id);
+      const response = isActive
+        ? await deactivateUser(resolvedId)
+        : await activateUser(resolvedId);
 
       const newStatus: 'Active' | 'Inactive' | 'Pending' = isActive ? 'Inactive' : 'Active';
 
+      // Match on any available ID field
       setStudents(prevStudents =>
-        prevStudents.map(s =>
-          s._id === student._id
-            ? { ...s, status: newStatus }
-            : s
-        )
+        prevStudents.map(s => {
+          const sId = s._id || (s as any).id || s.student_id || '';
+          return sId === resolvedId ? { ...s, status: newStatus } : s;
+        })
       );
 
       setSnackbar({

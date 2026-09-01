@@ -274,7 +274,14 @@ const ManageAgentsPage: React.FC = () => {
 
   // Handle agent activation / deactivation toggle
   const handleToggleStatus = async (agent: StoreAgent) => {
-    const isCurrentlyActive = agent.status !== 'inactive';
+    // Resolve best available ID across different API shapes
+    const resolvedId = agent.id || (agent as any)._id || (agent as any).agentId || (agent as any).agent_id || '';
+    if (!resolvedId) {
+      toast.error('Cannot update status: Agent ID is missing.', { position: 'top-right', autoClose: 3000 });
+      return;
+    }
+
+    const isCurrentlyActive = (agent.status || '').toLowerCase() !== 'inactive';
     const newStatus = isCurrentlyActive ? 'inactive' : 'active';
     const actionText = isCurrentlyActive ? 'deactivate' : 'activate';
 
@@ -283,18 +290,17 @@ const ManageAgentsPage: React.FC = () => {
     try {
       let response;
       if (isCurrentlyActive) {
-        response = await deactivateAgentAPI(agent.id);
+        response = await deactivateAgentAPI(resolvedId);
       } else {
-        response = await activateAgentAPI(agent.id);
+        response = await activateAgentAPI(resolvedId);
       }
 
-      // Update local state optimistically
+      // Update local state optimistically — match on any available ID field
       setAgents(prevAgents =>
-        prevAgents.map(a =>
-          a.id === agent.id
-            ? { ...a, status: newStatus }
-            : a
-        )
+        prevAgents.map(a => {
+          const aId = a.id || (a as any)._id || (a as any).agentId || (a as any).agent_id || '';
+          return aId === resolvedId ? { ...a, status: newStatus } : a;
+        })
       );
 
       toast.success(response?.message || `Agent ${actionText}d successfully`, {

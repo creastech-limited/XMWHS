@@ -5,6 +5,8 @@ import { Header } from '../../components/Header';
 import { Sidebar as Asidebar } from '../../components/Sidebar';
 import Footer from '../../components/Footer';
 import { useSchoolDashboard } from '../../hooks/useSchoolDashboard';
+
+import { useSchoolTheme } from '../../context/SchoolThemeContext';
 import { StatCard } from '../../components/shared/StatCard';
 import { LoadingScreen } from '../../components/shared/LoadingScreen';
 import { Snackbar } from '../../components/shared/Snackbar';
@@ -26,6 +28,8 @@ const SchoolDashboard: React.FC = () => {
     closeSnackbar,
   } = useSchoolDashboard();
 
+  const { secondaryColor, isCustomized } = useSchoolTheme();
+
   if (loading) {
     return <LoadingScreen message="Loading dashboard..." />;
   }
@@ -41,15 +45,22 @@ const SchoolDashboard: React.FC = () => {
         <main className="flex-grow p-4 md:p-8 md:ml-64">
           {/* Header */}
           <div className="mb-6">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <h1 className="text-2xl md:text-3xl font-bold text-indigo-900">
+                <h1 className="text-2xl md:text-3xl font-bold text-gray-900 flex items-center gap-3">
                   School Dashboard
+                  {isCustomized && (
+                    <span className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border shadow-sm" style={{ borderColor: `${secondaryColor}60`, backgroundColor: `${secondaryColor}15`, color: secondaryColor }}>
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: secondaryColor }} />
+                      Branded
+                    </span>
+                  )}
                 </h1>
-                <p className="text-gray-600">
+                <p className="text-gray-600 mt-1">
                   Welcome back, {user && user.name ? user.name : 'Administrator'}
                 </p>
               </div>
+
             </div>
           </div>
 

@@ -44,7 +44,6 @@ function normaliseStudents(raw: Student[]) {
 }
 
 type NormalisedStudent = ReturnType<typeof normaliseStudents>[number];
-const PER_PAGE = 10;
 
 const LOGO_URL  = '/graceschhollogo.png';
 const XPAY_URL  = '/xpay.jpeg';
@@ -80,6 +79,7 @@ const IDCardGenerator = () => {
   const [classFilter, setClassFilter]         = useState('All');
   const [selected, setSelected]               = useState<Set<string>>(new Set());
   const [page, setPage]                       = useState(1);
+  const [itemsPerPage, setItemsPerPage]       = useState(10);
   const [generating, setGenerating]           = useState(false);
   const [progress, setProgress]               = useState({ current: 0, total: 0, name: '' });
   const [previewStudent, setPreviewStudent]   = useState<NormalisedStudent | null>(null);
@@ -144,8 +144,8 @@ const IDCardGenerator = () => {
     });
   }, [students, search, classFilter]);
 
-  const totalPages     = Math.ceil(filtered.length / PER_PAGE);
-  const paginated      = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+  const totalPages     = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
+  const paginated      = filtered.slice((page - 1) * itemsPerPage, page * itemsPerPage);
   const targetStudents = selected.size > 0 ? students.filter((s) => selected.has(s._id)) : filtered;
 
   const toggleSelect = (id: string) => setSelected((prev) => {
@@ -439,23 +439,43 @@ const IDCardGenerator = () => {
             </table>
           </div>
 
-          {totalPages > 1 && (
-            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
-              <p className="text-sm text-gray-700">
-                Showing <span className="font-medium">{(page - 1) * PER_PAGE + 1}</span>–<span className="font-medium">{Math.min(page * PER_PAGE, filtered.length)}</span> of <span className="font-medium">{filtered.length}</span>
-              </p>
-              <div className="flex gap-2">
-                <button className="px-3 py-1 border text-black border-gray-300 rounded-md text-sm disabled:opacity-50 hover:bg-gray-100" disabled={page === 1} onClick={() => setPage((p) => p - 1)}><ChevronLeft size={16} /></button>
-                {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                  let n = i + 1;
-                  if (totalPages > 5 && page > 3)            n = page - 3 + i;
-                  if (totalPages > 5 && page > totalPages - 2) n = totalPages - 4 + i;
-                  return n <= totalPages ? (
-                    <button key={n} onClick={() => setPage(n)} className={`px-3 py-1 border rounded-md text-sm ${page === n ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}>{n}</button>
-                  ) : null;
-                })}
-                <button className="px-3 py-1 border text-black border-gray-300 rounded-md text-sm disabled:opacity-50 hover:bg-gray-100" disabled={page === totalPages} onClick={() => setPage((p) => p + 1)}><ChevronRight size={16} /></button>
+          {filtered.length > 0 && (
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-center space-x-4">
+                <p className="text-sm text-gray-700">
+                  Showing <span className="font-medium">{(page - 1) * itemsPerPage + 1}</span>–<span className="font-medium">{Math.min(page * itemsPerPage, filtered.length)}</span> of <span className="font-medium">{filtered.length}</span>
+                </p>
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs text-gray-500">Rows per page:</span>
+                  <select
+                    value={itemsPerPage}
+                    onChange={(e) => {
+                      setItemsPerPage(Number(e.target.value));
+                      setPage(1);
+                    }}
+                    className="border border-gray-300 rounded-md text-xs px-2 py-1 bg-white text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value={10}>10</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
               </div>
+
+              {totalPages > 1 && (
+                <div className="flex gap-2">
+                  <button className="px-3 py-1 border text-black border-gray-300 rounded-md text-sm disabled:opacity-50 hover:bg-gray-100" disabled={page === 1} onClick={() => setPage((p) => p - 1)}><ChevronLeft size={16} /></button>
+                  {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                    let n = i + 1;
+                    if (totalPages > 5 && page > 3)            n = page - 3 + i;
+                    if (totalPages > 5 && page > totalPages - 2) n = totalPages - 4 + i;
+                    return n <= totalPages ? (
+                      <button key={n} onClick={() => setPage(n)} className={`px-3 py-1 border rounded-md text-sm ${page === n ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}>{n}</button>
+                    ) : null;
+                  })}
+                  <button className="px-3 py-1 border text-black border-gray-300 rounded-md text-sm disabled:opacity-50 hover:bg-gray-100" disabled={page === totalPages} onClick={() => setPage((p) => p + 1)}><ChevronRight size={16} /></button>
+                </div>
+              )}
             </div>
           )}
         </div>

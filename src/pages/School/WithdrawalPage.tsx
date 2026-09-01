@@ -172,29 +172,24 @@ const WithdrawalPage: React.FC = () => {
           // NOTE: this feeds confirmedBank/confirmedAccountNumber/confirmedAccountName —
           // the display state — NOT the modal's draft state. The draft only
           // gets filled in when the user opens the modal (see handleOpenModal).
-        const bankName = userInfo.bankDetails?.bankName || userInfo.withdrawalBank;
-const accountNumberFromApi = userInfo.bankDetails?.accountNumber || userInfo.withdrawalAccountNumber;
-const accountNameFromApi = userInfo.bankDetails?.accountName || userInfo.withdrawalAccountName;
-const bankCode = userInfo.bankDetails?.bankCode;
-          // Pre-populate bank details if they exist
           const bankName = userInfo.bankDetails?.bankName || userInfo.withdrawalBank;
-          const accountNumber = userInfo.bankDetails?.accountNumber || userInfo.withdrawalAccountNumber;
-          const accountName = userInfo.bankDetails?.accountName || userInfo.withdrawalAccountName;
+          const accountNumberFromApi = userInfo.bankDetails?.accountNumber || userInfo.withdrawalAccountNumber;
+          const accountNameFromApi = userInfo.bankDetails?.accountName || userInfo.withdrawalAccountName;
           const bankCode = userInfo.bankDetails?.bankCode;
 
-if (bankName && accountNumberFromApi && accountNameFromApi) {
-  setConfirmedBank(bankName);
-  setConfirmedAccountNumber(accountNumberFromApi);
-  setConfirmedAccountName(accountNameFromApi);
-  if (bankCode) {
-    setConfirmedBankCode(bankCode);
-  }
-  setIsBankSet(true);
-}
-          if (bankName && accountNumber && accountName) {
+          if (bankName && accountNumberFromApi && accountNameFromApi) {
+            setConfirmedBank(bankName);
+            setConfirmedAccountNumber(accountNumberFromApi);
+            setConfirmedAccountName(accountNameFromApi);
+            if (bankCode) {
+              setConfirmedBankCode(bankCode);
+            }
+            setIsBankSet(true);
+          }
+          if (bankName && accountNumberFromApi && accountNameFromApi) {
             setSelectedBank(bankName);
-            setAccountNumber(accountNumber);
-            setAccountName(accountName);
+            setAccountNumber(accountNumberFromApi);
+            setAccountName(accountNameFromApi);
             if (bankCode) {
               setSelectedBankCode(bankCode);
             }
@@ -462,26 +457,11 @@ if (bankName && accountNumberFromApi && accountNameFromApi) {
         amount,
         description: withdrawalNote,
         pin: withdrawalPin,
-        account_name: confirmedAccountName,
-        account_number: confirmedAccountNumber,
-        bank_code : confirmedBankCode,
+        account_name: confirmedAccountName || accountName,
+        account_number: confirmedAccountNumber || accountNumber,
+        bank_code : confirmedBankCode || selectedBankCode,
       }),
     });
-      const response = await fetch(`${API_BASE_URL}/api/transaction/withdraw`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          amount,
-          description: withdrawalNote,
-          pin: withdrawalPin,
-          account_name: accountName,
-          account_number: accountNumber,
-          bank_code: selectedBankCode,
-        }),
-      });
 
       if (response.ok) {
         await response.json();
@@ -609,35 +589,6 @@ if (bankName && accountNumberFromApi && accountNameFromApi) {
     setLoading(false);
   }
 };
-    setLoading(true);
-    try {
-      // First validate the withdrawal to get charges
-      const validationData = await validateWithdrawal(amount);
-
-      // Ensure we have all required fields
-      const validationResult = {
-        amount: validationData.amount || amount,
-        charge: validationData.charge || 0,
-        total: (validationData.amount || amount) + (validationData.charge || 0),
-        account_name: accountName || '',
-        account_number: accountNumber || '',
-        bank_name: selectedBank || '',
-      };
-
-      setWithdrawalValidation(validationResult);
-
-      // Only show PIN modal after successful validation
-      setShowPinModal(true);
-    } catch (error) {
-      setWithdrawalError(
-        error && typeof error === 'object' && 'message' in error
-          ? (error as { message?: string }).message || 'Failed to validate withdrawal'
-          : 'Failed to validate withdrawal'
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <div className="flex flex-col min-h-screen bg-white">

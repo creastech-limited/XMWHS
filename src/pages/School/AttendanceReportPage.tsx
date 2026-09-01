@@ -3,7 +3,7 @@ import { ClipboardList, Clock3, Download, MapPin, Search, Smartphone, UserCheck 
 import { Header } from '../../components/Header';
 import { Sidebar } from '../../components/Sidebar';
 import Footer from '../../components/Footer';
-import { getStudentAttendance, getStudentsBySchoolId, getUserDetails } from '../../services';
+import { getStudentAttendance, getStudentsBySchoolId, getUserDetails, extractStudentName, extractStudentEmail } from '../../services';
 import type { Student, StudentsResponse } from '../../types/student';
 import type { AttendanceRecord, User, UserResponse } from '../../types/user';
 
@@ -23,10 +23,13 @@ const AttendanceReportPage: React.FC = () => {
 
   // Helper function for student display name
   const getStudentDisplayName = useCallback((student: Student): string => {
+    const extracted = extractStudentName(student as unknown as Record<string, unknown>);
+    if (extracted && extracted !== 'Unknown Student') return extracted;
     return (
-      student.name ||
       student.fullName ||
+      student.name ||
       `${student.firstName || ''} ${student.lastName || ''}`.trim() ||
+      student.email?.split('@')[0] ||
       'Unknown Student'
     );
   }, []);
@@ -111,30 +114,29 @@ const AttendanceReportPage: React.FC = () => {
     try {
       const data: StudentsResponse = await getStudentsBySchoolId(resolvedSchoolId);
       const studentArray = Array.isArray(data.data)
-        ? data.data.map((student) => ({
-            ...student,
-            firstName: student.firstName || '',
-            lastName: student.lastName || '',
-            name:
-              student.name ||
-              student.fullName ||
-              `${student.firstName || ''} ${student.lastName || ''}`.trim() ||
-              'Unknown Student',
-            email: student.email || '',
-            phone: student.phone || '',
-            status: student.status || 'Pending',
-            classAdmittedTo:
+        ? data.data.map((student) => {
+            const name = extractStudentName(student as unknown as Record<string, unknown>);
+            const email = extractStudentEmail(student as unknown as Record<string, unknown>) || student.email || '';
+            const classValue =
               student.classAdmittedTo ||
               student.academicDetails?.classAdmittedTo ||
               student.Class ||
-              'Not Assigned',
-            academicDetails: student.academicDetails || {
-              classAdmittedTo:
-                student.classAdmittedTo ||
-                student.Class ||
-                'Not Assigned',
-            },
-          }))
+              'Not Assigned';
+            return {
+              ...student,
+              firstName: student.firstName || '',
+              lastName: student.lastName || '',
+              name: name,
+              fullName: student.fullName || name,
+              email: email,
+              phone: student.phone || '',
+              status: student.status || 'Pending',
+              classAdmittedTo: classValue,
+              academicDetails: student.academicDetails || {
+                classAdmittedTo: classValue,
+              },
+            };
+          })
         : [];
 
       setStudents(studentArray);

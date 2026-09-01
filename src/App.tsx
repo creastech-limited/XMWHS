@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { SchoolThemeProvider } from './context/SchoolThemeContext';
 import LoginPage from './pages/Public Pages/LoginPage.js';
 import SchoolsPage from './pages/School/SchoolDashboard';
 import SignUpPage from './pages/Public Pages/SignUpPage.js';
@@ -60,13 +61,15 @@ import Userwallets from './pages/Admin/Userwallets.js';
 import Getdisputes from './pages/Admin/Disputse.js';
 import SuccessPage from './pages/Public Pages/SuccessPage.js';
 import AdminSettingsPage from './pages/Admin/Settings';
+import AdminTransactions from './pages/Admin/Transactions';
 
 
 function App() {
   return (
     <Router>
       <AuthProvider>
-        <Routes>
+        <SchoolThemeProvider>
+          <Routes>
 
           <Route path="/privacyAndPolicy" element={<PrivacyAndPolicy />} />
           <Route path="/terms" element={<PrivacyAndPolicy />} />
@@ -98,19 +101,20 @@ function App() {
           <Route path="/attendance/report" element={<AttendanceReportPage />} />
           <Route path="/transactions" element={<TransactionModule />} />
           <Route path="/withdrawal" element={<WithdrawalPage />} />
-          <Route path="/students/edit/:_id" element={<EditStudentDetails />} />
-          <Route path="/students/transactions/:_id" element={<ViewStudentTransactions />} />
           <Route path="/Sdisputes" element={<DisputePage />} />
-
+          <Route path="/schools/students/:id/edit" element={<EditStudentDetails />} />
+          <Route path="/schools/stores/:id/edit" element={<EditStoreDetails />} />
+          <Route path="/schools/students/:id/transactions" element={<ViewStudentTransactions />} />
+          
           {/* Parent Routes */}
           <Route path="/parent" element={<ParentDashboard />} />
           <Route path="/fundwallet" element={<FundWalletPage />} />
-          <Route path="/ptransactionhistory" element={<PTransactionHistoryPage />} />
-          <Route path="/psettings" element={<PsettingsPage />} />
-          <Route path="/transfertokids" element={<TransferToKidsPage />} />
           <Route path="/payschoolbills" element={<PaySchoolBillsPage />} />
+          <Route path="/ptransactionhistory" element={<PTransactionHistoryPage />} />
+          <Route path="/Pdispute" element={<Pdispute />} />
+          <Route path="/Psettings" element={<PsettingsPage />} />
           <Route path="/paytoagent" element={<PayToAgentPage />} />
-          <Route path="/pdispute" element={<Pdispute />} />
+          <Route path="/transfertokids" element={<TransferToKidsPage />} />
 
           {/* Student Routes */}
           <Route path="/kidswallet" element={<KidsDashboard />} />
@@ -120,18 +124,17 @@ function App() {
           <Route path="/schoolbills" element={<SchoolBillsPage />} />
           <Route path="/kdispute" element={<Kdispute />} />
 
-          {/* Security Routes */}
-          <Route path="/security" element={<SecurityDashboard />} />
-          <Route path="/security/settings" element={<SecuritySettingsPage />} />
-
           {/* Store Routes */}
           <Route path="/store" element={<StoreDashboard />} />
           <Route path="/agents" element={<ManageAgentsPage />} />
           <Route path="/stransactions" element={<STransactionHistoryPage />} />
-          <Route path="/swithdrawal" element={<SWithdrawalPage />} />
-          <Route path="/store/settings" element={<StoreSettingsPage />} />
-          <Route path="/stores/edit/:id" element={<EditStoreDetails />} />
+          <Route path="/Swithdrawal" element={<SWithdrawalPage />} />
           <Route path="/Storedispute" element={<Storedispute />} />
+          <Route path="/store/settings" element={<StoreSettingsPage />} />
+
+          {/* Security Routes */}
+          <Route path="/security" element={<SecurityDashboard />} />
+          <Route path="/security/settings" element={<SecuritySettingsPage />} />
 
           {/* Agent Routes */}
           <Route path="/agent" element={<AgentDashboard />} />
@@ -141,6 +144,14 @@ function App() {
 
           {/* Admin Routes */}
           <Route path="/admin" element={<Overview />} />
+          <Route path="/admin/users" element={<AllUsers />} />
+          <Route path="/admin/schools" element={<Schools />} />
+          <Route path="/admin/stores" element={<AllUsers />} />
+          <Route path="/admin/parents" element={<AllUsers />} />
+          <Route path="/admin/agents" element={<AllUsers />} />
+          <Route path="/admin/transactions" element={<AdminTransactions />} />
+
+          {/* Compatibility aliases for legacy admin menu paths */}
           <Route path="/admin/management/all-users" element={<AllUsers />} />
           <Route path="/admin/management/schools" element={<Schools />} />
           <Route path="/admin/management/parents" element={<AllUsers />} />
@@ -160,7 +171,8 @@ function App() {
           {/* Catch-all */}
           <Route path="*" element={<Navigate to="/login" replace />} />
 
-        </Routes>
+          </Routes>
+        </SchoolThemeProvider>
       </AuthProvider>
     </Router>
   );

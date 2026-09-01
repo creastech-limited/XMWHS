@@ -448,23 +448,36 @@ export const StorePage: React.FC = () => {
 
   // Handle Activate/Deactivate Store
   const handleActivateDeactivate = async (store: StoreType) => {
+    const resolvedId = store._id || (store as any).id || (store as any).storeId || (store as any).store_id || '';
+    if (!resolvedId) {
+      setSnackbar({
+        open: true,
+        message: 'Cannot update status: Store ID is missing.',
+        severity: 'error',
+      });
+      handleMenuClose();
+      return;
+    }
+
+    const isCurrentlyActive = (store.status || '').toLowerCase() === 'active';
     try {
-      const result = store.status.toLowerCase() === 'active'
-        ? await deactivateStore(store._id)
-        : await activateStore(store._id);
+      const result = isCurrentlyActive
+        ? await deactivateStore(resolvedId)
+        : await activateStore(resolvedId);
       
       // Update the store status in the local state
       setStores(prevStores =>
-        prevStores.map(s =>
-          s._id === store._id
-            ? { ...s, status: result.status || (store.status.toLowerCase() === 'active' ? 'inactive' : 'active') }
-            : s
-        )
+        prevStores.map(s => {
+          const sId = s._id || (s as any).id || (s as any).storeId || (s as any).store_id || '';
+          return sId === resolvedId
+            ? { ...s, status: result?.status || (isCurrentlyActive ? 'inactive' : 'active') }
+            : s;
+        })
       );
 
       setSnackbar({
         open: true,
-        message: `Store ${store.status.toLowerCase() === 'active' ? 'deactivated' : 'activated'} successfully`,
+        message: `Store ${isCurrentlyActive ? 'deactivated' : 'activated'} successfully`,
         severity: 'success',
       });
     } catch (error) {

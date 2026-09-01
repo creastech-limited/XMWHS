@@ -19,12 +19,10 @@ interface ChargeDisplayData extends Charge {
   formattedUpdated?: string;
 }
 
-const ITEMS_PER_PAGE = 10;
-
 const GetCharges = () => {
   const { user: authUser } = useAuth() ?? {};
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [activeMenu, setActiveMenu] = useState('get-charges');
+  const [activeMenu, setActiveMenu] = useState('charges');
   const [loading, setLoading] = useState(true);
   const [charges, setCharges] = useState<ChargeDisplayData[]>([]);
   const [filteredCharges, setFilteredCharges] = useState<ChargeDisplayData[]>([]);
@@ -32,6 +30,7 @@ const GetCharges = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [chargeTypeFilter, setChargeTypeFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchCharges = useCallback(async () => {
@@ -126,9 +125,9 @@ const GetCharges = () => {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, chargeTypeFilter, charges]);
 
-  const totalPages = Math.ceil(filteredCharges.length / ITEMS_PER_PAGE);
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const totalPages = Math.max(1, Math.ceil(filteredCharges.length / itemsPerPage));
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
   const currentCharges = filteredCharges.slice(startIndex, endIndex);
 
   const handleRefresh = async () => {
@@ -350,34 +349,78 @@ const GetCharges = () => {
                   </div>
 
                   {/* Pagination */}
-                  <div className="flex items-center justify-between px-6 py-4 bg-gray-50 border-t border-gray-200">
-                    <div className="text-sm text-gray-600">
-                      Showing {startIndex + 1} to {Math.min(endIndex, filteredCharges.length)} of{' '}
-                      {filteredCharges.length} charges
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={handlePrevPage}
-                        disabled={currentPage === 1}
-                        className="flex items-center text-black gap-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                      >
-                        <ChevronLeft className="w-4 h-4" />
-                        Previous
-                      </button>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-gray-600">
-                          Page {currentPage} of {totalPages}
-                        </span>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-6 py-4 bg-gray-50 border-t border-gray-200">
+                    <div className="flex items-center space-x-4">
+                      <div className="text-sm text-gray-700">
+                        Showing <span className="font-semibold">{filteredCharges.length > 0 ? startIndex + 1 : 0}</span> to{' '}
+                        <span className="font-semibold">{Math.min(endIndex, filteredCharges.length)}</span> of{' '}
+                        <span className="font-semibold">{filteredCharges.length}</span> charges
                       </div>
-                      <button
-                        onClick={handleNextPage}
-                        disabled={currentPage === totalPages}
-                        className="flex items-center text-black gap-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                      >
-                        Next
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
+
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs text-gray-500">Rows per page:</span>
+                        <select
+                          value={itemsPerPage}
+                          onChange={(e) => {
+                            setItemsPerPage(Number(e.target.value));
+                            setCurrentPage(1);
+                          }}
+                          className="border border-gray-300 rounded-md text-xs px-2 py-1 bg-white text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        >
+                          <option value={10}>10</option>
+                          <option value={50}>50</option>
+                          <option value={100}>100</option>
+                        </select>
+                      </div>
                     </div>
+
+                    {totalPages > 1 && (
+                      <div className="flex items-center space-x-2">
+                        <button
+                          type="button"
+                          onClick={handlePrevPage}
+                          disabled={currentPage === 1}
+                          className="px-3 py-1 border text-gray-700 border-gray-300 rounded-md text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                        >
+                          <ChevronLeft size={16} />
+                        </button>
+
+                        {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                          let pageNum = i + 1;
+                          if (totalPages > 5) {
+                            if (currentPage > 3) {
+                              pageNum = currentPage - 3 + i;
+                            }
+                            if (currentPage > totalPages - 2) {
+                              pageNum = totalPages - 4 + i;
+                            }
+                          }
+                          return pageNum <= totalPages ? (
+                            <button
+                              key={pageNum}
+                              type="button"
+                              onClick={() => setCurrentPage(pageNum)}
+                              className={`px-3 py-1 border rounded-md text-sm transition ${
+                                currentPage === pageNum
+                                  ? 'bg-blue-600 text-white border-blue-600 font-semibold'
+                                  : 'border-gray-300 text-gray-700 hover:bg-gray-100'
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          ) : null;
+                        })}
+
+                        <button
+                          type="button"
+                          onClick={handleNextPage}
+                          disabled={currentPage === totalPages}
+                          className="px-3 py-1 text-gray-700 border border-gray-300 rounded-md text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                        >
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </>
               ) : (
