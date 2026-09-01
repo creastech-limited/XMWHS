@@ -1,5 +1,10 @@
 // src/components/shared/StatCard.tsx
+<<<<<<< HEAD
 import React, { type ReactNode } from 'react';
+=======
+import React from 'react';
+import type { ReactNode } from 'react';
+>>>>>>> 8f4b4c6b6c3def13c3571474ac57e5354e57eef8
 
 interface StatCardProps {
   icon: ReactNode;
