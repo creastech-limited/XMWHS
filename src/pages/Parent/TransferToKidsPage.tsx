@@ -112,7 +112,7 @@ const TransferToKidsPage: React.FC = () => {
   const [filteredKids, setFilteredKids] = useState<Kid[]>([]);
 
   // Fetch kids list
-const fetchKids = async () => {
+const fetchKids = useCallback(async () => {
   try {
  
     const getStudent = `${API_BASE_URL}/api/users/getallsudent`;
@@ -156,10 +156,10 @@ const fetchKids = async () => {
     setSnackbarSeverity('error');
     setShowSnackbar(true);
   }
-};
+}, [token]);
 
   // Fetch recent transactions
-  const fetchRecentTransactions = async () => {
+  const fetchRecentTransactions = useCallback(async () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/api/transaction/getusertransaction`, {
         headers: {
@@ -202,10 +202,10 @@ const fetchKids = async () => {
       setSnackbarSeverity('error');
       setShowSnackbar(true);
     }
-  };
+  }, [token]);
 
   // Fetch user balance
-  const fetchUserBalance = async () => {
+  const fetchUserBalance = useCallback(async () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/api/users/getuserone`, {
         headers: {
@@ -222,10 +222,10 @@ const fetchKids = async () => {
     } catch (error) {
       console.error('Error fetching user balance:', error);
     }
-  };
+  }, [token]);
 
   // Fetch beneficiaries and update allKids
-  const fetchBeneficiaries = async () => {
+  const fetchBeneficiaries = useCallback(async () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/api/users/getBeneficiaries`, {
         headers: {
@@ -263,7 +263,7 @@ const fetchKids = async () => {
     } catch (error) {
       console.error('Error fetching beneficiaries:', error);
     }
-  };
+  }, [token]);
 
   const fetchStudents = useCallback(async (authToken: string): Promise<Student[]> => {
     try {
@@ -332,7 +332,7 @@ const fetchKids = async () => {
     }
   }, []);
 
-  const fetchTransactionCharges = async () => {
+  const fetchTransactionCharges = useCallback(async () => {
     if (!token) return;
 
     try {
@@ -358,7 +358,7 @@ const fetchKids = async () => {
       // Set default fee if API fails
       setTransactionFee(0);
     }
-  };
+  }, [token]);
 
   // Effect to filter kids based on search and tab
   useEffect(() => {
@@ -395,16 +395,17 @@ const fetchKids = async () => {
 
   // Initial data fetch
   useEffect(() => {
-    if (token) {
-      fetchKids().then(() => {
-        fetchBeneficiaries();
-      });
-      fetchStudents(token);
-      fetchRecentTransactions();
-      fetchUserBalance();
-      fetchTransactionCharges();
+    if (!token) {
+      return;
     }
-  }, [token, fetchStudents]);
+
+    void fetchKids();
+    void fetchBeneficiaries();
+    void fetchStudents(token);
+    void fetchRecentTransactions();
+    void fetchUserBalance();
+    void fetchTransactionCharges();
+  }, [token, fetchBeneficiaries, fetchKids, fetchRecentTransactions, fetchStudents, fetchTransactionCharges, fetchUserBalance]);
 
   const handleTabChange = (newValue: number) => {
     setTabValue(newValue);

@@ -38,6 +38,11 @@ const toFiniteNumber = (value: unknown): number | undefined => {
   return Number.isFinite(numericValue) ? numericValue : undefined;
 };
 
+const getStoreIdentity = (store: Partial<StoreType> & Record<string, unknown>, key: string): string => {
+  const value = store[key];
+  return typeof value === 'string' ? value : '';
+};
+
 export const StorePage: React.FC = () => {
   // Auth context for getting token
   const authContext = useAuth();
@@ -448,7 +453,8 @@ export const StorePage: React.FC = () => {
 
   // Handle Activate/Deactivate Store
   const handleActivateDeactivate = async (store: StoreType) => {
-    const resolvedId = store._id || (store as any).id || (store as any).storeId || (store as any).store_id || '';
+    const storeRecord = store as Partial<StoreType> & Record<string, unknown>;
+    const resolvedId = store._id || getStoreIdentity(storeRecord, 'id') || getStoreIdentity(storeRecord, 'storeId') || getStoreIdentity(storeRecord, 'store_id') || '';
     if (!resolvedId) {
       setSnackbar({
         open: true,
@@ -468,7 +474,8 @@ export const StorePage: React.FC = () => {
       // Update the store status in the local state
       setStores(prevStores =>
         prevStores.map(s => {
-          const sId = s._id || (s as any).id || (s as any).storeId || (s as any).store_id || '';
+          const sRecord = s as Partial<StoreType> & Record<string, unknown>;
+          const sId = s._id || getStoreIdentity(sRecord, 'id') || getStoreIdentity(sRecord, 'storeId') || getStoreIdentity(sRecord, 'store_id') || '';
           return sId === resolvedId
             ? { ...s, status: result?.status || (isCurrentlyActive ? 'inactive' : 'active') }
             : s;
