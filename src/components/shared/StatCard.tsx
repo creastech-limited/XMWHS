@@ -1,5 +1,6 @@
 // src/components/shared/StatCard.tsx
-import React, { ReactNode } from 'react';
+import React from 'react';
+import type { ReactNode } from 'react';
 
 interface StatCardProps {
   icon: ReactNode;

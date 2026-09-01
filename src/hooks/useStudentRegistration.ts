@@ -234,7 +234,7 @@ export const useStudentRegistration = () => {
         },
         schoolId: formData.schoolId,
         schoolName: formData.schoolName,
-        schoolType: formData.schoolType,
+         schoolType: formData.schoolType as 'primary' | 'secondary' | 'polytechnic' | 'university',
         schoolAddress: formData.schoolAddress,
       };
 
