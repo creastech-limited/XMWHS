@@ -14,7 +14,7 @@ interface ViewStudentTransactionsState {
 }
 
 export const useViewStudentTransactions = () => {
-  const { _id: studentIdFromUrl } = useParams<{ _id: string }>();
+  const { id: studentIdFromUrl } = useParams<{ id: string }>();
   const auth = useAuth();
 
   const [state, setState] = useState<ViewStudentTransactionsState>({

@@ -677,12 +677,12 @@ export const useStudentManagement = () => {
 
   const handleViewDetails = useCallback((student: Student) => {
     handleMenuClose();
-    window.location.href = `/students/edit/${student._id}`;
+    window.location.href = `/schools/students/${student._id}/edit`;
   }, [handleMenuClose]);
 
   const handleViewTransactions = useCallback((student: Student) => {
     handleMenuClose();
-    window.location.href = `/students/transactions/${student._id}`;
+    window.location.href = `/schools/students/${student._id}/transactions`;
   }, [handleMenuClose]);
 
   const handleDownloadSample = useCallback(() => {

@@ -16,7 +16,7 @@ interface EditStudentState {
 
 export const useEditStudent = () => {
   const auth = useAuth();
-  const { _id } = useParams<{ _id: string }>();
+  const { id: _id } = useParams<{ id: string }>();
 
   const [state, setState] = useState<EditStudentState>({
     user: null,

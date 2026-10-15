@@ -902,7 +902,7 @@ export const StorePage: React.FC = () => {
                                     className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                                     onClick={() => {
                                       setDropdownOpen(null);
-                                      window.location.href = `/stores/edit/${store._id}`;
+                                      window.location.href = `/schools/stores/${store._id}/edit`;
                                     }}
                                   >
                                     View Details
