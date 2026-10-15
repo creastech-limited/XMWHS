@@ -708,7 +708,7 @@ const AgentTransferToStore = () => {
                       <div className="text-xs text-gray-500">Quick transfer</div>
                     </button>
 
-                    <button
+                    {/* <button
                       type="button"
                       onClick={() => {
                         setForm(prev => ({ ...prev, transferType: 'otherUser', storeEmail: '' }));
@@ -721,7 +721,7 @@ const AgentTransferToStore = () => {
                     >
                       <div className="font-medium text-sm sm:text-base mb-1">Other User</div>
                       <div className="text-xs text-gray-500">Any system user</div>
-                    </button>
+                    </button> */}
                   </div>
                 </div>
 
@@ -744,7 +744,7 @@ const AgentTransferToStore = () => {
                 )}
 
                 {/* Other User Transfer Form - Mobile Optimized */}
-                {form.transferType === 'otherUser' && (
+                {/* {form.transferType === 'otherUser' && (
                   <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 sm:p-4 mb-4">
                     <div className="flex items-start gap-2 sm:gap-3">
                       <Info className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 mt-0.5 flex-shrink-0" />
@@ -772,7 +772,7 @@ const AgentTransferToStore = () => {
                       </div>
                     </div>
                   </div>
-                )}
+                )} */}
 
                 {/* Form Inputs - Mobile Optimized */}
                 <div className="space-y-4">
