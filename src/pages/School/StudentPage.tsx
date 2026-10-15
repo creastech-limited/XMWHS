@@ -16,6 +16,7 @@ import {
   PinModal,
   BulkUploadModal,
 } from '../../components/student';
+import PageSizeSelector from '../../components/student/PageSizeSelector';
 
 const StudentPage: React.FC = () => {
   const {
@@ -31,6 +32,9 @@ const StudentPage: React.FC = () => {
     setFilters,
     page,
     setPage,
+    pageSize,
+    handlePageSizeChange,
+    totalFiltered,
     // UI State
     menuStudent,
     isMenuOpen,
@@ -98,16 +102,16 @@ const StudentPage: React.FC = () => {
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
       <Header PsettingsPage="/settings" />
-      
+
       <div className="flex flex-grow">
         <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-none">
           <Sidebar />
         </aside>
-        
+
         <main className="flex-grow p-4 md:p-8 md:ml-64 overflow-x-auto">
           {/* Header */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-            <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
+            <h1 className="text-3xl md:text-4xl font-bold flex items-center gap-2">
               <UsersIcon className="h-7 w-7 text-indigo-600" />
               <span className="text-indigo-900">Student Management</span>
             </h1>
@@ -128,9 +132,9 @@ const StudentPage: React.FC = () => {
           <StudentStatsCards stats={stats} />
 
           {/* Registration Link */}
-          <StudentRegistrationLink 
-            link={registrationLink} 
-            onCopy={handleCopyLink} 
+          <StudentRegistrationLink
+            link={registrationLink}
+            onCopy={handleCopyLink}
           />
 
           {/* Filters */}
@@ -147,6 +151,13 @@ const StudentPage: React.FC = () => {
             onExport={handleExport}
           />
 
+          {/* <PageSizeSelector
+            pageSize={pageSize}
+            total={totalFiltered}
+            page={page}
+            onChange={handlePageSizeChange}
+          /> */}
+
           {/* Student Table */}
           <StudentTable
             students={paginatedStudents}
@@ -158,10 +169,13 @@ const StudentPage: React.FC = () => {
             getStudentDisplayName={getStudentDisplayName}
             getStudentInitials={getStudentInitials}
             getStudentProfileImage={getStudentProfileImage}
+            pageSize={pageSize}
+            totalItems={totalFiltered}
+            onPageSizeChange={handlePageSizeChange}
           />
         </main>
       </div>
-      
+
       <Footer />
 
       {/* Modals */}

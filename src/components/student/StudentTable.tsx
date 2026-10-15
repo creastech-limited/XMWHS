@@ -1,8 +1,8 @@
 // src/components/student/StudentTable.tsx
 import React from 'react';
-import { 
-  MailIcon, 
-  BookOpenIcon, 
+import {
+  MailIcon,
+  BookOpenIcon,
   MoreVerticalIcon,
   CheckCircleIcon,
   ClockIcon,
@@ -21,6 +21,9 @@ interface StudentTableProps {
   getStudentDisplayName: (student: Student) => string;
   getStudentInitials: (student: Student) => string;
   getStudentProfileImage: (student: Student) => string | null;
+  pageSize: number;
+  totalItems: number;
+  onPageSizeChange: (size: number) => void;
 }
 
 const StudentTable: React.FC<StudentTableProps> = ({
@@ -33,6 +36,9 @@ const StudentTable: React.FC<StudentTableProps> = ({
   getStudentDisplayName,
   getStudentInitials,
   getStudentProfileImage,
+  totalItems,
+  pageSize,
+  onPageSizeChange
 }) => {
   const getStatusBadgeColor = (status: string = 'Pending'): string => {
     const statusLower = (status || 'Pending').toLowerCase();
@@ -61,6 +67,9 @@ const StudentTable: React.FC<StudentTableProps> = ({
         return <ClockIcon className="h-4 w-4" />;
     }
   };
+
+  const rangeStart = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const rangeEnd = Math.min(currentPage * pageSize, totalItems);
 
   if (loading) {
     return (
@@ -138,20 +147,20 @@ const StudentTable: React.FC<StudentTableProps> = ({
                     </div>
                   </div>
                 </td>
-                
+
                 <td className="px-4 py-3 md:px-6 md:py-4 whitespace-nowrap">
                   <div className="text-xs md:text-sm font-mono text-gray-500 bg-gray-100 px-2 py-1 rounded w-fit">
                     {student.admissionNumber || student.student_id || 'N/A'}
                   </div>
                 </td>
-                
+
                 <td className="px-4 py-3 md:px-6 md:py-4">
                   <div className="flex min-w-[220px] items-center gap-2 text-sm text-gray-700">
                     <MailIcon className="h-4 w-4 text-gray-400" />
                     <span className="truncate">{student.email || 'No email'}</span>
                   </div>
                 </td>
-                
+
                 <td className="px-4 py-3 md:px-6 md:py-4 whitespace-nowrap">
                   {student.guardian ? (
                     <div className="text-sm font-medium text-gray-900">
@@ -161,7 +170,7 @@ const StudentTable: React.FC<StudentTableProps> = ({
                     <span className="text-xs text-gray-500 italic">No guardian assigned</span>
                   )}
                 </td>
-                
+
                 <td className="px-4 py-3 md:px-6 md:py-4 whitespace-nowrap">
                   <div className="flex items-center gap-2">
                     <BookOpenIcon className="h-4 w-4 text-gray-400" />
@@ -170,7 +179,7 @@ const StudentTable: React.FC<StudentTableProps> = ({
                     </span>
                   </div>
                 </td>
-                
+
                 <td className="px-4 py-3 md:px-6 md:py-4 whitespace-nowrap">
                   <span
                     className={`inline-flex items-center gap-1 px-2 py-1 md:px-3 md:py-1 rounded-full text-xs font-medium ${getStatusBadgeColor(student.status)}`}
@@ -179,7 +188,7 @@ const StudentTable: React.FC<StudentTableProps> = ({
                     <span className="capitalize">{student.status || 'Pending'}</span>
                   </span>
                 </td>
-                
+
                 <td className="px-4 py-3 md:px-6 md:py-4 whitespace-nowrap text-center">
                   <button
                     onClick={(e) => onMenuOpen(e, student)}
@@ -199,64 +208,95 @@ const StudentTable: React.FC<StudentTableProps> = ({
       {/* Pagination */}
       {pageCount > 1 && (
         <div className="flex flex-col sm:flex-row justify-between items-center bg-white rounded-xl p-3 md:p-4 shadow-sm border-t border-gray-100">
-          <div className="text-xs md:text-sm text-gray-600 mb-3 sm:mb-0">
-            Showing page {currentPage} of {pageCount}
-          </div>
-          
-          <div className="flex justify-center">
-            <nav className="inline-flex rounded-lg shadow-sm" aria-label="Pagination">
-              <button
-                onClick={() => onPageChange(Math.max(1, currentPage - 1))}
-                disabled={currentPage === 1}
-                className={`relative inline-flex items-center px-2 py-1 md:px-3 md:py-2 rounded-l-lg border text-xs md:text-sm font-medium ${
-                  currentPage === 1
-                    ? 'text-gray-300 bg-gray-100 border-gray-200 cursor-not-allowed'
-                    : 'text-gray-500 bg-white border-gray-300 hover:bg-gray-50'
-                }`}
+          {/* Results text (desktop only) */}
+          <div className="flex w-full sm:w-auto items-center justify-between sm:justify-start gap-4 mb-2 sm:mb-0">
+            <label className="flex items-center gap-2 text-sm text-gray-600">
+              Rows per page
+              <select
+                value={pageSize}
+                onChange={(e) => onPageSizeChange(Number(e.target.value))}
+                className="px-2 py-1 border border-gray-300 rounded-lg bg-white text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                Previous
-              </button>
-              
+                {[10, 25, 50, 100].map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            </label>
+
+            <p className="hidden sm:block text-[14px] md:text-sm text-gray-600">
+              Showing <span className="font-medium">{rangeStart}</span> to{' '}
+              <span className="font-medium">{rangeEnd}</span> of{' '}
+              <span className="font-medium">{totalItems}</span> results
+            </p>
+          </div>
+
+          <nav
+            className="flex w-full sm:w-auto items-center justify-between sm:justify-center gap-3 py-1 sm:py-4"
+            aria-label="Pagination"
+          >
+            {/* Previous Button */}
+            <button
+              onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1}
+              className={`inline-flex items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition-all duration-200 ${currentPage === 1
+                ? "cursor-not-allowed border-gray-200 bg-gray-50 text-gray-300"
+                : "border-gray-300 bg-white text-gray-600 hover:border-blue-500 hover:bg-blue-50 hover:text-blue-600"
+                }`}
+            >
+              Previous
+            </button>
+
+            {/* Mobile: Page X of Y */}
+            <span className="text-sm text-gray-600 sm:hidden">
+              Page <span className="font-medium">{currentPage}</span> of{' '}
+              <span className="font-medium">{pageCount}</span>
+            </span>
+
+            {/* Page Numbers (hidden on small screens) */}
+            <div className="hidden sm:flex items-center gap-2 mx-2">
               {Array.from({ length: Math.min(5, pageCount) }, (_, i) => {
                 let pageNum = i + 1;
+
                 if (pageCount > 5) {
                   if (currentPage > 3) {
                     pageNum = currentPage - 3 + i;
                   }
+
                   if (currentPage > pageCount - 2) {
                     pageNum = pageCount - 4 + i;
                   }
                 }
+
                 return (
                   pageNum <= pageCount && (
                     <button
-                      key={i}
+                      key={pageNum}
                       onClick={() => onPageChange(pageNum)}
-                      className={`relative inline-flex items-center px-3 py-1 md:px-4 md:py-2 border text-xs md:text-sm font-medium ${
-                        currentPage === pageNum
-                          ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
-                          : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-                      }`}
+                      aria-current={currentPage === pageNum ? "page" : undefined}
+                      className={`flex h-9 min-w-9 items-center justify-center rounded-lg border px-3 text-sm font-semibold transition-all duration-200 ${currentPage === pageNum
+                        ? "border-blue-600 bg-blue-600 text-white shadow-sm"
+                        : "border-gray-200 bg-white text-gray-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600"
+                        }`}
                     >
                       {pageNum}
                     </button>
                   )
                 );
               })}
-              
-              <button
-                onClick={() => onPageChange(Math.min(pageCount, currentPage + 1))}
-                disabled={currentPage === pageCount}
-                className={`relative inline-flex items-center px-2 py-1 md:px-3 md:py-2 rounded-r-lg border text-xs md:text-sm font-medium ${
-                  currentPage === pageCount
-                    ? 'text-gray-300 bg-gray-100 border-gray-200 cursor-not-allowed'
-                    : 'text-gray-500 bg-white border-gray-300 hover:bg-gray-50'
+            </div>
+
+            {/* Next Button */}
+            <button
+              onClick={() => onPageChange(Math.min(pageCount, currentPage + 1))}
+              disabled={currentPage === pageCount}
+              className={`inline-flex items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition-all duration-200 ${currentPage === pageCount
+                ? "cursor-not-allowed border-gray-200 bg-gray-50 text-gray-300"
+                : "border-gray-300 bg-white text-gray-600 hover:border-blue-500 hover:bg-blue-50 hover:text-blue-600"
                 }`}
-              >
-                Next
-              </button>
-            </nav>
-          </div>
+            >
+              Next
+            </button>
+          </nav>
         </div>
       )}
     </div>

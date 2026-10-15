@@ -6,6 +6,7 @@ import Footer from '../../components/Footer';
 import { toBlob, toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import { Download, Share2, FileText, RefreshCw } from 'lucide-react';
+import autoTable from 'jspdf-autotable';
 
 // Import services
 import { getUserTransactions } from '../../services';
@@ -30,7 +31,7 @@ const TransactionModule: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedTxn, setSelectedTxn] = useState<Transaction | null>(null);
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Get authentication token
   const getAuthToken = useCallback((): string | null => {
@@ -73,6 +74,7 @@ const TransactionModule: React.FC = () => {
     typeFilter,
     fromDate,
     toDate,
+    itemsPerPage,
   ]);
 
   // --- RECEIPT EXPORT LOGIC ---
@@ -124,8 +126,6 @@ const TransactionModule: React.FC = () => {
       console.error('Error sharing:', err);
     }
   };
-
-
 
 
   // Pagination Logic
@@ -249,10 +249,10 @@ const TransactionModule: React.FC = () => {
     const transactionDate = new Date(transaction.createdAt);
 
     const matchesFrom =
-      !fromDate || transactionDate >= new Date(fromDate);
+      !fromDate || transactionDate >= new Date(`${fromDate}T00:00:00`);
 
     const matchesTo =
-      !toDate || transactionDate <= new Date(toDate);
+      !toDate || transactionDate <= new Date(`${toDate}T23:59:59.999`);
 
     return (
       matchesSearch &&
@@ -270,9 +270,101 @@ const TransactionModule: React.FC = () => {
     );
   };
 
-  const totalPages = Math.ceil(
-    filteredTransactions.length / itemsPerPage
-  );
+  const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / itemsPerPage));
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+
+  const startItem = filteredTransactions.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
+  const endItem = Math.min(currentPage * itemsPerPage, filteredTransactions.length);
+
+  // --- LIST EXPORT LOGIC (uses filtered data, all pages) ---
+
+  const isDebitTxn = (t: Transaction) =>
+    t.direction === 'debit' ||
+    (t.transactionType?.toLowerCase() ?? '').includes('debit') ||
+    t.amount < 0;
+
+  const buildExportRows = () =>
+    filteredTransactions.map((t) => ({
+      date: new Date(t.createdAt).toLocaleString('en-NG'),
+      sender: getSenderName(t),
+      recipient: getTransactionName(t),
+      type: isDebitTxn(t) ? 'Debit' : 'Credit',
+      amount: Math.abs(t.amount),
+      status: t.status,
+      reference: t.reference || '',
+      id: t._id || '',
+    }));
+
+  const getExportFileName = (ext: string) => {
+    const range =
+      fromDate || toDate
+        ? `${fromDate || 'start'}_to_${toDate || 'today'}`
+        : 'all';
+    return `XPAY-Transactions-${range}.${ext}`;
+  };
+
+  const exportCSV = () => {
+    if (filteredTransactions.length === 0) return;
+
+    const headers = ['Date', 'Sender', 'Recipient', 'Type', 'Amount (NGN)', 'Status', 'Reference', 'Transaction ID'];
+    const escape = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+
+    const lines = [
+      headers.map(escape).join(','),
+      ...buildExportRows().map((r) =>
+        [r.date, r.sender, r.recipient, r.type, r.amount.toFixed(2), r.status, r.reference, r.id]
+          .map(escape)
+          .join(',')
+      ),
+    ];
+
+    // \uFEFF (BOM) makes Excel read the file as UTF-8
+    const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = getExportFileName('csv');
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportListPDF = () => {
+    if (filteredTransactions.length === 0) return;
+
+    const doc = new jsPDF('l', 'mm', 'a4'); // landscape
+    const rows = buildExportRows();
+
+    doc.setFontSize(16);
+    doc.text('XPAY Transaction History', 14, 15);
+
+    doc.setFontSize(9);
+    const rangeLabel =
+      fromDate || toDate
+        ? `Period: ${fromDate || 'Beginning'} to ${toDate || 'Today'}`
+        : 'Period: All time';
+    doc.text(`${rangeLabel}   |   ${rows.length} transaction(s)   |   Generated: ${new Date().toLocaleString('en-NG')}`, 14, 22);
+
+    autoTable(doc, {
+      startY: 27,
+      head: [['Date', 'Sender', 'Recipient', 'Type', 'Amount (NGN)', 'Status', 'Reference']],
+      body: rows.map((r) => [
+        r.date,
+        r.sender,
+        r.recipient,
+        r.type,
+        r.amount.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        r.status,
+        r.reference,
+      ]),
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [79, 70, 229] }, // indigo-600
+    });
+
+    doc.save(getExportFileName('pdf'));
+  };
 
   return (
     <div className="flex flex-col min-h-screen bg-white">
@@ -283,7 +375,7 @@ const TransactionModule: React.FC = () => {
         </aside>
         <main className="flex-grow p-4 md:p-8 md:ml-64 overflow-hidden">
           <div className="mb-6 flex justify-between items-center">
-            <h1 className="text-2xl md:text-3xl font-bold text-indigo-900">Transaction Module</h1>
+            <h1 className="text-3xl md:text-4xl font-bold text-indigo-900">Transaction Module</h1>
             <button
               onClick={fetchTransactions}
               disabled={loading}
@@ -305,7 +397,7 @@ const TransactionModule: React.FC = () => {
                     Filter Transactions
                   </h3>
 
-                  <button
+                  {/* <button
                     onClick={() => {
                       setSearchTerm("");
                       setStatusFilter("all");
@@ -316,7 +408,36 @@ const TransactionModule: React.FC = () => {
                     className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
                   >
                     Reset
-                  </button>
+                  </button> */}
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={exportCSV}
+                      disabled={filteredTransactions.length === 0}
+                      className="flex items-center gap-2 px-4 py-2 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg transition disabled:opacity-40"
+                    >
+                      <Download className="w-4 h-4" /> CSV
+                    </button>
+                    <button
+                      onClick={exportListPDF}
+                      disabled={filteredTransactions.length === 0}
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition disabled:opacity-40"
+                    >
+                      <FileText className="w-4 h-4" /> PDF
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSearchTerm("");
+                        setStatusFilter("all");
+                        setTypeFilter("all");
+                        setFromDate("");
+                        setToDate("");
+                      }}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+                    >
+                      Reset
+                    </button>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
@@ -428,9 +549,8 @@ const TransactionModule: React.FC = () => {
                                   <div className="text-gray-500 text-xs">{formatDate(transaction.createdAt)}</div>
                                 </td>
                                 <td className="px-3 py-4 whitespace-nowrap">
-                                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${
-                                    isDebit ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
-                                  }`}>
+                                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${isDebit ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                                    }`}>
                                     {isDebit ? '↓ Debit' : '↑ Credit'}
                                   </span>
                                 </td>
@@ -472,23 +592,48 @@ const TransactionModule: React.FC = () => {
                     </table>
                   </div>
 
-                  {totalPages > 1 && (
-                    <div className=" text-black flex justify-center items-center gap-4 mt-6">
-                      <button
-                        disabled={currentPage === 1}
-                        onClick={() => setCurrentPage(p => p - 1)}
-                        className="px-4 text-black py-2 border rounded-lg disabled:opacity-30 hover:bg-gray-50 text-sm font-medium"
-                      >
-                        Previous
-                      </button>
-                      <span className="text-sm font-semibold">Page {currentPage} of {totalPages}</span>
-                      <button
-                        disabled={currentPage === totalPages}
-                        onClick={() => setCurrentPage(p => p + 1)}
-                        className="px-4  text-black py-2 border rounded-lg disabled:opacity-30 hover:bg-gray-50 text-sm font-medium"
-                      >
-                        Next
-                      </button>
+                  {filteredTransactions.length > 0 && (
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mt-6 text-black">
+                      {/* Page size + range */}
+                      <div className="flex items-center gap-3 text-sm">
+                        <label htmlFor="pageSize" className="text-gray-600 font-medium">
+                          Rows per page
+                        </label>
+                        <select
+                          id="pageSize"
+                          value={itemsPerPage}
+                          onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                          className="border border-gray-300 rounded-lg px-2 py-1.5 bg-white text-black"
+                        >
+                          {[10, 25, 50, 100].map((n) => (
+                            <option key={n} value={n}>{n}</option>
+                          ))}
+                        </select>
+                        <span className="text-gray-500">
+                          {startItem}–{endItem} of {filteredTransactions.length}
+                        </span>
+                      </div>
+
+                      {/* Prev / Next */}
+                      <div className="flex items-center justify-center gap-4">
+                        <button
+                          disabled={currentPage === 1}
+                          onClick={() => setCurrentPage((p) => p - 1)}
+                          className="px-4 py-2 border rounded-lg disabled:opacity-30 hover:bg-gray-50 text-sm font-medium"
+                        >
+                          Previous
+                        </button>
+                        <span className="text-sm font-semibold">
+                          Page {currentPage} of {totalPages}
+                        </span>
+                        <button
+                          disabled={currentPage === totalPages}
+                          onClick={() => setCurrentPage((p) => p + 1)}
+                          className="px-4 py-2 border rounded-lg disabled:opacity-30 hover:bg-gray-50 text-sm font-medium"
+                        >
+                          Next
+                        </button>
+                      </div>
                     </div>
                   )}
                 </>
@@ -523,9 +668,8 @@ const TransactionModule: React.FC = () => {
                       (selectedTxn.transactionType?.toLowerCase() ?? '').includes('debit') ||
                       selectedTxn.amount < 0;
                     return (
-                      <span className={`text-sm font-black uppercase ${
-                        isDebit ? 'text-red-600' : 'text-green-600'
-                      }`}>
+                      <span className={`text-sm font-black uppercase ${isDebit ? 'text-red-600' : 'text-green-600'
+                        }`}>
                         {isDebit ? '↓ Debit' : '↑ Credit'}
                       </span>
                     );

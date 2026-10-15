@@ -68,6 +68,7 @@ const WithdrawalPage: React.FC = () => {
   const [isBankSet, setIsBankSet] = useState<boolean>(false);
   const [activeStep, setActiveStep] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [verificationStatus, setVerificationStatus] = useState<string | null>(
     null
   );
@@ -200,6 +201,9 @@ const WithdrawalPage: React.FC = () => {
         }
       } catch (error) {
         console.error('Error fetching user profile:', error);
+      }
+      finally {
+        setIsLoading(false); // Ensure loading state is updated after banks are fetched
       }
     };
 
@@ -444,24 +448,24 @@ const WithdrawalPage: React.FC = () => {
       const token = localStorage.getItem('token');
       const amount = parseFloat(withdrawalAmount);
 
-    // IMPORTANT: submit against CONFIRMED (saved) bank details, never
-    // the modal draft — the draft may be empty/stale if the modal
-    // hasn't been opened this session.
-    const response = await fetch(`${API_BASE_URL}/api/transaction/withdraw`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        amount,
-        description: withdrawalNote,
-        pin: withdrawalPin,
-        account_name: confirmedAccountName || accountName,
-        account_number: confirmedAccountNumber || accountNumber,
-        bank_code : confirmedBankCode || selectedBankCode,
-      }),
-    });
+      // IMPORTANT: submit against CONFIRMED (saved) bank details, never
+      // the modal draft — the draft may be empty/stale if the modal
+      // hasn't been opened this session.
+      const response = await fetch(`${API_BASE_URL}/api/transaction/withdraw`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          amount,
+          description: withdrawalNote,
+          pin: withdrawalPin,
+          account_name: confirmedAccountName || accountName,
+          account_number: confirmedAccountNumber || accountNumber,
+          bank_code: confirmedBankCode || selectedBankCode,
+        }),
+      });
 
       if (response.ok) {
         await response.json();
@@ -559,36 +563,36 @@ const WithdrawalPage: React.FC = () => {
       return;
     }
 
-  setLoading(true);
-  try {
-    // First validate the withdrawal to get charges
-    const validationData = await validateWithdrawal(amount);
-    
-    // Ensure we have all required fields — use CONFIRMED bank details
-    // as the fallback, since that's what will actually be paid out to.
-    const validationResult = {
-      amount: validationData.amount || amount,
-      charge: validationData.charge || 0,
-      total: (validationData.amount || amount) + (validationData.charge || 0),
-      account_name: confirmedAccountName || '',
-      account_number: confirmedAccountNumber || '',
-      bank_name: confirmedBank || '',
-    };
-    
-    setWithdrawalValidation(validationResult);
-    
-    // Only show PIN modal after successful validation
-    setShowPinModal(true);
-  } catch (error) {
-    setWithdrawalError(
-      error && typeof error === 'object' && 'message' in error
-        ? (error as { message?: string }).message || 'Failed to validate withdrawal'
-        : 'Failed to validate withdrawal'
-    );
-  } finally {
-    setLoading(false);
-  }
-};
+    setLoading(true);
+    try {
+      // First validate the withdrawal to get charges
+      const validationData = await validateWithdrawal(amount);
+
+      // Ensure we have all required fields — use CONFIRMED bank details
+      // as the fallback, since that's what will actually be paid out to.
+      const validationResult = {
+        amount: validationData.amount || amount,
+        charge: validationData.charge || 0,
+        total: (validationData.amount || amount) + (validationData.charge || 0),
+        account_name: confirmedAccountName || '',
+        account_number: confirmedAccountNumber || '',
+        bank_name: confirmedBank || '',
+      };
+
+      setWithdrawalValidation(validationResult);
+
+      // Only show PIN modal after successful validation
+      setShowPinModal(true);
+    } catch (error) {
+      setWithdrawalError(
+        error && typeof error === 'object' && 'message' in error
+          ? (error as { message?: string }).message || 'Failed to validate withdrawal'
+          : 'Failed to validate withdrawal'
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="flex flex-col min-h-screen bg-white">
@@ -600,7 +604,7 @@ const WithdrawalPage: React.FC = () => {
         <main className="flex-grow p-4 md:p-8 md:ml-64">
           <div className="flex items-center gap-2 mb-6">
             <Wallet className="text-blue-600" size={24} />
-            <h1 className="text-2xl font-bold text-indigo-900">Withdrawal</h1>
+            <h1 className="text-3xl md:text-4xl font-bold text-indigo-900">Withdrawal</h1>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
@@ -611,7 +615,7 @@ const WithdrawalPage: React.FC = () => {
                   Available Balance
                 </h2>
                 <p className="text-3xl font-bold text-gray-800 mb-4">
-                  ₦{availableBalance.toLocaleString()}
+                  {isLoading ? 'Loading...' : `₦${availableBalance.toLocaleString()}`}
                 </p>
                 <p className="text-sm text-gray-500">
                   Last updated: {new Date().toLocaleDateString()}
@@ -796,86 +800,86 @@ const WithdrawalPage: React.FC = () => {
               </div>
             </div>
           </div>
-       {/* PIN Verification Modal */}
-{showPinModal && (
-  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-    <div className="bg-white rounded-lg w-full max-w-sm p-6">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-bold text-gray-800">Confirm Withdrawal</h2>
-        <button
-          onClick={() => {
-            setShowPinModal(false);
-            setWithdrawalPin('');
-            setWithdrawalValidation(null); // Reset validation data
-          }}
-          className="text-gray-500 hover:text-gray-700"
-        >
-          <X size={20} />
-        </button>
-      </div>
-      
-      {/* Withdrawal Details - Only show if validation data exists */}
-      {withdrawalValidation ? (
-        <div className="mb-6 space-y-3">
-          <div className="flex justify-between">
-            <span className="text-gray-600">Bank:</span>
-            <span className="font-medium text-black">{withdrawalValidation.bank_name}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">Account Number:</span>
-            <span className="font-medium text-black">{withdrawalValidation.account_number}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">Account Name:</span>
-            <span className="font-medium text-black">{withdrawalValidation.account_name}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">Amount:</span>
-            <span className="font-medium text-black">₦{withdrawalValidation.amount.toLocaleString()}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">Fee:</span>
-            <span className="font-medium text-black">₦{withdrawalValidation.charge.toLocaleString()}</span>
-          </div>
-          <div className="flex justify-between border-t pt-2">
-            <span className="text-gray-600 font-semibold">Total:</span>
-            <span className="font-bold text-black">₦{withdrawalValidation.total.toLocaleString()}</span>
-          </div>
-        </div>
-      ) : (
-        <div className="mb-6 p-4 bg-gray-100 rounded-md">
-          <p className="text-gray-600">Loading withdrawal details...</p>
-        </div>
-      )}
-      
-      <div className="mb-4">
-        <label className="block text-gray-700 mb-2">Enter your 4-digit PIN</label>
-        <input
-          type="password"
-          maxLength={4}
-          className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-center text-lg tracking-widest text-black"
-          value={withdrawalPin}
-          onChange={(e) => setWithdrawalPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-          placeholder="••••"
-        />
-      </div>
-      
-      <button
-        onClick={handlePinConfirmation}
-        disabled={loading || withdrawalPin.length !== 4 || !withdrawalValidation}
-        className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md transition disabled:bg-blue-400"
-      >
-        {loading ? (
-          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-        ) : (
-          <Lock size={18} />
-        )}
-        Confirm Withdrawal
-      </button>
-    </div>
-  </div>
-)}
-       /* PIN Verification Modal */
+          {/* PIN Verification Modal */}
+          {showPinModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg w-full max-w-sm p-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-xl font-bold text-gray-800">Confirm Withdrawal</h2>
+                  <button
+                    onClick={() => {
+                      setShowPinModal(false);
+                      setWithdrawalPin('');
+                      setWithdrawalValidation(null); // Reset validation data
+                    }}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+
+                {/* Withdrawal Details - Only show if validation data exists */}
+                {withdrawalValidation ? (
+                  <div className="mb-6 space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Bank:</span>
+                      <span className="font-medium text-black">{withdrawalValidation.bank_name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Account Number:</span>
+                      <span className="font-medium text-black">{withdrawalValidation.account_number}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Account Name:</span>
+                      <span className="font-medium text-black">{withdrawalValidation.account_name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Amount:</span>
+                      <span className="font-medium text-black">₦{withdrawalValidation.amount.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Fee:</span>
+                      <span className="font-medium text-black">₦{withdrawalValidation.charge.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between border-t pt-2">
+                      <span className="text-gray-600 font-semibold">Total:</span>
+                      <span className="font-bold text-black">₦{withdrawalValidation.total.toLocaleString()}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mb-6 p-4 bg-gray-100 rounded-md">
+                    <p className="text-gray-600">Loading withdrawal details...</p>
+                  </div>
+                )}
+
+                <div className="mb-4">
+                  <label className="block text-gray-700 mb-2">Enter your 4-digit PIN</label>
+                  <input
+                    type="password"
+                    maxLength={4}
+                    className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-center text-lg tracking-widest text-black"
+                    value={withdrawalPin}
+                    onChange={(e) => setWithdrawalPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                    placeholder="••••"
+                  />
+                </div>
+
+                <button
+                  onClick={handlePinConfirmation}
+                  disabled={loading || withdrawalPin.length !== 4 || !withdrawalValidation}
+                  className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md transition disabled:bg-blue-400"
+                >
+                  {loading ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Lock size={18} />
+                  )}
+                  Confirm Withdrawal
+                </button>
+              </div>
+            </div>
+          )}
+          {/* PIN Verification Modal */}
           {showPinModal && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
               <div className="bg-white rounded-lg w-full max-w-sm p-6">
@@ -981,8 +985,8 @@ const WithdrawalPage: React.FC = () => {
                 <div key={step} className="flex flex-col items-center">
                   <div
                     className={`w-8 h-8 rounded-full flex items-center justify-center mb-2 ${activeStep >= index
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-200 text-gray-600'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-200 text-gray-600'
                       }`}
                   >
                     {index + 1}
@@ -993,94 +997,92 @@ const WithdrawalPage: React.FC = () => {
             </div>
 
             {/* Step 1: Select Bank */}
-            {/* Step 1: Select Bank */}
-{activeStep === 0 && (
-  <div className="relative" ref={bankDropdownRef}>
-    <label className="block text-gray-700 mb-2 font-medium">
-      Select Bank
-    </label>
+            {activeStep === 0 && (
+              <div className="relative" ref={bankDropdownRef}>
+                <label className="block text-gray-700 mb-2 font-medium">
+                  Select Bank
+                </label>
 
-    {bankLoading ? (
-      <div className="flex items-center justify-center py-4">
-        <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-        <span className="ml-2 text-gray-600">Loading banks...</span>
-      </div>
-    ) : (
-      <>
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search size={18} className="text-gray-400" />
-          </div>
-
-          <input
-            type="text"
-            className="block w-full pl-10 pr-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
-            placeholder="Search or select your bank..."
-            value={bankSearchQuery}
-            onChange={(e) => {
-              const val = e.target.value;
-              setBankSearchQuery(val);
-              // If user types something different from selected bank, clear selection
-              if (selectedBank && val !== selectedBank) {
-                setSelectedBank('');
-                setSelectedBankCode('');
-              }
-              setShowBankDropdown(true);
-            }}
-            onFocus={() => setShowBankDropdown(true)}
-          />
-
-          <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-            <ChevronDown size={18} className="text-gray-400" />
-          </div>
-        </div>
-
-        {/* Dropdown */}
-        {showBankDropdown && (
-          <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
-            {filteredBanks.length === 0 ? (
-              <div className="px-4 py-3 text-gray-500 text-sm text-center">
-                No banks found matching "{bankSearchQuery}"
-              </div>
-            ) : (
-              <ul className="py-1">
-                {filteredBanks.map((bank) => (
-                  <li
-                    key={bank.id}
-                    className={`px-4 py-3 cursor-pointer hover:bg-blue-50 transition-colors ${
-                      selectedBank === bank.name ? 'bg-blue-50 border-l-4 border-blue-600' : ''
-                    }`}
-                    onClick={() => {
-                      setSelectedBank(bank.name);
-                      setSelectedBankCode(bank.code);
-                      setBankSearchQuery(bank.name);
-                      setShowBankDropdown(false);
-                      setActiveStep(1);
-                    }}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium text-gray-900">{bank.name}</p>
-                        <p className="text-xs text-gray-500">Code: {bank.code}</p>
+                {bankLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                    <span className="ml-2 text-gray-600">Loading banks...</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Search size={18} className="text-gray-400" />
                       </div>
-                      {selectedBank === bank.name && (
-                        <CheckCircle size={16} className="text-blue-600" />
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
 
-        <p className="mt-2 text-xs text-gray-500">
-          {filteredBanks.length} of {banks.length} banks shown
-        </p>
-      </>
-    )}
-  </div>
-)}
+                      <input
+                        type="text"
+                        className="block w-full pl-10 pr-10 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                        placeholder="Search or select your bank..."
+                        value={bankSearchQuery}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setBankSearchQuery(val);
+                          // If user types something different from selected bank, clear selection
+                          if (selectedBank && val !== selectedBank) {
+                            setSelectedBank('');
+                            setSelectedBankCode('');
+                          }
+                          setShowBankDropdown(true);
+                        }}
+                        onFocus={() => setShowBankDropdown(true)}
+                      />
+
+                      <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                        <ChevronDown size={18} className="text-gray-400" />
+                      </div>
+                    </div>
+
+                    {/* Dropdown */}
+                    {showBankDropdown && (
+                      <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                        {filteredBanks.length === 0 ? (
+                          <div className="px-4 py-3 text-gray-500 text-sm text-center">
+                            No banks found matching "{bankSearchQuery}"
+                          </div>
+                        ) : (
+                          <ul className="py-1">
+                            {filteredBanks.map((bank) => (
+                              <li
+                                key={bank.id}
+                                className={`px-4 py-3 cursor-pointer hover:bg-blue-50 transition-colors ${selectedBank === bank.name ? 'bg-blue-50 border-l-4 border-blue-600' : ''
+                                  }`}
+                                onClick={() => {
+                                  setSelectedBank(bank.name);
+                                  setSelectedBankCode(bank.code);
+                                  setBankSearchQuery(bank.name);
+                                  setShowBankDropdown(false);
+                                  setActiveStep(1);
+                                }}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <p className="font-medium text-gray-900">{bank.name}</p>
+                                    <p className="text-xs text-gray-500">Code: {bank.code}</p>
+                                  </div>
+                                  {selectedBank === bank.name && (
+                                    <CheckCircle size={16} className="text-blue-600" />
+                                  )}
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+
+                    <p className="mt-2 text-xs text-gray-500">
+                      {filteredBanks.length} of {banks.length} banks shown
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
 
             {/* Step 2: Account Details */}
             {activeStep === 1 && (
@@ -1183,10 +1185,10 @@ const WithdrawalPage: React.FC = () => {
         <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 bg-white shadow-lg rounded-lg overflow-hidden">
           <div
             className={`px-4 py-3 flex items-center gap-2 ${snackbar.severity === 'success'
-                ? 'bg-green-600 text-white'
-                : snackbar.severity === 'error'
-                  ? 'bg-red-600 text-white'
-                  : 'bg-blue-600 text-white'
+              ? 'bg-green-600 text-white'
+              : snackbar.severity === 'error'
+                ? 'bg-red-600 text-white'
+                : 'bg-blue-600 text-white'
               }`}
           >
             {snackbar.severity === 'success' ? (

@@ -92,7 +92,8 @@ export const useStudentManagement = () => {
   });
   const [pinLoading, setPinLoading] = useState<boolean>(false);
 
-  const rowsPerPage = 10;
+  // const rowsPerPage = 10;
+  const [pageSize, setPageSize] = useState(10);
 
   // ===== COMPUTED STATS =====
   const stats = useMemo((): StudentStats => {
@@ -102,6 +103,11 @@ export const useStudentManagement = () => {
     return { total: students.length, active, inactive, pending };
   }, [students]);
 
+  const handlePageSizeChange = (size: number) => {
+    setPageSize(size);
+    setPage(1);
+  };
+
   // ===== FILTERING & PAGINATION =====
   const filteredStudents = useMemo(() => {
     return students.filter((s) => {
@@ -109,34 +115,34 @@ export const useStudentManagement = () => {
       const studentEmail = (s.email || '').toLowerCase();
       const studentStatus = (s.status || '').toLowerCase();
       const studentClass = s.classAdmittedTo || '';
-      
+
       const searchLower = filters.searchQuery.toLowerCase();
-      
+
       const matchesSearch =
         studentName.includes(searchLower) ||
         studentEmail.includes(searchLower);
-      
+
       const matchesStatus =
         filters.statusFilter === 'all' ||
         studentStatus === filters.statusFilter.toLowerCase();
-      
+
       const matchesGrade =
         filters.gradeFilter === 'all' ||
         studentClass === filters.gradeFilter ||
         (filters.gradeFilter === 'Not Assigned' && !studentClass);
-      
+
       return matchesSearch && matchesStatus && matchesGrade;
     });
   }, [students, filters]);
 
   const paginatedStudents = useMemo(() => {
     return filteredStudents.slice(
-      (page - 1) * rowsPerPage,
-      page * rowsPerPage
+      (page - 1) * pageSize,
+      page * pageSize
     );
-  }, [filteredStudents, page]);
+  }, [filteredStudents, page, pageSize]);
 
-  const pageCount = Math.ceil(filteredStudents.length / rowsPerPage);
+  const pageCount = Math.ceil(filteredStudents.length / pageSize);
 
   // ===== AVAILABLE CLASSES =====
   const availableClasses = useMemo(() => {
@@ -190,7 +196,7 @@ export const useStudentManagement = () => {
       const data: UserResponse = await getUserDetails();
       // Extract user data safely
       let userProfile: User | { data?: User; wallet?: { balance: number } } | UserResponse;
-      
+
       if (data.user?.data) {
         userProfile = data.user.data;
       } else if (data.user) {
@@ -269,7 +275,7 @@ export const useStudentManagement = () => {
       if (data.status && Array.isArray(data.data)) {
         const userProfileData: UserResponse = await getUserDetails();
         let userProfile: User | { data?: User; wallet?: { balance: number } } | UserResponse;
-        
+
         if (userProfileData.user?.data) {
           userProfile = userProfileData.user.data;
         } else if (userProfileData.user) {
@@ -799,6 +805,9 @@ Michael,Johnson,michael.j@example.com,"+2348034567890",SS 1`;
     setFilters,
     page,
     setPage,
+    pageSize,
+    handlePageSizeChange,
+    totalFiltered: filteredStudents.length,
     // UI State
     menuStudent,
     isMenuOpen,

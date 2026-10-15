@@ -47,7 +47,7 @@ const SchoolDashboard: React.FC = () => {
           <div className="mb-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-900 flex items-center gap-3">
+                <h1 className="text-3xl md:text-4xl font-bold text-indigo-900 flex items-center gap-3">
                   School Dashboard
                   {isCustomized && (
                     <span className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border shadow-sm" style={{ borderColor: `${secondaryColor}60`, backgroundColor: `${secondaryColor}15`, color: secondaryColor }}>

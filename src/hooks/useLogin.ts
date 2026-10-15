@@ -18,35 +18,38 @@ interface LoginFormErrors {
   password: string;
 }
 
+const MOBILE_ONLY_ROLES = ['parent', 'student', 'security'];
+
 export const useLogin = () => {
   const navigate = useNavigate();
   const authContext = useAuth();
-  
+
   if (!authContext) {
     throw new Error('AuthContext is undefined. Ensure you are using AuthProvider.');
   }
-  
+
   const { login } = authContext;
-  
+
   const [formData, setFormData] = useState<LoginFormData>({
     email: '',
     password: '',
     rememberMe: false
   });
-  
+
   const [errors, setErrors] = useState<LoginFormErrors>({
     email: '',
     password: ''
   });
-  
+
   const [errorMessage, setErrorMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
 
   const validateForm = (): boolean => {
     let isValid = true;
     const newErrors = { email: '', password: '' };
-    
+
     // Email validation
     if (!formData.email) {
       newErrors.email = 'Email is required';
@@ -55,7 +58,7 @@ export const useLogin = () => {
       newErrors.email = 'Please enter a valid email address';
       isValid = false;
     }
-    
+
     // Password validation
     if (!formData.password) {
       newErrors.password = 'Password is required';
@@ -64,7 +67,7 @@ export const useLogin = () => {
       newErrors.password = 'Password must be at least 6 characters';
       isValid = false;
     }
-    
+
     setErrors(newErrors);
     return isValid;
   };
@@ -75,7 +78,7 @@ export const useLogin = () => {
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
-    
+
     // Clear error when user starts typing
     if (errors[name as keyof LoginFormErrors]) {
       setErrors(prev => ({
@@ -87,11 +90,11 @@ export const useLogin = () => {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
-    
+
     setIsLoading(true);
     setErrorMessage('');
 
@@ -101,24 +104,37 @@ export const useLogin = () => {
         password: formData.password,
         rememberMe: formData.rememberMe
       };
-      
+
       const data = await apiLogin(credentials);
+
+      const role = String(data.user?.role ?? '').toLowerCase();
+
+      if (MOBILE_ONLY_ROLES.includes(role)) {
+        setShowDownloadModal(true);
+        return; // skip login() and navigate()
+      }
+
       login(data.user as User, data.accessToken);
-      navigate('/dashboard'); // Or redirect to appropriate dashboard
-      
+
+      navigate('/dashboard');
+
+      // const data = await apiLogin(credentials);
+      // login(data.user as User, data.accessToken);
+      // navigate('/dashboard'); // Or redirect to appropriate dashboard
+
     } catch (error: unknown) {
       console.error('Login error:', error);
-      
+
       let message = 'An error occurred. Please try again later.';
-      
+
       if (axios.isAxiosError(error)) {
-        message = error.response?.data?.message || 
-                 error.response?.data?.error || 
-                 error.message;
+        message = error.response?.data?.message ||
+          error.response?.data?.error ||
+          error.message;
       } else if (error instanceof Error) {
         message = error.message;
       }
-      
+
       setErrorMessage(message);
     } finally {
       setIsLoading(false);
@@ -132,6 +148,8 @@ export const useLogin = () => {
     isLoading,
     showPassword,
     setShowPassword,
+    showDownloadModal,
+    setShowDownloadModal,
     handleChange,
     handleSubmit
   };
