@@ -16,7 +16,6 @@ import {
   PinModal,
   BulkUploadModal,
 } from '../../components/student';
-import PageSizeSelector from '../../components/student/PageSizeSelector';
 
 const StudentPage: React.FC = () => {
   const {

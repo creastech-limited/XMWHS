@@ -10,8 +10,6 @@ import {
   MapPin,
   Phone,
   Filter,
-  ChevronLeft,
-  ChevronRight,
   XCircle,
   CheckCircle,
 } from 'lucide-react';

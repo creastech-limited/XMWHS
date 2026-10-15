@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation, Link, useNavigate } from 'react-router-dom';
+import { useLocation, Link } from 'react-router-dom';
 import {
   HomeIcon as DashboardIcon,
   UsersIcon as PeopleIcon,
@@ -31,7 +31,6 @@ interface MenuItem {
 
 export const Sidebar: React.FC = () => {
   const location = useLocation();
-  const navigate = useNavigate();
   const [collapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
