@@ -35,7 +35,8 @@ export interface Student {
    profilePics?: string; 
   qrcode?: string;
    QRcode?: string;          
-  accountNumber?: string;   
+  accountNumber?: string;
+  hasPin?: boolean;
   
   // Permission flags 
   studentCanTopup: boolean;

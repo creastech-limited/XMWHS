@@ -1,12 +1,13 @@
 // src/pages/Public Pages/StoreRegistrationForm.tsx
 import React from 'react';
-import { 
-  Store, 
-  User, 
-  Mail, 
-  Phone, 
-  MapPin, 
-  Building
+import {
+  Store,
+  User,
+  Mail,
+  Phone,
+  MapPin,
+  Building,
+  ArrowLeft
 } from 'lucide-react';
 import { useStoreRegistration } from '../../hooks/useStoreRegistration';
 import { FormInput } from '../../components/shared/FormInput';
@@ -17,8 +18,11 @@ import { Stepper } from '../../components/shared/Stepper';
 import { FormNavigation } from '../../components/shared/FormNavigation';
 import { Snackbar } from '../../components/shared/Snackbar';
 import bgImage from '../bg.jpeg';
+import { useNavigate } from 'react-router-dom';
 
 const StoreRegistrationForm: React.FC = () => {
+  const navigate = useNavigate();
+
   const {
     formData,
     errors,
@@ -30,13 +34,22 @@ const StoreRegistrationForm: React.FC = () => {
     storeTypes,
     steps,
     displaySchool,
-    
+
     setShowPassword,
     handleChange,
     handleNext,
     handleBack,
     closeSnackbar,
   } = useStoreRegistration();
+
+  const handleGoBack = () => {
+    // If there's history to go back to, use it; otherwise fall back to a safe default
+    if(window.history.length > 1) {
+      navigate(-1); // Go back to the previous page
+    } else {
+      navigate('/'); // If no history, navigate to home or a default page
+    }
+  }
 
   // Check if current step is valid
   const isStepValid = (): boolean => {
@@ -198,7 +211,7 @@ const StoreRegistrationForm: React.FC = () => {
   const stepConfig = steps.map(label => ({ label }));
 
   return (
-    <div 
+    <div
       className="min-h-screen flex items-center justify-center p-4 relative bg-cover bg-fixed bg-center"
       style={{
         backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url(${bgImage})`
@@ -206,17 +219,25 @@ const StoreRegistrationForm: React.FC = () => {
     >
       <div className="relative z-10 w-full max-w-4xl">
         <div className="bg-white bg-opacity-95 backdrop-blur-lg rounded-3xl shadow-2xl p-8">
+          <button
+            type="button"
+            onClick={handleGoBack}
+            className="inline-flex items-center gap-2 text-gray-600 hover:text-indigo-600 transition-colors mb-4 font-medium"
+          >
+            <ArrowLeft size={20} />
+            <span>Back</span>
+          </button>
           {/* Header */}
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl mb-4">
               <Store className="w-8 h-8 text-white" />
             </div>
             <h1 className="text-4xl font-bold text-gray-900 mb-2">Store Registration</h1>
-           {displaySchool && (
-  <p className="text-gray-600 text-lg">
-    Registering new store for <span className="font-semibold text-indigo-600">{displaySchool}</span>
-  </p>
-)}
+            {displaySchool && (
+              <p className="text-gray-600 text-lg">
+                Registering new store for <span className="font-semibold text-indigo-600">{displaySchool}</span>
+              </p>
+            )}
           </div>
 
           {/* Stepper */}

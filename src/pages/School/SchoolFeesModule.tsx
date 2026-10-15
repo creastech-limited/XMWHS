@@ -37,163 +37,163 @@ const SchoolFeesModule: React.FC = () => {
 
   // Fetch classes for the school
   const fetchClasses = useCallback(async () => {
-  try {
-    const token = getAuthToken();
-    if (!token) {
+    try {
+      const token = getAuthToken();
+      if (!token) {
+        setSnackbar({
+          open: true,
+          message: 'Authentication required',
+          severity: 'error',
+        });
+        return;
+      }
+
+      setLoading(true);
+
+
+      const data = await getClasses();
+
+      console.log('Classes API Response:', data);
+
+      let classesData: SchoolClass[] = [];
+
+      // Handle possible response formats
+      if (Array.isArray(data)) {
+        classesData = data;
+      } else if (data && Array.isArray(data.data)) {
+        classesData = data.data;
+      } else if (data && data.classes && Array.isArray(data.classes)) {
+        classesData = data.classes;
+      } else {
+        console.warn('Unexpected API response structure:', data);
+        classesData = [];
+      }
+
+      console.log('Processed classes data:', classesData);
+      setClasses(classesData);
+
+      if (classesData.length === 0) {
+        setSnackbar({
+          open: true,
+          message: 'No classes found for your school',
+          severity: 'info',
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching classes:', error);
       setSnackbar({
         open: true,
-        message: 'Authentication required',
+        message: error instanceof Error ? error.message : 'Failed to fetch classes',
         severity: 'error',
       });
-      return;
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(true);
-
-
-    const data = await getClasses();
-
-    console.log('Classes API Response:', data);
-
-    let classesData: SchoolClass[] = [];
-
-    // Handle possible response formats
-    if (Array.isArray(data)) {
-      classesData = data;
-    } else if (data && Array.isArray(data.data)) {
-      classesData = data.data;
-    } else if (data && data.classes && Array.isArray(data.classes)) {
-      classesData = data.classes;
-    } else {
-      console.warn('Unexpected API response structure:', data);
-      classesData = [];
-    }
-
-    console.log('Processed classes data:', classesData);
-    setClasses(classesData);
-
-    if (classesData.length === 0) {
-      setSnackbar({
-        open: true,
-        message: 'No classes found for your school',
-        severity: 'info',
-      });
-    }
-  } catch (error) {
-    console.error('Error fetching classes:', error);
-    setSnackbar({
-      open: true,
-      message: error instanceof Error ? error.message : 'Failed to fetch classes',
-      severity: 'error',
-    });
-  } finally {
-    setLoading(false);
-  }
-}, [getAuthToken]);
+  }, [getAuthToken]);
 
 
   // Fetch all fees for the school
-const fetchAllFees = useCallback(async () => {
-  try {
-    // Only fetch fees if we have a school ID
-    if (!auth?.user?.schoolId) {
+  const fetchAllFees = useCallback(async () => {
+    try {
+      // Only fetch fees if we have a school ID
+      if (!auth?.user?.schoolId) {
+        setSnackbar({
+          open: true,
+          message: 'School information not available',
+          severity: 'error',
+        });
+        return;
+      }
+
+      setLoading(true);
+      const data = await getSchoolFees();
+      setBills(((data.fees || data.data || []) as unknown) as FeeBill[]);
+    } catch (error: unknown) {
+      console.error('Error fetching fees:', error);
+
+      const errorMessage = (error as { response?: { data?: { message?: string } } }).response?.data?.message ||
+        'Failed to fetch fee bills';
+
       setSnackbar({
         open: true,
-        message: 'School information not available',
+        message: errorMessage,
         severity: 'error',
       });
-      return;
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(true);
-    const data = await getSchoolFees();
-    setBills(((data.fees || data.data || []) as unknown) as FeeBill[]);
-  } catch (error: unknown) {
-    console.error('Error fetching fees:', error);
-    
-    const errorMessage = (error as { response?: { data?: { message?: string } } }).response?.data?.message || 
-                         'Failed to fetch fee bills';
-    
-    setSnackbar({
-      open: true,
-      message: errorMessage,
-      severity: 'error',
-    });
-  } finally {
-    setLoading(false);
-  }
-}, [auth?.user?.schoolId]);
+  }, [auth?.user?.schoolId]);
 
   // Raise/Create a new fee bill
-const raiseFee = async (feeData: FormData) => {
-  try {
-    if (!auth?.user?.schoolId) {
+  const raiseFee = async (feeData: FormData) => {
+    try {
+      if (!auth?.user?.schoolId) {
+        setSnackbar({
+          open: true,
+          message: 'School information not available',
+          severity: 'error',
+        });
+        return;
+      }
+
+      const payload = {
+        ...feeData,
+        schoolId: auth.user.schoolId,
+      };
+
+      const result = await raiseFeeBill(payload);
+
       setSnackbar({
         open: true,
-        message: 'School information not available',
+        message: result.message || 'Fee bill raised successfully!',
+        severity: 'success',
+      });
+
+      await fetchAllFees();
+      resetForm();
+    } catch (error: unknown) {
+      console.error('Error raising fee:', error);
+
+      const errorMessage = (error as { response?: { data?: { message?: string } }; message?: string }).response?.data?.message ||
+        (error as { message?: string }).message ||
+        'Failed to raise fee bill';
+
+      setSnackbar({
+        open: true,
+        message: errorMessage,
         severity: 'error',
       });
-      return;
     }
+  };
+  // Update existing fee bill
+  const updateFeeBill = async (billId: string, feeData: FormData) => {
+    try {
+      const result = await updateFee(billId, feeData as unknown as Record<string, unknown>);
 
-    const payload = {
-      ...feeData,
-      schoolId: auth.user.schoolId,
-    };
+      setSnackbar({
+        open: true,
+        message: result.message || 'Fee bill updated successfully!',
+        severity: 'success',
+      });
 
-    const result = await raiseFeeBill(payload);
+      await fetchAllFees();
+      resetForm();
+      setEditMode(false);
+      setSelectedBill(null);
+    } catch (error: unknown) {
+      console.error('Error updating fee:', error);
 
-    setSnackbar({
-      open: true,
-      message: result.message || 'Fee bill raised successfully!',
-      severity: 'success',
-    });
+      const errorMessage = (error as { response?: { data?: { message?: string } }; message?: string }).response?.data?.message ||
+        (error as { message?: string }).message ||
+        'Failed to update fee bill';
 
-    await fetchAllFees();
-    resetForm();
-  } catch (error: unknown) {
-    console.error('Error raising fee:', error);
-    
-    const errorMessage = (error as { response?: { data?: { message?: string } }; message?: string }).response?.data?.message || 
-                         (error as { message?: string }).message || 
-                         'Failed to raise fee bill';
-    
-    setSnackbar({
-      open: true,
-      message: errorMessage,
-      severity: 'error',
-    });
-  }
-};
- // Update existing fee bill
-const updateFeeBill = async (billId: string, feeData: FormData) => {
-  try {
-    const result = await updateFee(billId, feeData as unknown as Record<string, unknown>);
-
-    setSnackbar({
-      open: true,
-      message: result.message || 'Fee bill updated successfully!',
-      severity: 'success',
-    });
-
-    await fetchAllFees();
-    resetForm();
-    setEditMode(false);
-    setSelectedBill(null);
-  } catch (error: unknown) {
-    console.error('Error updating fee:', error);
-    
-    const errorMessage = (error as { response?: { data?: { message?: string } }; message?: string }).response?.data?.message || 
-                         (error as { message?: string }).message || 
-                         'Failed to update fee bill';
-    
-    setSnackbar({
-      open: true,
-      message: errorMessage,
-      severity: 'error',
-    });
-  }
-};
+      setSnackbar({
+        open: true,
+        message: errorMessage,
+        severity: 'error',
+      });
+    }
+  };
 
   // Reset form to initial state
   const resetForm = () => {
@@ -264,54 +264,54 @@ const updateFeeBill = async (billId: string, feeData: FormData) => {
     setEditMode(true);
   };
 
- const handleDelete = async () => {
-  if (!selectedBill) return;
+  const handleDelete = async () => {
+    if (!selectedBill) return;
 
-  try {
-    await deleteFeeBill(selectedBill._id);
+    try {
+      await deleteFeeBill(selectedBill._id);
 
-    // Remove the deleted bill from the local state
-    setBills(bills.filter((bill) => bill._id !== selectedBill._id));
-    
-    setSnackbar({
-      open: true,
-      message: 'Fee bill deleted successfully',
-      severity: 'success',
-    });
-  } catch (error: unknown) {
-    console.error('Error deleting fee bill:', error);
-    
-    const errorMessage = (error as { response?: { data?: { message?: string } }; message?: string }).response?.data?.message || 
-                         (error as { message?: string }).message || 
-                         'Error deleting fee bill';
-    
-    setSnackbar({
-      open: true,
-      message: errorMessage,
-      severity: 'error',
-    });
-  } finally {
-    setDeleteDialogOpen(false);
+      // Remove the deleted bill from the local state
+      setBills(bills.filter((bill) => bill._id !== selectedBill._id));
+
+      setSnackbar({
+        open: true,
+        message: 'Fee bill deleted successfully',
+        severity: 'success',
+      });
+    } catch (error: unknown) {
+      console.error('Error deleting fee bill:', error);
+
+      const errorMessage = (error as { response?: { data?: { message?: string } }; message?: string }).response?.data?.message ||
+        (error as { message?: string }).message ||
+        'Error deleting fee bill';
+
+      setSnackbar({
+        open: true,
+        message: errorMessage,
+        severity: 'error',
+      });
+    } finally {
+      setDeleteDialogOpen(false);
+      setSelectedBill(null);
+    }
+  };
+
+  const cancelEdit = () => {
+    setEditMode(false);
     setSelectedBill(null);
-  }
-};
-
-const cancelEdit = () => {
-  setEditMode(false);
-  setSelectedBill(null);
-  resetForm();
-};
+    resetForm();
+  };
 
   // Render the component
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
       <Header PsettingsPage="schoolFees" />
       <div className="flex flex-grow">
-          <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-none">
+        <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-none">
           <Asidebar />
         </aside>
         <main className="flex-grow p-4 md:p-8 md:ml-64">
-          <h1 className="text-3xl font-bold text-indigo-900 mb-6">
+          <h1 className="text-3xl md:text-4xl font-bold text-indigo-900 mb-6">
             School Fees Module
           </h1>
 
@@ -508,7 +508,7 @@ const cancelEdit = () => {
             <div className="bg-white rounded-lg shadow-md">
               <div className="border-b px-6 py-4 flex justify-between items-center">
                 <h2 className="text-xl font-semibold text-gray-800">
-                  Fee Bills
+                  School Bills
                 </h2>
                 <button
                   onClick={fetchAllFees}
@@ -631,47 +631,46 @@ const cancelEdit = () => {
               </div>
             </div>
           </div>
-{/* Delete Confirmation Dialog */}
-{deleteDialogOpen && (
-  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-    <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
-      <h3 className="text-xl font-bold text-gray-800 mb-4">
-        Delete Fee Bill
-      </h3>
-      <p className="text-gray-700 mb-6">
-        Are you sure you want to delete this fee bill? This action
-        cannot be undone.
-      </p>
-      <div className="flex justify-end space-x-3">
-        <button
-          onClick={() => setDeleteDialogOpen(false)}
-          className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={handleDelete}
-          className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-        >
-          Delete
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+          {/* Delete Confirmation Dialog */}
+          {deleteDialogOpen && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
+                <h3 className="text-xl font-bold text-gray-800 mb-4">
+                  Delete Fee Bill
+                </h3>
+                <p className="text-gray-700 mb-6">
+                  Are you sure you want to delete this fee bill? This action
+                  cannot be undone.
+                </p>
+                <div className="flex justify-end space-x-3">
+                  <button
+                    onClick={() => setDeleteDialogOpen(false)}
+                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleDelete}
+                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Snackbar/Toast Notification */}
           {snackbar.open && (
             <div
-              className={`fixed bottom-4 right-4 max-w-md w-full bg-white rounded-lg shadow-lg border-l-4 ${
-                snackbar.severity === 'success'
+              className={`fixed bottom-4 right-4 max-w-md w-full bg-white rounded-lg shadow-lg border-l-4 ${snackbar.severity === 'success'
                   ? 'border-green-500'
                   : snackbar.severity === 'error'
                     ? 'border-red-500'
                     : snackbar.severity === 'warning'
                       ? 'border-yellow-500'
                       : 'border-blue-500'
-              } z-50 transition-opacity duration-300`}
+                } z-50 transition-opacity duration-300`}
             >
               <div className="p-4 flex items-center">
                 {snackbar.severity === 'success' ? (

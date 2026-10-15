@@ -63,7 +63,7 @@ export const StorePage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [page, setPage] = useState(1);
-  const rowsPerPage = 10;
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [snackbar, setSnackbar] = useState<SnackbarState>({
     open: false,
     message: '',
@@ -94,14 +94,14 @@ export const StorePage: React.FC = () => {
     const locationRecord =
       locationValue && typeof locationValue === 'object'
         ? locationValue as {
-            type?: string;
-            coordinates?: unknown;
-            address?: string;
-            label?: string;
-            name?: string;
-            latitude?: unknown;
-            longitude?: unknown;
-          }
+          type?: string;
+          coordinates?: unknown;
+          address?: string;
+          label?: string;
+          name?: string;
+          latitude?: unknown;
+          longitude?: unknown;
+        }
         : null;
     const locationCoordinates = Array.isArray(locationRecord?.coordinates)
       ? locationRecord.coordinates
@@ -129,28 +129,28 @@ export const StorePage: React.FC = () => {
         ? locationValue
         : locationValue && typeof locationValue === 'object'
           ? (() => {
-              if (typeof locationRecord?.address === 'string' && locationRecord.address) {
-                return locationRecord.address;
-              }
+            if (typeof locationRecord?.address === 'string' && locationRecord.address) {
+              return locationRecord.address;
+            }
 
-              if (typeof locationRecord?.label === 'string' && locationRecord.label) {
-                return locationRecord.label;
-              }
+            if (typeof locationRecord?.label === 'string' && locationRecord.label) {
+              return locationRecord.label;
+            }
 
-              if (typeof locationRecord?.name === 'string' && locationRecord.name) {
-                return locationRecord.name;
-              }
+            if (typeof locationRecord?.name === 'string' && locationRecord.name) {
+              return locationRecord.name;
+            }
 
-              if (normalizedLatitude !== undefined && normalizedLongitude !== undefined) {
-                return `${normalizedLatitude.toFixed(6)}, ${normalizedLongitude.toFixed(6)}`;
-              }
+            if (normalizedLatitude !== undefined && normalizedLongitude !== undefined) {
+              return `${normalizedLatitude.toFixed(6)}, ${normalizedLongitude.toFixed(6)}`;
+            }
 
-              if (typeof locationRecord?.type === 'string' && locationRecord.type) {
-                return locationRecord.type;
-              }
+            if (typeof locationRecord?.type === 'string' && locationRecord.type) {
+              return locationRecord.type;
+            }
 
-              return 'N/A';
-            })()
+            return 'N/A';
+          })()
           : 'N/A');
 
     return {
@@ -197,7 +197,7 @@ export const StorePage: React.FC = () => {
     const fetchUserProfile = async () => {
       try {
         const data: UserResponse = await getUserDetails();
-        
+
         // Extract user data safely
         let userProfile: Record<string, unknown>;
         if (data.user?.data) {
@@ -213,7 +213,7 @@ export const StorePage: React.FC = () => {
         const schoolId = (userProfile?.schoolId as string) || '';
         const schoolName = (userProfile?.schoolName as string) || (userProfile?.data as Record<string, unknown>)?.schoolName as string || (userProfile?.name as string) || '';
         const linkPath = (userProfile?.Link as string) || (userProfile?.data as Record<string, unknown>)?.Link as string || '';
-        
+
         if (!schoolId) {
           throw new Error('School ID not found in user profile');
         }
@@ -245,8 +245,8 @@ export const StorePage: React.FC = () => {
 
         const normalizedStores = Array.isArray(storeData)
           ? storeData
-              .filter((store) => !!store && typeof store === 'object')
-              .map((store, index) => normalizeStore(store as Partial<StoreType> & Record<string, unknown>, index))
+            .filter((store) => !!store && typeof store === 'object')
+            .map((store, index) => normalizeStore(store as Partial<StoreType> & Record<string, unknown>, index))
           : [];
 
         setStores(normalizedStores);
@@ -306,6 +306,11 @@ export const StorePage: React.FC = () => {
     (page - 1) * rowsPerPage,
     page * rowsPerPage
   );
+
+  const handleRowsPerPageChange = (size: number) => {
+    setRowsPerPage(size);
+    setPage(1); // avoids landing on a page that no longer exists
+  };
 
   const handleCopyLink = () => {
     if (!storeLink) {
@@ -416,40 +421,40 @@ export const StorePage: React.FC = () => {
   };
 
   // Handle Reset Password
- const handleResetPassword = async (store: StoreType) => {
-  try {
-    const tempPassword = Math.random().toString(36).slice(-8);
-    
+  const handleResetPassword = async (store: StoreType) => {
+    try {
+      const tempPassword = Math.random().toString(36).slice(-8);
 
-    await resetPassword(store.email, tempPassword);
 
-    setSnackbar({
-      open: true,
-      message: `Password reset email sent to ${store.email}`,
-      severity: 'success',
-    });
-  } catch (error: unknown) {
-    console.error('Error resetting password:', error);
-    
-    let errorMessage = 'Failed to reset password';
+      await resetPassword(store.email, tempPassword);
 
-    if (axios.isAxiosError(error)) {
-      errorMessage = error.response?.data?.message || error.message;
-    } 
-   
-    else if (error instanceof Error) {
-      errorMessage = error.message;
+      setSnackbar({
+        open: true,
+        message: `Password reset email sent to ${store.email}`,
+        severity: 'success',
+      });
+    } catch (error: unknown) {
+      console.error('Error resetting password:', error);
+
+      let errorMessage = 'Failed to reset password';
+
+      if (axios.isAxiosError(error)) {
+        errorMessage = error.response?.data?.message || error.message;
+      }
+
+      else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+
+      setSnackbar({
+        open: true,
+        message: errorMessage,
+        severity: 'error',
+      });
+    } finally {
+      handleMenuClose();
     }
-
-    setSnackbar({
-      open: true,
-      message: errorMessage,
-      severity: 'error',
-    });
-  } finally {
-    handleMenuClose();
-  }
-};
+  };
 
   // Handle Activate/Deactivate Store
   const handleActivateDeactivate = async (store: StoreType) => {
@@ -470,7 +475,7 @@ export const StorePage: React.FC = () => {
       const result = isCurrentlyActive
         ? await deactivateStore(resolvedId)
         : await activateStore(resolvedId);
-      
+
       // Update the store status in the local state
       setStores(prevStores =>
         prevStores.map(s => {
@@ -554,7 +559,7 @@ export const StorePage: React.FC = () => {
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50 ">
-     <Header PsettingsPage="/settings" />
+      <Header PsettingsPage="/settings" />
       <div className="flex flex-grow">
         <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-none">
           <Sidebar />
@@ -562,7 +567,7 @@ export const StorePage: React.FC = () => {
         <main className="flex-grow p-4 md:p-8 md:ml-64 overflow-x-auto">
           {/* Header Section */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-            <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
+            <h1 className="text-3xl md:text-4xl font-bold flex items-center gap-2">
               <Store className="h-7 w-7 text-indigo-600" />
               <span className="text-indigo-900">Stores Management</span>
             </h1>
@@ -591,29 +596,49 @@ export const StorePage: React.FC = () => {
             <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-100">
               <p className="text-gray-500 text-sm font-medium">Total Stores</p>
               <div className="flex items-center justify-between">
-                <h3 className="text-3xl font-bold text-gray-900 mt-1">
-                  {storeCount}
-                </h3>
+                {loading ? (
+                  <span className="text-base font-medium text-gray-400 mt-2 h-9 flex items-center animate-pulse">
+                    Loading...
+                  </span>
+                ) : (
+                  <h3 className="text-3xl font-bold text-gray-900 mt-1">
+                    {storeCount}
+                  </h3>
+                )}
                 <Store className="h-12 w-12 text-indigo-100" />
               </div>
             </div>
+
             <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-100">
               <p className="text-gray-500 text-sm font-medium">Active Stores</p>
               <div className="flex items-center justify-between">
-                <h3 className="text-3xl font-bold text-green-600 mt-1">
-                  {activeStoreCount}
-                </h3>
+                {loading ? (
+                  <span className="text-base font-medium text-gray-400 mt-2 h-9 flex items-center animate-pulse">
+                    Loading...
+                  </span>
+                ) : (
+                  <h3 className="text-3xl font-bold text-green-600 mt-1">
+                    {activeStoreCount}
+                  </h3>
+                )}
                 <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
                   <Store className="h-6 w-6 text-green-600" />
                 </div>
               </div>
             </div>
+
             <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-100">
               <p className="text-gray-500 text-sm font-medium">Store Types</p>
               <div className="flex items-center justify-between">
-                <h3 className="text-3xl font-bold text-purple-600 mt-1">
-                  {storeTypes.length}
-                </h3>
+                {loading ? (
+                  <span className="text-base font-medium text-gray-400 mt-2 h-9 flex items-center animate-pulse">
+                    Loading...
+                  </span>
+                ) : (
+                  <h3 className="text-3xl font-bold text-purple-600 mt-1">
+                    {storeTypes.length}
+                  </h3>
+                )}
                 <div className="h-12 w-12 rounded-full bg-purple-100 flex items-center justify-center">
                   <Filter className="h-6 w-6 text-purple-600" />
                 </div>
@@ -708,7 +733,7 @@ export const StorePage: React.FC = () => {
               </div>
             </div>
           </div>
-          
+
           {/* Loading Indicator */}
           {loading ? (
             <div className="flex justify-center py-12">
@@ -723,8 +748,8 @@ export const StorePage: React.FC = () => {
                     {loading ? 'Loading stores...' : 'No stores found'}
                   </h3>
                   <p className="text-gray-500 mb-4">
-                    {loading 
-                      ? 'Please wait while we load your store data' 
+                    {loading
+                      ? 'Please wait while we load your store data'
                       : 'No stores are currently registered for your school'
                     }
                   </p>
@@ -891,11 +916,10 @@ export const StorePage: React.FC = () => {
                                   </button>
                                   <div className="border-t border-gray-100 my-1"></div>
                                   <button
-                                    className={`flex items-center gap-3 px-4 py-2 text-sm hover:bg-gray-50 w-full text-left ${
-                                      (menuStore.status || '').toLowerCase() === 'active'
-                                        ? 'text-red-600'
-                                        : 'text-green-600'
-                                    }`}
+                                    className={`flex items-center gap-3 px-4 py-2 text-sm hover:bg-gray-50 w-full text-left ${(menuStore.status || '').toLowerCase() === 'active'
+                                      ? 'text-red-600'
+                                      : 'text-green-600'
+                                      }`}
                                     onClick={() => handleActivateDeactivate(menuStore)}
                                   >
                                     {(menuStore.status || '').toLowerCase() === 'active' ? (
@@ -921,8 +945,22 @@ export const StorePage: React.FC = () => {
 
                   {/* Pagination */}
                   <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
-                    <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-                      <div>
+                    <div className="flex-1 sm:flex sm:items-center sm:justify-between">
+
+                      {/* Results text (desktop only) */}
+                      <div className="flex items-center justify-between sm:justify-start gap-4 mb-3 sm:mb-0">
+                        <label className="flex items-center gap-2 text-sm text-gray-700">
+                          Rows per page
+                          <select
+                            value={rowsPerPage}
+                            onChange={(e) => handleRowsPerPageChange(Number(e.target.value))}
+                            className="px-2 py-1 border border-gray-300 rounded-lg bg-white text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          >
+                            {[10, 25, 50, 100].map((n) => (
+                              <option key={n} value={n}>{n}</option>
+                            ))}
+                          </select>
+                        </label>
                         <p className="text-sm text-gray-700">
                           Showing{' '}
                           <span className="font-medium">
@@ -930,82 +968,110 @@ export const StorePage: React.FC = () => {
                           </span>{' '}
                           to{' '}
                           <span className="font-medium">
-                            {Math.min(
-                              page * rowsPerPage,
-                              filteredStores.length
-                            )}
+                            {Math.min(page * rowsPerPage, filteredStores.length)}
                           </span>{' '}
                           of{' '}
-                          <span className="font-medium">
-                            {filteredStores.length}
-                          </span>{' '}
+                          <span className="font-medium">{filteredStores.length}</span>{' '}
                           results
                         </p>
                       </div>
-                      <div>
-                        <nav
-                          className="isolate inline-flex -space-x-px rounded-md shadow-sm"
-                          aria-label="Pagination"
+
+                      {/* Mobile pagination */}
+                      <div className="flex items-center justify-between sm:hidden">
+                        <button
+                          onClick={() => setPage((p) => Math.max(1, p - 1))}
+                          disabled={page === 1}
+                          className={`inline-flex items-center rounded-lg border px-4 py-2 text-sm font-medium transition-all duration-200 ${page === 1
+                            ? "cursor-not-allowed border-gray-200 bg-gray-50 text-gray-300"
+                            : "border-gray-300 bg-white text-gray-600 hover:bg-indigo-50 hover:text-indigo-600"
+                            }`}
                         >
+                          Previous
+                        </button>
+
+                        <span className="text-sm text-gray-700">
+                          Page <span className="font-medium">{page}</span> of{' '}
+                          <span className="font-medium">{pageCount}</span>
+                        </span>
+
+                        <button
+                          onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                          disabled={page === pageCount}
+                          className={`inline-flex items-center rounded-lg border px-4 py-2 text-sm font-medium transition-all duration-200 ${page === pageCount
+                            ? "cursor-not-allowed border-gray-200 bg-gray-50 text-gray-300"
+                            : "border-gray-300 bg-white text-gray-600 hover:bg-indigo-50 hover:text-indigo-600"
+                            }`}
+                        >
+                          Next
+                        </button>
+                      </div>
+
+                      {/* Desktop pagination */}
+                      <div className="hidden sm:flex justify-center py-4">
+                        <nav className="flex items-center gap-3" aria-label="Pagination">
+                          {/* Previous Button */}
                           <button
                             onClick={() => setPage((p) => Math.max(1, p - 1))}
                             disabled={page === 1}
                             title="Previous page"
-                            className={`relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:outline-offset-0 ${page === 1 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            className={`inline-flex items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition-all duration-200 ${page === 1
+                              ? "cursor-not-allowed border-gray-200 bg-gray-50 text-gray-300"
+                              : "border-gray-300 bg-white text-gray-600 hover:border-indigo-500 hover:bg-indigo-50 hover:text-indigo-600"
+                              }`}
                           >
-                            <ChevronLeft className="h-5 w-5" />
+                            Previous
                           </button>
-                          {/* Page numbers */}
-                          {Array.from(
-                            { length: Math.min(5, pageCount) },
-                            (_, i) => {
-                              // Create a window of 5 pages centered around the current page
+
+                          {/* Page Numbers */}
+                          <div className="mx-2 flex items-center gap-2">
+                            {Array.from({ length: Math.min(5, pageCount) }, (_, i) => {
                               let pageNum;
+
                               if (pageCount <= 5) {
-                                // If 5 or fewer pages, show all
                                 pageNum = i + 1;
                               } else if (page <= 3) {
-                                // If near the start, show first 5 pages
                                 pageNum = i + 1;
                               } else if (page >= pageCount - 2) {
-                                // If near the end, show last 5 pages
                                 pageNum = pageCount - 4 + i;
                               } else {
-                                // Otherwise, show 2 pages before and 2 pages after the current page
                                 pageNum = page - 2 + i;
                               }
 
-                              // Ensure page number is within bounds
-                              if (pageNum < 1 || pageNum > pageCount)
+                              if (pageNum < 1 || pageNum > pageCount) {
                                 return null;
+                              }
 
                               return (
                                 <button
                                   key={`page-${pageNum}`}
                                   onClick={() => setPage(pageNum)}
-                                  className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold ${
-                                    page === pageNum
-                                      ? 'bg-indigo-600 text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600'
-                                      : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:outline-offset-0'
-                                  }`}
+                                  aria-current={page === pageNum ? "page" : undefined}
+                                  className={`flex h-9 min-w-9 items-center justify-center rounded-lg border px-3 text-sm font-semibold transition-all duration-200 ${page === pageNum
+                                    ? "border-indigo-600 bg-indigo-600 text-white shadow-sm"
+                                    : "border-gray-200 bg-white text-gray-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-600"
+                                    }`}
                                 >
                                   {pageNum}
                                 </button>
                               );
-                            }
-                          )}
+                            })}
+                          </div>
+
+                          {/* Next Button */}
                           <button
-                            onClick={() =>
-                              setPage((p) => Math.min(pageCount, p + 1))
-                            }
+                            onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
                             disabled={page === pageCount}
                             title="Next page"
-                            className={`relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:outline-offset-0 ${page === pageCount ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            className={`inline-flex items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition-all duration-200 ${page === pageCount
+                              ? "cursor-not-allowed border-gray-200 bg-gray-50 text-gray-300"
+                              : "border-gray-300 bg-white text-gray-600 hover:border-indigo-500 hover:bg-indigo-50 hover:text-indigo-600"
+                              }`}
                           >
-                            <ChevronRight className="h-5 w-5" />
+                            Next
                           </button>
                         </nav>
                       </div>
+
                     </div>
                   </div>
                 </>
@@ -1020,15 +1086,14 @@ export const StorePage: React.FC = () => {
       {snackbar.open && (
         <div className="fixed bottom-4 right-4 z-50">
           <div
-            className={`rounded-lg shadow-lg px-6 py-4 ${
-              snackbar.severity === 'success'
-                ? 'bg-green-600'
-                : snackbar.severity === 'error'
-                  ? 'bg-red-600'
-                  : snackbar.severity === 'warning'
-                    ? 'bg-yellow-600'
-                    : 'bg-blue-600'
-            } text-white flex items-center gap-3`}
+            className={`rounded-lg shadow-lg px-6 py-4 ${snackbar.severity === 'success'
+              ? 'bg-green-600'
+              : snackbar.severity === 'error'
+                ? 'bg-red-600'
+                : snackbar.severity === 'warning'
+                  ? 'bg-yellow-600'
+                  : 'bg-blue-600'
+              } text-white flex items-center gap-3`}
           >
             <span>{snackbar.message}</span>
             <button
