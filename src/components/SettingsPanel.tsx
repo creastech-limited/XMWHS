@@ -99,9 +99,11 @@ const SettingsPanel = () => {
     isCustomized
   } = useSchoolTheme();
   const [user, setUser] = useState<UserData | null>(null);
+  const [focused, setFocused] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -161,6 +163,75 @@ const SettingsPanel = () => {
 
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
+  type NotificationKey = 'email' | 'push' | 'transactions' | 'marketing';
+
+  const notificationOptions: {
+    key: NotificationKey;
+    id: string;
+    Icon: React.ElementType;
+    title: string;
+    desc: string;
+  }[] = [
+      { key: 'email', id: 'emailNotifications', Icon: Mail, title: 'Email Notifications', desc: 'Receive notifications via email' },
+      { key: 'push', id: 'pushNotifications', Icon: Smartphone, title: 'SMS Notifications', desc: 'Receive notifications on your device' },
+      { key: 'transactions', id: 'transactionNotifications', Icon: DollarSign, title: 'Transaction Notifications', desc: 'Get notified about transactions and activity' },
+      { key: 'marketing', id: 'marketingNotifications', Icon: Megaphone, title: 'Marketing Notifications', desc: 'Receive updates, news and special offers' },
+    ];
+
+  interface ToggleProps {
+    id: string;
+    checked: boolean;
+    onChange: () => void;
+    label: string;
+  }
+
+  const Toggle = ({ id, checked, onChange, label }: ToggleProps) => (
+
+    <button
+      id={id}
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={onChange}
+      onFocus={(e) => setFocused(e.currentTarget.matches(":focus-visible"))}
+      onBlur={() => setFocused(false)}
+      style={{
+        position: "relative",
+        display: "inline-flex",
+        alignItems: "center",
+        flexShrink: 0,
+        boxSizing: "border-box",
+        width: 48,
+        height: 28,
+        padding: 0,
+        borderRadius: 9999,
+        border: `1.5px solid ${checked ? "#6366f1" : "#c4c7cc"}`,
+        backgroundColor: checked ? "#4f46e5" : "#d1d5db",
+        cursor: "pointer",
+        outline: "none",
+        boxShadow: focused ? "0 0 0 2px #fff, 0 0 0 4px #6366f1" : "none",
+        transition: "background-color 200ms ease-in-out, border-color 200ms ease-in-out, box-shadow 150ms",
+      }}
+    >
+      <span
+        style={{
+          position: "absolute",
+          top: 2,
+          left: 2,
+          width: 21,
+          height: 21,
+          borderRadius: "50%",
+          backgroundColor: "#fff",
+          boxShadow: "0 1px 3px rgba(0, 0, 0, 0.3)",
+          pointerEvents: "none",
+          transform: `translateX(${checked ? 20 : 0}px)`,
+          transition: "transform 200ms ease-in-out",
+        }}
+      />
+    </button>
+  );
+
   // Function to get avatar with fallback to initials
   const getAvatarUrl = (profilePictureUrl: string, userName: string): string => {
     if (avatarError || !profilePictureUrl) {
@@ -219,6 +290,9 @@ const SettingsPanel = () => {
         }
       } catch (error) {
         console.error('Error fetching user data:', error);
+      }
+      finally {
+        setLoading(false);
       }
     };
 
@@ -514,18 +588,21 @@ const SettingsPanel = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 py-6 sm:py-12 px-4 sm:px-6">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-2xl sm:text-3xl font-bold text-indigo-900 mb-6 sm:mb-8">Account Settings</h1>
+      <div className="max-w-6xl mx-auto">
+        <h1 className="text-3xl md:text-4xl font-bold text-indigo-900 mb-6 sm:mb-8">Account Settings</h1>
 
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
           {/* Tab Navigation */}
           <div className="border-b border-gray-200">
-            <nav className="flex overflow-x-auto">
+            <nav className="flex overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {TABS.map((tab, index) => (
                 <button
                   key={tab.label}
-                  onClick={() => setActiveTab(index)}
-                  className={`flex items-center px-4 sm:px-6 py-3 text-sm sm:text-base font-medium transition-colors ${activeTab === index
+                  onClick={(e) => {
+                    setActiveTab(index);
+                    e.currentTarget.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+                  }}
+                  className={`flex shrink-0 items-center whitespace-nowrap px-4 sm:px-6 py-3 text-sm sm:text-base font-medium transition-colors ${activeTab === index
                     ? 'border-b-2 border-indigo-600 text-indigo-600 bg-indigo-50'
                     : 'text-gray-600 hover:text-indigo-600 hover:bg-gray-50'
                     }`}
@@ -595,17 +672,32 @@ const SettingsPanel = () => {
                   </div>
 
                   <div className="text-center sm:text-left">
-                    <h2 className="text-xl sm:text-3xl font-bold text-gray-900">{profile.name}</h2>
-                    <p className="text-sm sm:text-xl text-gray-600 mt-1">{profile.email}</p>
-                    {profile.createdAt && (
-                      <p className="text-xs sm:text-sm text-gray-500 mt-2">
-                        Member since {new Date(profile.createdAt).toLocaleDateString()}
-                      </p>
-                    )}
-                    {user?.wallet && (
-                      <p className="text-xs sm:text-sm text-gray-500 mt-2">
-                        Wallet Balance: {user.wallet.currency} {user.wallet.balance.toLocaleString()}
-                      </p>
+                    {loading || !profile ? (
+                      <div className="animate-pulse flex flex-col items-center sm:items-start">
+                        {/* Name */}
+                        <div className="h-6 sm:h-9 w-40 sm:w-56 bg-gray-200 rounded" />
+                        {/* Email */}
+                        <div className="h-4 sm:h-6 w-48 sm:w-72 bg-gray-200 rounded mt-3" />
+                        {/* Member since */}
+                        <div className="h-3 sm:h-4 w-32 sm:w-44 bg-gray-200 rounded mt-3" />
+                        {/* Wallet balance */}
+                        <div className="h-3 sm:h-4 w-40 sm:w-52 bg-gray-200 rounded mt-3" />
+                      </div>
+                    ) : (
+                      <>
+                        <h2 className="text-xl sm:text-3xl font-bold text-gray-900">{profile.name}</h2>
+                        <p className="text-sm sm:text-xl text-gray-600 mt-1">{profile.email}</p>
+                        {profile.createdAt && (
+                          <p className="text-xs sm:text-sm text-gray-500 mt-2">
+                            Member since {new Date(profile.createdAt).toLocaleDateString()}
+                          </p>
+                        )}
+                        {user?.wallet && (
+                          <p className="text-xs sm:text-sm text-gray-500 mt-2">
+                            Wallet Balance: {user.wallet.currency} {user.wallet.balance.toLocaleString()}
+                          </p>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
@@ -644,26 +736,26 @@ const SettingsPanel = () => {
                       type="tel"
                       value={profile.phone}
                       onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
-                      className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                       placeholder="Phone Number"
                       disabled={!isEditing}
                     />
                   </div>
                 </div>
-                <div className="flex justify-end space-x-3 sm:space-x-4 mt-6 sm:mt-10">
+                <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 sm:gap-4 mt-6 sm:mt-10">
                   {isEditing ? (
                     <>
                       <button
                         type="button"
                         onClick={() => setIsEditing(false)}
-                        className="px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                        className="w-full sm:w-auto px-4 py-3 sm:px-5 text-sm sm:text-base border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
                       >
                         Cancel
                       </button>
                       <button
                         type="submit"
                         disabled={isLoading}
-                        className="px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                        className="w-full sm:w-auto px-4 py-3 sm:px-5 text-sm sm:text-base bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
                       >
                         {isLoading ? 'Saving...' : 'Save Changes'}
                       </button>
@@ -672,7 +764,7 @@ const SettingsPanel = () => {
                     <button
                       type="button"
                       onClick={() => setIsEditing(true)}
-                      className="px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                      className="w-full sm:w-auto px-4 py-3 sm:px-5 text-sm sm:text-base bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
                     >
                       Edit Profile
                     </button>
@@ -1075,85 +1167,28 @@ const SettingsPanel = () => {
               </h3>
               <form className="space-y-6 sm:space-y-8" onSubmit={handleNotificationUpdate}>
                 <div className="space-y-4 sm:space-y-6">
-                  <div className="flex items-center p-3 sm:p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                    <Mail className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-500 mr-3 sm:mr-4" />
-                    <div className="flex-1">
-                      <label htmlFor="emailNotifications" className="text-sm sm:text-base font-medium text-gray-800">
-                        Email Notifications
-                      </label>
-                      <p className="text-xs sm:text-sm text-gray-500 mt-1">Receive notifications via email</p>
+                  {notificationOptions.map(({ key, id, Icon, title, desc }) => (
+                    <div
+                      key={key}
+                      className="flex items-center p-3 sm:p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                    >
+                      <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-500 mr-3 sm:mr-4" />
+                      <div className="flex-1">
+                        <label htmlFor={id} className="text-sm sm:text-base font-medium text-gray-800 cursor-pointer">
+                          {title}
+                        </label>
+                        <p className="text-xs sm:text-sm text-gray-500 mt-1">{desc}</p>
+                      </div>
+                      <div className="ml-3 sm:ml-4">
+                        <Toggle
+                          id={id}
+                          label={title}
+                          checked={notifications[key]}
+                          onChange={() => setNotifications(prev => ({ ...prev, [key]: !prev[key] }))}
+                        />
+                      </div>
                     </div>
-                    <div className="ml-3 sm:ml-4">
-                      <input
-                        id="emailNotifications"
-                        name="emailNotifications"
-                        type="checkbox"
-                        checked={notifications.email}
-                        onChange={() => setNotifications(prev => ({ ...prev, email: !prev.email }))}
-                        className="h-4 w-4 sm:h-5 sm:w-5 text-indigo-600 border-gray-300 rounded"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex items-center p-3 sm:p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                    <Smartphone className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-500 mr-3 sm:mr-4" />
-                    <div className="flex-1">
-                      <label htmlFor="pushNotifications" className="text-sm sm:text-base font-medium text-gray-800">
-                        Push Notifications
-                      </label>
-                      <p className="text-xs sm:text-sm text-gray-500 mt-1">Receive notifications on your device</p>
-                    </div>
-                    <div className="ml-3 sm:ml-4">
-                      <input
-                        id="pushNotifications"
-                        name="pushNotifications"
-                        type="checkbox"
-                        checked={notifications.push}
-                        onChange={() => setNotifications(prev => ({ ...prev, push: !prev.push }))}
-                        className="h-4 w-4 sm:h-5 sm:w-5 text-indigo-600 border-gray-300 rounded"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex items-center p-3 sm:p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                    <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-500 mr-3 sm:mr-4" />
-                    <div className="flex-1">
-                      <label htmlFor="transactionNotifications" className="text-sm sm:text-base font-medium text-gray-800">
-                        Transaction Notifications
-                      </label>
-                      <p className="text-xs sm:text-sm text-gray-500 mt-1">Get notified about transactions and activity</p>
-                    </div>
-                    <div className="ml-3 sm:ml-4">
-                      <input
-                        id="transactionNotifications"
-                        name="transactionNotifications"
-                        type="checkbox"
-                        checked={notifications.transactions}
-                        onChange={() => setNotifications(prev => ({ ...prev, transactions: !prev.transactions }))}
-                        className="h-4 w-4 sm:h-5 sm:w-5 text-indigo-600 border-gray-300 rounded"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex items-center p-3 sm:p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                    <Megaphone className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-500 mr-3 sm:mr-4" />
-                    <div className="flex-1">
-                      <label htmlFor="marketingNotifications" className="text-sm sm:text-base font-medium text-gray-800">
-                        Marketing Notifications
-                      </label>
-                      <p className="text-xs sm:text-sm text-gray-500 mt-1">Receive updates, news and special offers</p>
-                    </div>
-                    <div className="ml-3 sm:ml-4">
-                      <input
-                        id="marketingNotifications"
-                        name="marketingNotifications"
-                        type="checkbox"
-                        checked={notifications.marketing}
-                        onChange={() => setNotifications(prev => ({ ...prev, marketing: !prev.marketing }))}
-                        className="h-4 w-4 sm:h-5 sm:w-5 text-indigo-600 border-gray-300 rounded"
-                      />
-                    </div>
-                  </div>
+                  ))}
                 </div>
 
                 <div className="flex justify-end pt-4 sm:pt-6">
@@ -1242,9 +1277,8 @@ const SettingsPanel = () => {
                           key={hex}
                           type="button"
                           onClick={() => setPrimaryColor(hex)}
-                          className={`w-7 h-7 rounded-lg transition-transform hover:scale-110 flex items-center justify-center shadow-sm ${
-                            primaryColor.toLowerCase() === hex.toLowerCase() ? 'ring-2 ring-offset-2 ring-indigo-600 scale-110' : ''
-                          }`}
+                          className={`w-7 h-7 rounded-lg transition-transform hover:scale-110 flex items-center justify-center shadow-sm ${primaryColor.toLowerCase() === hex.toLowerCase() ? 'ring-2 ring-offset-2 ring-indigo-600 scale-110' : ''
+                            }`}
                           style={{ backgroundColor: hex }}
                           title={hex}
                         >
@@ -1310,9 +1344,8 @@ const SettingsPanel = () => {
                           key={hex}
                           type="button"
                           onClick={() => setSecondaryColor(hex)}
-                          className={`w-7 h-7 rounded-lg transition-transform hover:scale-110 flex items-center justify-center shadow-sm ${
-                            secondaryColor.toLowerCase() === hex.toLowerCase() ? 'ring-2 ring-offset-2 ring-indigo-600 scale-110' : ''
-                          }`}
+                          className={`w-7 h-7 rounded-lg transition-transform hover:scale-110 flex items-center justify-center shadow-sm ${secondaryColor.toLowerCase() === hex.toLowerCase() ? 'ring-2 ring-offset-2 ring-indigo-600 scale-110' : ''
+                            }`}
                           style={{ backgroundColor: hex }}
                           title={hex}
                         >
@@ -1353,7 +1386,7 @@ const SettingsPanel = () => {
                 </div>
               </div>
 
-            
+
 
               {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-gray-200">

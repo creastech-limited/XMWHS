@@ -85,49 +85,49 @@ const DisputePage = () => {
 
   // Fetch user details
   const fetchUserDetails = useCallback(async (): Promise<UserProfile> => {
-  try {
-    const data: FetchUserDetailsResponse = await getUserDetails();
+    try {
+      const data: FetchUserDetailsResponse = await getUserDetails();
 
-    let profile: UserProfile;
-    if (data.user?.data) {
-      profile = data.user.data;
-    } else if (data.data) {
-      profile = data.data;
-    } else if (data.user) {
-      profile = data.user as UserProfile;
-    } else {
-      profile = data as unknown as UserProfile;
+      let profile: UserProfile;
+      if (data.user?.data) {
+        profile = data.user.data;
+      } else if (data.data) {
+        profile = data.data;
+      } else if (data.user) {
+        profile = data.user as UserProfile;
+      } else {
+        profile = data as unknown as UserProfile;
+      }
+
+      return profile;
+    } catch (error) {
+      console.error('Error fetching user details:', error);
+      throw error;
     }
-
-    return profile;
-  } catch (error) {
-    console.error('Error fetching user details:', error);
-    throw error;
-  }
-}, []); // Empty array keeps the function reference stable
+  }, []); // Empty array keeps the function reference stable
 
   // Fetch disputes - Updated to use getuserdispute endpoint
-const fetchDisputes = useCallback(async (): Promise<Dispute[]> => {
-  try {
-    const data: FetchDisputesResponse = await getUserDisputes();
+  const fetchDisputes = useCallback(async (): Promise<Dispute[]> => {
+    try {
+      const data: FetchDisputesResponse = await getUserDisputes();
 
-    // Handle different response structures (matching Flutter logic)
-    let disputesList: Dispute[] = [];
-    if (Array.isArray(data.disputes)) {
-      disputesList = data.disputes;
-    } else if (data.data && Array.isArray(data.data)) {
-      disputesList = data.data as Dispute[];
-    } else if (Array.isArray(data)) {
-      disputesList = data as unknown as Dispute[];
+      // Handle different response structures (matching Flutter logic)
+      let disputesList: Dispute[] = [];
+      if (Array.isArray(data.disputes)) {
+        disputesList = data.disputes;
+      } else if (data.data && Array.isArray(data.data)) {
+        disputesList = data.data as Dispute[];
+      } else if (Array.isArray(data)) {
+        disputesList = data as unknown as Dispute[];
+      }
+
+      console.log('Fetched disputes:', disputesList.length);
+      return disputesList;
+    } catch (error) {
+      console.error('Error fetching disputes:', error);
+      return [];
     }
-
-    console.log('Fetched disputes:', disputesList.length);
-    return disputesList;
-  } catch (error) {
-    console.error('Error fetching disputes:', error);
-    return [];
-  }
-}, []); // Empty dependency array means this function only creates once
+  }, []); // Empty dependency array means this function only creates once
 
   // Create new dispute - Updated with enhanced error handling
   const createDispute = async (disputeData: CreateDisputeData): Promise<CreateDisputeResponse> => {
@@ -163,24 +163,24 @@ const fetchDisputes = useCallback(async (): Promise<Dispute[]> => {
   };
 
   // Initialize auth and fetch data
-useEffect(() => {
-  const initializeAuth = async () => {
-    try {
-      setLoading(true);
+  useEffect(() => {
+    const initializeAuth = async () => {
+      try {
+        setLoading(true);
 
-      // 1. Check existing context
-      if (auth?.user?._id && auth?.token) {
-        const disputesData = await fetchDisputes();
-        setDisputes(disputesData);
-        setFilteredDisputes(disputesData);
-        return;
-      }
+        // 1. Check existing context
+        if (auth?.user?._id && auth?.token) {
+          const disputesData = await fetchDisputes();
+          setDisputes(disputesData);
+          setFilteredDisputes(disputesData);
+          return;
+        }
 
-      const storedToken = localStorage.getItem('token');
-      if (!storedToken) throw new Error('No token found');
+        const storedToken = localStorage.getItem('token');
+        if (!storedToken) throw new Error('No token found');
 
-      const profile = await fetchUserDetails();
-      if (!profile) return;
+        const profile = await fetchUserDetails();
+        if (!profile) return;
 
         const mergedUser = {
           _id: profile._id || '',
@@ -198,23 +198,23 @@ useEffect(() => {
           role: mergedUser.role ?? '',
         };
 
-      if (auth?.login) {
-        auth.login(userWithRole, storedToken);
+        if (auth?.login) {
+          auth.login(userWithRole, storedToken);
+        }
+
+        const disputesData = await fetchDisputes();
+        setDisputes(disputesData);
+        setFilteredDisputes(disputesData);
+
+      } catch (error) {
+        console.error('Auth initialization error:', error);
+      } finally {
+        setLoading(false);
       }
+    };
 
-      const disputesData = await fetchDisputes();
-      setDisputes(disputesData);
-      setFilteredDisputes(disputesData);
-
-    } catch (error) {
-      console.error('Auth initialization error:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  initializeAuth();
-}, [auth, fetchUserDetails, fetchDisputes]);
+    initializeAuth();
+  }, [auth, fetchUserDetails, fetchDisputes]);
 
   // Sort disputes
   const sortedDisputes = React.useMemo(() => {
@@ -404,7 +404,7 @@ useEffect(() => {
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
-        <Header PsettingsPage="/settings" />
+      <Header PsettingsPage="/settings" />
       <div className="flex flex-grow">
         <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-none">
           <Asidebar />
@@ -700,7 +700,7 @@ useEffect(() => {
                   </label>
                   <select
                     value={formData.disputeType}
-                    onChange={(e) => setFormData(prev => ({...prev, disputeType: e.target.value}))}
+                    onChange={(e) => setFormData(prev => ({ ...prev, disputeType: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                     required
                   >
@@ -750,7 +750,7 @@ useEffect(() => {
                   </label>
                   <select
                     value={formData.paymentCategory}
-                    onChange={(e) => setFormData(prev => ({...prev, paymentCategory: e.target.value}))}
+                    onChange={(e) => setFormData(prev => ({ ...prev, paymentCategory: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                     required
                   >

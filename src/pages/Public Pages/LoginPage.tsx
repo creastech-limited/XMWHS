@@ -5,6 +5,7 @@ import { useLogin } from '../../hooks/useLogin';
 import { FormInput } from '../../components/shared/FormInput';
 import { SubmitButton } from '../../components/shared/SubmitButton';
 import { ErrorAlert } from '../../components/shared/ErrorAlert';
+import { DownloadAppModal } from '../../components/shared/DownloadAppModal';
 import logo from '/xpay.jpeg';
 import bgImage from '../bg.jpeg';
 
@@ -16,6 +17,8 @@ const LoginPage: React.FC = () => {
     isLoading,
     showPassword,
     setShowPassword,
+    showDownloadModal,
+    setShowDownloadModal,
     handleChange,
     handleSubmit
   } = useLogin();
@@ -33,14 +36,14 @@ const LoginPage: React.FC = () => {
           <div className="w-28 h-28 rounded-full bg-white flex items-center justify-center shadow-lg mb-6 border-4 border-indigo-100">
             <img src={logo} alt="Logo" className="w-20 h-20 object-contain" />
           </div>
-          <h1 className="text-3xl font-bold text-indigo-900 mb-2">Welcome Back</h1>
+          <h1 className="text-3xl md:text-5xl font-bold text-indigo-900 mb-2">Welcome Back</h1>
           <p className="text-gray-600 mb-6">Please sign in to your account</p>
         </div>
 
         {/* Error Alert */}
-        <ErrorAlert 
-          message={errorMessage} 
-          onDismiss={() => {}} // Optionally clear error
+        <ErrorAlert
+          message={errorMessage}
+          onDismiss={() => { }} // Optionally clear error
         />
 
         {/* Login Form */}
@@ -78,8 +81,8 @@ const LoginPage: React.FC = () => {
           {/* Remember Me & Forgot Password */}
           <div className="flex items-center justify-between">
             <label className="flex items-center space-x-2 cursor-pointer group">
-              <input 
-                type="checkbox" 
+              <input
+                type="checkbox"
                 name="rememberMe"
                 checked={formData.rememberMe}
                 onChange={handleChange}
@@ -114,6 +117,11 @@ const LoginPage: React.FC = () => {
           </RouterLink>
         </div>
       </div>
+
+      <DownloadAppModal
+        open={showDownloadModal}
+        onClose={() => setShowDownloadModal(false)}
+      />
     </div>
   );
 };

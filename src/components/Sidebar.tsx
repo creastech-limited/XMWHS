@@ -17,6 +17,8 @@ import {
   ShieldCheckIcon,
   ClipboardDocumentListIcon,
 } from '@heroicons/react/24/outline';
+import { ConfirmLogoutModal } from './shared/ConfirmLogoutModal';
+import { useAuth } from '../context/AuthContext';
 
 interface MenuItem {
   name: React.ReactNode;
@@ -36,6 +38,9 @@ export const Sidebar: React.FC = () => {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     '/attendance/security': location.pathname.startsWith('/attendance'),
   });
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+
+  const { logout } = useAuth();
 
   useEffect(() => {
     const handleResize = () => {
@@ -62,7 +67,7 @@ export const Sidebar: React.FC = () => {
   // Define menu items with your provided list
   const menuItems: MenuItem[] = [
     { name: 'Dashboard', label: 'Dashboard', path: '/schools', icon: <DashboardIcon className="h-5 w-5" /> },
-       {
+    {
       name: 'Attendance',
       label: 'Attendance',
       path: undefined,
@@ -85,24 +90,27 @@ export const Sidebar: React.FC = () => {
     { name: 'Students', label: 'Students', path: '/students', icon: <PeopleIcon className="h-5 w-5" />, badge: 3 },
     { name: 'Stores', label: 'Stores', path: '/stores', icon: <StorefrontIcon className="h-5 w-5" /> },
     { name: 'School Fees', label: 'School Fees', path: '/schoolfees', icon: <PaymentIcon className="h-5 w-5" /> },
-  { 
-  label: 'Transfer',
-  name: <span>Transfer <span className="text-[10px] font-bold text-yellow-500 relative -top-1 ml-1">PRO</span></span>, 
-  path: '/schooltransfer', 
-  icon: <PaymentIcon className="h-5 w-5" /> 
-},
+    {
+      label: 'Transfer',
+      name: <span>Transfer <span className="text-[10px] font-bold text-yellow-500 relative -top-1 ml-1">PRO</span></span>,
+      path: '/schooltransfer',
+      icon: <PaymentIcon className="h-5 w-5" />
+    },
     { name: 'Transactions', label: 'Transactions', path: '/transactions', icon: <ReceiptLongIcon className="h-5 w-5" />, badge: 12 },
     { name: 'Withdrawal', label: 'Withdrawal', path: '/withdrawal', icon: <AccountBalanceWalletIcon className="h-5 w-5" /> },
- 
+
     { name: 'Disputes', label: 'Disputes', path: '/Sdisputes', icon: <WarningIcon className="h-5 w-5" />, badge: 2 },
     { name: 'Settings', label: 'Settings', path: '/settings', icon: <SettingsIcon className="h-5 w-5" /> },
   ];
-  
-  const handleLogout = () => {
-    // Handle logout logic here
-    localStorage.removeItem('token');
-    navigate('/login');
-  };
+
+  // const handleLogout = () => {
+  //   // Handle logout logic here
+  //   // localStorage.removeItem('token');
+  //   // localStorage.removeItem('user');
+  //   // navigate('/login');
+  // };
+
+  const handleLogout = () => logout();
 
   const getCurrentPageName = () => {
     if (location.pathname === '/') return 'Dashboard';
@@ -151,19 +159,19 @@ export const Sidebar: React.FC = () => {
   return (
     <>
       {/* Mobile menu button - only visible on mobile  */}
-      
-        <button
-          onClick={toggleMobileMenu}
-          className="mt-[-8px] md:hidden fixed top-4 left-4 p-2 rounded-md bg-indigo-700 text-white shadow-lg hover:bg-indigo-600 transition-colors focus:outline-none focus:ring-2 focus:ring-white"
+
+      <button
+        onClick={toggleMobileMenu}
+        className="mt-[-8px] md:hidden fixed top-4 left-4 p-2 rounded-md bg-indigo-700 text-white shadow-lg hover:bg-indigo-600 transition-colors focus:outline-none focus:ring-2 focus:ring-white"
         aria-label="Toggle menu"
         style={{ zIndex: 100 }}
-        >
-          {mobileMenuOpen ? (
-            <CloseIcon className="h-6 w-6" />
-          ) : (
-            <MenuIcon className="h-6 w-6" />
-          )}
-        </button>
+      >
+        {mobileMenuOpen ? (
+          <CloseIcon className="h-6 w-6" />
+        ) : (
+          <MenuIcon className="h-6 w-6" />
+        )}
+      </button>
       {mobileMenuOpen && (
         <div
           className="md:hidden fixed inset-0 bg-black/50 z-0"
@@ -175,8 +183,8 @@ export const Sidebar: React.FC = () => {
       <aside
         className={`
           bg-gradient-to-b from-blue-900 via-blue-800 to-blue-900 text-white transition-all duration-300 flex flex-col h-screen shadow-2xl border-r border-blue-700/50
-          ${isMobile ? 
-            (mobileMenuOpen ? 'translate-x-0 w-64' : '-translate-x-full w-64') : 
+          ${isMobile ?
+            (mobileMenuOpen ? 'translate-x-0 w-64' : '-translate-x-full w-64') :
             (collapsed ? 'w-20' : 'w-64')}
         `}
         aria-label="Sidebar"
@@ -197,7 +205,7 @@ export const Sidebar: React.FC = () => {
             </div>
           )}
         </div>
-        
+
         {/* Current route indicator */}
         {!collapsed && (
           <div className="px-4 py-3 bg-blue-800/30 border-b border-blue-700/30">
@@ -208,7 +216,7 @@ export const Sidebar: React.FC = () => {
             </div>
           </div>
         )}
-        
+
         {/* Nav menu */}
         <nav className="flex-1 overflow-y-auto py-4 px-3">
           <ul className="space-y-2">
@@ -221,24 +229,21 @@ export const Sidebar: React.FC = () => {
                 return (
                   <li key={item.label}>
                     <div
-                      className={`group relative flex items-center rounded-xl transition-all duration-300 ${
-                        isActive
-                          ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg border border-blue-400/30 backdrop-blur-sm'
-                          : 'text-blue-200 hover:text-white hover:bg-blue-800/50 hover:shadow-md hover:backdrop-blur-sm'
-                      }`}
+                      className={`group relative flex items-center rounded-xl transition-all duration-300 ${isActive
+                        ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg border border-blue-400/30 backdrop-blur-sm'
+                        : 'text-blue-200 hover:text-white hover:bg-blue-800/50 hover:shadow-md hover:backdrop-blur-sm'
+                        }`}
                     >
                       <button
                         type="button"
                         onClick={() => toggleGroup(groupKey)}
-                        className={`flex min-w-0 flex-1 items-center px-3 py-3 text-left transition-all duration-300 hover:scale-[1.02] ${
-                          collapsed ? 'justify-center' : 'space-x-3'
-                        }`}
+                        className={`flex min-w-0 flex-1 items-center px-3 py-3 text-left transition-all duration-300 hover:scale-[1.02] ${collapsed ? 'justify-center' : 'space-x-3'
+                          }`}
                       >
-                        <div className={`relative p-2 rounded-lg transition-colors duration-200 ${
-                          isActive
-                            ? 'bg-white/20 text-white'
-                            : 'text-blue-300 group-hover:bg-white/10 group-hover:text-white'
-                        }`}>
+                        <div className={`relative p-2 rounded-lg transition-colors duration-200 ${isActive
+                          ? 'bg-white/20 text-white'
+                          : 'text-blue-300 group-hover:bg-white/10 group-hover:text-white'
+                          }`}>
                           {item.icon}
                         </div>
 
@@ -274,11 +279,10 @@ export const Sidebar: React.FC = () => {
                               <Link
                                 to={childPath || '/schools'}
                                 onClick={handleMenuItemClick}
-                                className={`ml-4 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-200 ${
-                                  isChildActive
-                                    ? 'bg-white/15 text-white border border-white/10'
-                                    : 'text-blue-200/90 hover:bg-blue-800/40 hover:text-white'
-                                }`}
+                                className={`ml-4 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-200 ${isChildActive
+                                  ? 'bg-white/15 text-white border border-white/10'
+                                  : 'text-blue-200/90 hover:bg-blue-800/40 hover:text-white'
+                                  }`}
                               >
                                 <span className="text-current">{child.icon}</span>
                                 <span className="font-medium">{child.name}</span>
@@ -291,25 +295,23 @@ export const Sidebar: React.FC = () => {
                   </li>
                 );
               }
-                
+
               return (
                 <li key={item.path}>
                   <Link
                     to={item.path || '/schools'}
                     onClick={handleMenuItemClick}
-                    className={`group relative flex items-center px-3 py-3 rounded-xl transition-all duration-300 hover:scale-[1.02] ${
-                      isActive 
-                        ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg border border-blue-400/30 backdrop-blur-sm'
-                        : 'text-blue-200 hover:text-white hover:bg-blue-800/50 hover:shadow-md hover:backdrop-blur-sm' 
-                    } ${collapsed ? 'justify-center' : 'space-x-3'}`}
+                    className={`group relative flex items-center px-3 py-3 rounded-xl transition-all duration-300 hover:scale-[1.02] ${isActive
+                      ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg border border-blue-400/30 backdrop-blur-sm'
+                      : 'text-blue-200 hover:text-white hover:bg-blue-800/50 hover:shadow-md hover:backdrop-blur-sm'
+                      } ${collapsed ? 'justify-center' : 'space-x-3'}`}
                   >
-                    <div className={`relative p-2 rounded-lg transition-colors duration-200 ${
-                      isActive 
-                        ? 'bg-white/20 text-white' 
-                        : 'text-blue-300 group-hover:bg-white/10 group-hover:text-white'
-                    }`}>
+                    <div className={`relative p-2 rounded-lg transition-colors duration-200 ${isActive
+                      ? 'bg-white/20 text-white'
+                      : 'text-blue-300 group-hover:bg-white/10 group-hover:text-white'
+                      }`}>
                       {item.icon}
-                      
+
                       {/* Badge for collapsed mode */}
                       {collapsed && item.badge && (
                         <div className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-white text-xs flex items-center justify-center font-bold shadow-lg animate-pulse">
@@ -332,22 +334,37 @@ export const Sidebar: React.FC = () => {
             })}
           </ul>
         </nav>
-        
+
         {/* Footer section with logout button */}
-        <div className="border-t border-blue-700/50 bg-blue-900/50 backdrop-blur-sm"> 
+        <div className="border-t border-blue-700/50 bg-blue-900/50 backdrop-blur-sm">
           {/* Logout button */}
           <button
-            onClick={handleLogout}
-            className={`group flex items-center w-full transition-all duration-300 hover:scale-[1.02] ${
-              collapsed 
-                ? 'justify-center py-4 px-3' 
-                : 'px-4 py-3 space-x-3'
-            } text-red-300 hover:text-red-200 hover:bg-red-500/20 hover:shadow-md rounded-lg mx-2 my-2`}
+            onClick={() => setShowLogoutModal(true)}
+            className={`group flex items-center box-border max-w-full
+    transition-all duration-200
+    ${collapsed
+                ? "justify-center py-4 px-3"
+                : "px-4 py-3 gap-3"
+              }
+    text-red-300 hover:text-red-200
+    hover:bg-red-500/20 hover:shadow-md
+    rounded-lg my-2
+  `}
+            style={{
+              width: collapsed ? "calc(100% - 1rem)" : "calc(100% - 1rem)",
+              marginLeft: "0.5rem",
+              marginRight: "0.5rem",
+            }}
           >
-            <div className="p-2 rounded-lg bg-red-500/20 group-hover:bg-red-500/30 transition-colors duration-200">
+            <div className="shrink-0 p-2 rounded-lg bg-red-500/20 group-hover:bg-red-500/30 transition-colors duration-200">
               <LogoutIcon className="h-5 w-5" />
             </div>
-            {!collapsed && <span className="font-medium">Logout</span>}
+
+            {!collapsed && (
+              <span className="font-medium whitespace-nowrap">
+                Logout
+              </span>
+            )}
           </button>
 
           {/* Admin version */}
@@ -360,7 +377,16 @@ export const Sidebar: React.FC = () => {
         </div>
       </aside>
 
-      
+      <ConfirmLogoutModal
+        open={showLogoutModal}
+        onConfirm={() => {
+          setShowLogoutModal(false);
+          handleLogout();
+        }}
+        onCancel={() => setShowLogoutModal(false)}
+      />
+
+
     </>
   );
 };
