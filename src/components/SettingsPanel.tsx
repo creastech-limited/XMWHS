@@ -20,6 +20,7 @@ import {
   Sparkles,
   RotateCcw,
   Brush,
+  CalendarDays, CalendarCheck, GraduationCap, BellRing, Info
 } from 'lucide-react';
 import { useSchoolTheme, SCHOOL_COLOR_PRESETS, PRIMARY_PALETTE, SECONDARY_PALETTE } from '../context/SchoolThemeContext';
 import { getUserDetails, requestPinReset, setAccountPin, updateAccountPin, updateNotificationPreferences, updateUserPassword, updateUserProfile, uploadProfileImage, verifyPinOtp, } from '../services';
@@ -47,6 +48,7 @@ const TABS = [
   { label: 'Security', icon: <Lock className="w-4 h-4 sm:w-5 sm:h-5 mr-2" /> },
   { label: 'Notifications', icon: <Bell className="w-4 h-4 sm:w-5 sm:h-5 mr-2" /> },
   { label: 'Branding & Colors', icon: <Palette className="w-4 h-4 sm:w-5 sm:h-5 mr-2" /> },
+  { label: 'Academic Calendar', icon: <CalendarDays className="w-4 h-4 sm:w-5 sm:h-5 mr-2" /> }
 ];
 
 // Generate initials-based avatar to avoid loading non-existent default-avatar.png
@@ -139,6 +141,16 @@ const SettingsPanel = () => {
     phone: '',
     profilePicture: '',
     createdAt: '',
+  });
+
+  const [academicDates, setAcademicDates] = useState({
+    vacationDate: '',
+    resumptionDate: '',
+    promotionDate: '',
+  });
+  const [academicToggles, setAcademicToggles] = useState({
+    notifyParents: false,
+    autoPromote: false,
   });
 
   const [passwordData, setPasswordData] = useState({
@@ -1418,6 +1430,155 @@ const SettingsPanel = () => {
                 >
                   <Check className="w-5 h-5" />
                   Save School Colors
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Academic Calendar Tab */}
+          {activeTab === 4 && (
+            <div className="p-4 sm:p-10 space-y-8">
+              {/* Header */}
+              <div className="border-b border-gray-100 pb-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl">
+                    <CalendarDays className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900">Academic Calendar</h2>
+                    <p className="text-sm text-gray-500 mt-0.5">
+                      Set the key dates for the current session and control how parents are notified and how students are promoted.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Date Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Vacation */}
+                <div className="bg-gray-50 rounded-2xl p-6 border border-gray-200/80 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-amber-50 text-amber-600 rounded-lg">
+                      <CalendarDays className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-gray-900">Vacation Date</h3>
+                      <p className="text-xs text-gray-500">Last day of the term</p>
+                    </div>
+                  </div>
+                  <input
+                    type="date"
+                    value={academicDates.vacationDate}
+                    onChange={(e) => setAcademicDates({ ...academicDates, vacationDate: e.target.value })}
+                    className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+
+                {/* Resumption */}
+                <div className="bg-gray-50 rounded-2xl p-6 border border-gray-200/80 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-green-50 text-green-600 rounded-lg">
+                      <CalendarCheck className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-gray-900">Resumption Date</h3>
+                      <p className="text-xs text-gray-500">First day of the next term</p>
+                    </div>
+                  </div>
+                  <input
+                    type="date"
+                    value={academicDates.resumptionDate}
+                    min={academicDates.vacationDate || undefined}
+                    onChange={(e) => setAcademicDates({ ...academicDates, resumptionDate: e.target.value })}
+                    className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+
+                {/* Promotion */}
+                <div className="bg-gray-50 rounded-2xl p-6 border border-gray-200/80 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                      <GraduationCap className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-gray-900">Promotion Date</h3>
+                      <p className="text-xs text-gray-500">When students move to the next class</p>
+                    </div>
+                  </div>
+                  <input
+                    type="date"
+                    value={academicDates.promotionDate}
+                    onChange={(e) => setAcademicDates({ ...academicDates, promotionDate: e.target.value })}
+                    className="w-full px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base text-black border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              {/* Automation Toggles */}
+              <div className="space-y-4">
+                <h3 className="text-lg sm:text-xl font-semibold text-gray-900 flex items-center">
+                  <BellRing className="w-5 h-5 sm:w-6 sm:h-6 mr-2 sm:mr-3 text-indigo-500" />
+                  Automation
+                </h3>
+
+                <div className="flex items-center p-3 sm:p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                  <BellRing className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-500 mr-3 sm:mr-4" />
+                  <div className="flex-1">
+                    <label htmlFor="notify-parents" className="text-sm sm:text-base font-medium text-gray-800 cursor-pointer">
+                      Notify parents of vacation & resumption dates
+                    </label>
+                    <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                      Parents will be informed of the vacation and resumption dates set above.
+                    </p>
+                  </div>
+                  <div className="ml-3 sm:ml-4">
+                    <Toggle
+                      id="notify-parents"
+                      label="Notify parents of vacation and resumption dates"
+                      checked={academicToggles.notifyParents}
+                      onChange={() => setAcademicToggles((p) => ({ ...p, notifyParents: !p.notifyParents }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center p-3 sm:p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                  <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-500 mr-3 sm:mr-4" />
+                  <div className="flex-1">
+                    <label htmlFor="auto-promote" className="text-sm sm:text-base font-medium text-gray-800 cursor-pointer">
+                      Automatically run promotion on the promotion date
+                    </label>
+                    <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                      Students will be promoted automatically when the promotion date arrives.
+                    </p>
+                  </div>
+                  <div className="ml-3 sm:ml-4">
+                    <Toggle
+                      id="auto-promote"
+                      label="Automatically run promotion on the promotion date"
+                      checked={academicToggles.autoPromote}
+                      onChange={() => setAcademicToggles((p) => ({ ...p, autoPromote: !p.autoPromote }))}
+                    />
+                  </div>
+                </div>
+
+                {academicToggles.autoPromote && (
+                  <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <Info className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                    <p className="text-xs sm:text-sm text-amber-800">
+                      Promotion changes every student's class. Make sure results are finalized before the promotion date.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  className="flex items-center gap-2 px-4 py-2 sm:px-5 sm:py-3 text-sm sm:text-base bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                >
+                  <Check className="w-4 h-4 sm:w-5 sm:h-5" />
+                  Save Academic Calendar
                 </button>
               </div>
             </div>

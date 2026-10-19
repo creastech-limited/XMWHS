@@ -10,6 +10,8 @@ import { useViewStudentTransactions } from '../../hooks/useViewStudentTransactio
 import StudentHeader from '../../components/student/StudentHeader';
 import TransactionSummaryCards from '../../components/student/TransactionSummaryCards';
 import TransactionList from '../../components/student/TransactionList';
+import { ArrowLeft } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const ViewStudentTransactions: React.FC = () => {
   const {
@@ -61,6 +63,15 @@ const ViewStudentTransactions: React.FC = () => {
         </aside>
         <main className="flex-1 p-4 md:p-6 overflow-hidden md:ml-64">
           <div className="bg-white rounded-2xl shadow-sm p-8 mb-8">
+            <div className="flex items-center m-5 mb-6 sm:mb-8">
+              <Link
+                to="/school/stores"
+                className="inline-flex items-center gap-2 text-indigo-600 hover:text-indigo-800 font-medium transition-colors group"
+              >
+                <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
+                Back
+              </Link>
+            </div>
             <h1 className="text-3xl font-bold text-center mb-2 text-transparent bg-clip-text bg-gradient-to-r from-indigo-800 to-indigo-600">
               Student Transactions
             </h1>

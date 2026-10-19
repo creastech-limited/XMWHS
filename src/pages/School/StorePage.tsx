@@ -19,9 +19,10 @@ import { Header } from '../../components/Header';
 import { Sidebar } from '../../components/Sidebar';
 import Footer from '../../components/Footer';
 import { useAuth } from '../../context/AuthContext';
+import { ConfirmDialog } from '../../components/shared/ConfirmDialog';
 
 // Import services
-import { getUserDetails, getStoresBySchoolId, getStoreCountBySchoolId, resetPassword, activateStore, deactivateStore } from '../../services';
+import { getUserDetails, getStoresBySchoolId, resetPassword, activateStore, deactivateStore } from '../../services';
 
 // Import types
 import type { Store as StoreType, UserResponse, SnackbarState } from '../../types/user';
@@ -57,7 +58,7 @@ export const StorePage: React.FC = () => {
   const [schoolId, setSchoolId] = useState('');
   const [storeLink, setStoreLink] = useState('');
   const [stores, setStores] = useState<StoreType[]>([]);
-  const [storeCount, setStoreCount] = useState(0);
+  // const [storeCount, setStoreCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -69,7 +70,9 @@ export const StorePage: React.FC = () => {
     message: '',
     severity: 'success',
   });
-  const [activeStoreCount, setActiveStoreCount] = useState(0);
+  // const [activeStoreCount, setActiveStoreCount] = useState(0);
+  const [confirmStore, setConfirmStore] = useState<StoreType | null>(null);
+  const [statusLoading, setStatusLoading] = useState(false);
 
   const normalizeStore = useCallback((store: Partial<StoreType> & Record<string, unknown>, index: number): StoreType => {
     const fallbackId =
@@ -190,6 +193,15 @@ export const StorePage: React.FC = () => {
     };
   }, [schoolId]);
 
+  // Auto-hide snackbar
+  useEffect(() => {
+    if (!snackbar.open) return;
+    const timer = setTimeout(() => {
+      setSnackbar((prev) => ({ ...prev, open: false }));
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [snackbar.open, snackbar.message]);
+
   // 1) Fetch user profile to get schoolId and storeLink
   useEffect(() => {
     if (!authToken) return;
@@ -263,32 +275,41 @@ export const StorePage: React.FC = () => {
   }, [authToken, schoolId, normalizeStore]);
 
   // 3) Fetch store count for this schoolId
-  useEffect(() => {
-    if (!authToken || !schoolId) return;
+  // useEffect(() => {
+  //   if (!authToken || !schoolId) return;
 
-    const fetchStoreCounts = async () => {
-      try {
-        // Fetch total store count
-        const totalCount = await getStoreCountBySchoolId(schoolId);
-        setStoreCount(totalCount);
+  //   const fetchStoreCounts = async () => {
+  //     try {
+  //       // Fetch total store count
+  //       const totalCount = await getStoreCountBySchoolId(schoolId);
+  //       setStoreCount(totalCount);
 
-        // Fetch active store count
-        const activeCount = await getStoreCountBySchoolId(schoolId, 'active');
-        setActiveStoreCount(activeCount);
-      } catch (err) {
-        console.error('Store count error:', err);
-        // Fallback to local counts
-        setStoreCount(stores.length);
-        setActiveStoreCount(
-          stores.filter((s) => s?.status?.toLowerCase() === 'active').length
-        );
-      }
-    };
+  //       // Fetch active store count
+  //       // const activeCount = await getStoreCountBySchoolId(schoolId, 'active');
+  //       // setActiveStoreCount(activeCount);
+  //     } catch (err) {
+  //       console.error('Store count error:', err);
+  //       // Fallback to local counts
+  //       setStoreCount(stores.length);
+  //       setActiveStoreCount(
+  //         stores.filter((s) => s?.status?.toLowerCase() === 'active').length
+  //       );
+  //     }
+  //   };
 
-    fetchStoreCounts();
-  }, [authToken, schoolId, stores]);
+  //   fetchStoreCounts();
+  // }, [authToken, schoolId, stores]);
+
 
   // Filter stores based on search, status, and type
+
+  const storeCount = stores.length;
+
+  const activeStoreCount = useMemo(
+    () => stores.filter((s) => (s.status || '').toLowerCase() === 'active').length,
+    [stores]
+  );
+
   const filteredStores = stores.filter((store) => {
     if (!store) return false;
     const matchesSearch =
@@ -471,6 +492,7 @@ export const StorePage: React.FC = () => {
     }
 
     const isCurrentlyActive = (store.status || '').toLowerCase() === 'active';
+    setStatusLoading(true);
     try {
       const result = isCurrentlyActive
         ? await deactivateStore(resolvedId)
@@ -502,6 +524,8 @@ export const StorePage: React.FC = () => {
       });
     } finally {
       handleMenuClose();
+      setStatusLoading(false);
+      setConfirmStore(null);
     }
   };
 
@@ -543,7 +567,7 @@ export const StorePage: React.FC = () => {
 
   // Close snackbar
   const closeSnackbar = () => {
-    setSnackbar({ ...snackbar, open: false });
+    setSnackbar((prev) => ({ ...prev, open: false }));
   };
 
   // Toggle dropdown menu for a store
@@ -920,7 +944,10 @@ export const StorePage: React.FC = () => {
                                       ? 'text-red-600'
                                       : 'text-green-600'
                                       }`}
-                                    onClick={() => handleActivateDeactivate(menuStore)}
+                                    onClick={() => {
+                                      setConfirmStore(menuStore);
+                                      setDropdownOpen(null);
+                                    }}
                                   >
                                     {(menuStore.status || '').toLowerCase() === 'active' ? (
                                       <>
@@ -1081,6 +1108,31 @@ export const StorePage: React.FC = () => {
         </main>
       </div>
       <Footer />
+
+      {confirmStore && (
+        <ConfirmDialog
+          isOpen
+          variant={(confirmStore.status || '').toLowerCase() === 'active' ? 'danger' : 'success'}
+          title={
+            (confirmStore.status || '').toLowerCase() === 'Active'
+              ? 'Deactivate store?'
+              : 'Activate store?'
+          }
+          message={
+            (confirmStore.status || '').toLowerCase() === 'active'
+              ? `${confirmStore.storeName} will be marked inactive and may lose access until you activate it again.`
+              : `${confirmStore.storeName} will be marked active and regain access to its account.`
+          }
+          confirmLabel={
+            (confirmStore.status || '').toLowerCase() === 'active'
+              ? 'Deactivate store'
+              : 'Activate store'
+          }
+          loading={statusLoading}
+          onConfirm={() => handleActivateDeactivate(confirmStore)}
+          onCancel={() => setConfirmStore(null)}
+        />
+      )}
 
       {/* Snackbar/Toast */}
       {snackbar.open && (

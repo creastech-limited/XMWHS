@@ -2,10 +2,10 @@ import React from 'react';
 import { Header } from '../../components/Header';
 import { Sidebar } from '../../components/Sidebar';
 import Footer from '../../components/Footer';
-import { Store } from 'lucide-react';
+import { ArrowLeft, Store } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { getStoreById, updateStoreProfile } from '../../services';
 
 // Import types
@@ -34,7 +34,7 @@ const EditStoreDetails = () => {
   useEffect(() => {
     const fetchStoreData = async () => {
       const token = getAuthToken();
-      
+
       if (!token) {
         setFetchError('No authentication token found');
         return;
@@ -62,11 +62,11 @@ const EditStoreDetails = () => {
         });
       } catch (error) {
         console.error('Error fetching store data:', error);
-        
+
         // Handle service errors
         if (error instanceof Error) {
           const errorMessage = error.message;
-          
+
           if (errorMessage.includes('404') || errorMessage.includes('not found')) {
             setFetchError('Store not found');
           } else if (errorMessage.includes('401') || errorMessage.includes('unauthorized')) {
@@ -92,7 +92,7 @@ const EditStoreDetails = () => {
   const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     const token = getAuthToken();
-    
+
     if (!token || !user?._id) {
       setFetchError('Authentication or store data missing');
       return;
@@ -119,7 +119,7 @@ const EditStoreDetails = () => {
       }
     } catch (error) {
       console.error('Profile update failed:', error);
-      
+
       // Handle service errors
       if (error instanceof Error) {
         setFetchError(`Update failed: ${error.message}`);
@@ -203,6 +203,15 @@ const EditStoreDetails = () => {
         <main className="flex-1 md:ml-64 p-4 md:p-6 pb-20">
           <div className="max-w-7xl mx-auto">
             <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+              <div>
+                <Link
+                  to="/stores"
+                  className="inline-flex items-center gap-2 text-indigo-600 hover:text-indigo-800 font-medium transition-colors group"
+                >
+                  <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
+                  Back
+                </Link>
+              </div>
               <div className="flex flex-wrap items-center gap-2 p-4 sm:p-5 mb-4 sm:mb-6">
                 <Store className="h-6 w-6 sm:h-7 sm:w-7 text-indigo-600" />
                 <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-indigo-900">
@@ -214,33 +223,33 @@ const EditStoreDetails = () => {
                   </span>
                 )}
               </div>
-              
+
               {fetchError && (
                 <div className="mx-4 sm:mx-5 mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded text-sm">
                   {fetchError}
                 </div>
               )}
-              
+
               <div className="p-4 sm:p-6 md:p-10">
                 <form
                   onSubmit={handleProfileUpdate}
                   className="space-y-6"
                 >
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-   <div>
-  <label className="block text-sm font-medium text-gray-700 mb-2">
-    Store Name
-  </label>
-  <input
-    type="text"
-    value={profile.name}
-    readOnly
-    disabled
-    className="w-full px-4 py-2.5 text-sm text-gray-500 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed"
-    placeholder="Store Name"
-    title="Store name cannot be edited here"
-  />
-</div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Store Name
+                      </label>
+                      <input
+                        type="text"
+                        value={profile.name}
+                        readOnly
+                        disabled
+                        className="w-full px-4 py-2.5 text-sm text-gray-500 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed"
+                        placeholder="Store Name"
+                        title="Store name cannot be edited here"
+                      />
+                    </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Store Type
@@ -263,20 +272,20 @@ const EditStoreDetails = () => {
                         <option value="Supplies">Supplies</option>
                       </select>
                     </div>
-                  <div>
-  <label className="block text-sm font-medium text-gray-700 mb-2">
-    Email Address
-  </label>
-  <input
-    type="email"
-    value={profile.email}
-    readOnly
-    disabled
-    className="w-full px-4 py-2.5 text-sm text-gray-500 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed"
-    placeholder="Email Address"
-    title="Email cannot be edited here"
-  />
-</div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Email Address
+                      </label>
+                      <input
+                        type="email"
+                        value={profile.email}
+                        readOnly
+                        disabled
+                        className="w-full px-4 py-2.5 text-sm text-gray-500 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed"
+                        placeholder="Email Address"
+                        title="Email cannot be edited here"
+                      />
+                    </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Store Location
