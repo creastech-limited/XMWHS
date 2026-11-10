@@ -44,7 +44,7 @@
     "react-redux": "^9.2.0",
     "react-router-dom": "^6.30.0",
     "react-toastify": "^11.0.5",
-    "recharts": "^2.15.3",
+    "recharts": "^2.15.4",
     "serve": "^14.2.5",
     "tailwindcss": "^4.1.6",
     "zod": "^3.24.4",

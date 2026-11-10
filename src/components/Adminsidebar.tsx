@@ -18,6 +18,7 @@ import {
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getUserDetails } from '../services';
+import { ConfirmLogoutModal } from './shared/ConfirmLogoutModal';
 
 interface MenuItem {
   id: string;
@@ -71,6 +72,8 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, activeMenu, setActiveMenu }
 
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+
   useEffect(() => {
     const fetchProfile = async () => {
       try {
@@ -119,9 +122,14 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, activeMenu, setActiveMenu }
 
   const handleLogout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('user');
     sessionStorage.clear();
     navigate('/login');
   };
+
+  const handleLogoutClick = () => {
+    setShowLogoutModal(true);
+  }
 
   const getUserInitials = () => {
     if (userProfile?.firstName && userProfile?.lastName) {
@@ -285,7 +293,7 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, activeMenu, setActiveMenu }
       {/* Mobile Overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          className="fixed inset-0 bg-white/10 backdrop-blur-xs z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -339,13 +347,20 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, activeMenu, setActiveMenu }
               </p>
             </div>
           </div>
-          <button onClick={handleLogout}
+          <button onClick={handleLogoutClick}
             className="w-full flex items-center space-x-3 px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white rounded-lg transition-all duration-200">
             <LogOut size={20} />
             <span>Logout</span>
           </button>
         </div>
+
       </div>
+
+      <ConfirmLogoutModal
+        open={showLogoutModal}
+        onConfirm={handleLogout}
+        onCancel={() => setShowLogoutModal(false)}
+      />
     </>
   );
 };

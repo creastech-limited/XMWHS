@@ -40,15 +40,6 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
           {subtitle && (
             <p className="text-gray-600 text-center mt-1">{subtitle}</p>
           )}
-
-          {linkText && linkTo && (
-            <p className="text-gray-600 mt-2">
-              {linkText}{' '}
-              <RouterLink to={linkTo} className="text-indigo-700 font-semibold hover:underline">
-                {linkLabel || linkText}
-              </RouterLink>
-            </p>
-          )}
         </div>
 
         {children}

@@ -224,7 +224,7 @@ export const useManageAgents = () => {
 
   // ===== AGENT ACTIONS =====
   const handleToggleStatus = async (agent: StoreAgent) => {
-    const isCurrentlyActive = agent.status !== 'inactive';
+    const isCurrentlyActive = String(agent.status ?? '').toLowerCase() !== 'inactive';
     const newStatus = isCurrentlyActive ? 'inactive' : 'active';
     const actionText = isCurrentlyActive ? 'deactivate' : 'activate';
 

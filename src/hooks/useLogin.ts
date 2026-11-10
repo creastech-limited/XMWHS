@@ -18,7 +18,7 @@ interface LoginFormErrors {
   password: string;
 }
 
-const MOBILE_ONLY_ROLES = ['parent', 'student', 'security'];
+const MOBILE_ONLY_ROLES = ['parent', 'student', 'security', 'agent'];
 
 export const useLogin = () => {
   const navigate = useNavigate();

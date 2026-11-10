@@ -1,18 +1,58 @@
 // src/pages/Store/ManageAgentsPage.tsx
-import React from 'react';
-import { ToastContainer } from 'react-toastify';
+import React, { useMemo, useState } from 'react';
+import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { Plus as AddIcon, X } from 'lucide-react';
+import { Plus, Copy, Check, Download } from 'lucide-react';
 import StoreHeader from '../../components/StoreHeader';
 import StoreSidebar from '../../components/StoreSidebar';
 import Footer from '../../components/Footer';
 import { useManageAgents } from '../../hooks/useManageAgents';
 import {
-  AgentForm,
-  AgentCard,
+  AgentDrawer,
+  AgentTable,
+  isAgentActive,
   AgentEmptyState,
   AgentSearchBar,
+  AgentStatCards,
+  AgentPagination,
+  type AgentRow,
+  Card,
 } from '../../components/store';
+import { downloadCsv, slugify } from '../../utils/Exportcsv';
+import type { StoreAgent } from '../../types';
+
+type Filter = 'all' | 'active' | 'inactive';
+const isActive = isAgentActive;
+
+const Chip: React.FC<{ label: string; value: string; copyValue?: string }> = ({ label, value, copyValue }) => {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(copyValue ?? value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard unavailable: ignore */
+    }
+  };
+  return (
+    <span className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs">
+      <span className="text-slate-500">{label}</span>
+      <span className="truncate font-medium text-slate-900" title={copyValue ?? value}>
+        {value}
+      </span>
+      {copyValue && (
+        <button
+          onClick={copy}
+          aria-label={`Copy ${label}`}
+          className="rounded text-slate-400 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+        >
+          {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+        </button>
+      )}
+    </span>
+  );
+};
 
 const ManageAgentsPage: React.FC = () => {
   const {
@@ -34,112 +74,188 @@ const ManageAgentsPage: React.FC = () => {
     handleSubmit,
     handleToggleStatus,
     resetForm,
-    getInitials,
     getStoreName,
   } = useManageAgents();
 
+  const [filter, setFilter] = useState<Filter>('all');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
+
+  // Ids with a status request in flight: their switch is disabled to prevent double-clicks.
+  const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
+
+  const toggleAgent = async (agent: StoreAgent) => {
+    if (pendingIds.has(agent.id)) return;
+    setPendingIds((prev) => new Set(prev).add(agent.id));
+    try {
+      console.log(agent.status);
+      await handleToggleStatus(agent); // calls the real endpoint via the hook
+    } catch {
+      toast.error('Could not update the agent status. Please try again.');
+    } finally {
+      setPendingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(agent.id);
+        return next;
+      });
+    }
+  };
+
+  const activeCount = useMemo(() => agents.filter(isActive).length, [agents]);
+
+  const visible = useMemo(
+    () => filteredAgents.filter((a: StoreAgent) => filter === 'all' || (filter === 'active') === isActive(a)),
+    [filteredAgents, filter]
+  );
+
+  const totalPages = Math.max(1, Math.ceil(visible.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const paged = visible.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  // Exports everything matching the current search and filter (all pages, not just the visible one).
+  const handleExport = () => {
+    const rows = visible as AgentRow[];
+    const cols: [string, (a: AgentRow) => string | number | undefined][] = [
+      ['Name', (a) => a.fullName || `${a.firstName} ${a.lastName}`],
+      ['Email', (a) => a.email],
+      ['Phone', (a) => a.phone],
+      ['Role', (a) => a.role],
+      ['Status', (a) => (isActive(a) ? 'Active' : 'Inactive')],
+    ];
+    // These columns are included automatically once the API sends them.
+    if (rows.some((a) => a.transactionCount !== undefined)) cols.push(['Transactions', (a) => a.transactionCount]);
+    if (rows.some((a) => a.revenueThisMonth !== undefined)) cols.push(['Revenue (this month)', (a) => a.revenueThisMonth]);
+    if (rows.some((a) => a.lastActiveAt)) cols.push(['Last active', (a) => a.lastActiveAt]);
+
+    const date = new Date().toISOString().slice(0, 10);
+    downloadCsv(
+      `${slugify(getStoreName())}-agents-${date}.csv`,
+      cols.map(([h]) => h),
+      rows.map((a) => cols.map(([, get]) => get(a)))
+    );
+    toast.success(`Exported ${rows.length} ${rows.length === 1 ? 'agent' : 'agents'}`);
+  };
+
+
+  const chips: { id: Filter; label: string; count: number }[] = [
+    { id: 'all', label: 'All', count: agentCount },
+    { id: 'active', label: 'Active', count: activeCount },
+    { id: 'inactive', label: 'Inactive', count: agentCount - activeCount },
+  ];
+
   return (
-    <div className="text-gray-600 flex min-h-screen flex-col bg-gray-50">
-      <ToastContainer
-        position="top-right"
-        autoClose={3000}
-        hideProgressBar={false}
-        newestOnTop={false}
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-        theme="light"
-      />
+    <div className="flex min-h-screen flex-col text-slate-700">
+      <ToastContainer position="top-right" autoClose={3000} closeOnClick pauseOnFocusLoss pauseOnHover theme="light" />
 
-      <StoreHeader />
-      <div className="z-100">
-        <StoreSidebar />
-      </div>
+      <div className="mx-auto mb-20 w-full max-w-6xl space-y-5 px-4 py-5 sm:px-6 lg:px-8">
+        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+          <div className="min-w-0">
+            <h1 className="text-xl font-semibold text-slate-900">Agents</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              The people on the ground taking payments for your store.
+            </p>
+            {storeInfo && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Chip label="Store" value={getStoreName()} />
+                <Chip label="Type" value={storeInfo.type} />
+                <Chip label="Store ID" value={storeInfo.store_id} copyValue={storeInfo.store_id} />
+              </div>
+            )}
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              onClick={handleExport}
+              disabled={isPageLoading || visible.length === 0}
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Download className="h-4 w-4" />
+              Export
+            </button>
+            <button
+              onClick={() => setShowForm(true)}
+              disabled={!storeInfo?.store_id}
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Plus className="h-4 w-4" />
+              Add agent
+            </button>
+          </div>
+        </div>
 
-      <div className="flex-1 pl-0 md:pl-[250px] transition-all duration-300">
-        <div className="h-[80px] xs:h-[90px] sm:h-[100px] md:h-[110px] lg:h-[120px] xl:h-[140px]" />
+        <AgentStatCards totalAgents={agentCount} activeAgents={activeCount} />
 
-        <div className="px-4 xs:px-5 sm:px-6 md:px-7 lg:px-8 py-5 sm:py-6 md:py-7 lg:py-8 max-w-6xl mx-auto w-full mb-20">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-5 sm:mb-6 md:mb-7 gap-3 sm:gap-4">
-            <div className="w-full md:w-auto">
-              <h1 className="text-xl xs:text-2xl sm:text-[26px] md:text-[28px] lg:text-3xl font-bold text-gray-800">
-                Manage Agents
-              </h1>
-              <p className="text-xs xs:text-sm sm:text-[13px] md:text-[14px] text-gray-500 mt-1">
-                {getStoreName()} • Total Agents: {agentCount}
-              </p>
-              {storeInfo && (
-                <p className="text-[11px] xs:text-xs sm:text-[13px] text-gray-400 mt-1 truncate">
-                  Store Type: {storeInfo.type} • Store ID: {storeInfo.store_id}
-                </p>
-              )}
-            </div>
-
-            <div className="w-full md:w-[200px]">
-              <button
-                className={`flex items-center justify-center gap-2 px-4 py-2 rounded-md w-full ${
-                  showForm ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-600 hover:bg-blue-700'
-                } text-white transition-colors text-sm sm:text-[15px] disabled:opacity-50 disabled:cursor-not-allowed`}
-                onClick={() => setShowForm(!showForm)}
-                disabled={!storeInfo?.store_id}
-              >
-                {showForm ? (
-                  <X className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
-                ) : (
-                  <AddIcon className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
-                )}
-                {showForm ? 'Cancel' : 'Add New Agent'}
-              </button>
-            </div>
+        <Card className="overflow-hidden">
+          <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <AgentSearchBar
+              value={searchTerm}
+              onChange={(v) => {
+                setSearchTerm(v);
+                setPage(1);
+              }}
+            />
+            {(
+              <div className="flex shrink-0 gap-1.5" role="group" aria-label="Filter agents by status">
+                {chips.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => {
+                      setFilter(c.id);
+                      setPage(1);
+                    }}
+                    aria-pressed={filter === c.id}
+                    className={`rounded-md border px-2.5 py-1 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${filter === c.id
+                      ? 'border-slate-900 bg-slate-900 text-white'
+                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                  >
+                    {c.label} <span className="ml-1 opacity-70">{c.count}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
-          <AgentForm
-            isOpen={showForm}
-            formData={agentData}
-            errors={errors}
-            isLoading={isLoading}
-            showPassword={showPassword}
-            onClose={resetForm}
-            onChange={handleChange}
-            onSubmit={handleSubmit}
-            onTogglePassword={() => setShowPassword(!showPassword)}
-          />
-
-          <AgentSearchBar value={searchTerm} onChange={setSearchTerm} />
-
-          {isPageLoading && (
-            <div className="flex justify-center my-6 sm:my-7 md:my-8">
-              <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-blue-600"></div>
+          {isPageLoading ? (
+            <div className="flex justify-center py-14" role="status" aria-label="Loading agents">
+              <div className="h-7 w-7 animate-spin rounded-full border-2 border-slate-200 border-t-indigo-600" />
             </div>
-          )}
-
-          {!isPageLoading && agents.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 md:gap-6">
-              {filteredAgents.map((agent) => (
-                <AgentCard
-                  key={agent.id}
-                  agent={agent}
-                  storeInfo={storeInfo}
-                  onToggleStatus={handleToggleStatus}
-                  getInitials={getInitials}
-                />
-              ))}
-            </div>
-          ) : !isPageLoading ? (
+          ) : visible.length > 0 ? (
+            <>
+              <AgentTable agents={paged} onToggleStatus={toggleAgent} pendingIds={pendingIds} />
+              <AgentPagination
+                total={visible.length}
+                page={safePage}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                onPageSizeChange={(n) => {
+                  setPageSize(n);
+                  setPage(1);
+                }}
+              />
+            </>
+          ) : (
             <AgentEmptyState
-              searchTerm={searchTerm}
+              searchTerm={searchTerm || (filter !== 'all' ? filter : '')}
               hasStoreId={!!storeInfo?.store_id}
               onAddAgent={() => setShowForm(true)}
             />
-          ) : null}
-        </div>
+          )}
+        </Card>
       </div>
 
-      <div className="fixed bottom-0 left-0 w-full">
-        <Footer />
-      </div>
+      <AgentDrawer
+        isOpen={showForm}
+        storeName={getStoreName()}
+        formData={agentData}
+        errors={errors}
+        isLoading={isLoading}
+        showPassword={showPassword}
+        onClose={resetForm}
+        onChange={handleChange}
+        onSubmit={handleSubmit}
+        onTogglePassword={() => setShowPassword(!showPassword)}
+      />
+
     </div>
   );
 };

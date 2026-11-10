@@ -55,12 +55,7 @@ const ViewStudentTransactions: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50">
-      <Header PsettingsPage="/settings" />
-      <div className="flex flex-grow">
-        <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-64 bg-none">
-          <Sidebar />
-        </aside>
+    <>
         <main className="flex-1 p-4 md:p-6 overflow-hidden md:ml-64">
           <div className="bg-white rounded-2xl shadow-sm p-8 mb-8">
             <div className="flex items-center m-5 mb-6 sm:mb-8">
@@ -105,9 +100,6 @@ const ViewStudentTransactions: React.FC = () => {
             )}
           </div>
         </main>
-      </div>
-
-      <Footer />
 
       <Snackbar
         open={snackbar.open}
@@ -116,7 +108,7 @@ const ViewStudentTransactions: React.FC = () => {
         onClose={closeSnackbar}
         position="bottom-right"
       />
-    </div>
+    </>
   );
 };
 

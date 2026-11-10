@@ -1,18 +1,18 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   Bell,
-  User,
   LogOut,
   Settings,
   ChevronDown,
   Menu,
-  X
+  X,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios, { AxiosError } from 'axios';
 import { useAuth } from '../context/AuthContext';
 import type { NotificationsResponse } from '../types';
 import { getmarkNotification, getNotifications } from '../services';
+import { ConfirmLogoutModal } from '../components/shared/ConfirmLogoutModal';
 
 // TypeScript interfaces
 interface User {
@@ -43,47 +43,27 @@ interface StoreHeaderProps {
   isSidebarOpen?: boolean;
 }
 
-// SOLUTION 1: Generate initials-based avatar
-const generateInitialsAvatar = (name: string): string => {
-  const initials = name
-    .split(' ')
-    .map(word => word.charAt(0))
+// Capitalise every word: "mercy kalu" -> "Mercy Kalu"
+const capitalizeWords = (value: string): string =>
+  value
+    .trim()
+    .split(/\s+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
+
+// "Mercy Kalu" -> "MK"
+const getInitials = (name: string): string =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0))
     .join('')
     .toUpperCase()
     .slice(0, 2);
-  
-  // Create a simple data URL with initials
-  const canvas = document.createElement('canvas');
-  canvas.width = 100;
-  canvas.height = 100;
-  const ctx = canvas.getContext('2d');
-  
-  if (ctx) {
-    // Background color based on name hash
-    const hash = name.split('').reduce((a, b) => {
-      a = ((a << 5) - a) + b.charCodeAt(0);
-      return a & a;
-    }, 0);
-    const hue = Math.abs(hash) % 360;
-    
-    ctx.fillStyle = `hsl(${hue}, 60%, 60%)`;
-    ctx.fillRect(0, 0, 100, 100);
-    
-    // Text
-    ctx.fillStyle = 'white';
-    ctx.font = 'bold 40px Arial';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(initials, 50, 50);
-  }
-  
-  return canvas.toDataURL();
-};
 
-
-const StoreHeader: React.FC<StoreHeaderProps> = ({ 
-  onMenuToggle, 
-  isSidebarOpen = false
+const StoreHeader: React.FC<StoreHeaderProps> = ({
+  onMenuToggle,
+  isSidebarOpen = false,
 }) => {
   const navigate = useNavigate();
   const auth = useAuth();
@@ -92,7 +72,7 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
   const logout = auth?.logout;
   const isAuthenticated = !!auth?.user;
   const authLoading = auth?.isLoading;
-  
+
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isProfileOpen, setIsProfileOpen] = useState<boolean>(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState<boolean>(false);
@@ -100,11 +80,11 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
   const [notificationsLoading, setNotificationsLoading] = useState<boolean>(false);
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
   const [avatarError, setAvatarError] = useState<boolean>(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState<boolean>(false);
 
   const menuRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
 
-  // Use environment variable with fallback
   const API_URL = import.meta.env.VITE_API_BASE_URL;
 
   const fetchNotifications = useCallback(async (): Promise<void> => {
@@ -156,82 +136,90 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
   }, []);
 
   useEffect(() => {
-    // Check if user is authenticated
     if (!isAuthenticated && !authLoading) {
       navigate('/login');
       return;
     }
 
-    // Initialize user data when auth is ready
     if (isAuthenticated && user && token) {
       fetchNotifications();
     }
   }, [isAuthenticated, user, token, authLoading, navigate, fetchNotifications]);
 
-  // IMPROVED: Better avatar handling with multiple fallbacks
-  const getUserAvatar = (): string => {
-    if (avatarError || !user) {
-      // SOLUTION 1: Return initials-based avatar
-      const name = getFullName();
-      return generateInitialsAvatar(name);
-      
-      // SOLUTION 2: Use Gravatar (uncomment to use instead)
-      // return getGravatarUrl(user?.email || 'default@example.com');
-      
-      // SOLUTION 3: Use a reliable external service (uncomment to use instead)
-      // return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`;
-    }
-
-    if (user?.profilePicture) {
-      if (user.profilePicture.startsWith('/uploads/')) {
-        return `${API_URL}${user.profilePicture}`;
-      }
-      return user.profilePicture;
-    }
-
-    // If no profile picture, generate initials avatar instead of trying to load non-existent file
-    return generateInitialsAvatar(getFullName());
-  };
-
+  // First + last name, properly capitalised
   const getFullName = (): string => {
-    if (user?.name) return user.name;
-    if (user?.firstName && user?.lastName) return `${user.firstName} ${user.lastName}`;
+    if (user?.firstName && user?.lastName) {
+      return capitalizeWords(`${user.firstName} ${user.lastName}`);
+    }
+    if (user?.name) return capitalizeWords(user.name);
+    if (user?.firstName) return capitalizeWords(user.firstName);
     return user?.email || 'User';
   };
 
-  const handleAvatarError = () => {
-    setAvatarError(true);
+  // Returns a picture URL only when there is a real one; otherwise null
+  // so we can render the navy initials circle instead.
+  const getProfilePictureUrl = (): string | null => {
+    if (avatarError || !user?.profilePicture) return null;
+    if (user.profilePicture.startsWith('/uploads/')) {
+      return `${API_URL}${user.profilePicture}`;
+    }
+    return user.profilePicture;
+  };
+
+  const renderAvatar = (sizeClasses: string, textClasses: string) => {
+    const pictureUrl = getProfilePictureUrl();
+
+    if (pictureUrl) {
+      return (
+        <img
+          src={pictureUrl}
+          alt={getFullName()}
+          className={`${sizeClasses} rounded-full object-cover shrink-0`}
+          onError={() => setAvatarError(true)}
+        />
+      );
+    }
+
+    return (
+      <div
+        className={`${sizeClasses} ${textClasses} rounded-full bg-[#0F1B3D] text-white font-semibold flex items-center justify-center shrink-0`}
+        aria-label={getFullName()}
+      >
+        {getInitials(getFullName())}
+      </div>
+    );
   };
 
   const markNotificationAsRead = async (notificationId: string): Promise<void> => {
     if (!token) return;
 
     try {
-      
       await getmarkNotification(notificationId);
 
-
-      setNotifications((prev: Notification[]) => 
-        prev.map((notif) => 
-          notif._id === notificationId 
-            ? { ...notif, read: true } 
-            : notif
+      setNotifications((prev: Notification[]) =>
+        prev.map((notif) =>
+          notif._id === notificationId ? { ...notif, read: true } : notif
         )
       );
     } catch (err) {
-      
       const error = err as AxiosError;
       console.error('Failed to mark notification as read:', error);
-      
-    
+
       if (error.response?.status === 401 && logout) {
         logout();
         navigate('/login');
       }
     }
-};
+  };
 
-  const handleLogout = async (): Promise<void> => {
+  // Step 1: the Logout menu item only asks for confirmation
+  const handleLogoutClick = (): void => {
+    setIsProfileOpen(false);
+    setShowLogoutConfirm(true);
+  };
+
+  // Step 2: the modal's "Yes, log out" performs the real logout
+  const handleConfirmLogout = async (): Promise<void> => {
     try {
       setIsLoading(true);
       if (logout) logout();
@@ -239,6 +227,7 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
       console.error('Logout failed:', error);
     } finally {
       setIsLoading(false);
+      setShowLogoutConfirm(false);
     }
   };
 
@@ -255,32 +244,50 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
   const formatDate = (dateString: string): string => {
     const d = new Date(dateString);
     const now = new Date();
-    
+
     if (d.toDateString() === now.toDateString()) {
       return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
-    
+
     if (d.getFullYear() === now.getFullYear()) {
       return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
     }
-    
+
     return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  const unreadNotificationsCount = notifications.filter(n => !n.read).length;
+  const unreadNotificationsCount = notifications.filter((n) => !n.read).length;
 
-  // Show loading state while auth is initializing
+  const iconStyle: React.CSSProperties = {
+    display: 'block',
+    stroke: '#0F1B3D',
+    fill: 'none',
+    opacity: 1,
+    visibility: 'visible',
+  };
+
+  const iconButtonStyle: React.CSSProperties = {
+    padding: 0,
+    borderRadius: 12,
+    border: '1px solid rgba(229, 231, 235, 0.7)',
+    background: '#fff',
+  };
+
+  // Shared style for the square white icon buttons (help + bell)
+  const iconButtonClasses =
+    'relative flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200/70 bg-white text-[#0F1B3D] transition-colors hover:bg-gray-50';
+
+  // Loading state while auth initialises
   if (authLoading) {
     return (
-      <header className="fixed top-0 right-0 left-0 lg:left-[280px] z-40 bg-white shadow-sm border-b border-gray-200 transition-all duration-300">
-        <div className="flex items-center justify-center px-4 py-3 lg:px-6 lg:py-4">
+      <header className="fixed top-0 right-0 left-0 lg:left-[240px] z-40 bg-[#F7F8FC] border-b border-gray-200/60">
+        <div className="flex items-center justify-center px-4 py-3 lg:px-8">
           <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
         </div>
       </header>
     );
   }
 
-  // Don't render if not authenticated
   if (!isAuthenticated || !user) {
     return null;
   }
@@ -288,11 +295,10 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
   return (
     <>
       {/* Header */}
-      <header className="fixed top-0 right-0 left-0 lg:left-[280px] z-40 bg-white shadow-sm border-b border-gray-200 transition-all duration-300">
-        <div className="flex items-center justify-between px-4 py-3 lg:px-6 lg:py-4">
-          {/* Left Section - Mobile Menu & Search */}
-          <div className="text-gray-600 flex items-center space-x-4">
-            {/* Mobile Menu Button (visible on tablet and mobile) */}
+      <header className="fixed top-0 right-0 left-0 lg:left-[240px] z-40 bg-[#F7F8FC] border-b border-gray-200/60 shadow-sm transition-all duration-300">
+        <div className="flex items-center justify-between gap-4 px-4 py-3 lg:px-8">
+          {/* Left: mobile menu */}
+          <div className="flex min-w-0 flex-1 items-center gap-3">
             <button
               onClick={onMenuToggle}
               className="lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
@@ -307,55 +313,35 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
             </button>
           </div>
 
-          {/* Center Section - Store Info */}
-          <div className="flex items-center space-x-3">
-            {/* User Avatar */}
-            <div className="relative">
-              <img
-                src={getUserAvatar()}
-                alt={getFullName()}
-                className="w-10 h-10 lg:w-12 lg:h-12 rounded-full border-2 border-white shadow-md object-cover"
-                onError={handleAvatarError}
-              />
-              <div className="absolute -bottom-1 -right-1 w-3 h-3 lg:w-4 lg:h-4 bg-green-500 rounded-full border-2 border-white"></div>
-            </div>
-
-            {/* User Details - Hidden on mobile and tablet */}
-            <div className="hidden lg:block">
-              <h2 className="font-semibold text-gray-900 text-lg truncate max-w-48">
-                {getFullName()}
-              </h2>
-              <div className="flex items-center space-x-2">
-                <span className="text-xs font-medium text-green-700">
-                  Online
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Right Section - Actions */}
-          <div className="flex items-center space-x-2 lg:space-x-3">
+          {/* Right: notifications, profile */}
+          <div className="flex items-center gap-2 lg:gap-3">
             {/* Notifications */}
             <div className="relative" ref={notifRef}>
-              <button 
+              <button
                 onClick={() => setIsNotificationOpen(!isNotificationOpen)}
-                className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                className={iconButtonClasses}
+                style={iconButtonStyle}
+                aria-label="Notifications"
+                title="Notifications"
               >
-                <Bell className="w-5 h-5" />
+                <Bell size={18} color="#0F1B3D" style={iconStyle} />
                 {unreadNotificationsCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-medium">
-                    {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
-                  </span>
+                  <span className="absolute right-2.5 top-2.5 h-1.5 w-1.5 rounded-full bg-red-500 ring-2 ring-white"></span>
                 )}
               </button>
 
               {/* Notifications Dropdown */}
               {isNotificationOpen && (
                 <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-200 z-20 max-h-96 overflow-hidden">
-                  <div className="px-4 py-3 border-b border-gray-100">
+                  <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
                     <h3 className="font-semibold text-gray-900">Notifications</h3>
+                    {unreadNotificationsCount > 0 && (
+                      <span className="text-xs font-medium text-red-600 bg-red-50 rounded-full px-2 py-0.5">
+                        {unreadNotificationsCount} new
+                      </span>
+                    )}
                   </div>
-                  
+
                   <div className="max-h-64 overflow-y-auto">
                     {notificationsLoading ? (
                       <div className="flex justify-center py-4">
@@ -369,9 +355,8 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
                       notifications.map((notification) => (
                         <div
                           key={notification._id}
-                          className={`px-4 py-3 border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors ${
-                            !notification.read ? 'bg-blue-50' : ''
-                          }`}
+                          className={`px-4 py-3 border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors ${!notification.read ? 'bg-blue-50' : ''
+                            }`}
                           onClick={() => {
                             markNotificationAsRead(notification._id);
                             setSelectedNotification(notification);
@@ -398,10 +383,10 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
                       ))
                     )}
                   </div>
-                  
+
                   {notifications.length > 0 && (
                     <div className="px-4 py-2 border-t border-gray-100">
-                      <button 
+                      <button
                         onClick={fetchNotifications}
                         className="text-blue-600 text-sm hover:text-blue-800 transition-colors"
                       >
@@ -413,16 +398,23 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
               )}
             </div>
 
-            {/* Profile Dropdown */}
+            {/* Profile pill + dropdown */}
             <div className="relative" ref={menuRef}>
               <button
                 onClick={() => setIsProfileOpen(!isProfileOpen)}
-                className="flex items-center space-x-2 p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                className="flex h-11 items-center gap-2.5 rounded-full border border-gray-200/70 bg-white py-1 pl-1 pr-3 transition-colors hover:bg-gray-50 sm:pr-4"
                 title="Open profile menu"
                 aria-label="Open profile menu"
+                aria-expanded={isProfileOpen}
               >
-                <User className="w-5 h-5" />
-                <ChevronDown className={`w-4 h-4 transition-transform ${isProfileOpen ? 'rotate-180' : ''}`} />
+                {renderAvatar('h-9 w-9', 'text-xs')}
+                <span className="hidden max-w-40 truncate text-sm font-semibold text-[#0F1B3D] sm:block">
+                  {getFullName()}
+                </span>
+                <ChevronDown
+                  className={`h-4 w-4 text-gray-500 transition-transform ${isProfileOpen ? 'rotate-180' : ''
+                    }`}
+                />
               </button>
 
               {/* Dropdown Menu */}
@@ -431,13 +423,8 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
                   {/* User Info */}
                   <div className="px-4 py-3 border-b border-gray-100">
                     <div className="flex items-center space-x-3">
-                      <img
-                        src={getUserAvatar()}
-                        alt={getFullName()}
-                        className="w-10 h-10 rounded-full object-cover"
-                        onError={handleAvatarError}
-                      />
-                      <div>
+                      {renderAvatar('h-10 w-10', 'text-sm')}
+                      <div className="min-w-0">
                         <p className="font-medium text-gray-900 truncate">{getFullName()}</p>
                         <p className="text-sm text-gray-500 truncate">{user.email}</p>
                       </div>
@@ -458,7 +445,7 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
                   {/* Logout */}
                   <div className="border-t border-gray-100 pt-2">
                     <button
-                      onClick={handleLogout}
+                      onClick={handleLogoutClick}
                       disabled={isLoading}
                       className="w-full flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
@@ -473,8 +460,8 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
         </div>
       </header>
 
-      {/* Spacer to prevent content from going under fixed header */}
-      <div className="h-16 lg:h-20"></div>
+      {/* Spacer to prevent content from going under the fixed header */}
+      <div className="h-[69px]"></div>
 
       {/* Notification Modal */}
       {selectedNotification && (
@@ -501,6 +488,13 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
           </div>
         </div>
       )}
+
+      {/* Logout confirmation */}
+      <ConfirmLogoutModal
+        open={showLogoutConfirm}
+        onConfirm={handleConfirmLogout}
+        onCancel={() => setShowLogoutConfirm(false)}
+      />
     </>
   );
 };

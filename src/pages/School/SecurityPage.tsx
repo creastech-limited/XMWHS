@@ -15,10 +15,12 @@ import {
   XCircle,
   Info,
   Search,
+  ArrowLeft,
 } from 'lucide-react';
 import { getSchoolSecurity, getUserDetails } from '../../services';
 import type { SchoolProfile } from '../../types/student';
 import type { SecurityUser, SnackbarState, User, UserResponse } from '../../types/user';
+import { Link } from 'react-router-dom';
 
 const SecurityPage: React.FC = () => {
   const navigate = useNavigate();
@@ -265,199 +267,188 @@ const SecurityPage: React.FC = () => {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-gray-50">
-      <Header PsettingsPage="/settings" />
+    <>
+      <main className="flex-grow overflow-x-auto p-4 md:ml-64 md:p-8">
+        <div className="mb-6 flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
+          <h1 className="flex items-center gap-2 text-2xl font-bold md:text-3xl">
+            <ShieldCheck className="h-7 w-7 text-indigo-600" />
+            <span className="text-indigo-900">Security Management</span>
+          </h1>
 
-      <div className="flex flex-grow">
-        <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-none">
-          <Sidebar />
-        </aside>
+          <button
+            onClick={handleCreateSecurity}
+            className="flex items-center gap-1 rounded-lg bg-indigo-600 px-4 py-2 text-white shadow-sm transition-colors hover:bg-indigo-700"
+          >
+            <UserPlus className="h-5 w-5" />
+            <span>Create Security</span>
+          </button>
+        </div>
 
-        <main className="flex-grow overflow-x-auto p-4 md:ml-64 md:p-8">
-          <div className="mb-6 flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
-            <h1 className="flex items-center gap-2 text-2xl font-bold md:text-3xl">
-              <ShieldCheck className="h-7 w-7 text-indigo-600" />
-              <span className="text-indigo-900">Security Management</span>
-            </h1>
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 md:gap-6">
+          <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md md:p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="mb-1 text-sm font-medium text-gray-600 md:text-base">Total Security</p>
+                <p className="text-2xl font-bold text-gray-900 md:text-3xl">{securityUsers.length}</p>
+              </div>
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 md:h-12 md:w-12">
+                <Users className="h-5 w-5 text-blue-600 md:h-6 md:w-6" />
+              </div>
+            </div>
+          </div>
 
+          <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md md:p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="mb-1 text-sm font-medium text-gray-600 md:text-base">Active Security</p>
+                <p className="text-2xl font-bold text-green-600 md:text-3xl">{activeCount}</p>
+              </div>
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100 md:h-12 md:w-12">
+                <CheckCircle2 className="h-5 w-5 text-green-600 md:h-6 md:w-6" />
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md md:p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="mb-1 text-sm font-medium text-gray-600 md:text-base">Pending Security</p>
+                <p className="text-2xl font-bold text-amber-600 md:text-3xl">{pendingCount}</p>
+              </div>
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100 md:h-12 md:w-12">
+                <Clock3 className="h-5 w-5 text-amber-600 md:h-6 md:w-6" />
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md md:p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="mb-1 text-sm font-medium text-gray-600 md:text-base">Inactive Security</p>
+                <p className="text-2xl font-bold text-red-600 md:text-3xl">{inactiveCount}</p>
+              </div>
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-red-100 md:h-12 md:w-12">
+                <XCircle className="h-5 w-5 text-red-600 md:h-6 md:w-6" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mb-6 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2">
+              <Mail className="h-4 w-4 text-blue-600 md:h-5 md:w-5" />
+              <h2 className="text-base font-semibold text-gray-900 md:text-lg">
+                Security Registration Link
+              </h2>
+            </div>
+            {schoolProfile && (
+              <div className="text-sm text-gray-500">
+                {schoolProfile.schoolName}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-4 flex w-full items-center gap-2">
+            <div className="relative flex-1">
+              <input
+                readOnly
+                value={registrationLink}
+                placeholder={loading ? 'Generating registration link...' : 'Registration link unavailable'}
+                title="Security registration link"
+                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 focus:outline-none"
+              />
+            </div>
             <button
-              onClick={handleCreateSecurity}
-              className="flex items-center gap-1 rounded-lg bg-indigo-600 px-4 py-2 text-white shadow-sm transition-colors hover:bg-indigo-700"
+              onClick={handleCopyLink}
+              className="rounded-lg bg-gray-100 p-2 transition-colors hover:bg-gray-200"
+              title="Copy registration link"
+              aria-label="Copy registration link"
             >
-              <UserPlus className="h-5 w-5" />
-              <span>Create Security</span>
+              <ClipboardCopy className="h-4 w-4 text-indigo-500 md:h-5 md:w-5" />
             </button>
           </div>
+        </div>
 
-          <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 md:gap-6">
-            <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md md:p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="mb-1 text-sm font-medium text-gray-600 md:text-base">Total Security</p>
-                  <p className="text-2xl font-bold text-gray-900 md:text-3xl">{securityUsers.length}</p>
-                </div>
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 md:h-12 md:w-12">
-                  <Users className="h-5 w-5 text-blue-600 md:h-6 md:w-6" />
-                </div>
-              </div>
+        <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-2">
+              <Info className="h-5 w-5 text-indigo-600" />
+              <h2 className="text-base font-semibold text-gray-900 md:text-lg">Registered Security</h2>
             </div>
 
-            <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md md:p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="mb-1 text-sm font-medium text-gray-600 md:text-base">Active Security</p>
-                  <p className="text-2xl font-bold text-green-600 md:text-3xl">{activeCount}</p>
-                </div>
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100 md:h-12 md:w-12">
-                  <CheckCircle2 className="h-5 w-5 text-green-600 md:h-6 md:w-6" />
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md md:p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="mb-1 text-sm font-medium text-gray-600 md:text-base">Pending Security</p>
-                  <p className="text-2xl font-bold text-amber-600 md:text-3xl">{pendingCount}</p>
-                </div>
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100 md:h-12 md:w-12">
-                  <Clock3 className="h-5 w-5 text-amber-600 md:h-6 md:w-6" />
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md md:p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="mb-1 text-sm font-medium text-gray-600 md:text-base">Inactive Security</p>
-                  <p className="text-2xl font-bold text-red-600 md:text-3xl">{inactiveCount}</p>
-                </div>
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-red-100 md:h-12 md:w-12">
-                  <XCircle className="h-5 w-5 text-red-600 md:h-6 md:w-6" />
-                </div>
-              </div>
+            <div className="relative w-full md:w-80">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by name, email or role..."
+                className="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-4 text-sm text-gray-800 focus:outline-none"
+              />
             </div>
           </div>
 
-          <div className="mb-6 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-2">
-                <Mail className="h-4 w-4 text-blue-600 md:h-5 md:w-5" />
-                <h2 className="text-base font-semibold text-gray-900 md:text-lg">
-                  Security Registration Link
-                </h2>
-              </div>
-              {schoolProfile && (
-                <div className="text-sm text-gray-500">
-                  {schoolProfile.schoolName}
-                </div>
-              )}
+          {securityLoading ? (
+            <div className="py-10 text-center text-sm text-gray-600">Loading security users...</div>
+          ) : filteredSecurityUsers.length === 0 ? (
+            <div className="py-10 text-center">
+              <Info className="mx-auto mb-3 h-10 w-10 text-gray-300" />
+              <p className="text-base font-medium text-gray-900">No security users found</p>
+              <p className="mt-1 text-sm text-gray-600">
+                {securityUsers.length === 0
+                  ? 'Start by creating your first security user.'
+                  : 'Try adjusting your search.'}
+              </p>
             </div>
-
-            <div className="mt-4 flex w-full items-center gap-2">
-              <div className="relative flex-1">
-                <input
-                  readOnly
-                  value={registrationLink}
-                  placeholder={loading ? 'Generating registration link...' : 'Registration link unavailable'}
-                  title="Security registration link"
-                  className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 focus:outline-none"
-                />
-              </div>
-              <button
-                onClick={handleCopyLink}
-                className="rounded-lg bg-gray-100 p-2 transition-colors hover:bg-gray-200"
-                title="Copy registration link"
-                aria-label="Copy registration link"
-              >
-                <ClipboardCopy className="h-4 w-4 text-indigo-500 md:h-5 md:w-5" />
-              </button>
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-            <div className="mb-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div className="flex items-center gap-2">
-                <Info className="h-5 w-5 text-indigo-600" />
-                <h2 className="text-base font-semibold text-gray-900 md:text-lg">Registered Security</h2>
-              </div>
-
-              <div className="relative w-full md:w-80">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search by name, email or role..."
-                  className="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-4 text-sm text-gray-800 focus:outline-none"
-                />
-              </div>
-            </div>
-
-            {securityLoading ? (
-              <div className="py-10 text-center text-sm text-gray-600">Loading security users...</div>
-            ) : filteredSecurityUsers.length === 0 ? (
-              <div className="py-10 text-center">
-                <Info className="mx-auto mb-3 h-10 w-10 text-gray-300" />
-                <p className="text-base font-medium text-gray-900">No security users found</p>
-                <p className="mt-1 text-sm text-gray-600">
-                  {securityUsers.length === 0
-                    ? 'Start by creating your first security user.'
-                    : 'Try adjusting your search.'}
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Name</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Email</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Role</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Status</th>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Name</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Email</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Role</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 bg-white">
+                  {filteredSecurityUsers.map((user) => (
+                    <tr key={user._id}>
+                      <td className="px-4 py-4 text-sm font-medium text-gray-900">{user.name}</td>
+                      <td className="px-4 py-4 text-sm text-gray-700">{user.email || 'No email'}</td>
+                      <td className="px-4 py-4 text-sm text-gray-700">{user.role || 'N/A'}</td>
+                      <td className="px-4 py-4 text-sm">
+                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getStatusBadgeColor(user.status)}`}>
+                          {user.status || 'Pending'}
+                        </span>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100 bg-white">
-                    {filteredSecurityUsers.map((user) => (
-                      <tr key={user._id}>
-                        <td className="px-4 py-4 text-sm font-medium text-gray-900">{user.name}</td>
-                        <td className="px-4 py-4 text-sm text-gray-700">{user.email || 'No email'}</td>
-                        <td className="px-4 py-4 text-sm text-gray-700">{user.role || 'N/A'}</td>
-                        <td className="px-4 py-4 text-sm">
-                          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getStatusBadgeColor(user.status)}`}>
-                            {user.status || 'Pending'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
-            {schoolId && (
-              <p className="mt-4 text-xs text-gray-500">Current school ID: {schoolId}</p>
-            )}
-          </div>
-        </main>
-      </div>
-
-      <Footer />
+          {schoolId && (
+            <p className="mt-4 text-xs text-gray-500">Current school ID: {schoolId}</p>
+          )}
+        </div>
+      </main>
 
       {snackbar.open && (
         <div
-          className={`fixed bottom-4 right-4 z-[200] rounded-lg px-4 py-3 text-sm font-medium text-white shadow-lg ${
-            snackbar.severity === 'success'
-              ? 'bg-green-600'
-              : snackbar.severity === 'error'
-                ? 'bg-red-600'
-                : 'bg-blue-600'
-          }`}
+          className={`fixed bottom-4 right-4 z-[200] rounded-lg px-4 py-3 text-sm font-medium text-white shadow-lg ${snackbar.severity === 'success'
+            ? 'bg-green-600'
+            : snackbar.severity === 'error'
+              ? 'bg-red-600'
+              : 'bg-blue-600'
+            }`}
         >
           {snackbar.message}
         </div>
       )}
-    </div>
+    </>
   );
 };
 

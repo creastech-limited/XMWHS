@@ -16,17 +16,17 @@
 label a{
   color: #403dff;
 }
-nav ul li a{
+/* nav ul li a{
   color: #ffffff;
-}
+} */
 nav ul li a:hover{
   color: #b9baff;
 }
-a {
+/* a {
   font-weight: 500;
   color: #403dff;
   text-decoration: inherit;
-}
+} */
 a:hover { 
   color: #403dff;
 }

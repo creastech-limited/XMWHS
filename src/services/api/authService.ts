@@ -12,10 +12,18 @@ import type {
   SchoolInfoResponse,
   ResetPasswordResponse
 } from '../../types/auth';
+import { getUserDetails } from './userService';
 
 // Validate token by checking if user exists
 export const validateToken = async (token: string): Promise<boolean> => {
   try {
+    // Same token the app is already using: share the cached/in-flight request
+    if (token === localStorage.getItem('token')) {
+      await getUserDetails();
+      return true;
+    }
+
+    // A token that isn't stored yet (e.g. mid-login): check it on its own
     const response = await apiClient.get('/api/users/getuserone', {
       headers: {
         Authorization: `Bearer ${token}`,

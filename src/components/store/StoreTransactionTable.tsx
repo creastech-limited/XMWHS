@@ -1,7 +1,6 @@
-// src/components/store/StoreTransactionTable.tsx
+
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { RefreshCw, MoreVertical } from 'lucide-react';
 import type { Transaction } from '../../types';
 
 interface StoreTransactionTableProps {
@@ -16,111 +15,198 @@ const StoreTransactionTable: React.FC<StoreTransactionTableProps> = ({
   viewAllLink,
 }) => {
   const getStatusBadge = (status: Transaction['status']) => {
-    const baseClasses = 'px-3 py-1 rounded-full text-xs font-medium';
-    switch (status) {
-      case 'Completed':
-        return (
-          <span className={`${baseClasses} bg-green-100 text-green-800`}>
-            Completed
-          </span>
-        );
-      case 'Pending':
-        return (
-          <span className={`${baseClasses} bg-yellow-100 text-yellow-800`}>
-            Pending
-          </span>
-        );
-      case 'Failed':
-        return (
-          <span className={`${baseClasses} bg-red-100 text-red-800`}>
-            Failed
-          </span>
-        );
-      default:
-        return (
-          <span className={`${baseClasses} bg-gray-100 text-gray-800`}>
-            {status}
-          </span>
-        );
-    }
+    const styles: Record<string, { badge: string; dot: string }> = {
+      Completed: {
+        badge: 'bg-[#ECFDF3] text-[#16A34A]',
+        dot: 'bg-emerald-500',
+      },
+      Pending: {
+        badge: 'bg-[#FEF3C7] text-[#92400E]',
+        dot: 'bg-amber-500',
+      },
+      Failed: {
+        badge: 'bg-[#FEE2E2] text-[#DC2626]',
+        dot: 'bg-red-500',
+      },
+    };
+
+    const style = styles[String(status)] ?? {
+      badge: 'bg-gray-100 text-gray-600',
+      dot: 'bg-gray-400',
+    };
+
+    return (
+      <span
+        className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[12px] font-semibold ${style.badge}`}
+      >
+        <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
+        {status}
+      </span>
+    );
+  };
+
+  const getAgentInitials = (name: string) => {
+    return name
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((part) => part.charAt(0).toUpperCase())
+      .join('');
+  };
+
+  const getAgentColor = (name: string) => {
+    const colors = [
+      'bg-indigo-700',
+      'bg-teal-600',
+      'bg-orange-600',
+      'bg-violet-600',
+    ];
+
+    const hash = name
+      .split('')
+      .reduce((total, char) => total + char.charCodeAt(0), 0);
+
+    return colors[hash % colors.length];
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-      <div className="p-6 border-b border-gray-200">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-900">
+    <section className="w-full overflow-hidden rounded-xl border border-slate-200 bg-white">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-5 py-4">
+        <div className="min-w-0">
+          <h3 className="text-[15px] font-semibold text-[#0F1733]">
             Recent Transactions
           </h3>
-          <div className="flex items-center space-x-2">
-            <button
-              className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
-              aria-label="Refresh Transactions"
-              title="Refresh Transactions"
-              onClick={onRefresh}
-            >
-              <RefreshCw className="w-4 h-4" />
-            </button>
-            <button
-              className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
-              aria-label="More Options"
-              title="More Options"
-            >
-              <MoreVertical className="w-4 h-4" />
-            </button>
-          </div>
+
+          <p className="mt-1 text-[12px] text-[#6B7494]">
+            Latest activity across your agents
+          </p>
         </div>
+
+        <Link
+          to={viewAllLink}
+          onClick={onRefresh}
+          className="shrink-0 text-[13px] font-semibold text-[#1B2566] transition-colors hover:text-blue-700"
+        >
+          View all →
+        </Link>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead className="bg-gray-50">
+      {/* Table */}
+      <div className="w-full overflow-x-auto">
+        <table className="w-full min-w-[760px] table-fixed border-collapse">
+          <colgroup>
+            <col className="w-[22%]" />
+            <col className="w-[25%]" />
+            <col className="w-[20%]" />
+            <col className="w-[13%]" />
+            <col className="w-[18%]" />
+          </colgroup>
+
+          <thead className="bg-[#F4F6FB]">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Transaction ID
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Agents
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Date
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Amount
-              </th>
-              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Status
-              </th>
+              {[
+                'Transaction',
+                'Agent',
+                'Date',
+                'Status',
+                'Amount',
+              ].map((heading, index) => (
+                <th
+                  key={heading}
+                  className={`whitespace-nowrap px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-[#6B7494] ${index === 4 ? 'text-right' : 'text-left'
+                    }`}
+                >
+                  {heading}
+                </th>
+              ))}
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+
+          <tbody className="divide-y divide-slate-100">
             {transactions.length > 0 ? (
-              transactions.map((transaction) => (
-                <tr key={String(transaction.id)}>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {String(transaction.id)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {transaction.customer}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm text-gray-600">
-                      {transaction.date}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right">
-                    <span className="text-sm font-medium text-gray-900">
-                      ₦{transaction.amount.toLocaleString()}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-center">
-                    {getStatusBadge(transaction.status)}
-                  </td>
-                </tr>
-              ))
+              transactions.map((transaction) => {
+                const agentName =
+                  typeof transaction.agentName === 'string' && transaction.agentName.trim()
+                    ? transaction.agentName
+                    : 'Unknown Agent';
+
+                const agentEmail =
+                  typeof transaction.agentEmail === 'string'
+                    ? transaction.agentEmail
+                    : typeof transaction.customer === 'string'
+                      ? transaction.customer
+                      : 'Unknown Sender';
+
+                return (
+                  <tr
+                    key={String(transaction.id)}
+                    className="transition-colors hover:bg-slate-50/70"
+                  >
+                    {/* Transaction ID */}
+                    <td className="px-5 py-5">
+                      <span className="whitespace-nowrap font-mono text-[12px] font-medium text-[#2A3352]">
+                        {String(transaction.id)}
+                      </span>
+                    </td>
+
+                    {/* Agent */}
+                    <td className="py-4 pl-6 pr-5">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div
+                          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] text-[10px] font-semibold text-white ${getAgentColor(agentName)}`}
+                        >
+                          {getAgentInitials(agentName)}
+                        </div>
+
+                        <div className="min-w-0">
+                          <p className="truncate text-[13px] font-semibold text-[#0F1733]">
+                            {agentName}
+                          </p>
+
+                          <p className="mt-1 truncate text-[10px] text-slate-500">
+                            {agentEmail}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Date */}
+                    <td className="px-5 py-5">
+                      <span className="whitespace-nowrap text-[13px] text-[#6B7494]">
+                        {transaction.date}
+                      </span>
+                    </td>
+
+                    {/* Status */}
+                    <td className="px-5 py-5">
+                      {getStatusBadge(transaction.status)}
+                    </td>
+
+                    {/* Amount */}
+                    <td className="px-5 py-5 text-right">
+                      <span
+                        className={`whitespace-nowrap text-[14px] font-bold ${String(transaction.status) === 'Failed'
+                          ? 'text-[#6B7494]'
+                          : 'text-[#0F1733]'
+                          }`}
+                      >
+                        {String(transaction.status) === 'Completed' ||
+                          String(transaction.status) === 'Pending'
+                          ? '+'
+                          : ''}
+                        ₦{Number(transaction.amount).toLocaleString('en-NG')}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })
             ) : (
               <tr>
-                <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                <td
+                  colSpan={5}
+                  className="px-5 py-12 text-center text-sm text-slate-500"
+                >
                   No transactions found
                 </td>
               </tr>
@@ -128,16 +214,7 @@ const StoreTransactionTable: React.FC<StoreTransactionTableProps> = ({
           </tbody>
         </table>
       </div>
-
-      <div className="p-6 border-t border-gray-200 text-center">
-        <Link
-          to={viewAllLink}
-          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-        >
-          View All Transactions
-        </Link>
-      </div>
-    </div>
+    </section>
   );
 };
 
