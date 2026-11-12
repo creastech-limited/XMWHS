@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   Users,
@@ -10,114 +11,198 @@ import {
   Menu,
   X,
   House,
-  AlertTriangle
+  AlertTriangle,
+  ChevronDown
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { ConfirmLogoutModal } from '../components/shared/ConfirmLogoutModal';
 
 interface MenuItem {
   text: string;
   icon: React.ReactNode;
   route: string;
+  badge?: number;
+  badgeTone?: 'neutral' | 'danger';
 }
 
-const topMenuItems: MenuItem[] = [
-  { text: 'Dashboard', icon: <LayoutDashboard size={20} />, route: '/store' },
-  { text: 'Manage Agents', icon: <Users size={20} />, route: '/agents' },
-  { text: 'Transaction History', icon: <History size={20} />, route: '/stransactions' },
-  { text: 'Withdrawal', icon: <CreditCard size={20} />, route: '/Swithdrawal' },
-  { text: 'Dispute', icon: <AlertTriangle size={20} />, route: '/Storedispute' }
+interface MenuSection {
+  label: string;
+  items: MenuItem[];
+}
+
+const menuSections: MenuSection[] = [
+  {
+    label: 'Overview',
+    items: [
+      { text: 'Dashboard', icon: <LayoutDashboard size={18} />, route: '/store' },
+      { text: 'Agents', icon: <Users size={18} />, route: '/agents', badgeTone: 'neutral' },
+      { text: 'Transactions', icon: <History size={18} />, route: '/stransactions' },
+      { text: 'Withdrawals', icon: <CreditCard size={18} />, route: '/Swithdrawal' }
+    ]
+  },
+  {
+    label: 'Support',
+    items: [
+      { text: 'Disputes', icon: <AlertTriangle size={18} />, route: '/Storedispute', badgeTone: 'danger' },
+      { text: 'Settings', icon: <Settings size={18} />, route: '/store/settings' }
+    ]
+  }
 ];
 
-const bottomMenuItems: MenuItem[] = [
-  { text: 'Settings', icon: <Settings size={20} />, route: '/store/settings' },
-  { text: 'Logout', icon: <LogOut size={20} />, route: '/login' }
-];
+/* Bottom card with logout dropdown */
+const StoreUserMenu: React.FC = () => {
+  const navigate = useNavigate();
+  const auth = useAuth();
+  const logout = auth?.logout;
+
+  const [open, setOpen] = useState<boolean>(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState<boolean>(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, []);
+
+  // Step 1: the Logout item only asks for confirmation
+  const handleLogoutClick = (): void => {
+    setOpen(false);
+    setShowLogoutConfirm(true);
+  };
+
+  // Step 2: the modal's "Yes, log out" performs the real logout
+  const handleConfirmLogout = (): void => {
+    setShowLogoutConfirm(false);
+    if (logout) logout();
+    navigate('/login');
+  };
+
+  return (
+    <div ref={ref} className="relative p-4">
+      {/* Dropdown */}
+      {open && (
+        <div className="absolute bottom-full left-4 right-4 mb-2 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
+          <button
+            type="button"
+            onClick={handleLogoutClick}
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
+          >
+            <LogOut size={18} />
+            Logout
+          </button>
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="flex w-full items-center gap-3 rounded-xl bg-slate-100/80 p-3 text-left transition-colors hover:bg-slate-100"
+      >
+        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[#0f1535] text-sm font-bold text-white">
+          SP
+        </div>
+        <span className="flex-1 truncate text-sm font-semibold text-[#0f1535]">
+          Store Portal
+        </span>
+        <ChevronDown
+          size={16}
+          className={`text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      {/* Rendered in a portal so the modal isn't trapped inside the
+          sidebar's transformed/fixed container on mobile */}
+      {createPortal(
+        <ConfirmLogoutModal
+          open={showLogoutConfirm}
+          onConfirm={handleConfirmLogout}
+          onCancel={() => setShowLogoutConfirm(false)}
+        />,
+        document.body
+      )}
+    </div>
+  );
+};
 
 const StoreSidebar: React.FC = () => {
-  const [activeItem, setActiveItem] = useState<string>(() => {
-    const currentPath = window.location.pathname;
-    const activeMenuItem = [...topMenuItems, ...bottomMenuItems].find(
-      (item) => item.route === currentPath
-    );
-    return activeMenuItem ? activeMenuItem.text : topMenuItems[0].text;
-  });
+  const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState<boolean>(false);
 
   const handleDrawerToggle = (): void => {
     setMobileOpen(!mobileOpen);
   };
 
-  const handleMenuItemClick = (item: MenuItem): void => {
-    setActiveItem(item.text);
-    if (mobileOpen) {
-      setMobileOpen(false);
-    }
-  };
+  const renderMenuItem = (item: MenuItem) => {
+    const isActive = location.pathname === item.route;
 
-  const renderMenuItem = (item: MenuItem, isActive: boolean) => (
-    <Link
-      key={item.text}
-      to={item.route}
-      className="block text-white no-underline"
-      onClick={() => handleMenuItemClick(item)}
-    >
-      <div 
+    return (
+      <Link
+        key={item.text}
+        to={item.route}
+        onClick={() => mobileOpen && setMobileOpen(false)}
         className={`
-          mx-4 my-2 p-3 rounded-xl relative cursor-pointer
-          transition-all duration-300 ease-in-out
-          hover:bg-white/10 hover:translate-x-1
-          ${isActive ? 'text-white bg-blue-600 hover:bg-blue-700' : 'text-white bg-transparent'}
+          mx-3 my-0.5 flex items-center gap-3 rounded-xl px-3 py-2.5 no-underline
+          transition-colors duration-200
+          ${isActive
+            ? 'bg-[#0B1437] text-white'
+            : 'text-[#2A3352] hover:bg-slate-100'}
         `}
       >
-        <div className="flex items-center">
-          <div className="text-white min-w-[40px] mr-3">
-            {item.icon}
-          </div>
-          <span 
+        <span className={isActive ? 'text-white' : 'text-slate-600'}>{item.icon}</span>
+        <span className={`flex-1 text-sm ${isActive ? 'font-semibold' : 'font-medium'}`}>
+          {item.text}
+        </span>
+        {item.badge !== undefined && (
+          <span
             className={`
-              text-[0.95rem] 
-              ${isActive ? 'font-semibold' : 'font-normal'}
+              flex h-5 min-w-[22px] items-center justify-center rounded-full px-1.5 text-xs font-semibold
+              ${item.badgeTone === 'danger'
+                ? 'bg-red-100 text-red-600'
+                : 'bg-slate-100 text-slate-500'}
             `}
           >
-            {item.text}
+            {item.badge}
           </span>
-        </div>
-        {isActive && (
-          <div className="absolute right-0 top-0 w-1 h-full bg-white rounded-l"></div>
         )}
-      </div>
-    </Link>
-  );
+      </Link>
+    );
+  };
 
   const sidebarContent = (
-    <div className="h-full flex flex-col justify-between bg-gradient-to-b from-indigo-900 via-indigo-950 to-indigo-900 text-white shadow-xl">
-      {/* Logo & Title */}
+    <div className="flex h-full flex-col justify-between border-r border-slate-200 bg-white shadow-xl">
       <div>
-        <div className="flex flex-col items-center py-8 mb-6 border-b border-white/10">
+        {/* Logo & Title (unchanged) */}
+        <div className="flex flex-col items-start px-6 py-8 mb-6 border-b border-[#F2F4F9] text-black">
           <div className="flex items-center space-x-3">
-            <div className="w-12 h-12 bg-gradient-to-tr from-blue-500 to-indigo-500 rounded-2xl flex items-center justify-center shadow-lg">
+            <div className="w-12 h-12 bg-[#0B1437] rounded-2xl flex items-center justify-center shadow-lg">
               <House className="h-7 w-7 text-white" />
             </div>
             <span className="text-xl font-bold tracking-wide opacity-95">Store Portal</span>
           </div>
         </div>
 
-        {/* Top Menu Items */}
-        <nav className="px-2">
-          {topMenuItems.map((item) =>
-            renderMenuItem(item, activeItem === item.text)
-          )}
+        {/* Menu sections */}
+        <nav>
+          {menuSections.map((section) => (
+            <div key={section.label} className="mb-5">
+              <p className="px-6 pb-2 text-[12px] font-semibold uppercase tracking-wider text-slate-400">
+                {section.label}
+              </p>
+              {section.items.map(renderMenuItem)}
+            </div>
+          ))}
         </nav>
       </div>
 
-      {/* Bottom Section */}
-      <div className="pb-6 px-2">
-        <div className="h-px bg-white/10 my-4"></div>
-        <nav>
-          {bottomMenuItems.map((item) =>
-            renderMenuItem(item, activeItem === item.text)
-          )}
-        </nav>
-      </div>
+      {/* Bottom card */}
+      <StoreUserMenu />
     </div>
   );
 
@@ -136,9 +221,9 @@ const StoreSidebar: React.FC = () => {
         {mobileOpen ? <X size={24} /> : <Menu size={24} />}
       </button>
 
-      {/* Desktop Sidebar (only shows on large screens) */}
+      {/* Desktop Sidebar */}
       <div className="hidden lg:block w-[280px] flex-shrink-0">
-        <div className="fixed top-0 left-0 w-[280px] h-full border-r-0">
+        <div className="fixed top-0 left-0 w-[240px] h-full">
           {sidebarContent}
         </div>
       </div>
@@ -146,14 +231,12 @@ const StoreSidebar: React.FC = () => {
       {/* Mobile & Tablet Sidebar Overlay */}
       {mobileOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
-          {/* Backdrop */}
-          <div 
-            className="fixed inset-0 bg-black bg-opacity-50"
+          <div
+            className="fixed inset-0 bg-black/30 backdrop-blur-sm"
             onClick={handleDrawerToggle}
           ></div>
-          
-          {/* Sidebar */}
-          <div className="fixed top-0 left-0 w-56 sm:w-[220px] h-full transform transition-transform duration-300 ease-in-out">
+
+          <div className="fixed top-0 left-0 w-64 h-full transform transition-transform duration-300 ease-in-out">
             {sidebarContent}
           </div>
         </div>

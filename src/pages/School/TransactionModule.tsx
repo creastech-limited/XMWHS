@@ -1,17 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Header } from '../../components/Header';
-import { Sidebar as Asidebar } from '../../components/Sidebar';
-import Footer from '../../components/Footer';
 import { toBlob, toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import { Download, Share2, FileText, RefreshCw } from 'lucide-react';
 import autoTable from 'jspdf-autotable';
-
-// Import services
 import { getUserTransactions } from '../../services';
-
-// Import types
 import type { Transaction, TransactionsResponse } from '../../types/user';
 
 const TransactionModule: React.FC = () => {
@@ -20,18 +13,18 @@ const TransactionModule: React.FC = () => {
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-
   const [statusFilter, setStatusFilter] = useState("all");
-
   const [typeFilter, setTypeFilter] = useState("all");
-
   const [fromDate, setFromDate] = useState("");
-
   const [toDate, setToDate] = useState("");
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedTxn, setSelectedTxn] = useState<Transaction | null>(null);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  // Server-side pagination info
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   // Get authentication token
   const getAuthToken = useCallback((): string | null => {
@@ -39,7 +32,7 @@ const TransactionModule: React.FC = () => {
     return localStorage.getItem('token');
   }, [auth?.token]);
 
-  // Fetch transactions from API using service
+  // Fetch ONE page of transactions from the API
   const fetchTransactions = useCallback(async () => {
     try {
       setLoading(true);
@@ -48,34 +41,47 @@ const TransactionModule: React.FC = () => {
         console.warn('No authentication token found');
       }
 
-      const data: TransactionsResponse = await getUserTransactions();
+      const data: TransactionsResponse = await getUserTransactions({
+        page: currentPage,
+        limit: itemsPerPage,
+      });
 
-      if (data.success && data.data) {
-        setTransactions(data.data);
+      if (data.success === false) {
+        setTransactions([]);
+        return;
+      }
+
+      // The list can come back under either key
+      const list = data.data ?? data.transactions ?? [];
+      setTransactions(list);
+
+      // Look for the total in the common places
+      const total = data.pagination?.total ?? data.total ?? data.totalCount;
+      const pages =
+        data.pagination?.totalPages ??
+        data.totalPages ??
+        (total != null ? Math.ceil(total / itemsPerPage) : undefined);
+
+      if (total != null) {
+        setTotalItems(total);
+        setTotalPages(Math.max(1, pages ?? 1));
+      } else {
+        // Backend sent no total: a full page means there may be a next one
+        const seenSoFar = (currentPage - 1) * itemsPerPage + list.length;
+        setTotalItems(seenSoFar);
+        setTotalPages(list.length === itemsPerPage ? currentPage + 1 : currentPage);
       }
     } catch (err) {
       console.error('Error fetching transactions:', err);
     } finally {
       setLoading(false);
     }
-  }, [getAuthToken]);
+  }, [getAuthToken, currentPage, itemsPerPage]);
 
-  // Initialize component
+  // Refetch whenever the page or page size changes
   useEffect(() => {
     fetchTransactions();
   }, [fetchTransactions]);
-
-  //
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [
-    searchTerm,
-    statusFilter,
-    typeFilter,
-    fromDate,
-    toDate,
-    itemsPerPage,
-  ]);
 
   // --- RECEIPT EXPORT LOGIC ---
 
@@ -126,10 +132,6 @@ const TransactionModule: React.FC = () => {
       console.error('Error sharing:', err);
     }
   };
-
-
-  // Pagination Logic
-
 
   // Formatters
   const formatCurrency = (amount: number) => {
@@ -203,43 +205,31 @@ const TransactionModule: React.FC = () => {
     }
   };
 
-  const getTransactionTypeColor = (transaction: Transaction) => {
-    const transactionType =
-      transaction.transactionType?.toLowerCase() ?? "";
+  const isDebitTxn = (t: Transaction) =>
+    t.direction === 'debit' ||
+    (t.transactionType?.toLowerCase() ?? '').includes('debit') ||
+    t.amount < 0;
 
-    const isDebit =
-      transaction.direction === "debit" ||
-      transactionType.includes("debit") ||
-      transaction.amount < 0;
+  const getTransactionTypeColor = (transaction: Transaction) =>
+    isDebitTxn(transaction) ? 'text-red-600' : 'text-green-600';
 
-    return isDebit
-      ? "text-red-600"
-      : "text-green-600";
-  };
-
-  // Filter transactions based on search and filters
-  //
+  // Filters run in the browser on the CURRENT page only
   const filteredTransactions = transactions.filter((transaction) => {
     const sender = getSenderName(transaction).toLowerCase();
     const recipient = getTransactionName(transaction).toLowerCase();
     const reference = transaction.reference?.toLowerCase() ?? "";
+    const term = searchTerm.toLowerCase();
 
     const matchesSearch =
-      sender.includes(searchTerm.toLowerCase()) ||
-      recipient.includes(searchTerm.toLowerCase()) ||
-      reference.includes(searchTerm.toLowerCase());
+      sender.includes(term) ||
+      recipient.includes(term) ||
+      reference.includes(term);
 
     const matchesStatus =
       statusFilter === "all" ||
       transaction.status.toLowerCase() === statusFilter;
 
-    const transactionType =
-      transaction.transactionType?.toLowerCase() ?? "";
-
-    const isDebit =
-      transaction.direction === "debit" ||
-      transactionType.includes("debit") ||
-      transaction.amount < 0;
+    const isDebit = isDebitTxn(transaction);
 
     const matchesType =
       typeFilter === "all" ||
@@ -262,29 +252,13 @@ const TransactionModule: React.FC = () => {
       matchesTo
     );
   });
-  const getPaginatedTransactions = () => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    return filteredTransactions.slice(
-      startIndex,
-      startIndex + itemsPerPage
-    );
-  };
 
-  const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / itemsPerPage));
+  const startItem = totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
+  const endItem = Math.min(currentPage * itemsPerPage, totalItems);
 
-  useEffect(() => {
-    if (currentPage > totalPages) setCurrentPage(totalPages);
-  }, [currentPage, totalPages]);
-
-  const startItem = filteredTransactions.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
-  const endItem = Math.min(currentPage * itemsPerPage, filteredTransactions.length);
-
-  // --- LIST EXPORT LOGIC (uses filtered data, all pages) ---
-
-  const isDebitTxn = (t: Transaction) =>
-    t.direction === 'debit' ||
-    (t.transactionType?.toLowerCase() ?? '').includes('debit') ||
-    t.amount < 0;
+  // --- LIST EXPORT LOGIC ---
+  // NOTE: with server-side pagination this exports only the rows on the current
+  // page (after filters). For a full export, fetch all records on click.
 
   const buildExportRows = () =>
     filteredTransactions.map((t) => ({
@@ -302,7 +276,7 @@ const TransactionModule: React.FC = () => {
     const range =
       fromDate || toDate
         ? `${fromDate || 'start'}_to_${toDate || 'today'}`
-        : 'all';
+        : `page-${currentPage}`;
     return `XPAY-Transactions-${range}.${ext}`;
   };
 
@@ -344,7 +318,7 @@ const TransactionModule: React.FC = () => {
     const rangeLabel =
       fromDate || toDate
         ? `Period: ${fromDate || 'Beginning'} to ${toDate || 'Today'}`
-        : 'Period: All time';
+        : `Page ${currentPage}`;
     doc.text(`${rangeLabel}   |   ${rows.length} transaction(s)   |   Generated: ${new Date().toLocaleString('en-NG')}`, 14, 22);
 
     autoTable(doc, {
@@ -367,37 +341,47 @@ const TransactionModule: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-white">
-      <Header PsettingsPage="/settings" />
-      <div className="flex flex-grow">
-        <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-none">
-          <Asidebar />
-        </aside>
-        <main className="flex-grow p-4 md:p-8 md:ml-64 overflow-hidden">
-          <div className="mb-6 flex justify-between items-center">
-            <h1 className="text-3xl md:text-4xl font-bold text-indigo-900">Transaction Module</h1>
-            <button
-              onClick={fetchTransactions}
-              disabled={loading}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">{loading ? 'Loading...' : 'Refresh'}</span>
-            </button>
-          </div>
+    <>
+      <main className="flex-grow p-4 md:p-8 md:ml-64 overflow-x-auto">
+        <div className="mb-6 flex justify-between items-center">
+          <h1 className="text-3xl md:text-4xl font-bold text-indigo-900">Transaction Module</h1>
+          <button
+            onClick={fetchTransactions}
+            disabled={loading}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">{loading ? 'Loading...' : 'Refresh'}</span>
+          </button>
+        </div>
 
-          <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
-            <div className="p-4 md:p-6">
-              <h2 className="text-lg md:text-xl font-semibold text-black mb-6">
-                History ({filteredTransactions.length})
-              </h2>
-              <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 mb-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    Filter Transactions
-                  </h3>
+        <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
+          <div className="p-4 md:p-6">
+            <h2 className="text-lg md:text-xl font-semibold text-black mb-6">
+              History ({totalItems})
+            </h2>
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Filter Transactions
+                </h3>
 
-                  {/* <button
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={exportCSV}
+                    disabled={filteredTransactions.length === 0}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg transition disabled:opacity-40"
+                  >
+                    <Download className="w-4 h-4" /> CSV
+                  </button>
+                  <button
+                    onClick={exportListPDF}
+                    disabled={filteredTransactions.length === 0}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition disabled:opacity-40"
+                  >
+                    <FileText className="w-4 h-4" /> PDF
+                  </button>
+                  <button
                     onClick={() => {
                       setSearchTerm("");
                       setStatusFilter("all");
@@ -408,240 +392,215 @@ const TransactionModule: React.FC = () => {
                     className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
                   >
                     Reset
-                  </button> */}
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={exportCSV}
-                      disabled={filteredTransactions.length === 0}
-                      className="flex items-center gap-2 px-4 py-2 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg transition disabled:opacity-40"
-                    >
-                      <Download className="w-4 h-4" /> CSV
-                    </button>
-                    <button
-                      onClick={exportListPDF}
-                      disabled={filteredTransactions.length === 0}
-                      className="flex items-center gap-2 px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition disabled:opacity-40"
-                    >
-                      <FileText className="w-4 h-4" /> PDF
-                    </button>
-                    <button
-                      onClick={() => {
-                        setSearchTerm("");
-                        setStatusFilter("all");
-                        setTypeFilter("all");
-                        setFromDate("");
-                        setToDate("");
-                      }}
-                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
-                    >
-                      Reset
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
-
-                  {/* Search */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Search
-                    </label>
-
-                    <input
-                      type="text"
-                      placeholder="Reference, Sender..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-black placeholder:text-gray-400" />
-                  </div>
-
-                  {/* Status */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Status
-                    </label>
-
-                    <select
-                      value={statusFilter}
-                      onChange={(e) => setStatusFilter(e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-black"                    >
-                      <option value="all">All Status</option>
-                      <option value="success">Success</option>
-                      <option value="pending">Pending</option>
-                      <option value="failed">Failed</option>
-                    </select>
-                  </div>
-
-                  {/* Type */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Type
-                    </label>
-
-                    <select
-                      value={typeFilter}
-                      onChange={(e) => setTypeFilter(e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-black"                    >
-                      <option value="all">All Types</option>
-                      <option value="credit">Credit</option>
-                      <option value="debit">Debit</option>
-                    </select>
-                  </div>
-
-                  {/* From */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      From
-                    </label>
-
-                    <input
-                      type="date"
-                      value={fromDate}
-                      onChange={(e) => setFromDate(e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-black placeholder:text-gray-400" />
-                  </div>
-
-                  {/* To */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      To
-                    </label>
-
-                    <input
-                      type="date"
-                      value={toDate}
-                      onChange={(e) => setToDate(e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-black placeholder:text-gray-400" />
-                  </div>
-
+                  </button>
                 </div>
               </div>
-              {loading ? (
-                <div className="text-center py-12 text-gray-500">Fetching transactions...</div>
-              ) : (
-                <>
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-100">
-                        <tr>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Recipient</th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden lg:table-cell">Reference</th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden xl:table-cell">Txn ID</th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                          <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {getPaginatedTransactions().length > 0 ? (
-                          getPaginatedTransactions().map((transaction) => {
-                            const isDebit =
-                              transaction.direction === 'debit' ||
-                              (transaction.transactionType?.toLowerCase() ?? '').includes('debit') ||
-                              transaction.amount < 0;
-                            return (
-                              <tr key={transaction._id} className="hover:bg-gray-50">
-                                <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
-                                  <div className="font-medium">{getSenderName(transaction)}</div>
-                                  <div className="text-gray-500 text-xs">{formatDate(transaction.createdAt)}</div>
-                                </td>
-                                <td className="px-3 py-4 whitespace-nowrap">
-                                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${isDebit ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
-                                    }`}>
-                                    {isDebit ? '↓ Debit' : '↑ Credit'}
-                                  </span>
-                                </td>
-                                <td className={`px-3 py-4 whitespace-nowrap text-sm font-medium ${getTransactionTypeColor(transaction)}`}>
-                                  {formatCurrency(transaction.amount)}
-                                </td>
-                                <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-700 hidden md:table-cell">
-                                  {getTransactionName(transaction)}
-                                </td>
-                                <td className="px-3 py-4 whitespace-nowrap text-xs text-gray-400 font-mono hidden lg:table-cell">
-                                  {transaction.reference || '—'}
-                                </td>
-                                <td className="px-3 py-4 whitespace-nowrap text-xs text-gray-400 font-mono hidden xl:table-cell">
-                                  {transaction._id || '—'}
-                                </td>
-                                <td className="px-3 py-4 whitespace-nowrap text-sm">
-                                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(transaction.status)}`}>
-                                    {transaction.status}
-                                  </span>
-                                </td>
-                                <td className="px-3 py-4 whitespace-nowrap text-sm">
-                                  <button
-                                    onClick={() => setSelectedTxn(transaction)}
-                                    className="text-indigo-600 hover:text-indigo-900 font-bold flex items-center gap-1"
-                                  >
-                                    <FileText className="w-4 h-4" />
-                                    Receipt
-                                  </button>
-                                </td>
-                              </tr>
-                            );
-                          })
-                        ) : (
-                          <tr>
-                            <td colSpan={8} className="px-3 py-8 text-center text-gray-400">No transactions found</td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
 
-                  {filteredTransactions.length > 0 && (
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mt-6 text-black">
-                      {/* Page size + range */}
-                      <div className="flex items-center gap-3 text-sm">
-                        <label htmlFor="pageSize" className="text-gray-600 font-medium">
-                          Rows per page
-                        </label>
-                        <select
-                          id="pageSize"
-                          value={itemsPerPage}
-                          onChange={(e) => setItemsPerPage(Number(e.target.value))}
-                          className="border border-gray-300 rounded-lg px-2 py-1.5 bg-white text-black"
-                        >
-                          {[10, 25, 50, 100].map((n) => (
-                            <option key={n} value={n}>{n}</option>
-                          ))}
-                        </select>
-                        <span className="text-gray-500">
-                          {startItem}–{endItem} of {filteredTransactions.length}
-                        </span>
-                      </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
 
-                      {/* Prev / Next */}
-                      <div className="flex items-center justify-center gap-4">
-                        <button
-                          disabled={currentPage === 1}
-                          onClick={() => setCurrentPage((p) => p - 1)}
-                          className="px-4 py-2 border rounded-lg disabled:opacity-30 hover:bg-gray-50 text-sm font-medium"
-                        >
-                          Previous
-                        </button>
-                        <span className="text-sm font-semibold">
-                          Page {currentPage} of {totalPages}
-                        </span>
-                        <button
-                          disabled={currentPage === totalPages}
-                          onClick={() => setCurrentPage((p) => p + 1)}
-                          className="px-4 py-2 border rounded-lg disabled:opacity-30 hover:bg-gray-50 text-sm font-medium"
-                        >
-                          Next
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
+                {/* Search */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Search
+                  </label>
+
+                  <input
+                    type="text"
+                    placeholder="Reference, Sender..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-black placeholder:text-gray-400" />
+                </div>
+
+                {/* Status */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Status
+                  </label>
+
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-black"
+                  >
+                    <option value="all">All Status</option>
+                    <option value="success">Success</option>
+                    <option value="pending">Pending</option>
+                    <option value="failed">Failed</option>
+                  </select>
+                </div>
+
+                {/* Type */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Type
+                  </label>
+
+                  <select
+                    value={typeFilter}
+                    onChange={(e) => setTypeFilter(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-black"
+                  >
+                    <option value="all">All Types</option>
+                    <option value="credit">Credit</option>
+                    <option value="debit">Debit</option>
+                  </select>
+                </div>
+
+                {/* From */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    From
+                  </label>
+
+                  <input
+                    type="date"
+                    value={fromDate}
+                    onChange={(e) => setFromDate(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-black placeholder:text-gray-400" />
+                </div>
+
+                {/* To */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    To
+                  </label>
+
+                  <input
+                    type="date"
+                    value={toDate}
+                    onChange={(e) => setToDate(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-black placeholder:text-gray-400" />
+                </div>
+
+              </div>
             </div>
+            {loading ? (
+              <div className="text-center py-12 text-gray-500">Fetching transactions...</div>
+            ) : (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-100">
+                      <tr>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Recipient</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden lg:table-cell">Reference</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden xl:table-cell">Txn ID</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {filteredTransactions.length > 0 ? (
+                        filteredTransactions.map((transaction) => {
+                          const isDebit = isDebitTxn(transaction);
+                          return (
+                            <tr key={transaction._id} className="hover:bg-gray-50">
+                              <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                                <div className="font-medium">{getSenderName(transaction)}</div>
+                                <div className="text-gray-500 text-xs">{formatDate(transaction.createdAt)}</div>
+                              </td>
+                              <td className="px-3 py-4 whitespace-nowrap">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${isDebit ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                                  }`}>
+                                  {isDebit ? '↓ Debit' : '↑ Credit'}
+                                </span>
+                              </td>
+                              <td className={`px-3 py-4 whitespace-nowrap text-sm font-medium ${getTransactionTypeColor(transaction)}`}>
+                                {formatCurrency(transaction.amount)}
+                              </td>
+                              <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-700 hidden md:table-cell">
+                                {getTransactionName(transaction)}
+                              </td>
+                              <td className="px-3 py-4 whitespace-nowrap text-xs text-gray-400 font-mono hidden lg:table-cell">
+                                {transaction.reference || '—'}
+                              </td>
+                              <td className="px-3 py-4 whitespace-nowrap text-xs text-gray-400 font-mono hidden xl:table-cell">
+                                {transaction._id || '—'}
+                              </td>
+                              <td className="px-3 py-4 whitespace-nowrap text-sm">
+                                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(transaction.status)}`}>
+                                  {transaction.status}
+                                </span>
+                              </td>
+                              <td className="px-3 py-4 whitespace-nowrap text-sm">
+                                <button
+                                  onClick={() => setSelectedTxn(transaction)}
+                                  className="text-indigo-600 hover:text-indigo-900 font-bold flex items-center gap-1"
+                                >
+                                  <FileText className="w-4 h-4" />
+                                  Receipt
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      ) : (
+                        <tr>
+                          <td colSpan={8} className="px-3 py-8 text-center text-gray-400">No transactions found</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Uses totalItems (not the filtered count) so the footer stays
+                    visible even when filters hide every row on this page */}
+                {totalItems > 0 && (
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mt-6 text-black">
+                    {/* Page size + range */}
+                    <div className="flex items-center gap-3 text-sm">
+                      <label htmlFor="pageSize" className="text-gray-600 font-medium">
+                        Rows per page
+                      </label>
+                      <select
+                        id="pageSize"
+                        value={itemsPerPage}
+                        onChange={(e) => {
+                          setItemsPerPage(Number(e.target.value));
+                          setCurrentPage(1);
+                        }}
+                        className="border border-gray-300 rounded-lg px-2 py-1.5 bg-white text-black"
+                      >
+                        {[10, 25, 50, 100].map((n) => (
+                          <option key={n} value={n}>{n}</option>
+                        ))}
+                      </select>
+                      <span className="text-gray-500">
+                        {startItem}–{endItem} of {totalItems}
+                      </span>
+                    </div>
+
+                    {/* Prev / Next */}
+                    <div className="flex items-center justify-center gap-4">
+                      <button
+                        disabled={currentPage === 1}
+                        onClick={() => setCurrentPage((p) => p - 1)}
+                        className="px-4 py-2 border rounded-lg disabled:opacity-30 hover:bg-gray-50 text-sm font-medium"
+                      >
+                        Previous
+                      </button>
+                      <span className="text-sm font-semibold">
+                        Page {currentPage} of {totalPages}
+                      </span>
+                      <button
+                        disabled={currentPage >= totalPages}
+                        onClick={() => setCurrentPage((p) => p + 1)}
+                        className="px-4 py-2 border rounded-lg disabled:opacity-30 hover:bg-gray-50 text-sm font-medium"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
-        </main>
-      </div>
+        </div>
+      </main>
 
       {/* --- RECEIPT MODAL --- */}
       {selectedTxn && (
@@ -662,18 +621,9 @@ const TransactionModule: React.FC = () => {
                 {/* Type */}
                 <div className="flex justify-between items-center">
                   <span className="text-gray-400 text-sm font-medium">Type</span>
-                  {(() => {
-                    const isDebit =
-                      selectedTxn.direction === 'debit' ||
-                      (selectedTxn.transactionType?.toLowerCase() ?? '').includes('debit') ||
-                      selectedTxn.amount < 0;
-                    return (
-                      <span className={`text-sm font-black uppercase ${isDebit ? 'text-red-600' : 'text-green-600'
-                        }`}>
-                        {isDebit ? '↓ Debit' : '↑ Credit'}
-                      </span>
-                    );
-                  })()}
+                  <span className={`text-sm font-black uppercase ${isDebitTxn(selectedTxn) ? 'text-red-600' : 'text-green-600'}`}>
+                    {isDebitTxn(selectedTxn) ? '↓ Debit' : '↑ Credit'}
+                  </span>
                 </div>
                 {/* Amount */}
                 <div className="flex justify-between items-center">
@@ -752,8 +702,7 @@ const TransactionModule: React.FC = () => {
           </div>
         </div>
       )}
-      <Footer />
-    </div>
+    </>
   );
 };
 

@@ -1,14 +1,23 @@
 // src/components/student/StudentEditForm.tsx
-import React from 'react';
+import React, { useState } from 'react';
+import { Pencil, Check, X, Loader2, Lock } from 'lucide-react';
 import type { StudentProfileFormData } from '../../types/student';
 
 interface StudentEditFormProps {
   profile: StudentProfileFormData;
   isLoading: boolean;
   onProfileChange: (field: keyof StudentProfileFormData, value: string) => void;
-  onSubmit: (e: React.FormEvent) => void;
+  // Return false from an async handler to keep the form in edit mode (e.g. on API failure)
+  onSubmit: (e: React.FormEvent) => void | boolean | Promise<void | boolean>;
+  // Called when editing is cancelled, so the parent can reset unsaved changes
   onCancel: () => void;
 }
+
+const baseInput =
+  'mt-1 block w-full border border-gray-300 rounded-lg shadow-sm p-3 text-black transition-colors';
+const editableInput = `${baseInput} bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500`;
+const lockedInput = `${baseInput} bg-gray-100 text-gray-500 cursor-not-allowed`;
+const labelClass = 'block text-sm font-medium text-gray-700 mb-1';
 
 const StudentEditForm: React.FC<StudentEditFormProps> = ({
   profile,
@@ -17,109 +26,150 @@ const StudentEditForm: React.FC<StudentEditFormProps> = ({
   onSubmit,
   onCancel,
 }) => {
+  const [isEditing, setIsEditing] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const result = await onSubmit(e);
+    if (result !== false) setIsEditing(false);
+  };
+
+  const handleCancel = () => {
+    onCancel();
+    setIsEditing(false);
+  };
+
+  const fieldsDisabled = !isEditing || isLoading;
+
   return (
-    <form onSubmit={onSubmit} className="space-y-6 sm:space-y-8">
+    <form onSubmit={handleSubmit} className="space-y-6 sm:space-y-8">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Name - Read Only */}
+        {/* Name - always read only */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="student-name" className={`${labelClass} flex items-center gap-1.5`}>
             Full Name
+            <Lock className="w-3 h-3 text-gray-400" />
           </label>
           <input
+            id="student-name"
             type="text"
             value={profile.name}
             readOnly
             disabled
-            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 bg-gray-100 text-gray-500 cursor-not-allowed"
+            className={lockedInput}
             title="Name cannot be edited here"
           />
         </div>
 
-        {/* Email - Read Only */}
+        {/* Email - always read only */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="student-email" className={`${labelClass} flex items-center gap-1.5`}>
             Email Address
+            <Lock className="w-3 h-3 text-gray-400" />
           </label>
           <input
+            id="student-email"
             type="email"
             value={profile.email}
             readOnly
             disabled
-            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 bg-gray-100 text-gray-500 cursor-not-allowed"
+            className={lockedInput}
             title="Email cannot be edited here"
           />
         </div>
 
         {/* Phone */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Phone Number
-          </label>
+          <label htmlFor="student-phone" className={labelClass}>Phone Number</label>
           <input
+            id="student-phone"
             type="tel"
             value={profile.phone}
             onChange={(e) => onProfileChange('phone', e.target.value)}
-            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 transition-colors text-black"
-            disabled={isLoading}
+            className={fieldsDisabled ? lockedInput : editableInput}
+            disabled={fieldsDisabled}
             maxLength={20}
-            title="Enter the student's phone number"
+            placeholder={isEditing ? "Enter the student's phone number" : '—'}
           />
         </div>
 
         {/* Class */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Class
-          </label>
+          <label htmlFor="student-class" className={labelClass}>Class</label>
           <input
+            id="student-class"
             type="text"
             value={profile.class}
             onChange={(e) => onProfileChange('class', e.target.value)}
-            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 transition-colors text-black"
-            disabled={isLoading}
+            className={fieldsDisabled ? lockedInput : editableInput}
+            disabled={fieldsDisabled}
             maxLength={50}
-            title="Enter the student's class"
+            placeholder={isEditing ? "Enter the student's class" : '—'}
           />
         </div>
       </div>
 
       {/* Address */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Address
-        </label>
+        <label htmlFor="student-address" className={labelClass}>Address</label>
         <textarea
+          id="student-address"
           value={profile.address}
           onChange={(e) => onProfileChange('address', e.target.value)}
-          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 transition-colors text-black"
+          className={fieldsDisabled ? lockedInput : editableInput}
           rows={3}
-          disabled={isLoading}
+          disabled={fieldsDisabled}
           maxLength={200}
-          placeholder="Enter student address"
+          placeholder={isEditing ? 'Enter student address' : '—'}
         />
+        {isEditing && (
+          <p className="text-xs text-gray-500 mt-1 text-right">
+            {profile.address.length}/200
+          </p>
+        )}
       </div>
 
       {/* Buttons */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <button
-          type="submit"
-          className={`flex-1 py-3 px-4 rounded-lg text-white font-semibold transition-colors ${isLoading
-              ? 'bg-indigo-300 cursor-not-allowed'
-              : 'bg-indigo-600 hover:bg-indigo-700'
-            }`}
-          disabled={isLoading}
-        >
-          {isLoading ? 'Updating...' : 'Update Profile'}
-        </button>
-
-        <button
-          type="button"
-          onClick={onCancel}
-          className="flex-1 py-3 px-4 rounded-lg border border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 transition-colors"
-          disabled={isLoading}
-        >
-          Cancel
-        </button>
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 sm:gap-4 pt-4 border-t border-gray-200">
+        {isEditing ? (
+          <>
+            <button
+              type="button"
+              onClick={handleCancel}
+              disabled={isLoading}
+              className="flex items-center justify-center gap-2 py-3 px-5 rounded-lg border border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <X className="w-4 h-4" />
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="flex items-center justify-center gap-2 py-3 px-5 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700 disabled:bg-indigo-300 disabled:cursor-not-allowed transition-colors"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4" />
+                  Save Changes
+                </>
+              )}
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setIsEditing(true)}
+            className="flex items-center justify-center gap-2 py-3 px-5 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition-colors"
+          >
+            <Pencil className="w-4 h-4" />
+            Edit Profile
+          </button>
+        )}
       </div>
     </form>
   );

@@ -7,9 +7,9 @@ import type { Student } from "./student";
 export interface User {
   // Core Identifiers (Required)
   _id: string;
-  
+
   // Basic Information 
-  name: string; 
+  name: string;
   firstName?: string;
   lastName?: string;
   email: string;
@@ -19,16 +19,16 @@ export interface User {
   profilePic?: string;
 
   // Status and Metadata
-  status: string;      
-  createdAt: string;  
+  status: string;
+  createdAt: string;
   updatedAt: string;
 
   // Parent/Guardian specific
   children?: string[]; // Added from your second interface
 
   // Banking & Wallet details
-  accountNumber?: string;   
-  withdrawalBank?: string;  
+  accountNumber?: string;
+  withdrawalBank?: string;
   balance?: number;
   walletBalance?: number;
   wallet?: {
@@ -129,7 +129,7 @@ export interface UserData {
   balance?: number;
   lastTransactions?: Transaction[];
   recentTransfers?: Transfer[];
-}     
+}
 
 /* ----------------------- WALLET ----------------------- */
 export interface Wallet {
@@ -168,7 +168,7 @@ export interface UserResponse {
       walletId?: string;
     };
     // Add this line to allow access to 'pin' or other dynamic fields
-    [key: string]: unknown; 
+    [key: string]: unknown;
   };
 
   wallet?: {
@@ -229,12 +229,12 @@ export interface Transaction {
   status: 'success' | 'pending' | 'failed' | string;
   description: string;
   createdAt: string;
-  date?: string; 
+  date?: string;
   store?: string;
   customer?: string;
   reference?: string;
   recipientName?: string;
-  
+
   // Added fields from API response
   transactionType?: string;
   direction?: 'credit' | 'debit' | string;
@@ -242,14 +242,14 @@ export interface Transaction {
   balanceAfter?: number;
   errorCode?: string | null;
   charges?: number;
-  
+
   // Wallet references
   senderWalletId?: WalletInfo | string;
   receiverWalletId?: WalletInfo | string;
-  
+
   // Metadata
   metadata?: TransactionMetadata;
-  
+
   // Additional dynamic fields
   [key: string]: unknown;
 }
@@ -259,6 +259,17 @@ export interface TransactionsResponse {
   message?: string;
   data?: Transaction[];
   transactions?: Transaction[];
+  total?: number;
+  totalCount?: number;
+  page?: number;
+  limit?: number;
+  totalPages?: number;
+  pagination?: {
+    total?: number;
+    page?: number;
+    limit?: number;
+    totalPages?: number;
+  };
 }
 
 export interface TransactionStats {
@@ -386,6 +397,8 @@ export interface StoreAgent {
   schoolId: string;
   status?: string;
   isStandAlone?: boolean;
+  agentName?: string;
+  agentEmail?: string;
 }
 
 export interface Agent {

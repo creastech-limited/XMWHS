@@ -11,9 +11,6 @@ import {
   ChevronDown,
   Info,
 } from 'lucide-react';
-import { Header } from '../../components/Header';
-import { Sidebar as Asidebar } from '../../components/Sidebar';
-import Footer from '../../components/Footer';
 import { getBanks } from '../../services';
 import type { Bank, WithdrawalValidation } from '../../types';
 
@@ -595,372 +592,376 @@ const WithdrawalPage: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-white">
-      <Header PsettingsPage="/settings" />
-      <div className="flex flex-grow">
-        <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-none">
-          <Asidebar />
-        </aside>
-        <main className="flex-grow p-4 md:p-8 md:ml-64">
-          <div className="flex items-center gap-2 mb-6">
-            <Wallet className="text-blue-600" size={24} />
-            <h1 className="text-3xl md:text-4xl font-bold text-indigo-900">Withdrawal</h1>
+    <>
+      <main className="flex-grow p-4 md:p-8 md:ml-64 overflow-x-auto">
+        <div className="flex items-center gap-2 mb-6">
+          <Wallet className="text-blue-600" size={24} />
+          <h1 className="text-3xl md:text-4xl font-bold text-indigo-900">Withdrawal</h1>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+          {/* Balance Card */}
+          <div className="md:col-span-4">
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-gray-600 text-md font-medium mb-2">
+                Available Balance
+              </h2>
+              <p className="text-3xl font-bold text-gray-800 mb-4">
+                {isLoading ? 'Loading...' : `₦${availableBalance.toLocaleString()}`}
+              </p>
+              <p className="text-sm text-gray-500">
+                Last updated: {new Date().toLocaleDateString()}
+              </p>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-            {/* Balance Card */}
-            <div className="md:col-span-4">
-              <div className="bg-white rounded-lg shadow p-6">
-                <h2 className="text-gray-600 text-md font-medium mb-2">
-                  Available Balance
-                </h2>
-                <p className="text-3xl font-bold text-gray-800 mb-4">
-                  {isLoading ? 'Loading...' : `₦${availableBalance.toLocaleString()}`}
-                </p>
-                <p className="text-sm text-gray-500">
-                  Last updated: {new Date().toLocaleDateString()}
-                </p>
-              </div>
-            </div>
-
-            {/* Bank Details Card — always reads from CONFIRMED (saved) state */}
-            <div className="md:col-span-8">
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="flex justify-between items-center mb-4">
-                  <div className="flex items-center gap-2">
-                    <Landmark className="text-blue-600" size={20} />
-                    <h2 className="text-lg font-medium text-gray-800">
-                      Withdrawal Bank Details
-                    </h2>
-                  </div>
-                  {isBankSet && (
-                    <button
-                      onClick={handleOpenModal}
-                      className="text-blue-600 hover:text-blue-800"
-                      title="Edit withdrawal bank details"
-                    >
-                      <Edit size={18} />
-                    </button>
-                  )}
-                </div>
-
-                {!isBankSet ? (
-                  <div className="text-center py-6">
-                    <p className="text-gray-600 mb-4">
-                      Please set your withdrawal bank details to proceed.
-                    </p>
-                    <button
-                      onClick={handleOpenModal}
-                      className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition"
-                    >
-                      <Landmark size={18} />
-                      Set Withdrawal Bank
-                    </button>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-gray-500">Bank Name</p>
-                      <p className="text-gray-800 font-medium">
-                        {confirmedBank ? confirmedBank : 'Not set'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Account Number</p>
-                      <p className="text-gray-800 font-medium">
-                        {confirmedAccountNumber ? confirmedAccountNumber : 'Not set'}
-                      </p>
-                    </div>
-                    <div className="md:col-span-2">
-                      <p className="text-sm text-gray-500">Account Name</p>
-                      <p className="text-gray-800 font-medium">
-                        {confirmedAccountName ? confirmedAccountName : 'Not set'}
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Withdrawal Form */}
-            {isBankSet && (
-              <div className="md:col-span-12">
-                <div className="bg-white rounded-lg shadow p-6">
-                  <div className="flex items-center gap-2 mb-6">
-                    <Wallet className="text-blue-600" size={20} />
-                    <h2 className="text-lg font-medium text-gray-800">
-                      Make a Withdrawal
-                    </h2>
-                  </div>
-
-                  {withdrawalSuccess && (
-                    <div className="flex items-center gap-2 bg-green-100 text-green-800 p-4 rounded-md mb-4">
-                      <CheckCircle size={18} />
-                      <p>Withdrawal request submitted successfully!</p>
-                    </div>
-                  )}
-
-                  {withdrawalError && (
-                    <div className="flex items-center gap-2 bg-red-100 text-red-800 p-4 rounded-md mb-4">
-                      <AlertCircle size={18} />
-                      <p>{withdrawalError}</p>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                    <div>
-                      <label
-                        className="block text-gray-700 mb-2"
-                        htmlFor="withdrawalAmount"
-                      >
-                        Withdrawal Amount (₦)
-                      </label>
-                      <input
-                        id="withdrawalAmount"
-                        type="number"
-                        className={`w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 ${withdrawalError ? 'border-red-500' : 'border-gray-300'
-                          }`}
-                        value={withdrawalAmount}
-                        onChange={(e) => setWithdrawalAmount(e.target.value)}
-                        placeholder="Enter amount"
-                      />
-                    </div>
-                    <div>
-                      <label
-                        className="block text-gray-700 mb-2"
-                        htmlFor="withdrawalNote"
-                      >
-                        Note (Optional)
-                      </label>
-                      <input
-                        id="withdrawalNote"
-                        type="text"
-                        className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
-                        value={withdrawalNote}
-                        onChange={(e) => setWithdrawalNote(e.target.value)}
-                        placeholder="Add a note for this withdrawal"
-                      />
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={handleWithdrawalSubmit}
-                    disabled={loading}
-                    className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md transition disabled:bg-blue-400"
-                  >
-                    {loading ? (
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <Wallet size={18} />
-                    )}
-                    Submit Withdrawal Request
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Withdrawal Tips Section */}
-            <div className="md:col-span-12">
-              <div className="bg-blue-50 border-l-4 border-blue-500 rounded-lg p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <Info className="text-blue-600" size={20} />
+          {/* Bank Details Card — always reads from CONFIRMED (saved) state */}
+          <div className="md:col-span-8">
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex justify-between items-center mb-4">
+                <div className="flex items-center gap-2">
+                  <Landmark className="text-blue-600" size={20} />
                   <h2 className="text-lg font-medium text-gray-800">
-                    Withdrawal Tips
+                    Withdrawal Bank Details
                   </h2>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="bg-white p-4 rounded-md shadow-sm">
-                    <h3 className="font-medium text-gray-800 mb-2">
-                      Processing Times
-                    </h3>
-                    <p className="text-gray-600">
-                      Withdrawals are typically processed within 24 hours during
-                      business days. Weekend requests may take longer.
+
+                {!isLoading && isBankSet && (
+                  <button
+                    onClick={handleOpenModal}
+                    className="text-blue-600 hover:text-blue-800"
+                    title="Edit withdrawal bank details"
+                  >
+                    <Edit size={18} />
+                  </button>
+                )}
+              </div>
+
+              {isLoading ? (
+                <div className="flex flex-col items-center justify-center py-10">
+                  <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                  <p className="text-sm text-gray-500 mt-3">
+                    Loading withdrawal bank details...
+                  </p>
+                </div>
+              ) : !isBankSet ? (
+                <div className="text-center py-6">
+                  <p className="text-gray-600 mb-4">
+                    Please set your withdrawal bank details to proceed.
+                  </p>
+
+                  <button
+                    onClick={handleOpenModal}
+                    className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition mx-auto"
+                  >
+                    <Landmark size={18} />
+                    Set Withdrawal Bank
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-500">Bank Name</p>
+                    <p className="text-gray-800 font-medium">
+                      {confirmedBank || 'Not set'}
                     </p>
                   </div>
-                  <div className="bg-white p-4 rounded-md shadow-sm">
-                    <h3 className="font-medium text-gray-800 mb-2">
-                      Minimum Withdrawal
-                    </h3>
-                    <p className="text-gray-600">
-                      The minimum withdrawal amount is ₦1,000. Ensure your
-                      request meets this threshold to avoid rejections.
+
+                  <div>
+                    <p className="text-sm text-gray-500">Account Number</p>
+                    <p className="text-gray-800 font-medium">
+                      {confirmedAccountNumber || 'Not set'}
                     </p>
                   </div>
-                  <div className="bg-white p-4 rounded-md shadow-sm">
-                    <h3 className="font-medium text-gray-800 mb-2">
-                      Verification
-                    </h3>
-                    <p className="text-gray-600">
-                      Always ensure your bank details are correct. Withdrawals
-                      to incorrectly specified accounts cannot be reversed.
+
+                  <div className="md:col-span-2">
+                    <p className="text-sm text-gray-500">Account Name</p>
+                    <p className="text-gray-800 font-medium">
+                      {confirmedAccountName || 'Not set'}
                     </p>
                   </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Withdrawal Form */}
+          {isBankSet && (
+            <div className="md:col-span-12">
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center gap-2 mb-6">
+                  <Wallet className="text-blue-600" size={20} />
+                  <h2 className="text-lg font-medium text-gray-800">
+                    Make a Withdrawal
+                  </h2>
+                </div>
+
+                {withdrawalSuccess && (
+                  <div className="flex items-center gap-2 bg-green-100 text-green-800 p-4 rounded-md mb-4">
+                    <CheckCircle size={18} />
+                    <p>Withdrawal request submitted successfully!</p>
+                  </div>
+                )}
+
+                {withdrawalError && (
+                  <div className="flex items-center gap-2 bg-red-100 text-red-800 p-4 rounded-md mb-4">
+                    <AlertCircle size={18} />
+                    <p>{withdrawalError}</p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                  <div>
+                    <label
+                      className="block text-gray-700 mb-2"
+                      htmlFor="withdrawalAmount"
+                    >
+                      Withdrawal Amount (₦)
+                    </label>
+                    <input
+                      id="withdrawalAmount"
+                      type="number"
+                      className={`w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 ${withdrawalError ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                      value={withdrawalAmount}
+                      onChange={(e) => setWithdrawalAmount(e.target.value)}
+                      placeholder="Enter amount"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      className="block text-gray-700 mb-2"
+                      htmlFor="withdrawalNote"
+                    >
+                      Note (Optional)
+                    </label>
+                    <input
+                      id="withdrawalNote"
+                      type="text"
+                      className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                      value={withdrawalNote}
+                      onChange={(e) => setWithdrawalNote(e.target.value)}
+                      placeholder="Add a note for this withdrawal"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleWithdrawalSubmit}
+                  disabled={loading}
+                  className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md transition disabled:bg-blue-400"
+                >
+                  {loading ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Wallet size={18} />
+                  )}
+                  Submit Withdrawal Request
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Withdrawal Tips Section */}
+          <div className="md:col-span-12">
+            <div className="bg-blue-50 border-l-4 border-blue-500 rounded-lg p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Info className="text-blue-600" size={20} />
+                <h2 className="text-lg font-medium text-gray-800">
+                  Withdrawal Tips
+                </h2>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-white p-4 rounded-md shadow-sm">
+                  <h3 className="font-medium text-gray-800 mb-2">
+                    Processing Times
+                  </h3>
+                  <p className="text-gray-600">
+                    Withdrawals are typically processed within 24 hours during
+                    business days. Weekend requests may take longer.
+                  </p>
+                </div>
+                <div className="bg-white p-4 rounded-md shadow-sm">
+                  <h3 className="font-medium text-gray-800 mb-2">
+                    Minimum Withdrawal
+                  </h3>
+                  <p className="text-gray-600">
+                    The minimum withdrawal amount is ₦1,000. Ensure your
+                    request meets this threshold to avoid rejections.
+                  </p>
+                </div>
+                <div className="bg-white p-4 rounded-md shadow-sm">
+                  <h3 className="font-medium text-gray-800 mb-2">
+                    Verification
+                  </h3>
+                  <p className="text-gray-600">
+                    Always ensure your bank details are correct. Withdrawals
+                    to incorrectly specified accounts cannot be reversed.
+                  </p>
                 </div>
               </div>
             </div>
           </div>
-          {/* PIN Verification Modal */}
-          {showPinModal && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-lg w-full max-w-sm p-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-bold text-gray-800">Confirm Withdrawal</h2>
-                  <button
-                    onClick={() => {
-                      setShowPinModal(false);
-                      setWithdrawalPin('');
-                      setWithdrawalValidation(null); // Reset validation data
-                    }}
-                    className="text-gray-500 hover:text-gray-700"
-                  >
-                    <X size={20} />
-                  </button>
-                </div>
-
-                {/* Withdrawal Details - Only show if validation data exists */}
-                {withdrawalValidation ? (
-                  <div className="mb-6 space-y-3">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Bank:</span>
-                      <span className="font-medium text-black">{withdrawalValidation.bank_name}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Account Number:</span>
-                      <span className="font-medium text-black">{withdrawalValidation.account_number}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Account Name:</span>
-                      <span className="font-medium text-black">{withdrawalValidation.account_name}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Amount:</span>
-                      <span className="font-medium text-black">₦{withdrawalValidation.amount.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Fee:</span>
-                      <span className="font-medium text-black">₦{withdrawalValidation.charge.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between border-t pt-2">
-                      <span className="text-gray-600 font-semibold">Total:</span>
-                      <span className="font-bold text-black">₦{withdrawalValidation.total.toLocaleString()}</span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="mb-6 p-4 bg-gray-100 rounded-md">
-                    <p className="text-gray-600">Loading withdrawal details...</p>
-                  </div>
-                )}
-
-                <div className="mb-4">
-                  <label className="block text-gray-700 mb-2">Enter your 4-digit PIN</label>
-                  <input
-                    type="password"
-                    maxLength={4}
-                    className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-center text-lg tracking-widest text-black"
-                    value={withdrawalPin}
-                    onChange={(e) => setWithdrawalPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                    placeholder="••••"
-                  />
-                </div>
-
+        </div>
+        {/* PIN Verification Modal */}
+        {showPinModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg w-full max-w-sm p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-gray-800">Confirm Withdrawal</h2>
                 <button
-                  onClick={handlePinConfirmation}
-                  disabled={loading || withdrawalPin.length !== 4 || !withdrawalValidation}
-                  className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md transition disabled:bg-blue-400"
+                  onClick={() => {
+                    setShowPinModal(false);
+                    setWithdrawalPin('');
+                    setWithdrawalValidation(null); // Reset validation data
+                  }}
+                  className="text-gray-500 hover:text-gray-700"
                 >
-                  {loading ? (
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <Lock size={18} />
-                  )}
-                  Confirm Withdrawal
+                  <X size={20} />
                 </button>
               </div>
-            </div>
-          )}
-          {/* PIN Verification Modal */}
-          {showPinModal && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-lg w-full max-w-sm p-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-bold text-gray-800">Confirm Withdrawal</h2>
-                  <button
-                    onClick={() => {
-                      setShowPinModal(false);
-                      setWithdrawalPin('');
-                      setWithdrawalValidation(null); // Reset validation data
-                    }}
-                    className="text-gray-500 hover:text-gray-700"
-                  >
-                    <X size={20} />
-                  </button>
-                </div>
 
-                {/* Withdrawal Details - Only show if validation data exists */}
-                {withdrawalValidation ? (
-                  <div className="mb-6 space-y-3">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Bank:</span>
-                      <span className="font-medium text-black">{withdrawalValidation.bank_name}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Account Number:</span>
-                      <span className="font-medium text-black">{withdrawalValidation.account_number}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Account Name:</span>
-                      <span className="font-medium text-black">{withdrawalValidation.account_name}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Amount:</span>
-                      <span className="font-medium text-black">₦{withdrawalValidation.amount.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Fee:</span>
-                      <span className="font-medium text-black">₦{withdrawalValidation.charge.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between border-t pt-2">
-                      <span className="text-gray-600 font-semibold">Total:</span>
-                      <span className="font-bold text-black">₦{withdrawalValidation.total.toLocaleString()}</span>
-                    </div>
+              {/* Withdrawal Details - Only show if validation data exists */}
+              {withdrawalValidation ? (
+                <div className="mb-6 space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Bank:</span>
+                    <span className="font-medium text-black">{withdrawalValidation.bank_name}</span>
                   </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Account Number:</span>
+                    <span className="font-medium text-black">{withdrawalValidation.account_number}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Account Name:</span>
+                    <span className="font-medium text-black">{withdrawalValidation.account_name}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Amount:</span>
+                    <span className="font-medium text-black">₦{withdrawalValidation.amount.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Fee:</span>
+                    <span className="font-medium text-black">₦{withdrawalValidation.charge.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between border-t pt-2">
+                    <span className="text-gray-600 font-semibold">Total:</span>
+                    <span className="font-bold text-black">₦{withdrawalValidation.total.toLocaleString()}</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="mb-6 p-4 bg-gray-100 rounded-md">
+                  <p className="text-gray-600">Loading withdrawal details...</p>
+                </div>
+              )}
+
+              <div className="mb-4">
+                <label className="block text-gray-700 mb-2">Enter your 4-digit PIN</label>
+                <input
+                  type="password"
+                  maxLength={4}
+                  className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-center text-lg tracking-widest text-black"
+                  value={withdrawalPin}
+                  onChange={(e) => setWithdrawalPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  placeholder="••••"
+                />
+              </div>
+
+              <button
+                onClick={handlePinConfirmation}
+                disabled={loading || withdrawalPin.length !== 4 || !withdrawalValidation}
+                className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md transition disabled:bg-blue-400"
+              >
+                {loading ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
-                  <div className="mb-6 p-4 bg-gray-100 rounded-md">
-                    <p className="text-gray-600">Loading withdrawal details...</p>
-                  </div>
+                  <Lock size={18} />
                 )}
-
-                <div className="mb-4">
-                  <label className="block text-gray-700 mb-2">Enter your 4-digit PIN</label>
-                  <input
-                    type="password"
-                    maxLength={4}
-                    className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-center text-lg tracking-widest text-black"
-                    value={withdrawalPin}
-                    onChange={(e) => setWithdrawalPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                    placeholder="••••"
-                  />
-                </div>
-
+                Confirm Withdrawal
+              </button>
+            </div>
+          </div>
+        )}
+        {/* PIN Verification Modal */}
+        {showPinModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg w-full max-w-sm p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-gray-800">Confirm Withdrawal</h2>
                 <button
-                  onClick={handlePinConfirmation}
-                  disabled={loading || withdrawalPin.length !== 4 || !withdrawalValidation}
-                  className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md transition disabled:bg-blue-400"
+                  onClick={() => {
+                    setShowPinModal(false);
+                    setWithdrawalPin('');
+                    setWithdrawalValidation(null); // Reset validation data
+                  }}
+                  className="text-gray-500 hover:text-gray-700"
                 >
-                  {loading ? (
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <Lock size={18} />
-                  )}
-                  Confirm Withdrawal
+                  <X size={20} />
                 </button>
               </div>
+
+              {/* Withdrawal Details - Only show if validation data exists */}
+              {withdrawalValidation ? (
+                <div className="mb-6 space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Bank:</span>
+                    <span className="font-medium text-black">{withdrawalValidation.bank_name}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Account Number:</span>
+                    <span className="font-medium text-black">{withdrawalValidation.account_number}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Account Name:</span>
+                    <span className="font-medium text-black">{withdrawalValidation.account_name}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Amount:</span>
+                    <span className="font-medium text-black">₦{withdrawalValidation.amount.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Fee:</span>
+                    <span className="font-medium text-black">₦{withdrawalValidation.charge.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between border-t pt-2">
+                    <span className="text-gray-600 font-semibold">Total:</span>
+                    <span className="font-bold text-black">₦{withdrawalValidation.total.toLocaleString()}</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="mb-6 p-4 bg-gray-100 rounded-md">
+                  <p className="text-gray-600">Loading withdrawal details...</p>
+                </div>
+              )}
+
+              <div className="mb-4">
+                <label className="block text-gray-700 mb-2">Enter your 4-digit PIN</label>
+                <input
+                  type="password"
+                  maxLength={4}
+                  className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-center text-lg tracking-widest text-black"
+                  value={withdrawalPin}
+                  onChange={(e) => setWithdrawalPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  placeholder="••••"
+                />
+              </div>
+
+              <button
+                onClick={handlePinConfirmation}
+                disabled={loading || withdrawalPin.length !== 4 || !withdrawalValidation}
+                className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md transition disabled:bg-blue-400"
+              >
+                {loading ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Lock size={18} />
+                )}
+                Confirm Withdrawal
+              </button>
             </div>
-          )}
-        </main>
-      </div>
-      <Footer />
+          </div>
+        )}
+      </main>
 
       {/* Bank Setup Modal — uses DRAFT state only */}
       {openModal && (
@@ -1209,7 +1210,7 @@ const WithdrawalPage: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 };
 

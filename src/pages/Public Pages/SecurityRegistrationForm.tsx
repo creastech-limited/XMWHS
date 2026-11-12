@@ -1,11 +1,12 @@
 // src/pages/Public Pages/SecurityRegistrationForm.tsx
 import React from 'react';
-import { 
-  User, 
-  Mail, 
-  Phone, 
-  School, 
-  ShieldCheck
+import {
+  User,
+  Mail,
+  Phone,
+  School,
+  ShieldCheck,
+  ArrowLeft
 } from 'lucide-react';
 import { useSecurityRegistration } from '../../hooks/useSecurityRegistration';
 import { AuthLayout } from '../../components/shared/AuthLayout';
@@ -21,6 +22,7 @@ import { RoleInfo } from '../../components/shared/RoleInfo';
 import { InvalidTokenPage } from '../../components/shared/InvalidTokenPage';
 import logo from '../5.png';
 import bgImage from '../bg.jpeg';
+import { Link } from 'react-router-dom';
 
 const SecurityRegistrationForm: React.FC = () => {
   const {
@@ -188,6 +190,15 @@ const SecurityRegistrationForm: React.FC = () => {
           loadingText="Creating Security Account..."
           defaultText="Create Security Account"
         />
+        <div className="w-full bg-gray-200 py-3 px-4 text-center hover:bg-gray-300 rounded-lg transition transform hover:-translate-y-1">
+          <Link
+            to="/attendance/security"
+            className="inline-flex items-center gap-2 text-indigo-600 hover:text-indigo-800 font-medium transition-colors group"
+          >
+            <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
+            Back
+          </Link>
+        </div>
       </form>
     </AuthLayout>
   );

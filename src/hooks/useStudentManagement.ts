@@ -362,11 +362,7 @@ export const useStudentManagement = () => {
         studentArray = rawList.map((student: Student) => {
           const email = extractStudentEmail(student as unknown as Record<string, unknown>) || student.email || '';
           const name = extractStudentName(student as unknown as Record<string, unknown>);
-          const classValue =
-            student.classAdmittedTo ||
-            student.academicDetails?.classAdmittedTo ||
-            student.Class ||
-            'Not Assigned';
+          const classValue = student.classAdmittedTo || 'Not Assigned';
           return {
             ...student,
             firstName: student.firstName || '',

@@ -1133,7 +1133,7 @@ const Schools = () => {
                                       <p><span className="font-medium text-gray-800">Phone:</span> {agent.phone || 'N/A'}</p>
                                       <p><span className="font-medium text-gray-800">Role:</span> {agent.role || 'agent'}</p>
                                       <p><span className="font-medium text-gray-800">Store:</span> {agent.storeName || 'N/A'}</p>
-                                      <p><span className="font-medium text-gray-800">School ID:</span> {agent.schoolId || 'N/A'}</p>
+                                      <p><span className="font-medium text-gray-800">School ID:</span> {agent.schoolId || 'STANDALONE'}</p>
                                     </div>
                                   </div>
                                 </div>

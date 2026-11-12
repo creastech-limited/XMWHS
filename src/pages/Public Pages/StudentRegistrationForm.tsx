@@ -1,10 +1,11 @@
 // src/pages/Public Pages/StudentRegistrationForm.tsx
 import React from 'react';
-import { 
-  User, 
-  Mail, 
+import {
+  User,
+  Mail,
   BookOpen,
-  Phone
+  Phone,
+  ArrowLeft
 } from 'lucide-react';
 import { useStudentRegistration } from '../../hooks/useStudentRegistration';
 import { AuthLayout } from '../../components/shared/AuthLayout';
@@ -20,6 +21,7 @@ import { LoadingSpinner } from '../../components/shared/LoadingSpinner';
 import { InvalidTokenPage } from '../../components/shared/InvalidTokenPage';
 import logo from '../5.png';
 import bgImage from '../bg.jpeg';
+import { useNavigate } from 'react-router-dom';
 
 const StudentRegistrationForm: React.FC = () => {
   const {
@@ -39,6 +41,20 @@ const StudentRegistrationForm: React.FC = () => {
     handleSubmit,
     // Remove navigate from here since it's not used in this component
   } = useStudentRegistration();
+
+  const navigate = useNavigate();
+
+  const handleBack = () => {
+    const hasPreviousPage =
+      (window.history.state && window.history.state.idx > 0) ||
+      window.history.length > 1;
+
+    if (hasPreviousPage) {
+      navigate(-1);
+    } else {
+      navigate('/', { replace: true });
+    }
+  };
 
   // Show invalid school page
   if (schoolNotFound) {
@@ -67,6 +83,14 @@ const StudentRegistrationForm: React.FC = () => {
       logo={logo}
       bgImage={bgImage}
     >
+      <button
+        type="button"
+        onClick={handleBack}
+        className="inline-flex items-center gap-2 text-indigo-600 hover:text-indigo-800 font-medium transition-colors group mb-4"
+      >
+        <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
+        Back
+      </button>
       {/* School Info */}
       {schoolLoading ? (
         <LoadingSpinner />

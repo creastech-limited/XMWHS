@@ -7,7 +7,7 @@ import type {
   PinResponse,
   StudentDetails, StudentProfileFormData,
   SchoolFee,
-  Kid, StudentsInSchoolResponse, ZipUploadResponse,SchoolsResponse,
+  Kid, StudentsInSchoolResponse, ZipUploadResponse, SchoolsResponse,
 } from '../../types/student';
 import type { Charge } from '../../types';
 // Get students by school ID
@@ -61,6 +61,7 @@ export const extractStudentName = (student: Record<string, unknown>): string => 
 export const normalizeStudentData = (student: Record<string, unknown>, index: number = 0): Student => {
   const s = student; // Record<string, unknown> — access fields with explicit casts
   const userNested = (s.user && typeof s.user === 'object') ? s.user as Record<string, unknown> : null;
+  const OBJECT_ID_REGEX = /^[a-f\d]{24}$/i;
   const academicDetailsRaw = (s.academicDetails && typeof s.academicDetails === 'object') ? s.academicDetails as Record<string, unknown> : null;
 
   const email = extractStudentEmail(s);
@@ -79,6 +80,14 @@ export const normalizeStudentData = (student: Record<string, unknown>, index: nu
     (email ? email : `${(s.schoolId as string) || 'student'}-${index}`)
   );
 
+  const pickClassName = (...candidates: unknown[]): string => {
+    for (const c of candidates) {
+      const value = typeof c === 'string' ? c.trim() : '';
+      if (value && !OBJECT_ID_REGEX.test(value)) return value;
+    }
+    return '';
+  };
+
   const studentId = String(
     (s.studentId as string) ||
     (s.student_id as string) ||
@@ -87,13 +96,13 @@ export const normalizeStudentData = (student: Record<string, unknown>, index: nu
     fallbackId
   );
 
-  const classVal = String(
-    (s.classAdmittedTo as string) ||
-    (s.Class as string) ||
-    (s.class as string) ||
-    (academicDetailsRaw?.classAdmittedTo as string) ||
-    'Not Assigned'
-  );
+  const classVal =
+    pickClassName(
+      academicDetailsRaw?.classAdmittedTo,
+      s.classAdmittedTo,
+      s.class,
+      s.Class
+    ) || 'Not Assigned';
 
   const normalizedStatus = ((): 'Active' | 'Inactive' | 'Pending' => {
     const rawSt = String(s.status || '').toLowerCase().trim();
@@ -103,6 +112,27 @@ export const normalizeStudentData = (student: Record<string, unknown>, index: nu
     if (s.isActive === false || s.is_active === false) return 'Inactive';
     return 'Active';
   })();
+
+  const guardianRaw = (s.guardian && typeof s.guardian === 'object')
+    ? (s.guardian as Partial<NonNullable<Student['guardian']>>)
+    : null;
+
+  const guardianFullName =
+    guardianRaw?.fullName?.trim() || (s.guardianName as string)?.trim() || '';
+  const guardianEmailVal =
+    guardianRaw?.email?.trim() || (s.guardianEmail as string)?.trim() || '';
+
+  // Only treat it as a guardian if there's a real name or email
+  const guardian: Student['guardian'] =
+    guardianFullName || guardianEmailVal
+      ? {
+        fullName: guardianFullName || guardianEmailVal,
+        email: guardianEmailVal,
+        relationship: guardianRaw?.relationship || 'Parent',
+        phone: guardianRaw?.phone || '',
+        address: guardianRaw?.address || '',
+      }
+      : undefined;
 
   return {
     _id: fallbackId,
@@ -119,12 +149,13 @@ export const normalizeStudentData = (student: Record<string, unknown>, index: nu
     Class: classVal,
     classAdmittedTo: classVal,
     schoolId: String((s.schoolId as string) || ''),
-    academicDetails: { classAdmittedTo: classVal },
-    guardian: (s.guardian && typeof s.guardian === 'object')
-      ? s.guardian as Student['guardian']
-      : undefined,
-    guardianName: (s.guardianName as string) || undefined,
-    guardianEmail: (s.guardianEmail as string) || undefined,
+    academicDetails: {
+      ...(academicDetailsRaw as Student['academicDetails']),
+      classAdmittedTo: classVal,
+    },
+    guardian,
+    guardianName: guardianFullName || undefined,
+    guardianEmail: guardianEmailVal || undefined,
     registrationDate: String((s.registrationDate as string) || (s.createdAt as string) || ''),
     createdAt: String((s.createdAt as string) || ''),
     updatedAt: String((s.updatedAt as string) || ''),
@@ -146,7 +177,7 @@ export const getStudentsBySchoolId = async (schoolId: string): Promise<StudentsR
   const response = await apiClient.get<StudentsResponse | Record<string, unknown>>(
     `/api/users/getstudentbyid?id=${encodeURIComponent(schoolId)}`
   );
-  
+
   const payload = response.data;
   let rawList: Record<string, unknown>[] = [];
   if (Array.isArray(payload)) {
@@ -260,7 +291,7 @@ export const bulkUploadStudents = async (file: File): Promise<{
 }> => {
   const formData = new FormData();
   formData.append('file', file);
-  
+
   const response = await apiClient.post<{
     message: string;
     errors?: Array<{ row: number; error: string }>;
@@ -280,9 +311,9 @@ export const getStudentById = async (studentId: string): Promise<StudentDetails>
     user?: { data?: StudentDetails } | StudentDetails;
     data?: StudentDetails;
   }>(`/api/users/getuser/${studentId}`);
-  
+
   const responseData = response.data;
-  
+
   // Handle different API response structures
   if (responseData.user) {
     if ('data' in responseData.user && responseData.user.data) {
@@ -291,17 +322,17 @@ export const getStudentById = async (studentId: string): Promise<StudentDetails>
       return responseData.user as StudentDetails;
     }
   }
-  
+
   if (responseData.data) {
     return responseData.data;
   }
-  
+
   throw new Error('Invalid response structure from server');
 };
 
 // Update student profile
 export const updateStudentProfile = async (
-  studentId: string, 
+  studentId: string,
   profileData: StudentProfileFormData
 ): Promise<{ message: string; data?: StudentDetails }> => {
   const response = await apiClient.put<{ message: string; data?: StudentDetails }>(
@@ -316,16 +347,16 @@ export const getFeesForStudent = async (email: string): Promise<SchoolFee[]> => 
   const response = await apiClient.get<SchoolFee[] | { data: SchoolFee[] }>(
     `/api/fee/getFeeForStudent/${encodeURIComponent(email)}`
   );
-  
+
   const responseData = response.data;
-  
+
   // Handle different API response structures
   if (Array.isArray(responseData)) {
     return responseData;
   } else if (Array.isArray(responseData?.data)) {
     return responseData.data;
   }
-  
+
   return [];
 };
 
@@ -334,15 +365,15 @@ export const getFeesByStudentId = async (studentId: string): Promise<SchoolFee[]
   const response = await apiClient.get<SchoolFee[] | { data: SchoolFee[] }>(
     `/api/fee/student/${studentId}`
   );
-  
+
   const responseData = response.data;
-  
+
   if (Array.isArray(responseData)) {
     return responseData;
   } else if (Array.isArray(responseData?.data)) {
     return responseData.data;
   }
-  
+
   return [];
 };
 
@@ -378,10 +409,10 @@ export const getAllStudents = async (): Promise<Kid[]> => {
     console.log('Fetching all students...');
     const response = await apiClient.get('/api/users/getallsudent');
     console.log('Raw API response:', response.data);
-    
+
     // Extract the data array - handle different response structures
     let studentsArray: Record<string, unknown>[] = [];
-    
+
     if (response.data?.data && Array.isArray(response.data.data)) {
       studentsArray = response.data.data;
     } else if (Array.isArray(response.data)) {
@@ -392,9 +423,9 @@ export const getAllStudents = async (): Promise<Kid[]> => {
       console.error('Unexpected API response structure:', response.data);
       return [];
     }
-    
+
     console.log('Students array:', studentsArray);
-    
+
     // Transform each student to match Kid interface
     const transformedKids: Kid[] = studentsArray.map((student: Record<string, unknown>, index: number) => {
       const email = extractStudentEmail(student);
@@ -406,7 +437,7 @@ export const getAllStudents = async (): Promise<Kid[]> => {
         (student.student_id as string) ||
         (student.admissionNumber as string) ||
         (email ? email : `student-${index}`);
-      
+
       // Create avatar initial
       let avatarChar = 'K';
       if (name && name !== 'Unknown Student' && name.length > 0) {
@@ -414,7 +445,7 @@ export const getAllStudents = async (): Promise<Kid[]> => {
       } else if (email && email.length > 0) {
         avatarChar = email[0];
       }
-      
+
       return {
         id: studentId,
         student_id: (student.student_id as string) || studentId,
@@ -426,10 +457,10 @@ export const getAllStudents = async (): Promise<Kid[]> => {
         avatar: avatarChar.toUpperCase()
       };
     });
-    
+
     console.log('Transformed kids:', transformedKids);
     return transformedKids;
-    
+
   } catch (error) {
     console.error('Error in getAllStudents:', error);
     return [];
@@ -439,14 +470,14 @@ export const getAllStudents = async (): Promise<Kid[]> => {
 // Get transfer charge
 export const getTransferCharge = async (): Promise<number> => {
   const response = await apiClient.get<Charge[]>('/api/charge/getallcharges');
-  
+
   if (Array.isArray(response.data)) {
     const transferCharge = response.data.find(
       (charge) => charge.name.toLowerCase().includes('transfer') && charge.status === 'Active'
     );
     return transferCharge ? transferCharge.amount : 0;
   }
-  
+
   return 0;
 };
 
@@ -474,12 +505,12 @@ export const getStudentsInSchoolByAdmin = async (
     students: normalizedStudents
   };
 };
- 
+
 // Bulk upload student profile pictures via zip
 export const uploadStudentPhotosZip = async (zipfile: File): Promise<ZipUploadResponse> => {
   const formData = new FormData();
   formData.append('zipfile', zipfile);
- 
+
   const response = await apiClient.post<ZipUploadResponse>(
     '/api/users/upload-zip',
     formData,

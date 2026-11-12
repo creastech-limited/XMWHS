@@ -1,8 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type { JSX } from 'react';
-import { Header } from '../../components/Header';
-import { Sidebar as Asidebar } from '../../components/Sidebar';
-import Footer from '../../components/Footer';
 import { useAuth } from '../../context/AuthContext';
 import {
   AlertCircle,
@@ -403,278 +400,271 @@ const DisputePage = () => {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50">
-      <Header PsettingsPage="/settings" />
-      <div className="flex flex-grow">
-        <aside className="z-[100] md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-0 bg-none">
-          <Asidebar />
-        </aside>
+    <>
+      <main className="flex-grow p-4 md:p-8 md:ml-64 overflow-x-auto">
+        <div className="max-w-7xl mx-auto">
+          <div className="mb-6">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Dispute Management</h1>
+                <p className="text-gray-600">Track and manage your payment disputes</p>
+              </div>
+              <button
+                onClick={() => setShowCreateForm(true)}
+                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition-colors shadow-sm"
+                title="Create a new dispute"
+                aria-label="Create a new dispute"
+              >
+                <Plus className="w-5 h-5" />
+                Create Dispute
+              </button>
+            </div>
 
-        <main className="flex-grow p-4 md:p-8 md:ml-64 overflow-x-auto">
-          <div className="max-w-7xl mx-auto">
-            <div className="mb-6">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-900">Dispute Management</h1>
-                  <p className="text-gray-600">Track and manage your payment disputes</p>
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              <div className="bg-white p-4 rounded-lg shadow">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Total Disputes</p>
+                    <p className="text-2xl font-bold text-gray-900">{disputes.length}</p>
+                  </div>
+                  <FileText className="w-8 h-8 text-blue-600" />
                 </div>
-                <button
-                  onClick={() => setShowCreateForm(true)}
-                  className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition-colors shadow-sm"
-                  title="Create a new dispute"
-                  aria-label="Create a new dispute"
+              </div>
+              <div className="bg-white p-4 rounded-lg shadow">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Pending</p>
+                    <p className="text-2xl font-bold text-yellow-600">
+                      {disputes.filter(d => d.status === 'Pending').length}
+                    </p>
+                  </div>
+                  <Clock className="w-8 h-8 text-yellow-600" />
+                </div>
+              </div>
+              <div className="bg-white p-4 rounded-lg shadow">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Under Investigation</p>
+                    <p className="text-2xl font-bold text-blue-600">
+                      {disputes.filter(d => d.status === 'Under Investigation').length}
+                    </p>
+                  </div>
+                  <AlertCircle className="w-8 h-8 text-blue-600" />
+                </div>
+              </div>
+              <div className="bg-white p-4 rounded-lg shadow">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Resolved</p>
+                    <p className="text-2xl font-bold text-green-600">
+                      {disputes.filter(d => d.status === 'Resolved').length}
+                    </p>
+                  </div>
+                  <CheckCircle className="w-8 h-8 text-green-600" />
+                </div>
+              </div>
+            </div>
+
+            {/* Filters */}
+            <div className="bg-white p-4 rounded-lg shadow mb-6">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search disputes..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                  />
+                </div>
+
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  aria-label="Filter disputes by status"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                 >
-                  <Plus className="w-5 h-5" />
-                  Create Dispute
+                  <option value="">All Statuses</option>
+                  {statuses.map(status => (
+                    <option key={status} value={status}>{status}</option>
+                  ))}
+                </select>
+
+                <select
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value)}
+                  aria-label="Filter disputes by type"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                >
+                  <option value="">All Types</option>
+                  {disputeTypes.map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+
+                <button
+                  onClick={() => {
+                    setSearchTerm('');
+                    setStatusFilter('');
+                    setTypeFilter('');
+                  }}
+                  className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 flex items-center justify-center gap-2 transition-colors"
+                  title="Clear all filters"
+                  aria-label="Clear all filters"
+                >
+                  <Filter className="w-4 h-4" />
+                  Clear Filters
                 </button>
               </div>
+            </div>
+          </div>
 
-              {/* Stats Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <div className="bg-white p-4 rounded-lg shadow">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">Total Disputes</p>
-                      <p className="text-2xl font-bold text-gray-900">{disputes.length}</p>
-                    </div>
-                    <FileText className="w-8 h-8 text-blue-600" />
-                  </div>
-                </div>
-                <div className="bg-white p-4 rounded-lg shadow">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">Pending</p>
-                      <p className="text-2xl font-bold text-yellow-600">
-                        {disputes.filter(d => d.status === 'Pending').length}
-                      </p>
-                    </div>
-                    <Clock className="w-8 h-8 text-yellow-600" />
-                  </div>
-                </div>
-                <div className="bg-white p-4 rounded-lg shadow">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">Under Investigation</p>
-                      <p className="text-2xl font-bold text-blue-600">
-                        {disputes.filter(d => d.status === 'Under Investigation').length}
-                      </p>
-                    </div>
-                    <AlertCircle className="w-8 h-8 text-blue-600" />
-                  </div>
-                </div>
-                <div className="bg-white p-4 rounded-lg shadow">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">Resolved</p>
-                      <p className="text-2xl font-bold text-green-600">
-                        {disputes.filter(d => d.status === 'Resolved').length}
-                      </p>
-                    </div>
-                    <CheckCircle className="w-8 h-8 text-green-600" />
-                  </div>
-                </div>
-              </div>
+          {/* Disputes Table */}
+          <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => requestSort('_id')}
+                    >
+                      <div className="flex items-center">
+                        Dispute Info
+                        {getSortIcon('_id')}
+                      </div>
+                    </th>
+                    <th
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => requestSort('disputeType')}
+                    >
+                      <div className="flex items-center">
+                        Type
+                        {getSortIcon('disputeType')}
+                      </div>
+                    </th>
+                    <th
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => requestSort('amount')}
+                    >
+                      <div className="flex items-center">
+                        Amount
+                        {getSortIcon('amount')}
+                      </div>
+                    </th>
+                    <th
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => requestSort('status')}
+                    >
+                      <div className="flex items-center">
+                        Status
+                        {getSortIcon('status')}
+                      </div>
+                    </th>
+                    <th
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => requestSort('createdAt')}
+                    >
+                      <div className="flex items-center">
+                        Date
+                        {getSortIcon('createdAt')}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {sortedDisputes.map((dispute) => (
+                    <tr key={dispute._id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4">
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">
+                            #{dispute._id?.slice(-8) || 'N/A'}
+                          </div>
+                          <div className="text-sm text-gray-500 max-w-xs truncate">
+                            {dispute.description || 'No description'}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm text-gray-900">{dispute.disputeType || 'N/A'}</div>
+                        <div className="text-sm text-gray-500">{dispute.paymentCategory || 'N/A'}</div>
+                      </td>
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                        ₦{dispute.amount?.toLocaleString() || '0.00'}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(dispute.status)}`}>
+                          {getStatusIcon(dispute.status)}
+                          {dispute.status || 'N/A'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-500">
+                        {dispute.createdAt ? new Date(dispute.createdAt).toLocaleDateString() : 'N/A'}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedDispute(dispute);
+                              setShowDetails(true);
+                            }}
+                            className="text-blue-600 hover:text-blue-900 flex items-center gap-1 transition-colors text-sm"
+                            title="View dispute details"
+                          >
+                            <Eye className="w-4 h-4" />
+                            View
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenUpdate(dispute)}
+                            className="text-amber-600 hover:text-amber-800 flex items-center gap-1 transition-colors text-sm"
+                            title="Update dispute status"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                            Update
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
-              {/* Filters */}
-              <div className="bg-white p-4 rounded-lg shadow mb-6">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div className="relative">
-                    <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Search disputes..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                    />
-                  </div>
-
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    aria-label="Filter disputes by status"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                  >
-                    <option value="">All Statuses</option>
-                    {statuses.map(status => (
-                      <option key={status} value={status}>{status}</option>
-                    ))}
-                  </select>
-
-                  <select
-                    value={typeFilter}
-                    onChange={(e) => setTypeFilter(e.target.value)}
-                    aria-label="Filter disputes by type"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                  >
-                    <option value="">All Types</option>
-                    {disputeTypes.map(type => (
-                      <option key={type} value={type}>{type}</option>
-                    ))}
-                  </select>
-
+            {filteredDisputes.length === 0 && (
+              <div className="text-center py-12">
+                <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-500 text-lg font-medium">No disputes found</p>
+                <p className="text-gray-400 text-sm mt-1">
+                  {searchTerm || statusFilter || typeFilter
+                    ? 'Try adjusting your filters'
+                    : 'Create your first dispute to get started'}
+                </p>
+                {(searchTerm || statusFilter || typeFilter) && (
                   <button
                     onClick={() => {
                       setSearchTerm('');
                       setStatusFilter('');
                       setTypeFilter('');
                     }}
-                    className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 flex items-center justify-center gap-2 transition-colors"
+                    className="mt-4 text-blue-600 hover:text-blue-800 text-sm font-medium"
                     title="Clear all filters"
                     aria-label="Clear all filters"
                   >
-                    <Filter className="w-4 h-4" />
-                    Clear Filters
+                    Clear all filters
                   </button>
-                </div>
+                )}
               </div>
-            </div>
-
-            {/* Disputes Table */}
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                        onClick={() => requestSort('_id')}
-                      >
-                        <div className="flex items-center">
-                          Dispute Info
-                          {getSortIcon('_id')}
-                        </div>
-                      </th>
-                      <th
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                        onClick={() => requestSort('disputeType')}
-                      >
-                        <div className="flex items-center">
-                          Type
-                          {getSortIcon('disputeType')}
-                        </div>
-                      </th>
-                      <th
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                        onClick={() => requestSort('amount')}
-                      >
-                        <div className="flex items-center">
-                          Amount
-                          {getSortIcon('amount')}
-                        </div>
-                      </th>
-                      <th
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                        onClick={() => requestSort('status')}
-                      >
-                        <div className="flex items-center">
-                          Status
-                          {getSortIcon('status')}
-                        </div>
-                      </th>
-                      <th
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                        onClick={() => requestSort('createdAt')}
-                      >
-                        <div className="flex items-center">
-                          Date
-                          {getSortIcon('createdAt')}
-                        </div>
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {sortedDisputes.map((dispute) => (
-                      <tr key={dispute._id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4">
-                          <div>
-                            <div className="text-sm font-medium text-gray-900">
-                              #{dispute._id?.slice(-8) || 'N/A'}
-                            </div>
-                            <div className="text-sm text-gray-500 max-w-xs truncate">
-                              {dispute.description || 'No description'}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="text-sm text-gray-900">{dispute.disputeType || 'N/A'}</div>
-                          <div className="text-sm text-gray-500">{dispute.paymentCategory || 'N/A'}</div>
-                        </td>
-                        <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                          ₦{dispute.amount?.toLocaleString() || '0.00'}
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(dispute.status)}`}>
-                            {getStatusIcon(dispute.status)}
-                            {dispute.status || 'N/A'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-500">
-                          {dispute.createdAt ? new Date(dispute.createdAt).toLocaleDateString() : 'N/A'}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedDispute(dispute);
-                                setShowDetails(true);
-                              }}
-                              className="text-blue-600 hover:text-blue-900 flex items-center gap-1 transition-colors text-sm"
-                              title="View dispute details"
-                            >
-                              <Eye className="w-4 h-4" />
-                              View
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenUpdate(dispute)}
-                              className="text-amber-600 hover:text-amber-800 flex items-center gap-1 transition-colors text-sm"
-                              title="Update dispute status"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                              Update
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {filteredDisputes.length === 0 && (
-                <div className="text-center py-12">
-                  <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500 text-lg font-medium">No disputes found</p>
-                  <p className="text-gray-400 text-sm mt-1">
-                    {searchTerm || statusFilter || typeFilter
-                      ? 'Try adjusting your filters'
-                      : 'Create your first dispute to get started'}
-                  </p>
-                  {(searchTerm || statusFilter || typeFilter) && (
-                    <button
-                      onClick={() => {
-                        setSearchTerm('');
-                        setStatusFilter('');
-                        setTypeFilter('');
-                      }}
-                      className="mt-4 text-blue-600 hover:text-blue-800 text-sm font-medium"
-                      title="Clear all filters"
-                      aria-label="Clear all filters"
-                    >
-                      Clear all filters
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
+            )}
           </div>
-        </main>
-      </div>
+        </div>
+      </main>
 
       {/* Create Dispute Modal */}
       {showCreateForm && (
@@ -1144,8 +1134,7 @@ const DisputePage = () => {
         </div>
       )}
 
-      <Footer />
-    </div>
+    </>
   );
 };
 

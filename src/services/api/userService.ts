@@ -35,11 +35,70 @@ import type {
 } from '../../types/user';
 import axios from 'axios';
 
+let cached: { data: UserResponse; at: number; token: string | null } | null = null;
+let inflight: { promise: Promise<UserResponse>; token: string | null } | null = null;
+
+const USER_CACHE_TTL = 60_000;
+
+const currentToken = () => localStorage.getItem('token');
+
+export interface GetTransactionsParams {
+  page?: number;
+  limit?: number;
+}
+
+export interface UpdateChargePayload {
+  name: string;
+  chargeType: 'Flat' | 'Percentage';
+  amount: number;
+  amount2?: number;
+  amount3?: number;
+  description: string;
+}
+
+export interface CreateStorePayload {
+  schoolId: string;
+  schoolName: string;
+  storeName: string;
+  storeType: string;
+  location: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+}
+
+
 
 // Get user details
-export const getUserDetails = async (): Promise<UserResponse> => {
-  const response = await apiClient.get<UserResponse>('/api/users/getuserone');
-  return response.data;
+export const getUserDetails = async (force = false): Promise<UserResponse> => {
+  const token = currentToken();
+
+  if (!force && cached && cached.token === token && Date.now() - cached.at < USER_CACHE_TTL) {
+    return cached.data;
+  }
+
+  if (!force && inflight && inflight.token === token) {
+    return inflight.promise;
+  }
+
+  const promise = apiClient
+    .get<UserResponse>('/api/users/getuserone')
+    .then((res) => {
+      cached = { data: res.data, at: Date.now(), token };
+      return res.data;
+    })
+    .finally(() => {
+      inflight = null;
+    });
+
+  inflight = { promise, token };
+  return promise;
+};
+
+export const clearUserCache = () => {
+  cached = null;
+  inflight = null;
 };
 
 // Get store count
@@ -55,8 +114,13 @@ export const getClasses = async (): Promise<ClassesResponse> => {
 };
 
 // Get user transactions
-export const getUserTransactions = async (): Promise<TransactionsResponse> => {
-  const response = await apiClient.get<TransactionsResponse>('/api/transaction/getusertransaction');
+export const getUserTransactions = async (
+  params: GetTransactionsParams = {}
+): Promise<TransactionsResponse> => {
+  const response = await apiClient.get<TransactionsResponse>(
+    '/api/transaction/getusertransaction',
+    { params }
+  );
   return response.data;
 };
 
@@ -241,8 +305,8 @@ export const getAgentCount = async (): Promise<number> => {
     const rawAgents = Array.isArray(agentsResponse.data?.agent)
       ? agentsResponse.data.agent
       : Array.isArray((agentsResponse as unknown as { agent?: unknown }).agent)
-      ? (agentsResponse as unknown as { agent?: StoreAgent[] }).agent
-      : [];
+        ? (agentsResponse as unknown as { agent?: StoreAgent[] }).agent
+        : [];
 
     const agents: StoreAgent[] = Array.isArray(rawAgents) ? rawAgents : [];
 
@@ -444,6 +508,26 @@ export const getAgentsInStoreByAdmin = async (storeId: string): Promise<StoreAge
   });
 };
 
+// Create a store (owner is emailed an invite to set their password)
+export const createStore = async (payload: CreateStorePayload): Promise<{ message: string }> => {
+  try {
+    const response = await apiClient.post<{ message: string }>('/api/users/register', {
+      ...payload,
+      role: 'store',
+    });
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw new Error(
+        error.response?.data?.message ||
+          error.response?.data?.error ||
+          'Failed to create store.'
+      );
+    }
+    throw new Error('Failed to create store.');
+  }
+};
+
 // Register agent
 export const registerAgent = async (
   agentData: AgentRegistrationData
@@ -582,6 +666,30 @@ export const getAllCharges = async (): Promise<Charge[]> => {
 
   return [];
 };
+
+// Update a charge
+export const updateCharge = async (
+  chargeId: string,
+  payload: UpdateChargePayload
+): Promise<{ message: string; data?: Charge }> => {
+  try {
+    const response = await apiClient.put<{ message: string; data?: Charge }>(
+      `/api/charge/updateCharge/${encodeURIComponent(chargeId)}`,
+      payload
+    );
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const message =
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        'Failed to update charge.';
+      throw new Error(message);
+    }
+    throw new Error('Failed to update charge.');
+  }
+};
+
 
 // Get all school users
 export const getAllSchoolUsers = async (): Promise<{
@@ -1107,36 +1215,88 @@ export const verifyPinOtp = async (otp: string, newPin: string) => {
 
 
 // Admin Fetch all platform transactions across all user roles (Student, School, Parent, Agent, Store)
-export const getAllTransactionsForAdmin = async (): Promise<Transaction[]> => {
+
+export interface TransactionsPagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface PaginatedTransactions {
+  transactions: Transaction[];
+  pagination: TransactionsPagination;
+}
+
+export const getAdminTransactionsPage = async ({
+  page = 1,
+  limit = 10,
+}: { page?: number; limit?: number } = {}): Promise<PaginatedTransactions> => {
   const endpoints = [
     '/api/transaction/getalltransactions',
     '/api/transaction/getalltransaction',
     '/api/transaction/all',
     '/api/transaction/getusertransaction',
-    '/api/charge/getAllCharges'
+    '/api/charge/getAllCharges',
   ];
+
+  // For endpoints that ignore page/limit and return the whole list,
+  // slice it here so the UI still paginates correctly.
+  const sliceLocally = (list: Transaction[]): PaginatedTransactions => {
+    const total = list.length;
+    const start = (page - 1) * limit;
+    return {
+      transactions: list.slice(start, start + limit),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
+    };
+  };
 
   for (const endpoint of endpoints) {
     try {
-      const response = await apiClient.get(endpoint);
+      const response = await apiClient.get(endpoint, { params: { page, limit } });
       const data = response.data;
+
       if (Array.isArray(data)) {
-        return data as Transaction[];
+        return sliceLocally(data as Transaction[]);
       }
+
       if (data && typeof data === 'object') {
         const record = data as {
           data?: Transaction[];
           transactions?: Transaction[];
           history?: Transaction[];
           charges?: Transaction[];
+          pagination?: Partial<TransactionsPagination>;
         };
         const list = record.data || record.transactions || record.history || record.charges;
-        if (Array.isArray(list) && list.length > 0) {
-          return list;
+
+        if (Array.isArray(list)) {
+          // Server-side pagination: trust the server's meta (an empty page is valid here)
+          if (record.pagination && typeof record.pagination.total === 'number') {
+            const p = record.pagination;
+            const lim = p.limit ?? limit;
+            return {
+              transactions: list,
+              pagination: {
+                page: p.page ?? page,
+                limit: lim,
+                total: p.total as number,
+                totalPages: p.totalPages ?? Math.max(1, Math.ceil((p.total as number) / lim)),
+              },
+            };
+          }
+          // No pagination meta: endpoint returned everything, slice locally
+          if (list.length > 0) {
+            return sliceLocally(list);
+          }
         }
       }
     } catch {
-      // Continue trying next endpoint
       console.warn(`Admin transactions endpoint ${endpoint} failed, trying next...`);
     }
   }
@@ -1144,8 +1304,8 @@ export const getAllTransactionsForAdmin = async (): Promise<Transaction[]> => {
   // Fallback to getUserTransactions
   try {
     const res = await getUserTransactions();
-    return res.data || res.transactions || [];
+    return sliceLocally(res.data || res.transactions || []);
   } catch {
-    return [];
+    return sliceLocally([]);
   }
 };

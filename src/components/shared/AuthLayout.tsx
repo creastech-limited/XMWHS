@@ -1,5 +1,4 @@
 import React from 'react';
-import { Link as RouterLink } from 'react-router-dom';
 
 interface AuthLayoutProps {
   children: React.ReactNode;
@@ -16,9 +15,6 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
   children,
   title,
   subtitle,
-  linkText,
-  linkTo,
-  linkLabel,
   logo,
   bgImage
 }) => {
@@ -39,15 +35,6 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
 
           {subtitle && (
             <p className="text-gray-600 text-center mt-1">{subtitle}</p>
-          )}
-
-          {linkText && linkTo && (
-            <p className="text-gray-600 mt-2">
-              {linkText}{' '}
-              <RouterLink to={linkTo} className="text-indigo-700 font-semibold hover:underline">
-                {linkLabel || linkText}
-              </RouterLink>
-            </p>
           )}
         </div>
 

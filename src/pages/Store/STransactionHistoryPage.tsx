@@ -1,43 +1,57 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { jsPDF } from 'jspdf';
-import { Link } from 'react-router-dom';
 import {
-    ArrowLeft,
-    Receipt,
-    Filter,
     Search as SearchIcon,
     Download,
     Check,
     Clock,
+    X,
+    Copy,
+    RefreshCw,
+    ArrowLeftRight,
+    ChevronDown,
+    ChevronLeft,
+    ChevronRight,
+    AlertTriangle,
     AlertCircle,
-    User,
-    Calendar,
-    Share2,
-    FileText,
-    DollarSign,
+    Receipt,
 } from 'lucide-react';
-import StoreHeader from '../../components/StoreHeader';
-import StoreSidebar from '../../components/StoreSidebar';
-import Footer from '../../components/Footer';
 import { useAuth } from '../../context/AuthContext';
 import type { TransactionsResponse, UserResponse } from '../../types';
 import { getUserDetails, getUserTransactions } from '../../services';
 
+/* -------------------------------------------------------------------------- */
+/*  Types                                                                      */
+/* -------------------------------------------------------------------------- */
+
+type Status = 'Completed' | 'Pending' | 'Failed';
 
 type Transaction = {
-    category?: string;
-    id: string;
-    date: string;
+    id: string; // full id from the API
+    displayId: string; // short id for the table, e.g. TXN-8B65A1
+    reference?: string;
+    status: Status;
+    category: 'credit' | 'debit' | '';
+    method: string;
     amount: number;
-    status: 'Completed' | 'Pending' | 'Failed';
+    charges: number;
+    balanceBefore?: number;
+    balanceAfter?: number;
     agent: string;
-    agentId?: string;
+    agentEmail: string;
+    agentPhone?: string;
+    customer: string;
+    customerEmail: string;
+    customerPhone?: string;
     description?: string;
-    createdAt?: string;
+    errorCode?: string;
+    createdAt: string; // ISO
     updatedAt?: string;
+    timestamp: number;
+    dateKey: string; // YYYY-MM-DD (local)
 };
 
-type User = {
+type AppUser = {
     _id: string;
     name: string;
     email: string;
@@ -47,192 +61,346 @@ type User = {
     status?: string;
     createdAt?: string;
     updatedAt?: string;
-    // Add other user properties as needed
 };
+
+type Wallet = { email?: string; firstName?: string; lastName?: string; phone?: string };
+
+/* -------------------------------------------------------------------------- */
+/*  Helpers                                                                    */
+/* -------------------------------------------------------------------------- */
+
+const naira = (n: number) => `₦${n.toLocaleString()}`;
+const nairaExact = (n: number) =>
+    `₦${n.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const titleCase = (s: string) => s.replace(/\b\w/g, (c) => c.toUpperCase());
+
+const formatMethod = (type: string) =>
+    type ? titleCase(type.replace(/_(received|sent)$/, '').replace(/_/g, ' ').trim()) : 'Wallet Transfer';
+
+const formatTime = (d: Date) =>
+    d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+const formatDateTime = (iso?: string) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    return `${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}, ${formatTime(d)}`;
+};
+
+const dayLabel = (dateKey: string) => {
+    const [y, m, d] = dateKey.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+
+    const base = date.toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'long',
+        ...(date.getFullYear() !== today.getFullYear() ? { year: 'numeric' as const } : {}),
+    });
+    if (date.toDateString() === today.toDateString()) return `Today, ${base}`;
+    if (date.toDateString() === yesterday.toDateString()) return `Yesterday, ${base}`;
+    return `${date.toLocaleDateString('en-GB', { weekday: 'long' })}, ${base}`;
+};
+
+const initials = (name: string) =>
+    name
+        .replace(/@.*/, '')
+        .split(/[\s._-]+/)
+        .filter(Boolean)
+        .map((w) => w[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2) || '?';
+
+const AVATAR_COLORS = ['bg-indigo-600', 'bg-teal-600', 'bg-amber-600', 'bg-rose-600', 'bg-sky-600'];
+const avatarColor = (name: string) =>
+    AVATAR_COLORS[name.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length];
+
+const pageList = (current: number, total: number): (number | '…')[] => {
+    const set = new Set([1, total, current - 1, current, current + 1].filter((p) => p >= 1 && p <= total));
+    const sorted = [...set].sort((a, b) => a - b);
+    const out: (number | '…')[] = [];
+    sorted.forEach((p, i) => {
+        if (i > 0 && p - sorted[i - 1] > 1) out.push('…');
+        out.push(p);
+    });
+    return out;
+};
+
+const toCsv = (rows: Transaction[]) => {
+    const esc = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+    const header = ['Transaction ID', 'Reference', 'Date', 'Agent', 'Agent email', 'Customer', 'Customer email', 'Method', 'Type', 'Amount', 'Charges', 'Status'];
+    const lines = rows.map((t) =>
+        [t.id, t.reference ?? '', formatDateTime(t.createdAt), t.agent, t.agentEmail, t.customer, t.customerEmail, t.method, t.category, t.amount, t.charges, t.status]
+            .map(esc)
+            .join(','),
+    );
+    return [header.map(esc).join(','), ...lines].join('\n');
+};
+
+/* -------------------------------------------------------------------------- */
+/*  Small presentational components                                            */
+/* -------------------------------------------------------------------------- */
+
+const STATUS_STYLES: Record<Status, string> = {
+    Completed: 'bg-green-50 text-green-700',
+    Pending: 'bg-amber-50 text-amber-700',
+    Failed: 'bg-red-50 text-red-700',
+};
+const STATUS_DOT: Record<Status, string> = {
+    Completed: 'bg-green-500',
+    Pending: 'bg-amber-500',
+    Failed: 'bg-red-500',
+};
+
+const StatusPill = ({ status }: { status: Status }) => (
+    <span className={`inline-flex items-center gap-1.5 h-6 px-2.5 rounded-md text-xs font-semibold ${STATUS_STYLES[status]}`}>
+        <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[status]}`} />
+        {status}
+    </span>
+);
+
+const AgentAvatar = ({ name, size = 'md' }: { name: string; size?: 'md' | 'lg' }) => (
+    <div
+        className={`${size === 'lg' ? 'h-10 w-10 text-sm' : 'h-8 w-8 text-xs'} shrink-0 rounded-lg ${avatarColor(name)} text-white font-bold flex items-center justify-center`}
+    >
+        {initials(name)}
+    </div>
+);
+
+const StatCard = ({ label, value, sub }: { label: string; value: string; sub: string }) => (
+    <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+        <p className="text-2xl font-bold text-[#0b1230] mt-1.5">{value}</p>
+        <p className="text-xs text-slate-500 mt-1">{sub}</p>
+    </div>
+);
+
+const FilterSelect = ({
+    icon,
+    label,
+    value,
+    onChange,
+    options,
+}: {
+    icon: React.ReactNode;
+    label: string;
+    value: string;
+    onChange: (v: string) => void;
+    options: { value: string; label: string }[];
+}) => {
+    const active = value !== 'all';
+    return (
+        <label
+            className={`relative inline-flex items-center gap-2 h-9 pl-3 pr-8 rounded-lg border text-sm cursor-pointer transition-colors focus-within:ring-2 focus-within:ring-[#0b1230]/20 ${active ? 'bg-indigo-50 border-indigo-200 text-[#0b1230]' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
+        >
+            {icon}
+            <span>{label}</span>
+            <select
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                className="appearance-none bg-transparent font-semibold text-slate-900 focus:outline-none cursor-pointer pr-1"
+            >
+                {options.map((o) => (
+                    <option key={o.value} value={o.value}>
+                        {o.label}
+                    </option>
+                ))}
+            </select>
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 pointer-events-none" />
+        </label>
+    );
+};
+
+const CopyButton = ({ value }: { value: string }) => {
+    const [copied, setCopied] = useState(false);
+    return (
+        <button
+            type="button"
+            aria-label="Copy"
+            onClick={async (e) => {
+                e.stopPropagation();
+                try {
+                    await navigator.clipboard.writeText(value);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 1500);
+                } catch {
+                    /* clipboard unavailable */
+                }
+            }}
+            className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+        >
+            {copied ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
+        </button>
+    );
+};
+
+const DrawerSection = ({ title, children }: { title: string; children: React.ReactNode }) => (
+    <section className="px-5 py-5 border-b border-slate-200 last:border-b-0">
+        <h4 className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-3">{title}</h4>
+        <dl className="space-y-2.5">{children}</dl>
+    </section>
+);
+
+const DetailRow = ({ label, children }: { label: string; children: React.ReactNode }) => (
+    <div className="flex items-center justify-between gap-4 text-sm">
+        <dt className="text-slate-500 shrink-0">{label}</dt>
+        <dd className="text-slate-900 font-medium text-right min-w-0 flex items-center justify-end gap-1">{children}</dd>
+    </div>
+);
+
+/* -------------------------------------------------------------------------- */
+/*  Page                                                                       */
+/* -------------------------------------------------------------------------- */
 
 const STransactionHistoryPage = () => {
     const auth = useAuth();
     const [transactions, setTransactions] = useState<Transaction[]>([]);
-    const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
-    const [activeReceiptTx, setActiveReceiptTx] = useState<Transaction | null>(null);
-    const [showFilters, setShowFilters] = useState(false);
-    const [statusFilter, setStatusFilter] = useState("all");
-    const [typeFilter, setTypeFilter] = useState("all");
+    const [statusFilter, setStatusFilter] = useState('all');
+    const [typeFilter, setTypeFilter] = useState('all');
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
 
+    // Receipt drawer
+    const [activeTx, setActiveTx] = useState<Transaction | null>(null);
+    const [drawerOpen, setDrawerOpen] = useState(false);
+    const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Handle authentication errors
-    const handleAuthError = useCallback((message: string) => {
-        setError(message);
-        // Clear stored credentials
-        localStorage.removeItem('token');
-        auth?.logout?.();
-        // Redirect to login page if needed
-        // navigate('/login');
-    }, [auth]);
+    /* ------------------------------ Data fetching ------------------------------ */
 
-    // Fetch user details from API
-    const fetchUserDetails = useCallback(async (): Promise<User> => {
+    const handleAuthError = useCallback(
+        (message: string) => {
+            setError(message);
+            localStorage.removeItem('token');
+            auth?.logout?.();
+        },
+        [auth],
+    );
+
+    const fetchUserDetails = useCallback(async (): Promise<AppUser> => {
         try {
             const data: UserResponse = await getUserDetails();
 
-            console.log('User details response:', data);
-
-
-            // Handle different response structures
-            let profile: User | undefined;
+            let profile: AppUser | undefined;
             if (data.user?.data) {
                 profile = data.user.data;
             } else if (data.data) {
                 profile = data.data;
             } else if (data.user) {
-                profile = data.user as User;
+                profile = data.user as AppUser;
             } else {
-                profile = data as User;
+                profile = data as AppUser;
             }
 
             if (!profile) {
                 throw new Error('Invalid user data received from API');
             }
-
             return profile;
-        } catch (error) {
-            console.error('Error fetching user details:', error);
-            throw error;
+        } catch (err) {
+            console.error('Error fetching user details:', err);
+            throw err;
         }
     }, []);
 
-    // Fetch transactions from API
     const fetchTransactions = useCallback(async (): Promise<Transaction[]> => {
         try {
             const data: TransactionsResponse = await getUserTransactions();
 
-            console.log('Transactions API Response:', JSON.stringify(data, null, 2));
-
-
-            // Handle different response structures for transactions
-            let transactionList: unknown[] = [];
+            let list: unknown[] = [];
             if (data.transactions) {
-                transactionList = data.transactions;
+                list = data.transactions;
             } else if (data.data) {
-                transactionList = Array.isArray(data.data) ? data.data : [data.data];
+                list = Array.isArray(data.data) ? data.data : [data.data];
             } else if (Array.isArray(data)) {
-                transactionList = data;
+                list = data;
             }
 
-            // Transform API data to match our Transaction type
-            const transformedTransactions: Transaction[] = transactionList.map((txn, index: number) => {
+            const mapped: Transaction[] = list.map((txn, index: number) => {
                 const t = txn as Record<string, unknown> & {
+                    senderWalletId?: Wallet | string;
+                    receiverWalletId?: Wallet | string;
                     metadata?: { senderEmail?: string; receiverEmail?: string };
-                    senderWalletId?: { email?: string };
                 };
-                // Determine status based on API response
-                let status: 'Completed' | 'Pending' | 'Failed' = 'Completed';
-                if (t.status) {
-                    const statusLower = typeof t.status === 'string' ? t.status.toLowerCase() : '';
-                    if (statusLower.includes('pending') || statusLower.includes('processing')) {
-                        status = 'Pending';
-                    } else if (statusLower.includes('failed') || statusLower.includes('cancelled') || statusLower.includes('rejected')) {
-                        status = 'Failed';
-                    } else if (statusLower.includes('completed') || statusLower.includes('success') || statusLower.includes('approved')) {
-                        status = 'Completed';
-                    }
-                }
 
-                // Format date
-                let formattedDate = new Date().toLocaleDateString('en-GB', {
-                    day: '2-digit',
-                    month: 'short',
-                    year: 'numeric'
-                });
+                // Status
+                let status: Status = 'Completed';
+                const s = typeof t.status === 'string' ? t.status.toLowerCase() : '';
+                if (s.includes('pending') || s.includes('processing')) status = 'Pending';
+                else if (s.includes('failed') || s.includes('cancelled') || s.includes('rejected')) status = 'Failed';
 
-                if (t.date || t.createdAt) {
-                    const dateObj = new Date((t.date as string | number | Date) || (t.createdAt as string | number | Date));
-                    if (!isNaN(dateObj.getTime())) {
-                        formattedDate = dateObj.toLocaleDateString('en-GB', {
-                            day: '2-digit',
-                            month: 'short',
-                            year: 'numeric'
-                        });
-                    }
-                }
+                // Date
+                const rawDate = (t.date || t.createdAt) as string | number | Date | undefined;
+                let d = rawDate ? new Date(rawDate) : new Date();
+                if (Number.isNaN(d.getTime())) d = new Date();
+                const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+                // Parties: the agent is the receiver, the customer is the sender
+                const category = String(t.category || '').toLowerCase();
+                const resolveParty = (raw: Wallet | string | undefined, fallbackEmail: string | undefined, fallbackName: string) => {
+                    const w = raw && typeof raw === 'object' ? raw : undefined;
+                    const fullName = [w?.firstName, w?.lastName].filter(Boolean).join(' ');
+                    const email = w?.email || fallbackEmail || '';
+                    return { name: fullName || email || fallbackName, email, phone: w?.phone };
+                };
+                const agentParty = resolveParty(
+                    t.receiverWalletId,
+                    t.metadata?.receiverEmail,
+                    String(t.agent || t.agentName || t.to || `Agent ${String.fromCharCode(65 + (index % 26))}`),
+                );
+                const customerParty = resolveParty(
+                    t.senderWalletId,
+                    t.metadata?.senderEmail,
+                    String(t.customer || t.customerName || t.from || 'Customer'),
+                );
+
+                const id = String(t.id || t._id || `TX${1000 + index}`);
+                const num = (v: unknown) => (typeof v === 'number' ? v : undefined);
+
                 return {
-                    id: String(t.id || t._id || `TX${1000 + index}`),
-                    date: formattedDate,
-                    amount: Math.abs(Number(t.amount) || 0),
+                    id,
+                    displayId: `TXN-${id.slice(-6).toUpperCase()}`,
+                    reference: t.reference ? String(t.reference) : undefined,
                     status,
-                    category: String(t.category || "").toLowerCase(),
-                    agent: String(
-                        t.metadata?.senderEmail ||
-                        t.senderWalletId?.email ||
-                        t.agent ||
-                        t.agentName ||
-                        t.from ||
-                        t.to ||
-                        `Agent ${String.fromCharCode(65 + (index % 26))}`
-                    ),
-                    agentId: t.agentId ? String(t.agentId) : t.agent_id ? String(t.agent_id) : undefined,
-                    description: t.description ? String(t.description) : t.note ? String(t.note) : undefined,
-                    createdAt: t.createdAt ? String(t.createdAt) : undefined,
+                    category: category === 'credit' || category === 'debit' ? category : '',
+                    method: formatMethod(String(t.transactionType || '')),
+                    amount: Math.abs(Number(t.amount) || 0),
+                    charges: Math.abs(Number(t.charges) || 0),
+                    balanceBefore: num(t.balanceBefore),
+                    balanceAfter: num(t.balanceAfter),
+                    agent: agentParty.name,
+                    agentEmail: agentParty.email,
+                    agentPhone: agentParty.phone,
+                    customer: customerParty.name,
+                    customerEmail: customerParty.email,
+                    customerPhone: customerParty.phone,
+                    description:
+                        t.description && String(t.description) !== 'No description provided'
+                            ? String(t.description)
+                            : t.note
+                                ? String(t.note)
+                                : undefined,
+                    errorCode: t.errorCode ? String(t.errorCode) : undefined,
+                    createdAt: d.toISOString(),
                     updatedAt: t.updatedAt ? String(t.updatedAt) : undefined,
+                    timestamp: d.getTime(),
+                    dateKey,
                 };
             });
 
-            return transformedTransactions;
-        } catch (error) {
-            console.error('Error fetching transactions:', error);
-            throw error;
+            return mapped.sort((a, b) => b.timestamp - a.timestamp);
+        } catch (err) {
+            console.error('Error fetching transactions:', err);
+            throw err;
         }
     }, []);
-
-
-    // Function to generate PDF receipt for a transaction
-
-    const generateReceiptPDF = (txn: Transaction) => {
-        const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: [100, 150] });
-        const centerX = 50;
-
-        // Header
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(16);
-        doc.setTextColor(37, 99, 235); // Blue-600
-        doc.text("XPAY DIGITAL", centerX, 15, { align: 'center' });
-
-        doc.setFontSize(8);
-        doc.setTextColor(100, 116, 139);
-        doc.text("TRANSACTION RECEIPT", centerX, 20, { align: 'center' });
-
-        // Divider
-        doc.setDrawColor(226, 232, 240);
-        doc.line(10, 25, 90, 25);
-
-        // Amount
-        doc.setFontSize(18);
-        doc.setTextColor(15, 23, 42);
-        doc.text(`NGN ${txn.amount.toLocaleString()}`, centerX, 40, { align: 'center' });
-
-        // Details
-        doc.setFontSize(9);
-        const startY = 55;
-        const details = [
-            ["Status:", txn.status.toUpperCase()],
-            ["Agent/Receiver:", txn.agent],
-            ["Transaction ID:", txn.id],
-            ["Date:", txn.date],
-            ["Description:", txn.description || 'N/A']
-        ];
-
-        details.forEach((item, index) => {
-            doc.setTextColor(100, 116, 139);
-            doc.text(item[0], 15, startY + (index * 8));
-            doc.setTextColor(30, 41, 59);
-            doc.text(item[1], 85, startY + (index * 8), { align: 'right' });
-        });
-
-        return doc;
-    };
 
     // Initialize authentication and fetch data
     useEffect(() => {
@@ -240,67 +408,45 @@ const STransactionHistoryPage = () => {
             try {
                 setLoading(true);
                 setError(null);
-                console.log('Starting auth initialization...');
 
-                // Check if already in context
                 if (auth?.user?._id && auth?.token) {
-                    console.log('Found user in auth context:', auth.user);
-                    setUser(auth.user);
-
-                    // Fetch transactions with existing token
+                    persistUser(auth.user);
                     try {
-                        const transactionData = await fetchTransactions();
-                        setTransactions(transactionData);
-                        setFilteredTransactions(transactionData);
-                    } catch (transactionError) {
-                        console.error('Error fetching transactions:', transactionError);
+                        setTransactions(await fetchTransactions());
+                    } catch (txError) {
+                        console.error('Error fetching transactions:', txError);
                         setError('Failed to load transactions');
                     }
-
                     setLoading(false);
                     return;
                 }
 
-                // Try localStorage
                 const storedToken = localStorage.getItem('token');
                 if (!storedToken) {
-                    console.log('No token in localStorage');
                     throw new Error('No authentication token found');
                 }
 
-                console.log('Found token in localStorage:', storedToken);
-
-                // Fetch user from API to ensure fresh data
-                console.log('Fetching user from API...');
                 const profile = await fetchUserDetails();
-                console.log('Successfully fetched user profile:', profile);
+                persistUser(profile);
 
-                // Update local state
-                setUser(profile);
+                auth?.login?.(
+                    {
+                        _id: profile._id,
+                        name: profile.name,
+                        email: profile.email,
+                        role: profile.role,
+                        status: profile.status || 'active',
+                        senderEmail: profile.senderEmail,
+                        senderWalletId: profile.senderWalletId,
+                        createdAt: profile.createdAt || new Date().toISOString(),
+                        updatedAt: profile.updatedAt || new Date().toISOString(),
+                    } as const,
+                    storedToken,
+                );
 
-                // Update auth context with ensured required fields
-                const userWithRequiredFields = {
-                    _id: profile._id,
-                    name: profile.name,
-                    email: profile.email,
-                    role: profile.role,
-                    status: profile.status || 'active',
-                    senderEmail: profile.senderEmail,
-                    senderWalletId: profile.senderWalletId,
-                    createdAt: profile.createdAt || new Date().toISOString(),
-                    updatedAt: profile.updatedAt || new Date().toISOString(),
-                } as const;
-                auth?.login?.(userWithRequiredFields, storedToken);
-
-                // Fetch transactions
-                console.log('Fetching transactions from API...');
-                const transactionData = await fetchTransactions();
-                console.log('Successfully fetched transactions:', transactionData);
-                setTransactions(transactionData);
-                setFilteredTransactions(transactionData);
-
-            } catch (error) {
-                console.error('Auth initialization error:', error);
+                setTransactions(await fetchTransactions());
+            } catch (err) {
+                console.error('Auth initialization error:', err);
                 handleAuthError('Authentication error. Please login again.');
             } finally {
                 setLoading(false);
@@ -310,414 +456,698 @@ const STransactionHistoryPage = () => {
         initializeAuth();
     }, [auth, fetchUserDetails, fetchTransactions, handleAuthError]);
 
-    // Filter transactions based on search query
+    const refresh = async () => {
+        setRefreshing(true);
+        setError(null);
+        try {
+            setTransactions(await fetchTransactions());
+        } catch {
+            setError('Failed to load transactions. Please try again.');
+        } finally {
+            setRefreshing(false);
+        }
+    };
+
+    /* ------------------------------ Derived data ------------------------------- */
+
+    const filtered = useMemo(() => {
+        const q = searchQuery.trim().toLowerCase();
+        return transactions.filter((t) => {
+            if (
+                q &&
+                !(
+                    t.id.toLowerCase().includes(q) ||
+                    t.displayId.toLowerCase().includes(q) ||
+                    t.agent.toLowerCase().includes(q) ||
+                    t.agentEmail.toLowerCase().includes(q) ||
+                    t.customer.toLowerCase().includes(q) ||
+                    t.customerEmail.toLowerCase().includes(q) ||
+                    (t.reference ?? '').toLowerCase().includes(q) ||
+                    t.status.toLowerCase().includes(q)
+                )
+            )
+                return false;
+            if (statusFilter !== 'all' && t.status !== statusFilter) return false;
+            if (typeFilter !== 'all' && t.category !== typeFilter) return false;
+            return true;
+        });
+    }, [transactions, searchQuery, statusFilter, typeFilter]);
+
     useEffect(() => {
-        let filtered = [...transactions];
+        setPage(1);
+    }, [searchQuery, statusFilter, typeFilter, pageSize]);
 
-        // Search
-        if (searchQuery.trim()) {
-            const search = searchQuery.toLowerCase();
+    const stats = useMemo(() => {
+        const completed = transactions.filter((t) => t.status === 'Completed');
+        const failed = transactions.filter((t) => t.status === 'Failed');
+        const credits = completed.filter((t) => t.category !== 'debit');
+        const volume = credits.reduce((sum, t) => sum + t.amount, 0);
+        return {
+            volume,
+            total: transactions.length,
+            completed: completed.length,
+            failed: failed.length,
+            rate: transactions.length ? (completed.length / transactions.length) * 100 : 0,
+            average: credits.length ? Math.round(volume / credits.length) : 0,
+            creditCount: credits.length,
+        };
+    }, [transactions]);
 
-            filtered = filtered.filter((txn) =>
-                txn.id.toLowerCase().includes(search) ||
-                txn.agent.toLowerCase().includes(search) ||
-                txn.status.toLowerCase().includes(search)
-            );
-        }
+    const filtersApplied = (searchQuery.trim() ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0) + (typeFilter !== 'all' ? 1 : 0);
+    const filteredTotal = useMemo(
+        () =>
+            filtered
+                .filter((t) => t.status === 'Completed')
+                .reduce((sum, t) => sum + (t.category === 'debit' ? -t.amount : t.amount), 0),
+        [filtered],
+    );
 
-        // Status
-        if (statusFilter !== "all") {
-            filtered = filtered.filter(
-                (txn) => txn.status.toLowerCase() === statusFilter.toLowerCase()
-            );
-        }
+    const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+    const currentPage = Math.min(page, totalPages);
+    const pageStart = (currentPage - 1) * pageSize;
+    const pageRows = filtered.slice(pageStart, pageStart + pageSize);
 
-        // Transaction Type
-        if (typeFilter !== "all") {
-            filtered = filtered.filter(
-                (txn) =>
-                    txn.category?.toLowerCase() ===
-                    typeFilter.toLowerCase()
-            );
-        }
+    const groups = useMemo(() => {
+        const map = new Map<string, Transaction[]>();
+        pageRows.forEach((t) => {
+            const arr = map.get(t.dateKey) ?? [];
+            arr.push(t);
+            map.set(t.dateKey, arr);
+        });
+        return [...map.entries()].map(([dateKey, rows]) => ({
+            dateKey,
+            rows,
+            total: rows
+                .filter((t) => t.status === 'Completed')
+                .reduce((sum, t) => sum + (t.category === 'debit' ? -t.amount : t.amount), 0),
+        }));
+    }, [pageRows]);
 
-        setFilteredTransactions(filtered);
-    }, [
-        transactions,
-        searchQuery,
-        statusFilter,
-        typeFilter,
-    ]);
-
-    // Retry function for failed requests
-    const retryFetch = async () => {
-        const retryToken = auth?.token || localStorage.getItem('token');
-        if (retryToken) {
-            setLoading(true);
-            setError(null);
-            try {
-                const transactionData = await fetchTransactions();
-                setTransactions(transactionData);
-                setFilteredTransactions(transactionData);
-            } catch {
-                setError('Failed to load transactions. Please try again.');
-            } finally {
-                setLoading(false);
-            }
-        }
+    const resetFilters = () => {
+        setSearchQuery('');
+        setStatusFilter('all');
+        setTypeFilter('all');
     };
 
-    // Function to render a status indicator with icon
-    const getStatusChip = (status: Transaction['status']) => {
-        switch (status) {
-            case 'Completed':
-                return (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-green-500 px-2 py-1 text-xs font-medium text-green-600">
-                        <Check className="h-3 w-3" />
-                        Completed
-                    </span>
-                );
-            case 'Pending':
-                return (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-500 px-2 py-1 text-xs font-medium text-amber-600">
-                        <Clock className="h-3 w-3" />
-                        Pending
-                    </span>
-                );
-            case 'Failed':
-                return (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-red-500 px-2 py-1 text-xs font-medium text-red-600">
-                        <AlertCircle className="h-3 w-3" />
-                        Failed
-                    </span>
-                );
-            default:
-                return <span className="text-xs">{status}</span>;
-        }
-    };
+    /* --------------------------------- Actions --------------------------------- */
 
-    // Function to create agent avatar with first letter
-    const getAgentAvatar = (agentName: string) => {
-        const letter = agentName.charAt(0);
-        const colors = ['bg-blue-600', 'bg-pink-600', 'bg-cyan-500', 'bg-orange-500', 'bg-green-500'];
-        const colorIndex = letter.charCodeAt(0) % colors.length;
-
-        return (
-            <div className="flex items-center gap-3">
-                <div className={`flex h-8 w-8 items-center justify-center rounded-full ${colors[colorIndex]} text-sm font-medium text-white`}>
-                    {letter}
-                </div>
-                <span className="text-sm">{agentName}</span>
-            </div>
-        );
-    };
-
-    // Export functionality placeholder
     const handleExport = () => {
-        // This would implement CSV/Excel export functionality
-        console.log('Exporting transactions...', filteredTransactions);
-        // You can implement actual export logic here
+        const blob = new Blob([toCsv(filtered)], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `transactions_${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
     };
+
+    const openDrawer = (tx: Transaction) => {
+        if (closeTimer.current) clearTimeout(closeTimer.current);
+        setActiveTx(tx);
+        requestAnimationFrame(() => requestAnimationFrame(() => setDrawerOpen(true)));
+    };
+
+    const closeDrawer = useCallback(() => {
+        setDrawerOpen(false);
+        if (closeTimer.current) clearTimeout(closeTimer.current);
+        closeTimer.current = setTimeout(() => setActiveTx(null), 300);
+    }, []);
+
+    useEffect(() => {
+        if (!activeTx) return;
+        const onKey = (e: KeyboardEvent) => e.key === 'Escape' && closeDrawer();
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [activeTx, closeDrawer]);
+
+    const generateReceiptPDF = (txn: Transaction) => {
+        const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: [100, 150] });
+        const centerX = 50;
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(16);
+        doc.setTextColor(11, 18, 48);
+        doc.text('XPAY DIGITAL', centerX, 15, { align: 'center' });
+
+        doc.setFontSize(8);
+        doc.setTextColor(100, 116, 139);
+        doc.text('TRANSACTION RECEIPT', centerX, 20, { align: 'center' });
+
+        doc.setDrawColor(226, 232, 240);
+        doc.line(10, 25, 90, 25);
+
+        doc.setFontSize(18);
+        doc.setTextColor(15, 23, 42);
+        doc.text(`NGN ${txn.amount.toLocaleString()}`, centerX, 40, { align: 'center' });
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        const startY = 55;
+        const details: [string, string][] = [
+            ['Status:', txn.status.toUpperCase()],
+            ['Agent:', txn.agent],
+            ['Customer:', txn.customer],
+            ['Method:', txn.method],
+            ['Charges:', `NGN ${txn.charges.toLocaleString()}`],
+            ['Transaction ID:', txn.id],
+            ['Date:', formatDateTime(txn.createdAt)],
+            ['Description:', txn.description || 'N/A'],
+        ];
+        details.forEach(([label, value], i) => {
+            doc.setTextColor(100, 116, 139);
+            doc.text(label, 15, startY + i * 8);
+            doc.setTextColor(30, 41, 59);
+            doc.text(value, 85, startY + i * 8, { align: 'right' });
+        });
+
+        if (txn.reference) {
+            doc.setFontSize(6);
+            doc.setTextColor(100, 116, 139);
+            doc.text(`Ref: ${txn.reference}`, centerX, startY + details.length * 8 + 6, { align: 'center' });
+        }
+
+        return doc;
+    };
+
+    const handleRaiseDispute = (txn: Transaction) => {
+        // TODO: wire this to the dispute endpoint once it exists, e.g. await raiseDispute(txn.id, reason)
+        console.info('Dispute requested for', txn.id);
+    };
+
+    /* --------------------------------- Render ---------------------------------- */
+
+    const hasData = !loading && !error;
 
     return (
-        <div className="text-gray-600 flex min-h-screen flex-col bg-gray-50">
-            {/* Header and Sidebar */}
-            <StoreHeader />
-            <div className="z-100">
-                <StoreSidebar />
-            </div>
-
-            {/* Main content wrapper with proper layout */}
-            <main className="flex-grow p-4 lg:p-8 lg:ml-64 transition-all duration-300">
-                {/* Main content */}
-                <div className="flex flex-1 flex-col px-4 sm:px-6 mt-4 mb-4 max-w-6xl mx-auto w-full">
-                    <div className="flex items-center mb-6">
-                        <Receipt className="mr-2 text-blue-600 h-7 w-7" />
-                        <h1 className="text-xl sm:text-2xl font-bold">
-                            Transaction History
-                        </h1>
+        <div className="text-slate-900 flex min-h-screen flex-col">
+            <div className="flex flex-1 flex-col px-4 sm:px-6 mt-4 mb-10 max-w-6xl mx-auto w-full">
+                {/* Header */}
+                <div className="flex items-start justify-between gap-4 mb-6">
+                    <div>
+                        <h1 className="text-2xl sm:text-3xl font-bold text-[#0b1230] tracking-tight">Transactions</h1>
+                        <p className="text-sm text-slate-500 mt-1">Every payment collected, searchable and exportable.</p>
                     </div>
+                    <button
+                        type="button"
+                        onClick={handleExport}
+                        disabled={!hasData || filtered.length === 0}
+                        className="inline-flex shrink-0 items-center gap-2 h-10 px-4 rounded-lg border border-slate-200 bg-white text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <Download className="w-4 h-4" />
+                        <span className="hidden sm:inline">Export CSV</span>
+                        <span className="sm:hidden">Export</span>
+                    </button>
+                </div>
 
-                    {loading ? (
-                        <div className="p-4 sm:p-6 rounded-xl shadow-sm bg-white mb-6 flex-1 w-full">
-                            <div className="animate-pulse">
-                                <div className="h-8 bg-gray-200 rounded mb-4"></div>
-                                <div className="h-64 bg-gray-200 rounded"></div>
-                            </div>
+                {loading ? (
+                    <div className="animate-pulse space-y-4">
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                            {[0, 1, 2, 3].map((i) => (
+                                <div key={i} className="h-24 bg-slate-200 rounded-2xl" />
+                            ))}
                         </div>
-                    ) : error ? (
-                        <div className="p-4 sm:p-6 rounded-xl shadow-sm bg-white mb-6 flex-1 w-full">
-                            <div className="text-center py-8">
-                                <div className="text-red-500 mb-4">
-                                    <svg className="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                    <p className="text-lg font-medium">{error}</p>
-                                </div>
-                                <button
-                                    onClick={retryFetch}
-                                    className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                                >
-                                    Try Again
-                                </button>
-                            </div>
+                        <div className="h-96 bg-slate-200 rounded-2xl" />
+                    </div>
+                ) : error ? (
+                    <div className="bg-white border border-slate-200 rounded-2xl text-center py-12 px-4">
+                        <AlertCircle className="w-12 h-12 mx-auto mb-3 text-red-500" />
+                        <p className="text-base font-semibold text-slate-900">{error}</p>
+                        <button
+                            onClick={refresh}
+                            className="mt-4 inline-flex items-center h-10 px-4 rounded-lg bg-[#0b1230] text-white text-sm font-semibold hover:bg-[#1a2352]"
+                        >
+                            Try again
+                        </button>
+                    </div>
+                ) : (
+                    <>
+                        {/* Stats */}
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-5">
+                            <StatCard
+                                label="Volume collected"
+                                value={naira(stats.volume)}
+                                sub={`Across ${stats.creditCount} completed payments`}
+                            />
+                            <StatCard label="Transactions" value={stats.total.toLocaleString()} sub="All time" />
+                            <StatCard
+                                label="Success rate"
+                                value={`${stats.rate.toFixed(1)}%`}
+                                sub={`${stats.completed} success · ${stats.failed} failed`}
+                            />
+                            <StatCard
+                                label="Average ticket"
+                                value={naira(stats.average)}
+                                sub={`Based on ${stats.creditCount} successful payments`}
+                            />
                         </div>
-                    ) : (
-                        <div className="p-4 sm:p-6 rounded-xl shadow-sm bg-white mb-6 flex-1 w-full">
-                            {/* Search and filter bar */}
-                            <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4 sm:gap-0">
-                                <div className="relative w-full sm:w-72">
-                                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                                        <SearchIcon className="h-4 w-4 text-gray-400" />
+
+                        {/* Table card */}
+                        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden mb-16">
+                            {/* Toolbar */}
+                            <div className="p-4 border-b border-slate-200">
+                                <div className="flex flex-wrap items-center justify-between gap-2.5">
+                                    <div className="relative w-full sm:w-72">
+                                        <SearchIcon className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                                        <input
+                                            type="text"
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            placeholder="Search by ID, agent, or reference"
+                                            className="w-full h-9 pl-9 pr-3 text-sm bg-slate-50 border border-slate-200 rounded-lg placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-[#0b1230] focus:ring-2 focus:ring-[#0b1230]/15"
+                                        />
                                     </div>
-                                    <input
-                                        type="text"
-                                        className="block w-full rounded-lg border border-gray-300 bg-gray-50 py-2 pl-10 pr-3 text-sm focus:border-blue-500 focus:ring-blue-500"
-                                        placeholder="Search transactions..."
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                    />
-                                </div>
-                                {showFilters && (
-                                    <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-                                            {/* Status */}
-                                            <div>
-                                                <label className="mb-2 block text-sm font-medium text-gray-700">
-                                                    Status
-                                                </label>
+                                    <div className="flex flex-wrap items-center gap-2.5">
 
-                                                <select
-                                                    value={statusFilter}
-                                                    onChange={(e) => setStatusFilter(e.target.value)}
-                                                    className="w-full rounded-lg border border-gray-300 px-3 py-2"
-                                                >
-                                                    <option value="all">All Status</option>
-                                                    <option value="Completed">Completed</option>
-                                                    <option value="Pending">Pending</option>
-                                                    <option value="Failed">Failed</option>
-                                                </select>
-                                            </div>
+                                        <FilterSelect
+                                            icon={<Clock className="w-4 h-4" />}
+                                            label="Status"
+                                            value={statusFilter}
+                                            onChange={setStatusFilter}
+                                            options={[
+                                                { value: 'all', label: 'All' },
+                                                { value: 'Completed', label: 'Completed' },
+                                                { value: 'Pending', label: 'Pending' },
+                                                { value: 'Failed', label: 'Failed' },
+                                            ]}
+                                        />
+                                        <FilterSelect
+                                            icon={<ArrowLeftRight className="w-4 h-4" />}
+                                            label="Type"
+                                            value={typeFilter}
+                                            onChange={setTypeFilter}
+                                            options={[
+                                                { value: 'all', label: 'All' },
+                                                { value: 'credit', label: 'Credit' },
+                                                { value: 'debit', label: 'Debit' },
+                                            ]}
+                                        />
 
-                                            {/* Type */}
-                                            <div>
-                                                <label className="mb-2 block text-sm font-medium text-gray-700">
-                                                    Transaction Type
-                                                </label>
-
-                                                <select
-                                                    value={typeFilter}
-                                                    onChange={(e) => setTypeFilter(e.target.value)}
-                                                    className="w-full rounded-lg border border-gray-300 px-3 py-2"
-                                                >
-                                                    <option value="all">All Types</option>
-                                                    <option value="credit">Credit</option>
-                                                    <option value="debit">Debit</option>
-                                                </select>
-                                            </div>
-
-                                        </div>
-                                    </div>
-                                )}
-                                <div className="flex gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowFilters(!showFilters)}
-                                        className="inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
-                                    >
-                                        <Filter className="h-4 w-4" />
-                                        Filters
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        onClick={handleExport}
-                                        className="inline-flex items-center gap-1 rounded-lg border border-transparent bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
-                                        title="Download Reports"
-                                    >
-                                        <Download className="h-4 w-4" />
-                                        Export
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div className="border-b border-gray-200 mb-4"></div>
-
-                            {filteredTransactions.length === 0 ? (
-                                <div className="text-center py-8 text-gray-500">
-                                    <Receipt className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                                    <p className="text-lg font-medium">
-                                        {searchQuery ? 'No transactions match your search' : 'No transactions found'}
-                                    </p>
-                                    {searchQuery && (
                                         <button
-                                            onClick={() => setSearchQuery('')}
-                                            className="text-blue-600 hover:text-blue-800 text-sm mt-2"
+                                            type="button"
+                                            onClick={resetFilters}
+                                            disabled={filtersApplied === 0}
+                                            className="h-9 px-2 text-sm text-slate-500 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed"
                                         >
-                                            Clear search
+                                            Reset
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={refresh}
+                                            disabled={refreshing}
+                                            className="inline-flex items-center gap-2 h-9 px-3 rounded-lg border border-slate-200 bg-white text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
+                                        >
+                                            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+                                            Refresh
+                                        </button>
+                                    </div>
+
+                                </div>
+
+                                {filtersApplied > 0 && (
+                                    <p className="text-xs text-slate-500 mt-3">
+                                        {filtersApplied} {filtersApplied === 1 ? 'filter' : 'filters'} applied, showing{' '}
+                                        <span className="font-semibold text-slate-900">
+                                            {filtered.length} {filtered.length === 1 ? 'transaction' : 'transactions'}
+                                        </span>{' '}
+                                        totaling <span className="font-semibold text-slate-900">{naira(filteredTotal)}</span>
+                                    </p>
+                                )}
+                            </div>
+
+                            {filtered.length === 0 ? (
+                                <div className="text-center py-14 text-slate-500">
+                                    <Receipt className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+                                    <p className="text-base font-semibold text-slate-900">
+                                        {filtersApplied ? 'No transactions match your filters' : 'No transactions yet'}
+                                    </p>
+                                    {filtersApplied > 0 && (
+                                        <button onClick={resetFilters} className="mt-2 text-sm font-semibold text-[#0b1230] hover:underline">
+                                            Clear filters
                                         </button>
                                     )}
                                 </div>
                             ) : (
                                 <>
-                                    {/* Scrollable container for the table */}
-                                    <div className="block md:hidden bg-gray-50 px-2 py-1 text-xs text-gray-600 border-b border-gray-200">
-                                        Scroll horizontally to view all columns
-                                    </div>
                                     <div className="overflow-x-auto">
-                                        <div className="min-w-full inline-block align-middle">
-                                            <div className="overflow-hidden">
-                                                <table className="min-w-full divide-y divide-gray-200">
-                                                    <thead className="bg-gray-50">
-                                                        <tr>
-                                                            <th scope="col" className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                                <div className="flex items-center">
-                                                                    <Receipt className="mr-1 h-4 w-4 text-gray-400" />
-                                                                    Transaction ID
-                                                                </div>
-                                                            </th>
-                                                            <th scope="col" className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                                <div className="flex items-center">
-                                                                    <User className="mr-1 h-4 w-4 text-gray-400" />
-                                                                    Agent
-                                                                </div>
-                                                            </th>
-                                                            <th scope="col" className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                                <div className="flex items-center">
-                                                                    <Calendar className="mr-1 h-4 w-4 text-gray-400" />
-                                                                    Date
-                                                                </div>
-                                                            </th>
-                                                            <th scope="col" className="px-4 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                                <div className="flex items-center justify-end">
-                                                                    <DollarSign className="mr-1 h-4 w-4 text-gray-400" />
-                                                                    Amount (₦)
-                                                                </div>
-                                                            </th>
-                                                            <th scope="col" className="px-4 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                                Status
-                                                            </th>
-                                                            <th scope="col" className="px-4 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                                Receipt
-                                                            </th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody className="bg-white divide-y divide-gray-200">
-                                                        {filteredTransactions.map((txn) => (
-                                                            <tr
-                                                                key={txn.id}
-                                                                className="hover:bg-gray-50"
-                                                            >
-                                                                <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                                                    {txn.id}
-                                                                </td>
-                                                                <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                                                                    {getAgentAvatar(txn.agent)}
-                                                                </td>
-                                                                <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                                    {txn.date}
-                                                                </td>
-                                                                <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-right text-sm font-medium text-gray-900">
-                                                                    ₦{txn.amount.toLocaleString()}
-                                                                </td>
-                                                                <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-center">
-                                                                    {getStatusChip(txn.status)}
-                                                                </td>
-                                                                <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-center">
-                                                                    <button
-                                                                        onClick={() => setActiveReceiptTx(txn)}
-                                                                        className="inline-flex items-center gap-1 rounded border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-100 transition-colors"
-                                                                    >
-                                                                        <FileText className="h-3 w-3" />
-                                                                        Get Receipt
-                                                                    </button>
-                                                                </td>
+                                        <table className="min-w-[880px] w-full text-sm">
+                                            <thead>
+                                                <tr className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500 border-b border-slate-200">
+                                                    <th scope="col" className="px-4 py-3 text-left">Transaction</th>
+                                                    <th scope="col" className="px-4 py-3 text-left">Agent</th>
+                                                    <th scope="col" className="px-4 py-3 text-left">Customer</th>
+                                                    <th scope="col" className="px-4 py-3 text-left">Method</th>
+                                                    <th scope="col" className="px-4 py-3 text-left">Amount</th>
+                                                    <th scope="col" className="px-4 py-3 text-left">Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {groups.map((group) => (
+                                                    <GroupRows
+                                                        key={group.dateKey}
+                                                        group={group}
+                                                        activeId={activeTx?.id}
+                                                        onSelect={openDrawer}
+                                                    />
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
 
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
-                                            </div>
+                                    {/* Pagination */}
+                                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-slate-200 text-xs text-slate-500">
+                                        <div className="flex items-center gap-3">
+                                            <label className="flex items-center gap-2">
+                                                Rows per page
+                                                <select
+                                                    value={pageSize}
+                                                    onChange={(e) => setPageSize(Number(e.target.value))}
+                                                    className="h-8 px-2 rounded-md border border-slate-200 bg-white text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-[#0b1230]/20"
+                                                >
+                                                    {[10, 25, 50, 100].map((n) => (
+                                                        <option key={n} value={n}>
+                                                            {n}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </label>
+                                            <span>
+                                                {pageStart + 1} to {Math.min(pageStart + pageSize, filtered.length)} of{' '}
+                                                {filtered.length.toLocaleString()}
+                                            </span>
+                                        </div>
+
+                                        <div className="flex items-center gap-1">
+                                            <button
+                                                aria-label="Previous page"
+                                                disabled={currentPage === 1}
+                                                onClick={() => setPage(currentPage - 1)}
+                                                className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                                            >
+                                                <ChevronLeft className="w-4 h-4" />
+                                            </button>
+                                            {pageList(currentPage, totalPages).map((p, i) =>
+                                                p === '…' ? (
+                                                    <span key={`gap-${i}`} className="w-6 text-center">
+                                                        …
+                                                    </span>
+                                                ) : (
+                                                    <button
+                                                        key={p}
+                                                        onClick={() => setPage(p)}
+                                                        aria-current={p === currentPage ? 'page' : undefined}
+                                                        className={`h-8 min-w-8 px-2 rounded-md text-sm font-semibold ${p === currentPage ? 'bg-[#0b1230] text-white' : 'text-slate-600 hover:bg-slate-100'
+                                                            }`}
+                                                    >
+                                                        {p}
+                                                    </button>
+                                                ),
+                                            )}
+                                            <button
+                                                aria-label="Next page"
+                                                disabled={currentPage === totalPages}
+                                                onClick={() => setPage(currentPage + 1)}
+                                                className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                                            >
+                                                <ChevronRight className="w-4 h-4" />
+                                            </button>
                                         </div>
                                     </div>
                                 </>
                             )}
                         </div>
-                    )}
-
-                    <div className="mt-auto mb-6 text-center">
-                        <Link
-                            to="/store"
-                            className="inline-flex items-center gap-1 rounded-lg border border-blue-600 px-4 py-2 text-sm font-medium text-blue-600 shadow-sm hover:bg-blue-50"
-                        >
-                            <ArrowLeft className="h-4 w-4" />
-                            Back to Dashboard
-                        </Link>
-                    </div>
-                </div>
-
-                {/* Footer stays at the bottom */}
-                <div className="fixed bottom-0 left-0 w-full">
-                    <Footer />
-                </div>
-                {activeReceiptTx && (
-                    <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-[999] p-0 sm:p-4">
-                        <div className="absolute inset-0" onClick={() => setActiveReceiptTx(null)}></div>
-                        <div className="bg-white w-full max-w-sm rounded-t-2xl sm:rounded-2xl p-6 relative animate-in slide-in-from-bottom duration-300 shadow-2xl">
-                            <h3 className="text-lg font-bold text-slate-900 mb-1">Receipt Options</h3>
-                            <p className="text-xs text-gray-500 mb-6 font-mono">ID: {activeReceiptTx.id}</p>
-
-                            <div className="grid grid-cols-1 gap-3">
-                                <button
-                                    onClick={() => {
-                                        const doc = generateReceiptPDF(activeReceiptTx);
-                                        doc.save(`XPay_${activeReceiptTx.id}.pdf`);
-                                        setActiveReceiptTx(null);
-                                    }}
-                                    className="flex items-center gap-4 p-4 border rounded-xl hover:bg-blue-50 transition-all text-left"
-                                >
-                                    <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Download size={20} /></div>
-                                    <div>
-                                        <div className="font-semibold text-sm">Download PDF</div>
-                                        <div className="text-xs text-gray-500">Best for formal records</div>
-                                    </div>
-                                </button>
-
-                                <button
-                                    onClick={async () => {
-                                        const doc = generateReceiptPDF(activeReceiptTx);
-                                        const imgData = doc.output('datauristring');
-                                        const response = await fetch(imgData);
-                                        const blob = await response.blob();
-                                        const file = new File([blob], `Receipt_${activeReceiptTx.id}.png`, { type: 'image/png' });
-                                        if (navigator.share) {
-                                            await navigator.share({ files: [file], title: 'Transaction Receipt' });
-                                        } else {
-                                            doc.save(`Receipt_${activeReceiptTx.id}.pdf`);
-                                        }
-                                        setActiveReceiptTx(null);
-                                    }}
-                                    className="flex items-center gap-4 p-4 border rounded-xl hover:bg-blue-50 transition-all text-left"
-                                >
-                                    <div className="p-2 bg-green-50 text-green-600 rounded-lg"><Share2 size={20} /></div>
-                                    <div>
-                                        <div className="font-semibold text-sm">Share Image</div>
-                                        <div className="text-xs text-gray-500">Send via WhatsApp/Socials</div>
-                                    </div>
-                                </button>
-                            </div>
-                            <button onClick={() => setActiveReceiptTx(null)} className="w-full mt-6 py-2 text-gray-400 text-sm">Cancel</button>
-                        </div>
-                    </div>
+                    </>
                 )}
-            </main>
+            </div>
+
+            {/* ------------------------- Receipt drawer (slides from right) ------------------------- */}
+            {activeTx && (
+                <div className="fixed inset-0 z-[999]" role="dialog" aria-modal="true" aria-label="Transaction details">
+                    <div
+                        onClick={closeDrawer}
+                        className={`absolute inset-0 bg-[#0b1230]/30 transition-opacity duration-300 ${drawerOpen ? 'opacity-100' : 'opacity-0'}`}
+                    />
+                    <aside
+                        className={`absolute right-0 top-0 h-full w-full sm:w-[420px] bg-white shadow-2xl flex flex-col transition-transform duration-300 ease-out ${drawerOpen ? 'translate-x-0' : 'translate-x-full'
+                            }`}
+                    >
+                        <DrawerContent
+                            tx={activeTx}
+                            onClose={closeDrawer}
+                            onDownload={() => generateReceiptPDF(activeTx).save(`XPay_${activeTx.displayId}.pdf`)}
+                            onDispute={() => handleRaiseDispute(activeTx)}
+                        />
+                    </aside>
+                </div>
+            )}
         </div>
     );
 };
 
+/* -------------------------------------------------------------------------- */
+/*  Table group (date header + rows)                                           */
+/* -------------------------------------------------------------------------- */
+
+const GroupRows = ({
+    group,
+    activeId,
+    onSelect,
+}: {
+    group: { dateKey: string; rows: Transaction[]; total: number };
+    activeId?: string;
+    onSelect: (t: Transaction) => void;
+}) => (
+    <>
+        <tr className="bg-slate-50/80 border-y border-slate-200">
+            <td colSpan={6} className="px-4 py-2.5">
+                <span className="text-xs font-bold uppercase tracking-wide text-slate-900">{dayLabel(group.dateKey)}</span>
+                <span className="text-xs text-slate-500 ml-2">
+                    {group.rows.length} {group.rows.length === 1 ? 'transaction' : 'transactions'} · {naira(group.total)}
+                </span>
+            </td>
+        </tr>
+        {group.rows.map((txn) => {
+            const debit = txn.category === 'debit';
+            const failed = txn.status === 'Failed';
+            return (
+                <tr
+                    key={txn.id}
+                    tabIndex={0}
+                    onClick={() => onSelect(txn)}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            onSelect(txn);
+                        }
+                    }}
+                    className={`cursor-pointer border-b border-slate-100 transition-colors focus:outline-none focus-visible:bg-indigo-50 ${activeId === txn.id ? 'bg-indigo-50' : 'hover:bg-slate-50'
+                        }`}
+                >
+                    <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="font-mono text-xs font-semibold text-slate-900">{txn.displayId}</div>
+                        <div className="text-xs text-slate-500 mt-0.5">{formatTime(new Date(txn.createdAt))}</div>
+                    </td>
+                    <td className="px-4 py-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                            <AgentAvatar name={txn.agent} />
+                            <div className="min-w-0">
+                                <div className="font-semibold text-slate-900 truncate max-w-[200px]">{txn.agent}</div>
+                                {txn.agentEmail && txn.agentEmail !== txn.agent && (
+                                    <div className="font-mono text-[11px] text-slate-500 truncate max-w-[200px]">{txn.agentEmail}</div>
+                                )}
+                            </div>
+                        </div>
+                    </td>
+                    <td className="px-4 py-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="h-6 w-6 shrink-0 rounded-full bg-slate-100 text-[10px] font-bold text-slate-600 flex items-center justify-center">
+                                {initials(txn.customer)}
+                            </span>
+                            <span className="text-slate-900 truncate max-w-[180px]" title={txn.customerEmail || txn.customer}>
+                                {txn.customer}
+                            </span>
+                        </div>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                        <span className="inline-flex items-center h-6 px-2 rounded-md bg-slate-100 text-xs text-slate-700">{txn.method}</span>
+                    </td>
+                    <td
+                        className={`px-4 py-3 whitespace-nowrap font-bold ${failed ? 'text-slate-400 line-through' : debit ? 'text-red-600' : 'text-slate-900'
+                            }`}
+                    >
+                        {debit ? '−' : '+'}
+                        {naira(txn.amount)}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                        <StatusPill status={txn.status} />
+                    </td>
+                </tr>
+            );
+        })}
+    </>
+);
+
+/* -------------------------------------------------------------------------- */
+/*  Drawer content                                                             */
+/* -------------------------------------------------------------------------- */
+
+const DrawerContent = ({
+    tx,
+    onClose,
+    onDownload,
+    onDispute,
+}: {
+    tx: Transaction;
+    onClose: () => void;
+    onDownload: () => void;
+    onDispute: () => void;
+}) => {
+    const debit = tx.category === 'debit';
+    const net = debit ? tx.amount + tx.charges : tx.amount - tx.charges;
+
+    const second =
+        tx.status === 'Completed'
+            ? {
+                title: 'Settled to wallet',
+                meta: `${formatDateTime(tx.updatedAt || tx.createdAt)}${tx.balanceAfter !== undefined ? ` · New balance ${naira(tx.balanceAfter)}` : ''
+                    }`,
+                state: 'done' as const,
+            }
+            : tx.status === 'Pending'
+                ? { title: 'Awaiting confirmation', meta: 'This will update once the payment clears', state: 'pending' as const }
+                : {
+                    title: 'Payment failed',
+                    meta: tx.errorCode ? `Error code: ${tx.errorCode}` : 'This payment did not go through',
+                    state: 'failed' as const,
+                };
+
+    const steps = [
+        {
+            title: debit ? 'Payment sent' : 'Payment received',
+            meta: `${formatDateTime(tx.createdAt)} · From ${tx.customer}`,
+            state: 'done' as const,
+        },
+        second,
+    ];
+
+    return (
+        <>
+            {/* Header */}
+            <div className="px-5 pt-5 pb-4 border-b border-slate-200 flex items-start justify-between gap-3">
+                <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Transaction</p>
+                    <div className="flex items-center gap-3 mt-1 flex-wrap">
+                        <span className="text-2xl font-bold text-[#0b1230]">{nairaExact(tx.amount)}</span>
+                        <StatusPill status={tx.status} />
+                    </div>
+                </div>
+                <button
+                    type="button"
+                    onClick={onClose}
+                    aria-label="Close"
+                    className="h-8 w-8 shrink-0 flex items-center justify-center rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200"
+                >
+                    <X className="w-4 h-4" />
+                </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto">
+                <DrawerSection title="Payment">
+                    <DetailRow label="Transaction ID">
+                        <span className="font-mono text-xs truncate max-w-[210px]">{tx.id}</span>
+                        <CopyButton value={tx.id} />
+                    </DetailRow>
+                    {tx.reference && (
+                        <DetailRow label="Reference">
+                            <span className="font-mono text-xs truncate max-w-[210px]">{tx.reference}</span>
+                            <CopyButton value={tx.reference} />
+                        </DetailRow>
+                    )}
+                    <DetailRow label="Amount charged">{nairaExact(tx.amount)}</DetailRow>
+                    <DetailRow label="Charges">{tx.charges ? `−${nairaExact(tx.charges)}` : nairaExact(0)}</DetailRow>
+                    <DetailRow label={debit ? 'Total debited' : 'Net to wallet'}>
+                        <span className={`font-bold ${debit ? 'text-red-600' : 'text-green-600'}`}>
+                            {debit ? '−' : ''}
+                            {nairaExact(net)}
+                        </span>
+                    </DetailRow>
+                    <DetailRow label="Method">{tx.method}</DetailRow>
+                    {tx.description && <DetailRow label="Note">{tx.description}</DetailRow>}
+                </DrawerSection>
+
+                <DrawerSection title="Parties">
+                    <DetailRow label="Agent">
+                        <AgentAvatar name={tx.agent} />
+                        <span className="ml-2">{tx.agent}</span>
+                    </DetailRow>
+                    {tx.agentEmail && (
+                        <DetailRow label="Email">
+                            <span className="truncate max-w-[240px]">{tx.agentEmail}</span>
+                        </DetailRow>
+                    )}
+                    {tx.agentPhone && <DetailRow label="Phone">{tx.agentPhone}</DetailRow>}
+                    <DetailRow label="Customer">{tx.customer}</DetailRow>
+                    {tx.customerEmail && tx.customerEmail !== tx.customer && (
+                        <DetailRow label="Customer email">
+                            <span className="truncate max-w-[220px]">{tx.customerEmail}</span>
+                        </DetailRow>
+                    )}
+                    {tx.customerPhone && <DetailRow label="Customer phone">{tx.customerPhone}</DetailRow>}
+                </DrawerSection>
+
+                <DrawerSection title="Timeline">
+                    <ol className="space-y-0">
+                        {steps.map((step, i) => (
+                            <li key={step.title} className="relative flex gap-3 pb-5 last:pb-0">
+                                {i < steps.length - 1 && <span className="absolute left-[11px] top-6 bottom-0 w-px bg-slate-200" />}
+                                <span
+                                    className={`relative z-10 h-6 w-6 shrink-0 rounded-full flex items-center justify-center text-white ${step.state === 'done' ? 'bg-green-500' : step.state === 'pending' ? 'bg-amber-500' : 'bg-red-500'
+                                        }`}
+                                >
+                                    {step.state === 'done' ? (
+                                        <Check className="w-3.5 h-3.5" />
+                                    ) : step.state === 'pending' ? (
+                                        <Clock className="w-3.5 h-3.5" />
+                                    ) : (
+                                        <X className="w-3.5 h-3.5" />
+                                    )}
+                                </span>
+                                <div className="min-w-0">
+                                    <p className="text-sm font-semibold text-slate-900">{step.title}</p>
+                                    <p className="text-xs text-slate-500 mt-0.5">{step.meta}</p>
+                                </div>
+                            </li>
+                        ))}
+                    </ol>
+                </DrawerSection>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-slate-200 grid grid-cols-2 gap-3">
+                <button
+                    type="button"
+                    onClick={onDispute}
+                    className="inline-flex items-center justify-center gap-2 h-10 rounded-lg border border-slate-200 bg-white text-sm font-semibold text-slate-800 hover:bg-slate-50"
+                >
+                    <AlertTriangle className="w-4 h-4" />
+                    Raise dispute
+                </button>
+                <button
+                    type="button"
+                    onClick={onDownload}
+                    className="inline-flex items-center justify-center gap-2 h-10 rounded-lg bg-[#0b1230] text-sm font-semibold text-white hover:bg-[#1a2352]"
+                >
+                    <Download className="w-4 h-4" />
+                    Download receipt
+                </button>
+            </div>
+        </>
+    );
+};
+
 // Store user in localStorage for persistence
-function setUser(user: User) {
+function persistUser(user: unknown) {
     localStorage.setItem('user', JSON.stringify(user));
 }
 

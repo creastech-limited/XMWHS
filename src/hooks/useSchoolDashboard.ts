@@ -23,7 +23,7 @@ import type {
   BarDataEntry,
   Transaction,
   SnackbarState
-} from '../types/dashboard';
+} from '../types/schoolDashboard';
 
 export const useSchoolDashboard = () => {
   const auth = useAuth();

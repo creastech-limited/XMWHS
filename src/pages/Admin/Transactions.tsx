@@ -25,7 +25,7 @@ import { useAuth } from '../../context/AuthContext';
 import AdminSidebar from '../../components/Adminsidebar';
 import AdminHeader from '../../components/AdminHeader';
 import {
-  getAllTransactionsForAdmin,
+  getAdminTransactionsPage,
   getAllUsers,
   getAllParents,
   getAllStudents,
@@ -48,6 +48,475 @@ interface EnrichedTransaction extends Transaction {
   displayAmount?: number;
 }
 
+interface PaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+interface Lookups {
+  userById: Map<string, UserData['user']>;
+  userByEmail: Map<string, UserData['user']>;
+  userByWallet: Map<string, UserData['user']>;
+  studentById: Map<string, Kid>;
+  studentByEmail: Map<string, Kid>;
+  studentByName: Map<string, Kid>;
+  storeById: Map<string, Store>;
+  storeByEmail: Map<string, Store>;
+  storeByName: Map<string, Store>;
+}
+
+const formatCurrency = (amount?: number) => {
+  return new Intl.NumberFormat('en-NG', {
+    style: 'currency',
+    currency: 'NGN',
+    minimumFractionDigits: 2,
+  }).format(amount || 0);
+};
+
+const formatDate = (dateString?: string) => {
+  if (!dateString) return 'N/A';
+  try {
+    return new Date(dateString).toLocaleString('en-NG', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch {
+    return String(dateString);
+  }
+};
+
+/**
+ * Accepts either the raw paginated API response
+ *   { success, message, data|transactions: [...], pagination: {...} }
+ * or a plain array (legacy shape) and normalises it.
+ */
+const normalizeTransactionsResponse = (
+  res: unknown,
+  requestedPage: number,
+  requestedLimit: number
+): { items: Transaction[]; pagination: PaginationMeta } => {
+  if (Array.isArray(res)) {
+    return {
+      items: res as Transaction[],
+      pagination: {
+        page: requestedPage,
+        limit: requestedLimit,
+        total: res.length,
+        totalPages: 1,
+      },
+    };
+  }
+
+  const r = (res ?? {}) as Record<string, unknown>;
+  const inner = (typeof r.data === 'object' && r.data !== null && !Array.isArray(r.data)
+    ? (r.data as Record<string, unknown>)
+    : undefined);
+
+  const items =
+    (Array.isArray(r.data) ? r.data : undefined) ||
+    (Array.isArray(r.transactions) ? r.transactions : undefined) ||
+    (inner && Array.isArray(inner.transactions) ? inner.transactions : undefined) ||
+    (inner && Array.isArray(inner.data) ? inner.data : undefined) ||
+    [];
+
+  const p = ((r.pagination || inner?.pagination) ?? {}) as Partial<PaginationMeta>;
+  const total = typeof p.total === 'number' ? p.total : items.length;
+  const limit = typeof p.limit === 'number' ? p.limit : requestedLimit;
+
+  return {
+    items: items as Transaction[],
+    pagination: {
+      page: typeof p.page === 'number' ? p.page : requestedPage,
+      limit,
+      total,
+      totalPages:
+        typeof p.totalPages === 'number' ? p.totalPages : Math.max(1, Math.ceil(total / (limit || 1))),
+    },
+  };
+};
+
+/**
+ * Builds the user / student / store lookup maps used to enrich transactions.
+ * This is heavy (many requests), so it runs ONCE and is cached by the component.
+ * It never throws – individual failures are swallowed so transactions still load.
+ */
+const buildLookups = async (): Promise<Lookups> => {
+  const [usersData, parentsData, studentsData, schoolsData] = await Promise.all([
+    getAllUsers().catch(() => [] as UserData[]),
+    getAllParents().catch(() => [] as UserData[]),
+    getAllStudents().catch(() => [] as Kid[]),
+    getAllSchools().catch(() => ({ data: [], schools: [] } as SchoolsResponse))
+  ]);
+
+  const userById = new Map<string, UserData['user']>();
+  const userByEmail = new Map<string, UserData['user']>();
+  const userByWallet = new Map<string, UserData['user']>();
+
+  const indexUser = (usr: UserData['user']) => {
+    if (!usr) return;
+    if (usr._id) userById.set(usr._id, usr);
+    if (usr.email) userByEmail.set(usr.email.toLowerCase(), usr);
+    if (usr.accountNumber) userByWallet.set(usr.accountNumber, usr);
+    if (usr.wallet?.walletId) userByWallet.set(usr.wallet.walletId, usr);
+    const usrAny = usr as unknown as Record<string, unknown>;
+    if (usrAny.storeId) userById.set(String(usrAny.storeId), usr);
+    if (usrAny.id) userById.set(String(usrAny.id), usr);
+  };
+
+  // getAllUsers returns flat objects (the user IS the root, not nested under .user)
+  // Handle both {user: {...}} wrapped shape and flat {_id, email, name, ...} shape
+  const indexUserData = (u: UserData) => {
+    if (u.user) {
+      indexUser(u.user);
+    } else {
+      const flat = u as unknown as UserData['user'];
+      if (flat && (flat._id || flat.email)) {
+        indexUser(flat);
+      }
+    }
+  };
+
+  usersData.forEach(indexUserData);
+  parentsData.forEach((u) => indexUser(u.user));
+
+  const studentById = new Map<string, Kid>();
+  const studentByEmail = new Map<string, Kid>();
+  const studentByName = new Map<string, Kid>();
+
+  const GENERIC_NAMES = new Set(['unknown student', 'unknown', 'unnamed', 'unnamed student', '']);
+
+  const indexKid = (kid: Kid) => {
+    const kidAny = kid as unknown as Record<string, unknown>;
+    if (kid._id) studentById.set(kid._id, kid);
+    if (kid.student_id && kid.student_id !== kid._id) studentById.set(kid.student_id, kid);
+    if (kid.id && kid.id !== kid._id && kid.id !== kid.student_id) studentById.set(kid.id, kid);
+    if (kidAny.studentId && typeof kidAny.studentId === 'string') studentById.set(kidAny.studentId as string, kid);
+    if (kidAny.admissionNumber && typeof kidAny.admissionNumber === 'string') studentById.set(kidAny.admissionNumber as string, kid);
+    if (kid.email) studentByEmail.set(kid.email.toLowerCase(), kid);
+    if (kid.name && !GENERIC_NAMES.has(kid.name.toLowerCase().trim())) {
+      studentByName.set(kid.name.toLowerCase().trim(), kid);
+    }
+    const fullNameStr = typeof kidAny.fullName === 'string' ? kidAny.fullName : '';
+    if (fullNameStr && !GENERIC_NAMES.has(fullNameStr.toLowerCase().trim())) {
+      studentByName.set(fullNameStr.toLowerCase().trim(), kid);
+    }
+  };
+
+  studentsData.forEach(indexKid);
+
+  const storeById = new Map<string, Store>();
+  const storeByEmail = new Map<string, Store>();
+  const storeByName = new Map<string, Store>();
+
+  const indexStore = (store: Store) => {
+    const s = store as unknown as Record<string, unknown>;
+    if (store._id) storeById.set(store._id, store);
+    if (s.id && typeof s.id === 'string') storeById.set(s.id, store);
+    if (s.storeId && typeof s.storeId === 'string') storeById.set(s.storeId, store);
+    if (s.store_id && typeof s.store_id === 'string') storeById.set(s.store_id, store);
+    if (store.email) storeByEmail.set(store.email.toLowerCase(), store);
+    if (s.accountNumber && typeof s.accountNumber === 'string') storeById.set(s.accountNumber, store);
+    if (store.storeName) storeByName.set(store.storeName.toLowerCase().trim(), store);
+  };
+
+  usersData.forEach((u) => {
+    const usr = u.user || (u as unknown as UserData['user']);
+    if (usr && (usr.role?.toLowerCase() === 'store' || usr.storeName)) {
+      indexStore(usr as unknown as Store);
+    }
+  });
+
+  // Fetch and index stores AND students from each school
+  const schoolList = (schoolsData as SchoolsResponse).data ?? (schoolsData as SchoolsResponse).schools ?? [];
+  if (Array.isArray(schoolList)) {
+    await Promise.allSettled(
+      schoolList.map(async (school) => {
+        const schoolId = school.schoolId || school.school_id || school._id;
+        if (!schoolId) return;
+        try {
+          const [stores, studentsRes] = await Promise.all([
+            getStoresInSchoolByAdmin(schoolId).catch(() => [] as Store[]),
+            getStudentsInSchoolByAdmin(schoolId).catch(() => ({ data: [] } as StudentsInSchoolResponse))
+          ]);
+
+          if (Array.isArray(stores)) {
+            stores.forEach(indexStore);
+          }
+
+          const schoolStudents = (studentsRes as StudentsInSchoolResponse).data ?? (studentsRes as StudentsInSchoolResponse).students ?? [];
+          if (Array.isArray(schoolStudents)) {
+            schoolStudents.forEach((st) => {
+              const s = st as unknown as Record<string, unknown>;
+              const name = extractStudentName(s);
+              const email = extractStudentEmail(s);
+              const kidObj: Kid = {
+                id: String(s.studentId || st._id || st.student_id || st.admissionNumber || email),
+                student_id: String(st.student_id || s.studentId || st._id || ''),
+                _id: String(st._id || s.studentId || ''),
+                name: name,
+                email: email,
+                isBeneficiary: false,
+                avatar: (name && name[0]) || 'S'
+              };
+              indexKid(kidObj);
+            });
+          }
+        } catch {
+          // Ignore individual school fetch errors
+        }
+      })
+    );
+  }
+
+  return { userById, userByEmail, userByWallet, studentById, studentByEmail, studentByName, storeById, storeByEmail, storeByName };
+};
+
+/** Enriches one page of raw transactions using the cached lookups. */
+const enrichTransactions = (txData: Transaction[], lookups: Lookups): EnrichedTransaction[] => {
+  const { userById, userByEmail, userByWallet, studentById, studentByEmail, studentByName, storeById, storeByEmail, storeByName } = lookups;
+
+  return txData.map((tx, idx) => {
+    const rawTx = tx as Record<string, unknown>;
+    const rawAmount = typeof tx.amount === 'number' ? tx.amount : parseFloat(String(tx.amount || 0)) || 0;
+
+    const nestedUser = typeof rawTx.user === 'object' && rawTx.user !== null ? (rawTx.user as Record<string, unknown>) : undefined;
+    const nestedStudent = typeof rawTx.student === 'object' && rawTx.student !== null ? (rawTx.student as Record<string, unknown>) : undefined;
+    const nestedStore = typeof rawTx.store === 'object' && rawTx.store !== null ? (rawTx.store as Record<string, unknown>) : undefined;
+    const nestedSender = typeof rawTx.sender === 'object' && rawTx.sender !== null ? (rawTx.sender as Record<string, unknown>) : undefined;
+    const nestedRecipient = typeof rawTx.recipient === 'object' && rawTx.recipient !== null ? (rawTx.recipient as Record<string, unknown>) : undefined;
+    const nestedCustomer = typeof rawTx.customer === 'object' && rawTx.customer !== null ? (rawTx.customer as Record<string, unknown>) : undefined;
+    const nestedWallet = typeof rawTx.senderWalletId === 'object' && rawTx.senderWalletId !== null ? (rawTx.senderWalletId as Record<string, unknown>) : undefined;
+    const nestedRecvWallet = typeof rawTx.receiverWalletId === 'object' && rawTx.receiverWalletId !== null ? (rawTx.receiverWalletId as Record<string, unknown>) : undefined;
+    const nestedMeta = typeof rawTx.metadata === 'object' && rawTx.metadata !== null ? (rawTx.metadata as Record<string, unknown>) : undefined;
+
+    const candidateId = String(
+      rawTx.userId ||
+      rawTx.studentId ||
+      rawTx.student_id ||
+      rawTx.storeId ||
+      rawTx.store_id ||
+      rawTx.agentId ||
+      rawTx.agent_id ||
+      (typeof rawTx.user === 'string' ? rawTx.user : '') ||
+      (typeof rawTx.customer === 'string' ? rawTx.customer : '') ||
+      (typeof rawTx.senderId === 'string' ? rawTx.senderId : '') ||
+      (typeof rawTx.recipientId === 'string' ? rawTx.recipientId : '') ||
+      (typeof rawTx.receiverId === 'string' ? rawTx.receiverId : '') ||
+      (typeof rawTx.store === 'string' ? rawTx.store : '') ||
+      nestedStudent?.studentId ||
+      nestedStudent?._id ||
+      nestedStudent?.id ||
+      nestedStore?._id ||
+      nestedStore?.id ||
+      nestedStore?.storeId ||
+      nestedUser?._id ||
+      nestedUser?.userId ||
+      nestedCustomer?._id ||
+      nestedSender?._id ||
+      nestedRecipient?._id ||
+      nestedRecipient?.storeId ||
+      ''
+    );
+
+    const candidateEmail = String(
+      rawTx.email ||
+      rawTx.userEmail ||
+      rawTx.studentEmail ||
+      rawTx.storeEmail ||
+      rawTx.customerEmail ||
+      rawTx.senderEmail ||
+      rawTx.recipientEmail ||
+      rawTx.receiverEmail ||
+      nestedStudent?.email ||
+      nestedStore?.email ||
+      nestedUser?.email ||
+      nestedCustomer?.email ||
+      nestedSender?.email ||
+      nestedRecipient?.email ||
+      nestedWallet?.email ||
+      nestedRecvWallet?.email ||
+      nestedMeta?.email ||
+      nestedMeta?.customerEmail ||
+      nestedMeta?.studentEmail ||
+      nestedMeta?.storeEmail ||
+      ''
+    ).toLowerCase();
+
+    const candidateWallet = String(
+      (typeof rawTx.senderWalletId === 'string' ? rawTx.senderWalletId : '') ||
+      (typeof rawTx.receiverWalletId === 'string' ? rawTx.receiverWalletId : '') ||
+      rawTx.accountNumber ||
+      rawTx.senderAccountNumber ||
+      rawTx.receiverAccountNumber ||
+      nestedWallet?.walletId ||
+      nestedWallet?.accountNumber ||
+      nestedRecvWallet?.walletId ||
+      nestedRecvWallet?.accountNumber ||
+      ''
+    );
+
+    const candidateName = String(
+      rawTx.studentName ||
+      rawTx.storeName ||
+      rawTx.userName ||
+      rawTx.customerName ||
+      rawTx.accountName ||
+      rawTx.senderName ||
+      rawTx.recipientName ||
+      rawTx.name ||
+      nestedStudent?.name ||
+      nestedStudent?.fullName ||
+      nestedStore?.storeName ||
+      nestedCustomer?.name ||
+      ''
+    ).toLowerCase().trim();
+
+    const matchedStudent =
+      (candidateId ? studentById.get(candidateId) : undefined) ||
+      (candidateEmail ? studentByEmail.get(candidateEmail) : undefined) ||
+      (candidateName ? studentByName.get(candidateName) : undefined);
+
+    const matchedStore =
+      (candidateId ? storeById.get(candidateId) : undefined) ||
+      (candidateEmail ? storeByEmail.get(candidateEmail) : undefined) ||
+      (candidateName ? storeByName.get(candidateName) : undefined);
+
+    const matchedUser =
+      (candidateId ? userById.get(candidateId) : undefined) ||
+      (candidateEmail ? userByEmail.get(candidateEmail) : undefined) ||
+      (candidateWallet ? userByWallet.get(candidateWallet) : undefined);
+
+    const isStore = Boolean(
+      matchedStore ||
+      nestedStore ||
+      rawTx.storeId ||
+      rawTx.store_id ||
+      rawTx.storeName ||
+      rawTx.store ||
+      (typeof rawTx.role === 'string' && rawTx.role.toLowerCase() === 'store') ||
+      (typeof rawTx.userRole === 'string' && rawTx.userRole.toLowerCase() === 'store') ||
+      matchedUser?.role?.toLowerCase() === 'store'
+    );
+
+    const isStudent = !isStore && Boolean(
+      matchedStudent ||
+      nestedStudent ||
+      rawTx.studentId ||
+      rawTx.student_id ||
+      rawTx.studentName ||
+      rawTx.studentEmail ||
+      (typeof rawTx.role === 'string' && rawTx.role.toLowerCase() === 'student') ||
+      (typeof rawTx.userRole === 'string' && rawTx.userRole.toLowerCase() === 'student') ||
+      matchedUser?.role?.toLowerCase() === 'student'
+    );
+
+    const inferredRole = isStore
+      ? 'store'
+      : isStudent
+        ? 'student'
+        : (
+          rawTx.role ||
+          rawTx.userRole ||
+          nestedUser?.role ||
+          matchedUser?.role ||
+          (rawTx.agent || rawTx.agentId ? 'agent' : undefined) ||
+          (rawTx.schoolId ? 'school' : undefined) ||
+          (rawTx.parentId ? 'parent' : undefined) ||
+          (matchedStudent ? 'student' : undefined) ||
+          'other'
+        ) as string;
+
+    // Only trust ID/email matches for student name (name-based matching is too broad)
+    const matchedStudentById =
+      (candidateId ? studentById.get(candidateId) : undefined) ||
+      (candidateEmail ? studentByEmail.get(candidateEmail) : undefined);
+
+    const studentName =
+      (nestedStudent?.name as string) ||
+      (nestedStudent ? `${nestedStudent.firstName || ''} ${nestedStudent.lastName || ''}`.trim() : undefined) ||
+      (nestedStudent?.fullName as string) ||
+      (rawTx.studentName as string) ||
+      matchedStudentById?.name ||
+      undefined;
+
+    const storeName =
+      matchedStore?.storeName ||
+      (nestedStore?.storeName as string) ||
+      (rawTx.storeName as string) ||
+      (typeof rawTx.store === 'string' ? rawTx.store : undefined) ||
+      (matchedUser?.storeName as string) ||
+      undefined;
+
+    const resolvedName =
+      (isStore ? storeName : undefined) ||
+      (isStudent ? studentName : undefined) ||
+      studentName ||
+      storeName ||
+      (rawTx.userName as string) ||
+      (nestedUser?.name as string) ||
+      (nestedUser ? `${nestedUser.firstName || ''} ${nestedUser.lastName || ''}`.trim() : undefined) ||
+      (nestedCustomer?.name as string) ||
+      (nestedSender?.name as string) ||
+      (nestedRecipient?.name as string) ||
+      (rawTx.customerName as string) ||
+      (rawTx.senderName as string) ||
+      (rawTx.recipientName as string) ||
+      (rawTx.accountName as string) ||
+      (rawTx.schoolName as string) ||
+      matchedUser?.name ||
+      (matchedUser ? `${matchedUser.firstName || ''} ${matchedUser.lastName || ''}`.trim() : undefined) ||
+      (matchedUser?.schoolName as string) ||
+      'Unknown User';
+
+    const resolvedEmail =
+      (isStore ? (matchedStore?.email || (rawTx.storeEmail as string)) : undefined) ||
+      (isStudent ? (matchedStudentById?.email || (rawTx.studentEmail as string)) : undefined) ||
+      matchedStudentById?.email ||
+      matchedStore?.email ||
+      (nestedStudent?.email as string) ||
+      (nestedStore?.email as string) ||
+      (rawTx.studentEmail as string) ||
+      (rawTx.storeEmail as string) ||
+      (matchedUser?.email as string) ||
+      '';
+
+    return {
+      ...tx,
+      _id: tx._id || `tx-${idx}`,
+      amount: rawAmount,
+      displayAmount: rawAmount,
+      userRole: inferredRole.toLowerCase(),
+      userName: resolvedName,
+      userEmail: resolvedEmail,
+      displayDate: formatDate(tx.createdAt || tx.date),
+      status: tx.status || 'Successful',
+      reference: tx.reference || (rawTx.reference as string) || (rawTx.transactionId as string) || `REF-${Math.random().toString(36).substring(2, 9).toUpperCase()}`
+    };
+  });
+};
+
+const getTxType = (tx?: EnrichedTransaction | null): string => {
+  if (!tx) return 'Transfer';
+  const raw = tx as Record<string, unknown>;
+  return String(tx.transactionType || raw.type || raw.category || 'Transfer');
+};
+
+const getTxStatus = (tx?: EnrichedTransaction | null): string => {
+  if (!tx) return 'Successful';
+  return String(tx.status || 'Successful');
+};
+
+const getTxDirection = (tx?: EnrichedTransaction | null): string => {
+  if (!tx) return 'debit';
+  const raw = tx as Record<string, unknown>;
+  return String(tx.direction || raw.category || 'debit');
+};
+
 const Transactions: React.FC = () => {
   useAuth();
   const [searchParams] = useSearchParams();
@@ -59,21 +528,24 @@ const Transactions: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Transactions for the CURRENT page only (server-side pagination)
   const [allTransactions, setAllTransactions] = useState<EnrichedTransaction[]>([]);
+  const [pagination, setPagination] = useState<PaginationMeta>({ page: 1, limit: 10, total: 0, totalPages: 1 });
+
   const [activeTab, setActiveTab] = useState<RoleTab>(
     ['all', 'student', 'school', 'parent', 'agent', 'store'].includes(initialRoleParam)
       ? initialRoleParam
       : 'all'
   );
 
-  // Filters
+  // Filters (applied on the loaded page)
   const [searchTerm, setSearchTerm] = useState(initialUserParam);
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
 
-  // Pagination
+  // Pagination (drives the API request)
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState<number>(10);
 
@@ -82,450 +554,83 @@ const Transactions: React.FC = () => {
   const [copySuccess, setCopySuccess] = useState(false);
   const receiptRef = useRef<HTMLDivElement>(null);
 
-  const formatCurrency = (amount?: number) => {
-    return new Intl.NumberFormat('en-NG', {
-      style: 'currency',
-      currency: 'NGN',
-      minimumFractionDigits: 2,
-    }).format(amount || 0);
-  };
+  // Lookup maps are expensive to build, so build once and reuse for every page
+  const lookupsRef = useRef<Lookups | null>(null);
+  const lookupsPromiseRef = useRef<Promise<Lookups> | null>(null);
+  // Guards against out-of-order responses when the user pages quickly
+  const requestIdRef = useRef(0);
 
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return 'N/A';
-    try {
-      return new Date(dateString).toLocaleString('en-NG', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
+  const getLookups = useCallback((): Promise<Lookups> => {
+    if (lookupsRef.current) return Promise.resolve(lookupsRef.current);
+    if (!lookupsPromiseRef.current) {
+      lookupsPromiseRef.current = buildLookups().then((l) => {
+        lookupsRef.current = l;
+        return l;
       });
-    } catch {
-      return String(dateString);
     }
-  };
-
-  const getTxType = (tx?: EnrichedTransaction | null): string => {
-    if (!tx) return 'Transfer';
-    const raw = tx as Record<string, unknown>;
-    return String(tx.transactionType || raw.type || raw.category || 'Transfer');
-  };
-
-  const getTxStatus = (tx?: EnrichedTransaction | null): string => {
-    if (!tx) return 'Successful';
-    return String(tx.status || 'Successful');
-  };
-
-  const getTxDirection = (tx?: EnrichedTransaction | null): string => {
-    if (!tx) return 'debit';
-    const raw = tx as Record<string, unknown>;
-    return String(tx.direction || raw.category || 'debit');
-  };
-
-  const fetchTransactionsData = useCallback(async () => {
-    try {
-      setRefreshing(true);
-      const [txData, usersData, parentsData, studentsData, schoolsData] = await Promise.all([
-        getAllTransactionsForAdmin(),
-        getAllUsers().catch(() => [] as UserData[]),
-        getAllParents().catch(() => [] as UserData[]),
-        getAllStudents().catch(() => [] as Kid[]),
-        getAllSchools().catch(() => ({ data: [], schools: [] } as SchoolsResponse))
-      ]);
-
-      // Create multi-key user lookup maps (school/store/agent/parent accounts)
-      const userById = new Map<string, UserData['user']>();
-      const userByEmail = new Map<string, UserData['user']>();
-      const userByWallet = new Map<string, UserData['user']>();
-      const userByPhone = new Map<string, UserData['user']>();
-
-      const indexUser = (usr: UserData['user']) => {
-        if (!usr) return;
-        if (usr._id) userById.set(usr._id, usr);
-        if (usr.email) userByEmail.set(usr.email.toLowerCase(), usr);
-        if (usr.phone) userByPhone.set(usr.phone, usr);
-        if (usr.accountNumber) userByWallet.set(usr.accountNumber, usr);
-        if (usr.wallet?.walletId) userByWallet.set(usr.wallet.walletId, usr);
-        const usrAny = usr as unknown as Record<string, unknown>;
-        if (usrAny.storeId) userById.set(String(usrAny.storeId), usr);
-        if (usrAny.id) userById.set(String(usrAny.id), usr);
-      };
-
-      // getAllUsers returns flat objects (the user IS the root, not nested under .user)
-      // Handle both {user: {...}} wrapped shape and flat {_id, email, name, ...} shape
-      const indexUserData = (u: UserData) => {
-        if (u.user) {
-          // Wrapped shape: { user: { _id, email, ... } }
-          indexUser(u.user);
-        } else {
-          // Flat shape: { _id, email, name, role, ... } — cast the whole object as User
-          const flat = u as unknown as UserData['user'];
-          if (flat && (flat._id || flat.email)) {
-            indexUser(flat);
-          }
-        }
-      };
-
-      usersData.forEach(indexUserData);
-      parentsData.forEach((u) => indexUser(u.user));
-
-      // Dedicated student lookup maps keyed by _id, studentId, student_id, id, email, name, phone
-      const studentById = new Map<string, Kid>();
-      const studentByEmail = new Map<string, Kid>();
-      const studentByName = new Map<string, Kid>();
-
-      const indexKid = (kid: Kid) => {
-        const kidAny = kid as unknown as Record<string, unknown>;
-        if (kid._id) studentById.set(kid._id, kid);
-        if (kid.student_id && kid.student_id !== kid._id) studentById.set(kid.student_id, kid);
-        if (kid.id && kid.id !== kid._id && kid.id !== kid.student_id) studentById.set(kid.id, kid);
-        if (kidAny.studentId && typeof kidAny.studentId === 'string') studentById.set(kidAny.studentId as string, kid);
-        if (kidAny.admissionNumber && typeof kidAny.admissionNumber === 'string') studentById.set(kidAny.admissionNumber as string, kid);
-        if (kid.email) studentByEmail.set(kid.email.toLowerCase(), kid);
-        // Only index by name if it's a real, non-generic name (avoid polluting map with "Unknown Student")
-        const GENERIC_NAMES = new Set(['unknown student', 'unknown', 'unnamed', 'unnamed student', '']);
-        if (kid.name && !GENERIC_NAMES.has(kid.name.toLowerCase().trim())) {
-          studentByName.set(kid.name.toLowerCase().trim(), kid);
-        }
-        const fullNameStr = typeof kidAny.fullName === 'string' ? kidAny.fullName : '';
-        if (fullNameStr && !GENERIC_NAMES.has(fullNameStr.toLowerCase().trim())) {
-          studentByName.set(fullNameStr.toLowerCase().trim(), kid);
-        }
-      };
-
-      studentsData.forEach(indexKid);
-
-      // Dedicated store lookup maps
-      const storeById = new Map<string, Store>();
-      const storeByEmail = new Map<string, Store>();
-      const storeByName = new Map<string, Store>();
-
-      const indexStore = (store: Store) => {
-        const s = store as unknown as Record<string, unknown>;
-        if (store._id) storeById.set(store._id, store);
-        if (s.id && typeof s.id === 'string') storeById.set(s.id, store);
-        if (s.storeId && typeof s.storeId === 'string') storeById.set(s.storeId, store);
-        if (s.store_id && typeof s.store_id === 'string') storeById.set(s.store_id, store);
-        if (store.email) storeByEmail.set(store.email.toLowerCase(), store);
-        if (s.accountNumber && typeof s.accountNumber === 'string') storeById.set(s.accountNumber, store);
-        if (store.storeName) storeByName.set(store.storeName.toLowerCase().trim(), store);
-      };
-
-      // Index stores from usersData where role is store (handle both wrapped and flat shapes)
-      usersData.forEach((u) => {
-        const usr = u.user || (u as unknown as UserData['user']); // handle flat shape
-        if (usr && (usr.role?.toLowerCase() === 'store' || usr.storeName)) {
-          indexStore(usr as unknown as Store);
-        }
-      });
-
-      // Fetch and index stores AND students from each school
-      const schoolList = (schoolsData as SchoolsResponse).data ?? (schoolsData as SchoolsResponse).schools ?? [];
-      if (Array.isArray(schoolList)) {
-        await Promise.allSettled(
-          schoolList.map(async (school) => {
-            const schoolId = school.schoolId || school.school_id || school._id;
-            if (!schoolId) return;
-            try {
-              const [stores, studentsRes] = await Promise.all([
-                getStoresInSchoolByAdmin(schoolId).catch(() => [] as Store[]),
-                getStudentsInSchoolByAdmin(schoolId).catch(() => ({ data: [] } as StudentsInSchoolResponse))
-              ]);
-
-              if (Array.isArray(stores)) {
-                stores.forEach(indexStore);
-              }
-
-              const schoolStudents = (studentsRes as StudentsInSchoolResponse).data ?? (studentsRes as StudentsInSchoolResponse).students ?? [];
-              if (Array.isArray(schoolStudents)) {
-                schoolStudents.forEach((st) => {
-                  const s = st as unknown as Record<string, unknown>;
-                  const name = extractStudentName(s);
-                  const email = extractStudentEmail(s);
-                  const kidObj: Kid = {
-                    id: String(s.studentId || st._id || st.student_id || st.admissionNumber || email),
-                    student_id: String(st.student_id || s.studentId || st._id || ''),
-                    _id: String(st._id || s.studentId || ''),
-                    name: name,
-                    email: email,
-                    isBeneficiary: false,
-                    avatar: (name && name[0]) || 'S'
-                  };
-                  indexKid(kidObj);
-                });
-              }
-            } catch {
-              // Ignore individual school fetch errors
-            }
-          })
-        );
-      }
-
-      // Enrich transactions with user details and roles
-      const enriched: EnrichedTransaction[] = txData.map((tx, idx) => {
-        const rawTx = tx as Record<string, unknown>;
-        const rawAmount = typeof tx.amount === 'number' ? tx.amount : parseFloat(String(tx.amount || 0)) || 0;
-
-        // Extract nested objects if present
-        const nestedUser = typeof rawTx.user === 'object' && rawTx.user !== null ? (rawTx.user as Record<string, unknown>) : undefined;
-        const nestedStudent = typeof rawTx.student === 'object' && rawTx.student !== null ? (rawTx.student as Record<string, unknown>) : undefined;
-        const nestedStore = typeof rawTx.store === 'object' && rawTx.store !== null ? (rawTx.store as Record<string, unknown>) : undefined;
-        const nestedSender = typeof rawTx.sender === 'object' && rawTx.sender !== null ? (rawTx.sender as Record<string, unknown>) : undefined;
-        const nestedRecipient = typeof rawTx.recipient === 'object' && rawTx.recipient !== null ? (rawTx.recipient as Record<string, unknown>) : undefined;
-        const nestedCustomer = typeof rawTx.customer === 'object' && rawTx.customer !== null ? (rawTx.customer as Record<string, unknown>) : undefined;
-        const nestedWallet = typeof rawTx.senderWalletId === 'object' && rawTx.senderWalletId !== null ? (rawTx.senderWalletId as Record<string, unknown>) : undefined;
-        const nestedRecvWallet = typeof rawTx.receiverWalletId === 'object' && rawTx.receiverWalletId !== null ? (rawTx.receiverWalletId as Record<string, unknown>) : undefined;
-        const nestedMeta = typeof rawTx.metadata === 'object' && rawTx.metadata !== null ? (rawTx.metadata as Record<string, unknown>) : undefined;
-
-        // Candidate identifiers — include student and store specific ID fields
-        const candidateId = String(
-          rawTx.userId ||
-          rawTx.studentId ||
-          rawTx.student_id ||
-          rawTx.storeId ||
-          rawTx.store_id ||
-          rawTx.agentId ||
-          rawTx.agent_id ||
-          (typeof rawTx.user === 'string' ? rawTx.user : '') ||
-          (typeof rawTx.customer === 'string' ? rawTx.customer : '') ||
-          (typeof rawTx.senderId === 'string' ? rawTx.senderId : '') ||
-          (typeof rawTx.recipientId === 'string' ? rawTx.recipientId : '') ||
-          (typeof rawTx.receiverId === 'string' ? rawTx.receiverId : '') ||
-          (typeof rawTx.store === 'string' ? rawTx.store : '') ||
-          nestedStudent?.studentId ||
-          nestedStudent?._id ||
-          nestedStudent?.id ||
-          nestedStore?._id ||
-          nestedStore?.id ||
-          nestedStore?.storeId ||
-          nestedUser?._id ||
-          nestedUser?.userId ||
-          nestedCustomer?._id ||
-          nestedSender?._id ||
-          nestedRecipient?._id ||
-          nestedRecipient?.storeId ||
-          ''
-        );
-
-        const candidateEmail = String(
-          rawTx.email ||
-          rawTx.userEmail ||
-          rawTx.studentEmail ||
-          rawTx.storeEmail ||
-          rawTx.customerEmail ||
-          rawTx.senderEmail ||
-          rawTx.recipientEmail ||
-          rawTx.receiverEmail ||
-          nestedStudent?.email ||
-          nestedStore?.email ||
-          nestedUser?.email ||
-          nestedCustomer?.email ||
-          nestedSender?.email ||
-          nestedRecipient?.email ||
-          nestedWallet?.email ||
-          nestedRecvWallet?.email ||
-          nestedMeta?.email ||
-          nestedMeta?.customerEmail ||
-          nestedMeta?.studentEmail ||
-          nestedMeta?.storeEmail ||
-          ''
-        ).toLowerCase();
-
-        const candidateWallet = String(
-          (typeof rawTx.senderWalletId === 'string' ? rawTx.senderWalletId : '') ||
-          (typeof rawTx.receiverWalletId === 'string' ? rawTx.receiverWalletId : '') ||
-          rawTx.accountNumber ||
-          rawTx.senderAccountNumber ||
-          rawTx.receiverAccountNumber ||
-          nestedWallet?.walletId ||
-          nestedWallet?.accountNumber ||
-          nestedRecvWallet?.walletId ||
-          nestedRecvWallet?.accountNumber ||
-          ''
-        );
-
-        const candidateName = String(
-          rawTx.studentName ||
-          rawTx.storeName ||
-          rawTx.userName ||
-          rawTx.customerName ||
-          rawTx.accountName ||
-          rawTx.senderName ||
-          rawTx.recipientName ||
-          rawTx.name ||
-          nestedStudent?.name ||
-          nestedStudent?.fullName ||
-          nestedStore?.storeName ||
-          nestedCustomer?.name ||
-          ''
-        ).toLowerCase().trim();
-
-        // Find matching student
-        const matchedStudent =
-          (candidateId ? studentById.get(candidateId) : undefined) ||
-          (candidateEmail ? studentByEmail.get(candidateEmail) : undefined) ||
-          (candidateName ? studentByName.get(candidateName) : undefined);
-
-        // Find matching store
-        const matchedStore =
-          (candidateId ? storeById.get(candidateId) : undefined) ||
-          (candidateEmail ? storeByEmail.get(candidateEmail) : undefined) ||
-          (candidateName ? storeByName.get(candidateName) : undefined);
-
-        // Find matching non-student user from indices
-        const matchedUser =
-          (candidateId ? userById.get(candidateId) : undefined) ||
-          (candidateEmail ? userByEmail.get(candidateEmail) : undefined) ||
-          (candidateWallet ? userByWallet.get(candidateWallet) : undefined);
-
-        // Inferred Role — check store and student fields accurately
-        const isStore = Boolean(
-          matchedStore ||
-          nestedStore ||
-          rawTx.storeId ||
-          rawTx.store_id ||
-          rawTx.storeName ||
-          rawTx.store ||
-          (typeof rawTx.role === 'string' && rawTx.role.toLowerCase() === 'store') ||
-          (typeof rawTx.userRole === 'string' && rawTx.userRole.toLowerCase() === 'store') ||
-          matchedUser?.role?.toLowerCase() === 'store'
-        );
-
-        const isStudent = !isStore && Boolean(
-          matchedStudent ||
-          nestedStudent ||
-          rawTx.studentId ||
-          rawTx.student_id ||
-          rawTx.studentName ||
-          rawTx.studentEmail ||
-          (typeof rawTx.role === 'string' && rawTx.role.toLowerCase() === 'student') ||
-          (typeof rawTx.userRole === 'string' && rawTx.userRole.toLowerCase() === 'student') ||
-          matchedUser?.role?.toLowerCase() === 'student'
-        );
-
-        const inferredRole = isStore
-          ? 'store'
-          : isStudent
-            ? 'student'
-            : (
-                rawTx.role ||
-                rawTx.userRole ||
-                nestedUser?.role ||
-                matchedUser?.role ||
-                (rawTx.agent || rawTx.agentId ? 'agent' : undefined) ||
-                (rawTx.schoolId ? 'school' : undefined) ||
-                (rawTx.parentId ? 'parent' : undefined) ||
-                // Only infer student when we actually have a matched student
-                (matchedStudent ? 'student' : undefined) ||
-                'other'
-              ) as string;
-
-        // Resolved student name — only use matchedStudent if we actually matched by ID or email, not by name
-        // (name-based matching is too broad and can return the wrong student)
-        const matchedStudentById =
-          (candidateId ? studentById.get(candidateId) : undefined) ||
-          (candidateEmail ? studentByEmail.get(candidateEmail) : undefined);
-
-        const studentName =
-          (nestedStudent?.name as string) ||
-          (nestedStudent ? `${nestedStudent.firstName || ''} ${nestedStudent.lastName || ''}`.trim() : undefined) ||
-          (nestedStudent?.fullName as string) ||
-          (rawTx.studentName as string) ||
-          matchedStudentById?.name ||
-          undefined;
-
-        // Resolved store name
-        const storeName =
-          matchedStore?.storeName ||
-          (nestedStore?.storeName as string) ||
-          (rawTx.storeName as string) ||
-          (typeof rawTx.store === 'string' ? rawTx.store : undefined) ||
-          (matchedUser?.storeName as string) ||
-          undefined;
-
-        // Resolved Display Name
-        const resolvedName =
-          (isStore ? storeName : undefined) ||
-          (isStudent ? studentName : undefined) ||
-          studentName ||
-          storeName ||
-          (rawTx.userName as string) ||
-          (nestedUser?.name as string) ||
-          (nestedUser ? `${nestedUser.firstName || ''} ${nestedUser.lastName || ''}`.trim() : undefined) ||
-          (nestedCustomer?.name as string) ||
-          (nestedSender?.name as string) ||
-          (nestedRecipient?.name as string) ||
-          (rawTx.customerName as string) ||
-          (rawTx.senderName as string) ||
-          (rawTx.recipientName as string) ||
-          (rawTx.accountName as string) ||
-          (rawTx.schoolName as string) ||
-          matchedUser?.name ||
-          (matchedUser ? `${matchedUser.firstName || ''} ${matchedUser.lastName || ''}`.trim() : undefined) ||
-          (matchedUser?.schoolName as string) ||
-          'Unknown User';
-
-        // Resolved Display Email
-        const resolvedEmail =
-          (isStore ? (matchedStore?.email || (rawTx.storeEmail as string)) : undefined) ||
-          (isStudent ? (matchedStudentById?.email || (rawTx.studentEmail as string)) : undefined) ||
-          matchedStudentById?.email ||
-          matchedStore?.email ||
-          (nestedStudent?.email as string) ||
-          (nestedStore?.email as string) ||
-          (rawTx.studentEmail as string) ||
-          (rawTx.storeEmail as string) ||
-          (matchedUser?.email as string) ||
-          '';
-
-        return {
-          ...tx,
-          _id: tx._id || `tx-${idx}`,
-          amount: rawAmount,
-          displayAmount: rawAmount,
-          userRole: inferredRole.toLowerCase(),
-          userName: resolvedName,
-          userEmail: resolvedEmail,
-          displayDate: formatDate(tx.createdAt || tx.date),
-          status: tx.status || 'Successful',
-          reference: tx.reference || (rawTx.reference as string) || (rawTx.transactionId as string) || `REF-${Math.random().toString(36).substring(2, 9).toUpperCase()}`
-        };
-      });
-
-      setAllTransactions(enriched);
-    } catch (error) {
-      console.error('Error loading admin transactions:', error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+    return lookupsPromiseRef.current;
   }, []);
 
-  useEffect(() => {
-    fetchTransactionsData();
-  }, [fetchTransactionsData]);
+  const fetchTransactionsPage = useCallback(
+    async (page: number, limit: number, isRefresh = false) => {
+      const requestId = ++requestIdRef.current;
+      try {
+        if (isRefresh) setRefreshing(true);
+        setLoading(true);
 
-  // Tab counts
+        // Only the requested page is fetched; lookups load in parallel (first time only)
+        const [res, lookups] = await Promise.all([
+          getAdminTransactionsPage({ page, limit }) as Promise<unknown>,
+          getLookups()
+        ]);
+
+        if (requestId !== requestIdRef.current) return; // a newer request superseded this one
+
+        const { items, pagination: meta } = normalizeTransactionsResponse(res, page, limit);
+        setAllTransactions(enrichTransactions(items, lookups));
+        setPagination(meta);
+      } catch (error) {
+        if (requestId !== requestIdRef.current) return;
+        console.error('Error loading admin transactions:', error);
+      } finally {
+        if (requestId === requestIdRef.current) {
+          setLoading(false);
+          setRefreshing(false);
+        }
+      }
+    },
+    [getLookups]
+  );
+
+  // Fetch whenever the page or page size changes (also runs once on mount for page 1 only)
+  useEffect(() => {
+    fetchTransactionsPage(currentPage, itemsPerPage);
+  }, [currentPage, itemsPerPage, fetchTransactionsPage]);
+
+  const goToPage = (page: number) => {
+    const target = Math.min(Math.max(1, page), pagination.totalPages);
+    if (target !== currentPage) setCurrentPage(target);
+  };
+
+  // Tab counts (for the loaded page; "All" shows the server-side grand total)
   const tabCounts = useMemo(() => {
     return {
-      all: allTransactions.length,
+      all: pagination.total,
       student: allTransactions.filter(t => (t.userRole || '').toLowerCase() === 'student').length,
       school: allTransactions.filter(t => (t.userRole || '').toLowerCase() === 'school').length,
       parent: allTransactions.filter(t => (t.userRole || '').toLowerCase() === 'parent').length,
       agent: allTransactions.filter(t => (t.userRole || '').toLowerCase() === 'agent').length,
       store: allTransactions.filter(t => (t.userRole || '').toLowerCase() === 'store').length,
     };
-  }, [allTransactions]);
+  }, [allTransactions, pagination.total]);
 
-  // Filtered transactions
+  // Filtered transactions (client-side filtering of the loaded page)
   const filteredTransactions = useMemo(() => {
     return allTransactions.filter((tx) => {
-      // Role tab filter
       if (activeTab !== 'all' && (tx.userRole || '').toLowerCase() !== activeTab) {
         return false;
       }
 
-      // Search term
       if (searchTerm.trim()) {
         const query = searchTerm.toLowerCase();
         const matchesRef = String(tx.reference || '').toLowerCase().includes(query);
@@ -540,7 +645,6 @@ const Transactions: React.FC = () => {
         }
       }
 
-      // Status filter
       if (statusFilter !== 'all') {
         const normStatus = getTxStatus(tx).toLowerCase();
         if (normStatus !== statusFilter.toLowerCase()) {
@@ -548,7 +652,6 @@ const Transactions: React.FC = () => {
         }
       }
 
-      // Type filter
       if (typeFilter !== 'all') {
         const normType = (getTxType(tx) + ' ' + getTxDirection(tx)).toLowerCase();
         if (!normType.includes(typeFilter.toLowerCase())) {
@@ -556,7 +659,6 @@ const Transactions: React.FC = () => {
         }
       }
 
-      // Date Range Filter
       if (fromDate) {
         const txTime = new Date(tx.createdAt || tx.date || '').getTime();
         const fromTime = new Date(fromDate).getTime();
@@ -573,7 +675,7 @@ const Transactions: React.FC = () => {
     });
   }, [allTransactions, activeTab, searchTerm, statusFilter, typeFilter, fromDate, toDate]);
 
-  // Stats Analytics
+  // Stats (volume/status figures reflect the loaded page; record count is the server total)
   const stats = useMemo(() => {
     const totalVolume = filteredTransactions.reduce((acc, t) => acc + (t.amount || 0), 0);
     const successful = filteredTransactions.filter(t => (t.status || '').toLowerCase() === 'successful' || (t.status || '').toLowerCase() === 'success');
@@ -584,7 +686,7 @@ const Transactions: React.FC = () => {
 
     return {
       totalVolume,
-      totalCount: filteredTransactions.length,
+      pageCount: filteredTransactions.length,
       successCount: successful.length,
       successVolume,
       pendingCount: pending.length,
@@ -592,18 +694,12 @@ const Transactions: React.FC = () => {
     };
   }, [filteredTransactions]);
 
-  // Pagination calculations
-  const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / itemsPerPage));
-  const currentTransactions = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return filteredTransactions.slice(start, start + itemsPerPage);
-  }, [filteredTransactions, currentPage, itemsPerPage]);
+  // Range label for the pagination footer (based on the server page)
+  const rangeStart = allTransactions.length > 0 ? (pagination.page - 1) * pagination.limit + 1 : 0;
+  const rangeEnd = allTransactions.length > 0 ? rangeStart + allTransactions.length - 1 : 0;
+  const totalPages = Math.max(1, pagination.totalPages);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [activeTab, searchTerm, statusFilter, typeFilter, fromDate, toDate, itemsPerPage]);
-
-  // CSV Export
+  // CSV Export (exports the filtered rows currently loaded)
   const escapeCsv = (val: unknown) => {
     const str = String(val ?? '');
     return `"${str.replace(/"/g, '""')}"`;
@@ -653,7 +749,7 @@ const Transactions: React.FC = () => {
     const link = document.createElement('a');
     const dateStr = new Date().toISOString().slice(0, 10);
     link.href = url;
-    link.download = `admin-transactions-${activeTab}-${dateStr}.csv`;
+    link.download = `admin-transactions-${activeTab}-page${pagination.page}-${dateStr}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -723,6 +819,9 @@ const Transactions: React.FC = () => {
     { id: 'store', label: 'Store', icon: StoreIcon },
   ];
 
+  const isFilteredView =
+    activeTab !== 'all' || searchTerm.trim() !== '' || statusFilter !== 'all' || typeFilter !== 'all' || fromDate !== '' || toDate !== '';
+
   return (
     <div className="flex h-screen bg-gray-100">
       <AdminSidebar
@@ -759,10 +858,10 @@ const Transactions: React.FC = () => {
 
               <div className="flex items-center gap-3">
                 <button
-                  onClick={fetchTransactionsData}
-                  disabled={refreshing}
-                  className="bg-white border border-gray-300 rounded-lg px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center shadow-sm transition"
-                  title="Refresh transaction records"
+                  onClick={() => fetchTransactionsPage(currentPage, itemsPerPage, true)}
+                  disabled={refreshing || loading}
+                  className="bg-white border border-gray-300 rounded-lg px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center shadow-sm transition disabled:opacity-60"
+                  title="Refresh this page of transactions"
                 >
                   <RefreshCw size={16} className={`mr-1.5 text-blue-600 ${refreshing ? 'animate-spin' : ''}`} />
                   {refreshing ? 'Refreshing...' : 'Refresh'}
@@ -775,7 +874,7 @@ const Transactions: React.FC = () => {
                   className="bg-blue-600 text-white rounded-lg px-4 py-2 text-sm font-semibold hover:bg-blue-700 flex items-center shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition"
                 >
                   <Download size={16} className="mr-2" />
-                  Export CSV ({filteredTransactions.length})
+                  Export to CSV ({filteredTransactions.length})
                 </button>
               </div>
             </div>
@@ -783,11 +882,11 @@ const Transactions: React.FC = () => {
             {/* Metric KPI Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200">
-                <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Total Volume</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(stats.totalVolume)}</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Page Volume</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">{loading ? 'Loading...' : formatCurrency(stats.totalVolume)}</p>
                 <div className="flex items-center justify-between text-xs text-gray-500 mt-3 pt-3 border-t border-gray-100">
                   <span>Total Records:</span>
-                  <span className="font-semibold text-gray-800">{stats.totalCount}</span>
+                  <span className="font-semibold text-gray-800">{loading ? 'Loading...' : pagination.total.toLocaleString()}</span>
                 </div>
               </div>
 
@@ -795,14 +894,14 @@ const Transactions: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-semibold uppercase tracking-wider text-green-700">Successful Volume</p>
                   <span className="bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded-full font-bold">
-                    {stats.successCount}
+                    {loading ? 'Loading...' : stats.successCount}
                   </span>
                 </div>
-                <p className="text-2xl font-bold text-green-700 mt-1">{formatCurrency(stats.successVolume)}</p>
+                <p className="text-2xl font-bold text-green-700 mt-1">{loading ? 'Loading...' : formatCurrency(stats.successVolume)}</p>
                 <div className="flex items-center justify-between text-xs text-gray-500 mt-3 pt-3 border-t border-gray-100">
-                  <span>Success Rate:</span>
+                  <span>Success Rate (page):</span>
                   <span className="font-semibold text-green-700">
-                    {stats.totalCount > 0 ? Math.round((stats.successCount / stats.totalCount) * 100) : 0}%
+                    {loading ? 'Loading...' : stats.pageCount > 0 ? Math.round((stats.successCount / stats.pageCount) * 100) : 0}%
                   </span>
                 </div>
               </div>
@@ -811,13 +910,13 @@ const Transactions: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-semibold uppercase tracking-wider text-yellow-700">Pending Transactions</p>
                   <span className="bg-yellow-100 text-yellow-800 text-xs px-2 py-0.5 rounded-full font-bold">
-                    {stats.pendingCount}
+                    {loading ? 'Loading...' : stats.pendingCount}
                   </span>
                 </div>
-                <p className="text-2xl font-bold text-yellow-700 mt-1">{stats.pendingCount}</p>
+                <p className="text-2xl font-bold text-yellow-700 mt-1">{loading ? 'Loading...' : stats.pendingCount}</p>
                 <div className="flex items-center justify-between text-xs text-gray-500 mt-3 pt-3 border-t border-gray-100">
                   <span>Requires Attention</span>
-                  <span className="text-xs text-yellow-600 font-medium">{stats.pendingCount > 0 ? 'Pending action' : 'All clear'}</span>
+                  <span className="text-xs text-yellow-600 font-medium">{loading ? 'Loading...' : stats.pendingCount > 0 ? 'Pending action' : 'All clear'}</span>
                 </div>
               </div>
 
@@ -825,14 +924,14 @@ const Transactions: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-semibold uppercase tracking-wider text-red-700">Failed / Cancelled</p>
                   <span className="bg-red-100 text-red-800 text-xs px-2 py-0.5 rounded-full font-bold">
-                    {stats.failedCount}
+                    {loading ? 'Loading...' : stats.failedCount}
                   </span>
                 </div>
-                <p className="text-2xl font-bold text-red-700 mt-1">{stats.failedCount}</p>
+                <p className="text-2xl font-bold text-red-700 mt-1">{loading ? 'Loading...' : stats.failedCount}</p>
                 <div className="flex items-center justify-between text-xs text-gray-500 mt-3 pt-3 border-t border-gray-100">
-                  <span>Failure Rate:</span>
+                  <span>Failure Rate (page):</span>
                   <span className="font-semibold text-red-700">
-                    {stats.totalCount > 0 ? Math.round((stats.failedCount / stats.totalCount) * 100) : 0}%
+                    {loading ? 'Loading...' : stats.pageCount > 0 ? Math.round((stats.failedCount / stats.pageCount) * 100) : 0}%
                   </span>
                 </div>
               </div>
@@ -850,18 +949,16 @@ const Transactions: React.FC = () => {
                     key={tab.id}
                     type="button"
                     onClick={() => setActiveTab(tab.id)}
-                    className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all ${
-                      isActive
-                        ? 'bg-blue-600 text-white shadow-md'
-                        : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
-                    }`}
+                    className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all ${isActive
+                      ? 'bg-blue-600 text-white shadow-md'
+                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                      }`}
                   >
                     <Icon size={16} />
                     <span>{tab.label}</span>
                     <span
-                      className={`ml-1 px-2 py-0.5 rounded-full text-xs font-bold ${
-                        isActive ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-800'
-                      }`}
+                      className={`ml-1 px-2 py-0.5 rounded-full text-xs font-bold ${isActive ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-800'
+                        }`}
                     >
                       {count}
                     </span>
@@ -939,6 +1036,11 @@ const Transactions: React.FC = () => {
                   />
                 </div>
               </div>
+              {isFilteredView && (
+                <p className="text-xs text-gray-500">
+                  Filters apply to the {allTransactions.length} transactions on this page.
+                </p>
+              )}
             </div>
 
             {/* Transactions Table */}
@@ -981,8 +1083,8 @@ const Transactions: React.FC = () => {
                           <p className="text-sm font-medium text-gray-600">Loading transactions data...</p>
                         </td>
                       </tr>
-                    ) : currentTransactions.length > 0 ? (
-                      currentTransactions.map((tx) => {
+                    ) : filteredTransactions.length > 0 ? (
+                      filteredTransactions.map((tx) => {
                         const direction = getTxDirection(tx).toLowerCase();
                         const isCredit = direction === 'credit' || getTxType(tx).toLowerCase().includes('deposit');
 
@@ -1050,7 +1152,11 @@ const Transactions: React.FC = () => {
                         <td colSpan={8} className="px-6 py-14 text-center">
                           <ArrowLeftRight size={44} className="mx-auto mb-3 text-gray-300" />
                           <p className="text-lg font-semibold text-gray-800">No transactions found</p>
-                          <p className="text-sm text-gray-500 mt-1">Try adjusting your filters, search term, or role tab.</p>
+                          <p className="text-sm text-gray-500 mt-1">
+                            {isFilteredView
+                              ? 'No matches on this page. Try adjusting your filters or move to another page.'
+                              : 'There are no transactions to show.'}
+                          </p>
                         </td>
                       </tr>
                     )}
@@ -1063,11 +1169,9 @@ const Transactions: React.FC = () => {
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                   <div className="flex items-center space-x-4">
                     <div className="text-sm text-gray-700">
-                      Showing <span className="font-semibold">{filteredTransactions.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0}</span> to{' '}
-                      <span className="font-semibold">
-                        {Math.min(currentPage * itemsPerPage, filteredTransactions.length)}
-                      </span> of{' '}
-                      <span className="font-semibold">{filteredTransactions.length}</span> transactions
+                      Showing <span className="font-semibold">{rangeStart.toLocaleString()}</span> to{' '}
+                      <span className="font-semibold">{rangeEnd.toLocaleString()}</span> of{' '}
+                      <span className="font-semibold">{pagination.total.toLocaleString()}</span> transactions
                     </div>
 
                     <div className="flex items-center space-x-2">
@@ -1078,7 +1182,8 @@ const Transactions: React.FC = () => {
                           setItemsPerPage(Number(e.target.value));
                           setCurrentPage(1);
                         }}
-                        className="border border-gray-300 rounded-md text-xs px-2 py-1 bg-white text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        disabled={loading}
+                        className="border border-gray-300 rounded-md text-xs px-2 py-1 bg-white text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-60"
                       >
                         <option value={10}>10</option>
                         <option value={50}>50</option>
@@ -1090,8 +1195,8 @@ const Transactions: React.FC = () => {
                   {totalPages > 1 && (
                     <div className="flex items-center space-x-2">
                       <button
-                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                        disabled={currentPage === 1}
+                        onClick={() => goToPage(currentPage - 1)}
+                        disabled={currentPage === 1 || loading}
                         className="px-3 py-1 border text-gray-700 border-gray-300 rounded-md text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
                       >
                         <ChevronLeft size={16} />
@@ -1107,15 +1212,15 @@ const Transactions: React.FC = () => {
                             pageNum = totalPages - 4 + i;
                           }
                         }
-                        return pageNum <= totalPages ? (
+                        return pageNum >= 1 && pageNum <= totalPages ? (
                           <button
                             key={pageNum}
-                            onClick={() => setCurrentPage(pageNum)}
-                            className={`px-3 py-1 border rounded-md text-sm transition ${
-                              currentPage === pageNum
-                                ? 'bg-blue-600 text-white border-blue-600 font-semibold'
-                                : 'border-gray-300 text-gray-700 hover:bg-gray-100'
-                            }`}
+                            onClick={() => goToPage(pageNum)}
+                            disabled={loading}
+                            className={`px-3 py-1 border rounded-md text-sm transition disabled:cursor-not-allowed ${currentPage === pageNum
+                              ? 'bg-blue-600 text-white border-blue-600 font-semibold'
+                              : 'border-gray-300 text-gray-700 hover:bg-gray-100'
+                              }`}
                           >
                             {pageNum}
                           </button>
@@ -1123,8 +1228,8 @@ const Transactions: React.FC = () => {
                       })}
 
                       <button
-                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                        disabled={currentPage === totalPages}
+                        onClick={() => goToPage(currentPage + 1)}
+                        disabled={currentPage === totalPages || loading}
                         className="px-3 py-1 text-gray-700 border border-gray-300 rounded-md text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
                       >
                         <ChevronRight size={16} />

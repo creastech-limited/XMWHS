@@ -7,12 +7,15 @@ import {
   AlertCircle,
   CheckCircle,
   RefreshCw,
+  Pencil,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import AdminSidebar from '../../components/Adminsidebar';
 import AdminHeader from '../../components/AdminHeader';
-import { getAllCharges } from '../../services';
+import { getAllCharges, updateCharge, type UpdateChargePayload } from '../../services';
 import type { Charge } from '../../types';
+import EditChargeModal from '../../components/EditChargeModal';
+import ActionMenu from '../../components/shared/Actionmenu';
 
 interface ChargeDisplayData extends Charge {
   formattedDate?: string;
@@ -32,6 +35,7 @@ const GetCharges = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState<number>(10);
   const [refreshing, setRefreshing] = useState(false);
+  const [editingCharge, setEditingCharge] = useState<ChargeDisplayData | null>(null);
 
   const fetchCharges = useCallback(async () => {
     try {
@@ -46,22 +50,22 @@ const GetCharges = () => {
       console.log('Charges data received:', data);
       console.log('Is array:', Array.isArray(data));
       console.log('Data length:', Array.isArray(data) ? data.length : 'N/A');
-      
+
       const chargesWithFormatting: ChargeDisplayData[] = (Array.isArray(data) ? data : []).map((charge) => ({
         ...charge,
         formattedDate: charge.createdAt
           ? new Date(charge.createdAt as string).toLocaleDateString('en-NG', {
-              year: 'numeric',
-              month: 'short',
-              day: 'numeric'
-            })
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+          })
           : 'N/A',
         formattedUpdated: charge.updatedAt
           ? new Date(charge.updatedAt as string).toLocaleDateString('en-NG', {
-              year: 'numeric',
-              month: 'short',
-              day: 'numeric'
-            })
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+          })
           : 'N/A'
       }));
 
@@ -136,6 +140,11 @@ const GetCharges = () => {
     setRefreshing(false);
   };
 
+  const handleUpdateCharge = async (id: string, payload: UpdateChargePayload) => {
+    await updateCharge(id, payload);
+    await fetchCharges(); // reload so the table shows the new values
+  };
+
   const handlePrevPage = () => {
     if (currentPage > 1) setCurrentPage(currentPage - 1);
   };
@@ -176,7 +185,7 @@ const GetCharges = () => {
                 <div className="flex items-center gap-3">
                   <CreditCard className="w-8 h-8 text-blue-600" />
                   <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Transaction Charges</h1>
+                    <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Transaction Charges</h1>
                     <p className="text-gray-600 text-sm mt-1">Manage all transaction charges and rates</p>
                   </div>
                 </div>
@@ -291,6 +300,9 @@ const GetCharges = () => {
                           <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
                             Created
                           </th>
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
+                            Actions
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
@@ -325,11 +337,10 @@ const GetCharges = () => {
                             </td>
                             <td className="px-6 py-4">
                               <span
-                                className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium ${
-                                  charge.status === 'Active'
-                                    ? 'bg-green-100 text-green-800'
-                                    : 'bg-gray-100 text-gray-800'
-                                }`}
+                                className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium ${charge.status === 'Active'
+                                  ? 'bg-green-100 text-green-800'
+                                  : 'bg-gray-100 text-gray-800'
+                                  }`}
                               >
                                 {charge.status === 'Active' ? (
                                   <CheckCircle className="w-4 h-4" />
@@ -341,6 +352,18 @@ const GetCharges = () => {
                             </td>
                             <td className="px-6 py-4 text-sm text-gray-600">
                               {charge.formattedDate}
+                            </td>
+                            <td className="px-6 py-4">
+                              <ActionMenu
+                                ariaLabel={`Actions for ${charge.name}`}
+                                items={[
+                                  {
+                                    label: 'Edit charge',
+                                    icon: <Pencil className="w-4 h-4" />,
+                                    onClick: () => setEditingCharge(charge),
+                                  },
+                                ]}
+                              />
                             </td>
                           </tr>
                         ))}
@@ -400,11 +423,10 @@ const GetCharges = () => {
                               key={pageNum}
                               type="button"
                               onClick={() => setCurrentPage(pageNum)}
-                              className={`px-3 py-1 border rounded-md text-sm transition ${
-                                currentPage === pageNum
-                                  ? 'bg-blue-600 text-white border-blue-600 font-semibold'
-                                  : 'border-gray-300 text-gray-700 hover:bg-gray-100'
-                              }`}
+                              className={`px-3 py-1 border rounded-md text-sm transition ${currentPage === pageNum
+                                ? 'bg-blue-600 text-white border-blue-600 font-semibold'
+                                : 'border-gray-300 text-gray-700 hover:bg-gray-100'
+                                }`}
                             >
                               {pageNum}
                             </button>
@@ -437,6 +459,12 @@ const GetCharges = () => {
           </div>
         </main>
       </div>
+      <EditChargeModal
+        charge={editingCharge}
+        isOpen={!!editingCharge}
+        onClose={() => setEditingCharge(null)}
+        onSave={handleUpdateCharge}
+      />
     </div>
   );
 };

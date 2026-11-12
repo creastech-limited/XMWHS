@@ -43,13 +43,13 @@ export const useEditStudent = () => {
       const message = error.message;
 
       if (message.includes('401') || message.includes('unauthorized')) {
-        errorMessage = context === 'fetch' 
-          ? 'Session expired. Please login again.' 
+        errorMessage = context === 'fetch'
+          ? 'Session expired. Please login again.'
           : 'Session expired. Please login again.';
         auth?.logout?.();
         localStorage.removeItem('token');
       } else if (message.includes('404')) {
-        errorMessage = context === 'fetch' 
+        errorMessage = context === 'fetch'
           ? 'Student not found. The student may have been deleted or the ID is invalid.'
           : 'Student not found. Unable to update profile.';
       } else if (message.includes('403')) {
@@ -60,7 +60,7 @@ export const useEditStudent = () => {
         errorMessage = message || (context === 'fetch' ? 'Failed to fetch student data' : 'Failed to update profile');
       }
     } else {
-      errorMessage = context === 'fetch' 
+      errorMessage = context === 'fetch'
         ? 'An unexpected error occurred while fetching student data'
         : 'An unexpected error occurred while updating profile';
     }
@@ -70,20 +70,20 @@ export const useEditStudent = () => {
 
   const fetchStudentData = useCallback(async () => {
     if (!_id) {
-      setState(prev => ({ 
-        ...prev, 
+      setState(prev => ({
+        ...prev,
         error: 'Student ID is missing from URL parameters',
-        fetchLoading: false 
+        fetchLoading: false
       }));
       return;
     }
 
     const token = getAuthToken();
     if (!token) {
-      setState(prev => ({ 
-        ...prev, 
+      setState(prev => ({
+        ...prev,
         error: 'Authentication required. Please login to continue.',
-        fetchLoading: false 
+        fetchLoading: false
       }));
       return;
     }

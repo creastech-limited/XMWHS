@@ -1,6 +1,5 @@
-// src/components/store/AgentSearchBar.tsx
 import React from 'react';
-import { SearchIcon } from 'lucide-react';
+import { Search } from 'lucide-react';
 
 interface AgentSearchBarProps {
   value: string;
@@ -11,22 +10,19 @@ interface AgentSearchBarProps {
 const AgentSearchBar: React.FC<AgentSearchBarProps> = ({
   value,
   onChange,
-  placeholder = 'Search agents by name, email, or phone',
-}) => {
-  return (
-    <div className="relative mb-5 sm:mb-6 md:mb-7">
-      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-        <SearchIcon className="h-[18px] w-[18px] text-gray-400" />
-      </div>
-      <input
-        type="text"
-        className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-[15px] md:text-[15px]"
-        placeholder={placeholder}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      />
-    </div>
-  );
-};
+  placeholder = 'Search by name, email or phone',
+}) => (
+  <div className="relative w-full sm:max-w-xl sm:flex-1">
+    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+    <input
+      type="search"
+      aria-label="Search agents"
+      className="block w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+      placeholder={placeholder}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  </div>
+);
 
 export default AgentSearchBar;

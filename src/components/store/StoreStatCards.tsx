@@ -1,68 +1,82 @@
 // src/components/store/StoreStatCards.tsx
 import React from 'react';
-import { FaWallet } from 'react-icons/fa';
-import { TrendingUp, DollarSign, Users } from 'lucide-react';
-import type { DashboardData } from '../../types/store';
+import { Link } from 'react-router-dom';
+import { Wallet, CircleDollarSign, TrendingUp, Users } from 'lucide-react';
+import { Card, naira } from './ui';
+import type { DashboardData } from '../../types/dashboard';
 
 interface StoreStatCardsProps {
   data: DashboardData;
 }
 
-const StoreStatCards: React.FC<StoreStatCardsProps> = ({ data }) => {
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-      {/* Wallet Balance */}
-      <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-green-100 text-sm font-medium">Wallet Balance</p>
-            <p className="text-3xl font-bold mt-2">
-              ₦{data.balance.toLocaleString()}
-            </p>
-          </div>
-          <div className="bg-white/20 p-3 rounded-lg">
-            <FaWallet className="w-6 h-6" />
-          </div>
-        </div>
-      </div>
+const WITHDRAW_ROUTE = '/swithdrawal';
+const AGENTS_ROUTE = '/agents';
 
-      {/* Daily Revenue */}
-      <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-orange-100 text-sm font-medium">Daily Revenue</p>
-            <p className="text-3xl font-bold mt-2">
-              ₦{data.dailyRevenue.toLocaleString()}
-            </p>
-            <div className="flex items-center mt-2">
-              <TrendingUp className="w-4 h-4 mr-1" />
-              <span className="text-sm">+{data.growth.revenue}%</span>
-            </div>
-          </div>
-          <div className="bg-white/20 p-3 rounded-lg">
-            <DollarSign className="w-6 h-6" />
-          </div>
-        </div>
-      </div>
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
-      {/* Number of Agents */}
-      <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-blue-100 text-sm font-medium">Number of Agents</p>
-            <p className="text-3xl font-bold mt-2">{data.numberOfAgents}</p>
-            <div className="flex items-center mt-2">
-              <TrendingUp className="w-4 h-4 mr-1" />
-              <span className="text-sm">+{data.growth.agents}%</span>
-            </div>
-          </div>
-          <div className="bg-white/20 p-3 rounded-lg">
-            <Users className="w-6 h-6" />
-          </div>
-        </div>
-      </div>
+const StatCard: React.FC<{
+  label: string;
+  icon: React.ReactNode;
+  value: React.ReactNode;
+  footer?: React.ReactNode;
+}> = ({ label, icon, value, footer }) => (
+  <Card className="p-4">
+    <div className="flex items-center justify-between">
+      <p className="text-xs font-medium text-slate-500">{label}</p>
+      <span className="text-slate-400">{icon}</span>
     </div>
-  );
-};
+    <p className="mt-2 text-2xl font-bold tabular-nums text-slate-900">{value}</p>
+    {footer}
+  </Card>
+);
+
+const Note: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <p className="mt-2 text-xs text-slate-500">{children}</p>
+);
+
+const linkClass =
+  'mt-2 inline-block rounded text-xs font-medium text-indigo-700 hover:text-indigo-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500';
+
+const StoreStatCards: React.FC<StoreStatCardsProps> = ({ data }) => (
+  <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <StatCard
+      label="Wallet balance"
+      icon={<Wallet className="h-4 w-4" />}
+      value={naira(data.balance)}
+      footer={
+        <Link to={WITHDRAW_ROUTE} className={linkClass}>
+          Withdraw →
+        </Link>
+      }
+    />
+    <StatCard
+      label="Today's revenue"
+      icon={<CircleDollarSign className="h-4 w-4" />}
+      value={naira(data.dailyRevenue)}
+      footer={<Note>{plural(data.todayTransactionCount, 'transaction')} today</Note>}
+    />
+    <StatCard
+      label="Total revenue"
+      icon={<TrendingUp className="h-4 w-4" />}
+      value={naira(data.totalRevenue)}
+      footer={<Note>{plural(data.totalTransactionCount, 'transaction')} in total</Note>}
+    />
+    <StatCard
+      label="Active agents"
+      icon={<Users className="h-4 w-4" />}
+      value={
+        <>
+          {data.activeAgents}
+          <span className="ml-1 text-sm font-normal text-slate-500">of {data.numberOfAgents}</span>
+        </>
+      }
+      footer={
+        <Link to={AGENTS_ROUTE} className={linkClass}>
+          Manage agents →
+        </Link>
+      }
+    />
+  </div>
+);
 
 export default StoreStatCards;

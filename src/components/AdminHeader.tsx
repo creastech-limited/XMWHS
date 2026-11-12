@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Menu, Bell, User, LogOut, Settings } from 'lucide-react';
+import { Menu, Bell, LogOut, Settings } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getUserDetails } from '../services';
-
-
+import { ConfirmLogoutModal } from './shared/ConfirmLogoutModal';
+import { Link } from 'react-router-dom';
 
 interface AdminHeaderProps {
   sidebarOpen: boolean;
@@ -27,13 +27,14 @@ const AdminHeader = ({ sidebarOpen, setSidebarOpen, activeMenu }: AdminHeaderPro
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   useEffect(() => {
     const fetchUserProfile = async () => {
       try {
         setLoading(true);
-        
-        
+
+
 
         const data = await getUserDetails()
 
@@ -147,14 +148,14 @@ const AdminHeader = ({ sidebarOpen, setSidebarOpen, activeMenu }: AdminHeaderPro
         return userProfile.email.split('@')[0];
       }
     }
-    
+
     // Fallback to auth context user
     if (user?.name) {
       return user.name;
     } else if (user?.email) {
       return user.email.split('@')[0];
     }
-    
+
     return 'Admin';
   };
 
@@ -173,8 +174,13 @@ const AdminHeader = ({ sidebarOpen, setSidebarOpen, activeMenu }: AdminHeaderPro
 
   const handleLogout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('user');
     window.location.href = '/login';
   };
+
+  const handleLogoutClick = () => {
+    setShowLogoutModal(true);
+  }
 
   return (
     <header className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
@@ -187,14 +193,18 @@ const AdminHeader = ({ sidebarOpen, setSidebarOpen, activeMenu }: AdminHeaderPro
           >
             <Menu size={24} />
           </button>
-          <div>
+
+          <div className="hidden lg:block">
             <h2 className="text-2xl font-bold text-gray-900 capitalize">
               {activeMenu.replace('-', ' ')}
             </h2>
-            <p className="text-sm text-gray-600">Manage your {activeMenu.replace('-', ' ')} settings</p>
+
+            <p className="text-sm text-gray-600">
+              Manage your {activeMenu.replace('-', ' ')} settings
+            </p>
           </div>
         </div>
-        
+
         <div className="flex items-center space-x-4">
           {/* Notification Bell */}
           <div className="relative">
@@ -243,26 +253,27 @@ const AdminHeader = ({ sidebarOpen, setSidebarOpen, activeMenu }: AdminHeaderPro
                     </p>
                   )}
                 </div>
-                
-                <button
+
+                {/* <button
                   onClick={() => setDropdownOpen(false)}
-                  className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  className="flex items-center w-full px-4 py-2 text-[15px] text-gray-700 hover:bg-gray-50 transition-colors"
                 >
                   <User className="w-4 h-4 mr-3" />
                   Profile Settings
-                </button>
-                
-                <button
+                </button> */}
+
+                <Link
+                  to="/admin/settings"
                   onClick={() => setDropdownOpen(false)}
-                  className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  className="flex items-center w-full px-4 py-2 text-[17px] text-gray-700 hover:bg-gray-50 transition-colors"
                 >
                   <Settings className="w-4 h-4 mr-3" />
                   Account Settings
-                </button>
-                
+                </Link>
+
                 <div className="border-t border-gray-100 mt-2 pt-2">
                   <button
-                    onClick={handleLogout}
+                    onClick={handleLogoutClick}
                     className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
                   >
                     <LogOut className="w-4 h-4 mr-3" />
@@ -283,6 +294,12 @@ const AdminHeader = ({ sidebarOpen, setSidebarOpen, activeMenu }: AdminHeaderPro
           aria-hidden="true"
         />
       )}
+
+      <ConfirmLogoutModal
+        open={showLogoutModal}
+        onConfirm={handleLogout}
+        onCancel={() => setShowLogoutModal(false)}
+      />
     </header>
   );
 };
