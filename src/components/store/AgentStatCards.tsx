@@ -1,4 +1,3 @@
-// src/components/store/AgentStatCards.tsx
 import React from 'react';
 import { Card } from './ui';
 

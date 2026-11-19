@@ -1,4 +1,3 @@
-// src/hooks/useLogin.ts
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { login as apiLogin } from '../services';
@@ -6,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import type { LoginRequest } from '../types/auth';
 import type { User } from '../types/user';
+import { isDidAgent } from '../utils/didAgent';
 
 interface LoginFormData {
   email: string;
@@ -18,7 +18,7 @@ interface LoginFormErrors {
   password: string;
 }
 
-const MOBILE_ONLY_ROLES = ['parent', 'student', 'security', 'agent'];
+const MOBILE_ONLY_ROLES = ['security', 'agent', 'parent', 'student'];
 
 export const useLogin = () => {
   const navigate = useNavigate();
@@ -109,14 +109,15 @@ export const useLogin = () => {
 
       const role = String(data.user?.role ?? '').toLowerCase();
 
-      if (MOBILE_ONLY_ROLES.includes(role)) {
+      // Mobile-only roles get the download modal, except DID agents,
+      // who use the web portal.
+      if (MOBILE_ONLY_ROLES.includes(role) && !isDidAgent(data.user)) {
         setShowDownloadModal(true);
-        return; // skip login() and navigate()
+        return;
       }
 
+      // login() redirects to the right home route itself (see AuthContext)
       login(data.user as User, data.accessToken);
-
-      navigate('/dashboard');
 
       // const data = await apiLogin(credentials);
       // login(data.user as User, data.accessToken);

@@ -1,4 +1,3 @@
-// src/hooks/useSchoolDashboard.ts
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {

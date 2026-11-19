@@ -25,6 +25,7 @@ interface UserData {
   email: string;
   lastTransactions: Transaction[];
 }
+
 interface Charge {
   _id: string;
   name: string;
@@ -250,9 +251,9 @@ const calculateCharge = (transactionAmount: number | string, charge: Charge): nu
   // Fetch transaction
   const fetchTransactions = async () => {
     if (!authToken || !userId) return;
-    
+      
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/transactions/user/${userId}`, {
+      const response = await axios.get(`${API_BASE_URL}/api/transaction/getusertransaction`, {
         headers: {
           Authorization: `Bearer ${authToken}`,
           'Content-Type': 'application/json'
@@ -357,7 +358,7 @@ const calculateCharge = (transactionAmount: number | string, charge: Charge): nu
     
     try {
       //const response = await axios.get(`${API_BASE_URL}/api/transaction/verifyTransaction/${reference}`, {
-      const response = await axios.get(`${API_BASE_URL}/api/transaction/verifynomba/${reference}`, {
+      const response = await axios.post(`${API_BASE_URL}/api/transaction/verifynomba/${reference}`, {
         headers: {
           Authorization: `Bearer ${authToken}`,
           'Content-Type': 'application/json'
@@ -372,7 +373,7 @@ const calculateCharge = (transactionAmount: number | string, charge: Charge): nu
         });
         
         await fetchWalletBalance();
-        await fetchTransactions();
+        // await fetchTransactions();
         setAmount('');
         setActiveStep(0);
       }
@@ -389,22 +390,22 @@ const calculateCharge = (transactionAmount: number | string, charge: Charge): nu
   };
   
   // Check for payment callback
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const reference = urlParams.get('reference') || localStorage.getItem('paymentReference');
+  // useEffect(() => {
+  //   const urlParams = new URLSearchParams(window.location.search);
+  //   const reference = urlParams.get('reference') || localStorage.getItem('paymentReference');
     
-    if (reference) {
-      localStorage.removeItem('paymentReference');
-      verifyTransaction(reference);
-    }
-  },);
+  //   if (reference) {
+  //     localStorage.removeItem('paymentReference');
+  //     verifyTransaction(reference);
+  //   }
+  // },);
   
   // Fetch transactions
-  useEffect(() => {
-    if (authToken && userId) {
-      fetchTransactions();
-    }
-  },);
+  // useEffect(() => {
+  //   if (authToken && userId) {
+  //     fetchTransactions();
+  //   }
+  // },);
 
   if (isLoading) {
     return (

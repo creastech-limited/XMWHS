@@ -1,4 +1,3 @@
-// src/components/student/StudentRegistrationLink.tsx
 import React from 'react';
 import { MailIcon, ClipboardCopyIcon } from 'lucide-react';
 

@@ -1,4 +1,3 @@
-// src/components/store/AgentForm.tsx
 import React from 'react';
 import { UserPlus, Eye, EyeOff } from 'lucide-react';
 import type { AgentFormData, AgentFormErrors } from '../../types/agent';

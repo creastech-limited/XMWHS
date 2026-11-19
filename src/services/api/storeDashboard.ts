@@ -1,6 +1,3 @@
-// src/services/storeDashboard.ts
-// If your other services use an axios instance (with interceptors / base URL), replace the body of
-// `request` with: api.get(path, { params }).then((r) => r.data). Nothing else in this file changes.
 import type { RevenueChartResponse, StoreDashboardResponse } from '../../types/dashboard';
 
 const API_ORIGIN = 'https://nodes-mxxd.onrender.com';

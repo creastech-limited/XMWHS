@@ -1,4 +1,3 @@
-// src/components/student/TransactionSummaryCards.tsx
 import React from 'react';
 import type { TransactionSummary } from '../../types/student';
 

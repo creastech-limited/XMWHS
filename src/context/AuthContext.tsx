@@ -10,11 +10,11 @@ import type { User } from '../types/user';
 import type { AuthContextType, AuthProviderProps } from '../types/auth.js';
 import { validateToken } from '../services/api/authService';
 import axios from 'axios';
+import { isDidAgent } from '../utils/didAgent';
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-
-// Define role-based routes
+// Define role-based home routes
 const ROLE_ROUTES: Record<string, string> = {
   school: '/schools',
   parent: '/parent',
@@ -57,10 +57,7 @@ const ROLE_SPECIFIC_ROUTES: Record<string, string[]> = {
     '/ksettings',
     '/kdispute',
   ],
-  security: [
-    '/security',
-    '/security/settings',
-  ],
+  security: ['/security', '/security/settings'],
   store: [
     '/store',
     '/agents',
@@ -68,6 +65,10 @@ const ROLE_SPECIFIC_ROUTES: Record<string, string[]> = {
     '/Swithdrawal',
     '/Storedispute',
     '/store/settings',
+    '/add-did-number',
+    '/store/invoices',
+    '/store/cdr-import',
+    '/store/reports',
   ],
   agent: [
     '/agent',
@@ -75,10 +76,26 @@ const ROLE_SPECIFIC_ROUTES: Record<string, string[]> = {
     '/agent/transfertostore',
     '/agent/transactions',
   ],
-  admin: [
-    '/admin',
-    '/admin/disputes'
-  ],
+  didagent: ['/did-agent'],
+  admin: ['/admin', '/admin/disputes'],
+};
+
+// A DID agent is its own "role" for routing purposes
+const getRoleKey = (u: User): string => {
+  if (isDidAgent(u)) return 'didagent';
+  if (u.role === 'individual' && u.isParent) return 'parent';
+  return u.role;
+};
+
+const getHomeRoute = (u: User): string => {
+  const key = getRoleKey(u);
+  if (key === 'didagent') return '/did-agent/dashboard';
+  return ROLE_ROUTES[key] || '/';
+};
+
+const isRouteAllowed = (u: User, pathname: string): boolean => {
+  const allowedRoutes = ROLE_SPECIFIC_ROUTES[getRoleKey(u)] || [];
+  return allowedRoutes.some((route) => pathname.startsWith(route));
 };
 
 // Helper function to check if a path is public
@@ -94,12 +111,11 @@ const isPublicPath = (pathname: string): boolean => {
     '/success',
   ];
 
-  // Check exact matches first
   if (publicPaths.includes(pathname)) {
     return true;
   }
 
-  // Check for reset password route with token parameter
+  // Reset password route with token parameter
   if (pathname.startsWith('/reset-password/')) {
     return true;
   }
@@ -113,8 +129,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
-
-
 
   const logout = useCallback(() => {
     localStorage.removeItem('user');
@@ -130,9 +144,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       localStorage.setItem('token', jwt);
       setUser(userData);
       setToken(jwt);
-      // Redirect to role-specific route after login
-      const roleRoute = ROLE_ROUTES[userData.role] || '/';
-      navigate(roleRoute);
+      // Redirect to the right home route after login
+      navigate(getHomeRoute(userData));
     },
     [navigate]
   );
@@ -144,7 +157,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       const currentPath = location.pathname;
 
-      // If user is on a public page, allow access without authentication
+      // Public pages: allow access without authentication
       if (isPublicPath(currentPath)) {
         setIsLoading(false);
         return;
@@ -153,7 +166,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const storedUser = localStorage.getItem('user');
       const storedToken = localStorage.getItem('token');
 
-      // If no token and not on public page, redirect to login
+      // No token and not on a public page: go to login
       if (!storedToken || !storedUser) {
         setIsLoading(false);
         navigate('/login');
@@ -164,14 +177,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (isValidToken) {
         try {
-          const parsedUser = JSON.parse(storedUser);
+          const parsedUser = JSON.parse(storedUser) as User;
           setUser(parsedUser);
           setToken(storedToken);
 
-          // Check if current route is allowed for this user role
-          const allowedRoutes = ROLE_SPECIFIC_ROUTES[parsedUser.role] || [];
-          if (!allowedRoutes.some(route => currentPath.startsWith(route))) {
-            navigate(ROLE_ROUTES[parsedUser.role] || '/');
+          // Is this route allowed for this user?
+          if (!isRouteAllowed(parsedUser, currentPath)) {
+            navigate(getHomeRoute(parsedUser));
           }
         } catch (err) {
           console.error('Error parsing stored user:', err);
@@ -196,11 +208,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Allow access to public pages
     if (isPublicPath(currentPath)) return;
 
-    const allowedRoutes = ROLE_SPECIFIC_ROUTES[user.role] || [];
-
-    // Redirect if user tries to access non-authorized route
-    if (!allowedRoutes.some(route => currentPath.startsWith(route))) {
-      navigate(ROLE_ROUTES[user.role] || '/');
+    // Redirect if user tries to access a non-authorized route
+    if (!isRouteAllowed(user, currentPath)) {
+      navigate(getHomeRoute(user));
     }
   }, [isLoading, user, location.pathname, navigate]);
 

@@ -1,4 +1,3 @@
-// src/hooks/useForgotPassword.ts
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { forgotPassword } from '../services';

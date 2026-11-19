@@ -1,4 +1,3 @@
-// src/pages/School/ViewStudentTransactions.tsx
 import React from 'react';
 import { DocumentTextIcon } from '@heroicons/react/24/outline';
 import { Header } from '../../components/Header';

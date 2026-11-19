@@ -1,4 +1,3 @@
-// src/components/dashboard/StudentsByClassCard.tsx
 import React from 'react';
 
 export interface ClassCount { name: string; value: number }

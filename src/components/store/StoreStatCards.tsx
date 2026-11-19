@@ -1,4 +1,3 @@
-// src/components/store/StoreStatCards.tsx
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Wallet, CircleDollarSign, TrendingUp, Users } from 'lucide-react';

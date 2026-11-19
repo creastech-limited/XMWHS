@@ -1,9 +1,5 @@
-// src/pages/School/EditStudentDetails.tsx
 import React from 'react';
 import { ArrowLeft, UsersIcon } from 'lucide-react';
-import { Header } from '../../components/Header';
-import { Sidebar } from '../../components/Sidebar';
-import Footer from '../../components/Footer';
 import { LoadingScreen } from '../../components/shared/LoadingScreen';
 import { ErrorDisplay } from '../../components/shared/ErrorDisplay';
 import { useEditStudent } from '../../hooks/useEditStudent';

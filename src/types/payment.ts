@@ -1,4 +1,3 @@
-// src/types/payment.ts
 export type VerificationStatus = 'verifying' | 'success' | 'failed';
 
 export interface PaymentVerificationResponse {

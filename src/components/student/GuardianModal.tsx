@@ -1,4 +1,3 @@
-// src/components/student/GuardianModal.tsx
 import React from 'react';
 import { UsersIcon } from 'lucide-react';
 import type { Student, Parent } from '../../types/student';

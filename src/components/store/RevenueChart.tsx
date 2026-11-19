@@ -1,4 +1,3 @@
-// src/components/store/RevenueChart.tsx
 import React from 'react';
 import {
   LineChart,
@@ -22,7 +21,6 @@ const PERIODS: { id: RevenueChartPeriod; label: string; legend: string; sub: str
   { id: 'custom', label: 'Custom', legend: 'Selected range', sub: 'in the selected range' },
 ];
 
-// ₦500, ₦1.2K, ₦3M: short enough for the axis
 const compact = new Intl.NumberFormat('en-NG', { notation: 'compact', maximumFractionDigits: 1 });
 const axisMoney = (n: number) => `₦${compact.format(n)}`;
 

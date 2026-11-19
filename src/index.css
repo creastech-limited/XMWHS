@@ -43,7 +43,7 @@ body {
   line-height: 1.1;
 } */
 
-button {
+/* button {
   border-radius: 8px;
   border: 1px solid transparent;
   padding: 0.6em 1.2em;
@@ -52,7 +52,6 @@ button {
   font-family: inherit;
   cursor: pointer;
   transition: border-color 0.25s;
-  
 }
 button:hover {
   border-color: #646cff;
@@ -60,7 +59,7 @@ button:hover {
 button:focus,
 button:focus-visible {
   outline: none;
-}
+} */
 @keyframes slideInRight {
   from {
     transform: translateX(100%);

@@ -1,4 +1,3 @@
-// src/pages/Public Pages/StudentRegistrationForm.tsx
 import React from 'react';
 import {
   User,

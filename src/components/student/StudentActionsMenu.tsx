@@ -1,4 +1,3 @@
-// src/components/student/StudentActionsMenu.tsx
 import React, { useEffect, useState } from 'react';
 import {
   UserIcon,

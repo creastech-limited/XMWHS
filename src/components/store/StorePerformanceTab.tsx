@@ -1,4 +1,3 @@
-// src/components/store/StorePerformanceTab.tsx
 import React from 'react';
 import type { Agent, Transaction } from '../../types';
 

@@ -1,4 +1,3 @@
-// src/utils/validators.ts
 import type { AxiosError } from 'axios';
 
 /**

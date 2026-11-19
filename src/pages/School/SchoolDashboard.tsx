@@ -1,5 +1,3 @@
-// src/pages/School/SchoolDashboard.tsx
-// Header, Sidebar and Footer come from SchoolLayout.
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BanknotesIcon } from '@heroicons/react/24/outline';
@@ -14,7 +12,7 @@ import { RecentActivityCard, toActivityRow } from '../../components/dashboard/Re
 import { NeedsAttentionCard } from '../../components/dashboard/NeedsAttentionCard';
 // import { UpcomingCard } from '../../components/dashboard/UpcomingCard';
 
-// ---- DUMMY DATA: replace when fees / parents / registration APIs exist ----
+// ---- DUMMY DATA
 const DUMMY = {
   termLabel: '1st Term, 2026/27',
   feesCollected: '₦24.6M',

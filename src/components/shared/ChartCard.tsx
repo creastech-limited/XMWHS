@@ -1,4 +1,3 @@
-// src/components/shared/ChartCard.tsx
 import React from 'react';
 import {
   PieChart,

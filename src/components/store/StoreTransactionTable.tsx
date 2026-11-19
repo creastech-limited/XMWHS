@@ -1,10 +1,10 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import type { Transaction } from '../../types';
+import type { DashboardTransaction } from '../../types/dashboard';
 
 interface StoreTransactionTableProps {
-  transactions: Transaction[];
+  transactions: DashboardTransaction[];
   onRefresh: () => void;
   viewAllLink: string;
 }
@@ -14,7 +14,7 @@ const StoreTransactionTable: React.FC<StoreTransactionTableProps> = ({
   onRefresh,
   viewAllLink,
 }) => {
-  const getStatusBadge = (status: Transaction['status']) => {
+  const getStatusBadge = (status: DashboardTransaction['status']) => {
     const styles: Record<string, { badge: string; dot: string }> = {
       Completed: {
         badge: 'bg-[#ECFDF3] text-[#16A34A]',

@@ -1,4 +1,3 @@
-// src/components/store/StoreNotifications.tsx
 import React from 'react';
 import { Bell, UserPlus, Activity, RefreshCw } from 'lucide-react';
 import type { Notification } from '../../types';

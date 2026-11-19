@@ -1,4 +1,3 @@
-// src/components/store/RevenueChart.tsx
 import React from 'react';
 import {
   LineChart,

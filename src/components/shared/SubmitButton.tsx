@@ -1,4 +1,3 @@
-// src/components/shared/SubmitButton.tsx
 import React from 'react';
 
 interface SubmitButtonProps {

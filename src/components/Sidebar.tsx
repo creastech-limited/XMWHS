@@ -107,11 +107,11 @@ export const Sidebar: React.FC = () => {
       {/* Sidebar */}
       <aside
         className={`
-          bg-white text-slate-900 transition-all duration-300 flex flex-col h-screen shadow-2xl border-r border-slate-200
-          ${isMobile
+    bg-white text-slate-900 transition-all duration-300 flex flex-col h-[calc(100vh-70px)] shadow-2xl border-r border-slate-200
+    ${isMobile
             ? (mobileMenuOpen ? 'translate-x-0 w-64' : '-translate-x-full w-64')
             : (collapsed ? 'w-20' : 'w-64')}
-        `}
+  `}
         aria-label="Sidebar"
       >
         {/* Logo section (unchanged) */}
@@ -151,8 +151,8 @@ export const Sidebar: React.FC = () => {
                         to={item.path}
                         onClick={handleMenuItemClick}
                         className={`group flex items-center rounded-xl px-3 py-2.5 text-sm font-medium transition-colors duration-200 ${isActive
-                            ? 'bg-slate-900 text-white shadow-sm'
-                            : 'text-slate-900 hover:bg-slate-100'
+                          ? 'bg-slate-900 text-white shadow-sm'
+                          : 'text-slate-900 hover:bg-slate-100'
                           } ${collapsed ? 'justify-center' : 'gap-3'}`}
                       >
                         <span className={`shrink-0 ${isActive ? 'text-white' : 'text-slate-700'}`}>
@@ -172,10 +172,10 @@ export const Sidebar: React.FC = () => {
                             {item.badge ? (
                               <span
                                 className={`min-w-[22px] rounded-full px-2 py-0.5 text-center text-[11px] font-semibold ${item.badgeTone === 'danger'
-                                    ? 'bg-red-100 text-red-600'
-                                    : isActive
-                                      ? 'bg-white/20 text-white'
-                                      : 'bg-slate-100 text-slate-600'
+                                  ? 'bg-red-100 text-red-600'
+                                  : isActive
+                                    ? 'bg-white/20 text-white'
+                                    : 'bg-slate-100 text-slate-600'
                                   }`}
                               >
                                 {item.badge}
@@ -193,7 +193,7 @@ export const Sidebar: React.FC = () => {
         </nav>
 
         {/* Footer with logout */}
-        <div className="border-t border-slate-200 bg-white p-3">
+        <div className="border-t border-slate-200 bg-white p-3 pb-5">
           <button
             onClick={() => setShowLogoutModal(true)}
             className={`group flex w-full items-center rounded-xl px-3 py-2.5 text-sm font-medium text-slate-900 transition-colors duration-200 hover:bg-red-50 hover:text-red-600 ${collapsed ? 'justify-center' : 'gap-3'
@@ -203,12 +203,12 @@ export const Sidebar: React.FC = () => {
             {!collapsed && <span className="whitespace-nowrap">Logout</span>}
           </button>
 
-          {!collapsed && (
+          {/* {!collapsed && (
             <div className="px-3 pt-2 text-center">
               <div className="text-xs font-medium text-slate-500">School Panel</div>
               <div className="text-xs text-slate-400">Version 1.0.0</div>
             </div>
-          )}
+          )} */}
         </div>
       </aside>
 

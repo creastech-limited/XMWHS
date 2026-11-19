@@ -1,4 +1,3 @@
-// src/components/student/StudentInfoDisplay.tsx
 import React from 'react';
 import type { StudentDetails } from '../../types/student';
 

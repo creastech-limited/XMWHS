@@ -33,6 +33,8 @@ import type {
   WalletResponse,
   TransferResponse,
 } from '../../types/user';
+import type { DidNumber, CreateDidInput, CreateDidResponse, CreateDidBatchResult, DidClientReport, InvoicesResponse, InvoiceDetailResponse, DidMeNumber, DidMeReport, DidMeInvoice, DidMeInvoiceDetail, DidMeCallsResult, DidMeCall, DidMeCallsParams, DidMeRecentCall, DidMeDashboard, StoreReportTableResponse, StoreReportTableParams, StartPaymentResponse, VerifyPaymentResponse } from '../../types/agent';
+import type { CdrImportResponse, CdrImportResult, CdrImportsResponse } from '../../types/store';
 import axios from 'axios';
 
 let cached: { data: UserResponse; at: number; token: string | null } | null = null;
@@ -520,8 +522,8 @@ export const createStore = async (payload: CreateStorePayload): Promise<{ messag
     if (axios.isAxiosError(error)) {
       throw new Error(
         error.response?.data?.message ||
-          error.response?.data?.error ||
-          'Failed to create store.'
+        error.response?.data?.error ||
+        'Failed to create store.'
       );
     }
     throw new Error('Failed to create store.');
@@ -1308,4 +1310,349 @@ export const getAdminTransactionsPage = async ({
   } catch {
     return sliceLocally([]);
   }
+};
+
+// Admin DID 
+export const toggleStoreDID = async (storeId: string, enabled: boolean) => {
+  const { data } = await apiClient.put(`/api/admin/v1/stores/${storeId}/did`, { enabled });
+  return data;
+};
+
+export const toggleAgentDID = async (agentId: string, enabled: boolean) => {
+  const { data } = await apiClient.put(`/api/did/store/clients/${agentId}/status`, { enabled });
+  return data;
+};
+
+
+// Pulls a readable message out of an axios error
+export const getApiErrorMessage = (error: unknown): string => {
+  const e = error as { response?: { data?: { message?: string } }; message?: string };
+  return e?.response?.data?.message || e?.message || 'Something went wrong';
+};
+
+const toNumberString = (x: unknown): string => {
+  if (typeof x === 'string') return x;
+  if (x && typeof x === 'object' && 'number' in x) return String((x as { number: unknown }).number);
+  return '';
+};
+
+// Accepts [..], { data: [..] } or { data: { numbers: [..] } }
+const extractList = <T>(body: unknown): T[] => {
+  if (Array.isArray(body)) return body as T[];
+  if (body && typeof body === 'object') {
+    const data = (body as { data?: unknown }).data;
+    if (Array.isArray(data)) return data as T[];
+    if (data && typeof data === 'object') {
+      const firstArray = Object.values(data).find((v): v is unknown[] => Array.isArray(v));
+      if (firstArray) return firstArray as T[];
+    }
+  }
+  return [];
+};
+
+export const getDidNumbers = async (): Promise<DidNumber[]> => {
+  const { data } = await apiClient.get('/api/did/store/numbers');
+  return extractList<DidNumber>(data);
+};
+
+export const getDidNumberById = async (id: string): Promise<DidNumber> => {
+  const { data } = await apiClient.get(`/api/did/store/numbers/${encodeURIComponent(id)}`);
+  return data.data;
+};
+
+export const createDidNumber = async (input: CreateDidInput): Promise<CreateDidResponse> => {
+  const { data } = await apiClient.post('/api/did/store/numbers', input);
+  const d = data?.data ?? {};
+  return {
+    created: d.created ?? [],
+    alreadyExists: (d.alreadyExists ?? []).map(toNumberString),
+    invalid: (d.invalid ?? []).map(toNumberString),
+  };
+};
+
+// Bulk: one request per number, using the documented single-number body.
+export const createDidNumbers = async (inputs: CreateDidInput[]): Promise<CreateDidBatchResult> => {
+  const created: DidNumber[] = [];
+  const skipped: { number: string; reason: string }[] = [];
+
+  for (const input of inputs) {
+    try {
+      const res = await createDidNumber(input);
+      created.push(...res.created);
+      if (res.created.length === 0) {
+        const reason = res.alreadyExists.length
+          ? 'Already exists'
+          : res.invalid.length
+            ? 'Not a valid number'
+            : 'Not added';
+        skipped.push({ number: input.number, reason });
+      }
+    } catch (err) {
+      skipped.push({ number: input.number, reason: getApiErrorMessage(err) });
+    }
+  }
+  return { created, skipped };
+};
+
+export interface AssignDidInput {
+  agentId: string;
+  from: string;
+}
+
+export const assignDidNumber = async (numberId: string, payload: AssignDidInput) => {
+  const { data } = await apiClient.post(`/api/did/store/numbers/${encodeURIComponent(numberId)}/assign`, payload);
+  return data;
+};
+
+export const unassignDidNumber = async (numberId: string) => {
+  const { data } = await apiClient.post(`/api/did/store/numbers/${encodeURIComponent(numberId)}/unassign`);
+  return data;
+};
+
+export const setDidClientRate = async (agentId: string, ratePerMinute: number) => {
+  const { data } = await apiClient.post(`/api/did/store/clients/${encodeURIComponent(agentId)}/rates`, {
+    ratePerMinute,
+    roundingMode: 'nearest',
+    roundingIncrement: 0.01,
+    appliesTo: 'term',
+  });
+  return data;
+};
+
+export const getDidClientReport = async (
+  agentId: string,
+  range?: { from?: string; to?: string }
+): Promise<DidClientReport> => {
+  const { data } = await apiClient.get(`/api/did/store/clients/${encodeURIComponent(agentId)}/report`, {
+    params: { format: 'json', ...range },
+  });
+  return data.data;
+};
+
+export const getDidClients = async (): Promise<StoreAgent[]> => {
+  const { data } = await apiClient.get("/api/did/store/clients");
+  return (data.data as any[]).map((c) => ({
+    ...c,
+    id: c._id,
+    fullName: c.name,
+  })) as StoreAgent[];
+};
+
+export const getDidClientRate = async (agentId: string): Promise<number | null> => {
+  try {
+    const { data } = await apiClient.get(`/api/did/store/clients/${agentId}/rates`);
+    const d = data?.data ?? data;
+    const rate = d?.rate ?? null;
+    return rate === null ? null : Number(rate);
+  } catch (err: any) {
+    if (err?.response?.status === 404) return null;
+    throw err;
+  }
+};
+
+export interface UpdateDidPayload {
+  status: string;
+  didCreationDate: string;
+  didExpiryDate: string;
+  notes: string;
+  vezetiRef: string;
+}
+
+export const updateDidNumber = async (id: string, body: UpdateDidPayload) =>
+  (await apiClient.put(`/api/did/store/numbers/${id}`, body)).data;
+
+export const deleteDidNumber = async (id: string) =>
+  (await apiClient.delete(`/api/did/store/numbers/${id}`)).data;
+
+
+export interface DidRate {
+  _id: string;
+  rate: number;
+  ratePerMinute: number;
+  status: string;
+  deactivatedAt: string | null;
+  createdAt?: string; // add this line
+  agentId: { _id: string } | string;
+}
+
+export const getDidRates = async (): Promise<DidRate[]> => {
+  const { data } = await apiClient.get('/api/did/store/rates');
+  return data?.data ?? [];
+};
+
+
+export const getStoreInvoices = async (
+  params: { page?: number; limit?: number } = {}
+): Promise<InvoicesResponse> => {
+  const { data } = await apiClient.get<InvoicesResponse>("/api/did/store/invoices", {
+    params,
+  });
+  return data;
+};
+
+export const getStoreInvoiceById = async (id: string): Promise<InvoiceDetailResponse> => {
+  const { data } = await apiClient.get<InvoiceDetailResponse>(
+    `/api/did/store/invoices/${encodeURIComponent(id)}`
+  );
+  return data;
+};
+
+// DID agent (self-service)
+const pick = (r: Record<string, unknown>, keys: string[]): unknown => {
+  for (const k of keys) if (r[k] !== undefined && r[k] !== null && r[k] !== '') return r[k];
+  return undefined;
+};
+const toNum = (v: unknown): number | null =>
+  v === undefined || v === null || v === '' || Number.isNaN(Number(v)) ? null : Number(v);
+
+const normalizeCall = (raw: unknown, i: number): DidMeCall => {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const didObj = r.didNumber && typeof r.didNumber === 'object'
+    ? (r.didNumber as Record<string, unknown>)
+    : null;
+
+  return {
+    id: String(pick(r, ['_id', 'id']) ?? `call-${i}`),
+    date: (pick(r, ['callDate', 'dt', 'date']) as string) ?? null,
+    caller: String(pick(r, ['sourceCli', 'source_cli', 'caller']) ?? '—'),
+    called: String(pick(r, ['destNumber', 'destination', 'called']) ?? '—'),
+    did: String(didObj?.number ?? pick(r, ['did', 'number']) ?? '—'),
+    direction: String(pick(r, ['direction', 'type']) ?? ''),
+    durationSeconds: toNum(pick(r, ['callActualDuration', 'duration', 'actualSeconds'])),
+    billedSeconds: toNum(pick(r, ['callBilledDuration', 'billedSeconds'])),
+    charge: toNum(pick(r, ['creastechCharge', 'clientCharge', 'charge'])),
+  };
+};
+
+export const getMyDidCalls = async (params: DidMeCallsParams = {}): Promise<DidMeCallsResult> => {
+  const clean = Object.fromEntries(
+    Object.entries(params).filter(([, v]) => v !== undefined && v !== '')
+  );
+  const { data } = await apiClient.get('/api/did/me/calls', { params: clean });
+  return {
+    rows: extractList<unknown>(data).map(normalizeCall),
+    pagination: data?.pagination ?? null,
+  };
+};
+
+export const getMyDidReport = async (
+  range?: { from?: string; to?: string }
+): Promise<DidMeReport> => {
+  const { data } = await apiClient.get('/api/did/me/report', {
+    params: { format: 'json', ...range },
+  });
+  return data.data;
+};
+
+// Get DID numbers and invoices for the current user (agent)
+export const getMyDidNumbers = async (): Promise<DidMeNumber[]> => {
+  const { data } = await apiClient.get('/api/did/me/numbers');
+  return extractList<DidMeNumber>(data);
+};
+
+// Get DID invoices for the current user (agent)
+export const getMyDidInvoices = async (): Promise<DidMeInvoice[]> => {
+  const { data } = await apiClient.get('/api/did/me/invoices');
+  return extractList<DidMeInvoice>(data);
+};
+
+// Get a specific DID invoice by ID for the current user (agent)
+export const getMyDidInvoiceById = async (id: string): Promise<DidMeInvoiceDetail> => {
+  const { data } = await apiClient.get(`/api/did/me/invoices/${encodeURIComponent(id)}`);
+  return data.data;
+};
+
+// Get DID dashboard data for the current user (agent)
+export const getMyDidDashboard = async (
+  range?: { from?: string; to?: string }
+): Promise<DidMeDashboard> => {
+  const { data } = await apiClient.get('/api/did/me/dashboard', { params: range });
+  return data.data;
+};
+
+// Thrown when the backend says this file was already imported
+export class CdrAlreadyImportedError extends Error {
+  importId: string;
+  importedAt: string;
+  constructor(message: string, importId: string, importedAt: string) {
+    super(message);
+    this.name = 'CdrAlreadyImportedError';
+    this.importId = importId;
+    this.importedAt = importedAt;
+  }
+}
+
+
+// Import a CDR file for the DID store
+export const importDidCdr = async (file: File, force = false): Promise<CdrImportResult> => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const { data } = await apiClient.post<CdrImportResponse>(
+      '/api/did/store/cdr/imports',
+      formData,
+      { params: force ? { force: true } : undefined, headers: { 'Content-Type': 'multipart/form-data' } },
+    );
+    return data.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const body = error.response?.data as
+        | { message?: string; code?: string; data?: { importId?: string; importedAt?: string } }
+        | undefined;
+
+      const isDuplicate =
+        error.response?.status === 409 ||
+        body?.code === 'ALREADY_IMPORTED' ||
+        /already imported/i.test(body?.message ?? '');
+
+      if (isDuplicate && body?.data?.importedAt) {
+        throw new CdrAlreadyImportedError(
+          body.message ?? 'This file was already imported.',
+          body.data.importId ?? '',
+          body.data.importedAt
+        );
+      }
+    }
+    throw error; // everything else falls through to getApiErrorMessage in the page
+  }
+};
+
+
+// Get store report table (for DID store)
+export const getStoreReportTable = async (
+  params: StoreReportTableParams = {}
+): Promise<StoreReportTableResponse> => {
+  const { data } = await apiClient.get<StoreReportTableResponse>(
+    '/api/did/store/reports/table',
+    { params }
+  );
+  return data;
+};
+
+
+// Get All CDR Imports for the store
+export const getDidCdrImports = async (
+  params: { page?: number; limit?: number } = {}
+): Promise<CdrImportsResponse> => {
+  const { data } = await apiClient.get<CdrImportsResponse>('/api/did/store/cdr/imports', { params });
+  return data;
+};
+
+
+// Make payment for an invoice (for both agent and store scopes)
+export const startDidInvoicePayment = async (
+  id: string,
+  body: { provider: "nomba" | "paystack"; callBackUrl: string }
+): Promise<StartPaymentResponse> => {
+  const res = await apiClient.post(`/api/did/me/invoices/${id}/pay/gateway`, body);
+  return res.data;
+};
+
+export const verifyDidInvoicePayment = async (
+  id: string,
+  reference: string
+): Promise<VerifyPaymentResponse> => {
+  const res = await apiClient.post(`/api/did/me/invoices/${id}/pay/verify`, { reference });
+  return res.data;
 };

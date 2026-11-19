@@ -640,7 +640,7 @@ const STransactionHistoryPage = () => {
 
     return (
         <div className="text-slate-900 flex min-h-screen flex-col">
-            <div className="flex flex-1 flex-col px-4 sm:px-6 mt-4 mb-10 max-w-6xl mx-auto w-full">
+            <div className="flex flex-1 flex-col px-2 mt-4 mb-10 w-full">
                 {/* Header */}
                 <div className="flex items-start justify-between gap-4 mb-6">
                     <div>

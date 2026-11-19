@@ -1,4 +1,3 @@
-// src/components/student/TransactionList.tsx
 import React from 'react';
 import {
   DocumentTextIcon,

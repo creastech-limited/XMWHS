@@ -1,4 +1,3 @@
-// src/components/shared/SelectInput.tsx
 import React from 'react';
 
 interface SelectOption {

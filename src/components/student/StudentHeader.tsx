@@ -1,4 +1,3 @@
-// src/components/student/StudentHeader.tsx
 import React from 'react';
 import { UserIcon } from 'lucide-react';
 import type { Student } from '../../types/student';

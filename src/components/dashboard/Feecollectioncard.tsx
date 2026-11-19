@@ -1,5 +1,3 @@
-// src/components/dashboard/FeeCollectionCard.tsx
-// Dummy data for now. Replace `months` when a fees API exists.
 import React from 'react';
 import { ChevronUpIcon } from '@heroicons/react/24/outline';
 

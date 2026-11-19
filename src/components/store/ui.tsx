@@ -1,5 +1,3 @@
-// src/components/store/ui.tsx
-// Shared primitives for the store portal. Every store page should reuse these.
 import React from 'react';
 import { Link } from 'react-router-dom';
 
