@@ -23,6 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 *.env
-
+/scripts
 # Vite cache
 .vite/
