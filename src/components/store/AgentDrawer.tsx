@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
-import { X, Mail, Phone, Lock, Eye, EyeOff } from 'lucide-react';
+import { X, Mail, Phone, Lock, Eye, EyeOff, Building2 } from 'lucide-react';
 import type { AgentFormData, AgentFormErrors } from '../../types/agent';
 
 interface AgentDrawerProps {
@@ -40,8 +40,22 @@ const Field: React.FC<{
   value: string;
   placeholder: string;
   autoComplete?: string;
+  required?: boolean;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-}> = ({ label, error, hint, icon, trailing, inputRef, type = 'text', value, placeholder, autoComplete, onChange }) => {
+}> = ({
+  label,
+  error,
+  hint,
+  icon,
+  trailing,
+  inputRef,
+  type = 'text',
+  value,
+  placeholder,
+  autoComplete,
+  required = true,
+  onChange,
+}) => {
   const id = useId();
   return (
     <div>
@@ -58,7 +72,7 @@ const Field: React.FC<{
           onChange={onChange}
           placeholder={placeholder}
           autoComplete={autoComplete}
-          required
+          required={required}
           aria-invalid={!!error}
           aria-describedby={error || hint ? `${id}-msg` : undefined}
           className={`${inputBase} ${icon ? 'pl-9' : 'pl-3'} ${trailing ? 'pr-10' : 'pr-3'} ${
@@ -75,6 +89,13 @@ const Field: React.FC<{
     </div>
   );
 };
+
+const SectionTitle: React.FC<{ title: string; note?: string }> = ({ title, note }) => (
+  <div>
+    <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+    {note && <p className="mt-0.5 text-xs text-slate-500">{note}</p>}
+  </div>
+);
 
 const AgentDrawer: React.FC<AgentDrawerProps> = ({
   isOpen,
@@ -162,84 +183,117 @@ const AgentDrawer: React.FC<AgentDrawerProps> = ({
             </button>
           </header>
 
-          <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
-            <div className="grid grid-cols-2 gap-4">
+          <div className="flex-1 space-y-8 overflow-y-auto px-6 py-5">
+            {/* ---------- Personal details ---------- */}
+            <section className="space-y-5">
+              <SectionTitle title="Personal details" />
+              <div className="grid grid-cols-2 gap-4">
+                <Field
+                  label="First name"
+                  placeholder="e.g. Grace"
+                  value={formData.firstName}
+                  onChange={onChange('firstName')}
+                  error={errors.firstName}
+                  inputRef={firstRef}
+                  autoComplete="off"
+                />
+                <Field
+                  label="Last name"
+                  placeholder="e.g. Okafor"
+                  value={formData.lastName}
+                  onChange={onChange('lastName')}
+                  error={errors.lastName}
+                  autoComplete="off"
+                />
+              </div>
               <Field
-                label="First name"
-                placeholder="e.g. Grace"
-                value={formData.firstName}
-                onChange={onChange('firstName')}
-                error={errors.firstName}
-                inputRef={firstRef}
+                label="Email"
+                type="email"
+                icon={<Mail className="h-4 w-4" />}
+                placeholder="grace.okafor@gmail.com"
+                hint="The agent signs in with this email."
+                value={formData.email}
+                onChange={onChange('email')}
+                error={errors.email}
                 autoComplete="off"
               />
               <Field
-                label="Last name"
-                placeholder="e.g. Okafor"
-                value={formData.lastName}
-                onChange={onChange('lastName')}
-                error={errors.lastName}
+                label="Phone number"
+                type="tel"
+                icon={<Phone className="h-4 w-4" />}
+                placeholder="0803 000 0000"
+                value={formData.phone}
+                onChange={onChange('phone')}
+                error={errors.phone}
                 autoComplete="off"
               />
-            </div>
-            <Field
-              label="Email"
-              type="email"
-              icon={<Mail className="h-4 w-4" />}
-              placeholder="grace.okafor@gmail.com"
-              hint="The agent signs in with this email."
-              value={formData.email}
-              onChange={onChange('email')}
-              error={errors.email}
-              autoComplete="off"
-            />
-            <Field
-              label="Phone number"
-              type="tel"
-              icon={<Phone className="h-4 w-4" />}
-              placeholder="0803 000 0000"
-              value={formData.phone}
-              onChange={onChange('phone')}
-              error={errors.phone}
-              autoComplete="off"
-            />
-
-            <div className="border-t border-slate-100 pt-5">
-              <Field
-                label="Password"
-                type={showPassword ? 'text' : 'password'}
-                icon={<Lock className="h-4 w-4" />}
-                placeholder="At least 6 characters"
-                hint="Share this with the agent so they can sign in."
-                value={formData.password}
-                onChange={onChange('password')}
-                error={errors.password}
-                autoComplete="new-password"
-                trailing={
-                  <button
-                    type="button"
-                    onClick={onTogglePassword}
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                    className="text-slate-400 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded"
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                }
-              />
-              {score > 0 && (
-                <div className="mt-2 flex items-center gap-3" aria-live="polite">
-                  <div className="flex flex-1 gap-1">
-                    {[1, 2, 3, 4].map((i) => (
-                      <span
-                        key={i}
-                        className={`h-1 flex-1 rounded-full ${i <= score ? STRENGTH_COLOR[score] : 'bg-slate-200'}`}
-                      />
-                    ))}
+              <div>
+                <Field
+                  label="Password"
+                  type={showPassword ? 'text' : 'password'}
+                  icon={<Lock className="h-4 w-4" />}
+                  placeholder="At least 6 characters"
+                  hint="Share this with the agent so they can sign in."
+                  value={formData.password}
+                  onChange={onChange('password')}
+                  error={errors.password}
+                  autoComplete="new-password"
+                  trailing={
+                    <button
+                      type="button"
+                      onClick={onTogglePassword}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      className="rounded text-slate-400 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  }
+                />
+                {score > 0 && (
+                  <div className="mt-2 flex items-center gap-3" aria-live="polite">
+                    <div className="flex flex-1 gap-1">
+                      {[1, 2, 3, 4].map((i) => (
+                        <span
+                          key={i}
+                          className={`h-1 flex-1 rounded-full ${i <= score ? STRENGTH_COLOR[score] : 'bg-slate-200'}`}
+                        />
+                      ))}
+                    </div>
+                    <span className="w-12 text-right text-xs text-slate-500">{STRENGTH_LABEL[score]}</span>
                   </div>
-                  <span className="w-12 text-right text-xs text-slate-500">{STRENGTH_LABEL[score]}</span>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            </section>
+
+            {/* ---------- Professional details (optional) ---------- */}
+            <section className="space-y-5 border-t border-slate-100 pt-6">
+              <SectionTitle
+                title="Professional details (optional)"
+                note="Only fill this in if the agent works for a company. If you fill in one field, the other is required."
+              />
+              <Field
+                label="Company name"
+                icon={<Building2 className="h-4 w-4" />}
+                placeholder="e.g. Acme Ltd"
+                value={formData.companyName}
+                onChange={onChange('companyName')}
+                error={errors.companyName}
+                required={!!formData.companyEmail.trim()}
+                autoComplete="off"
+              />
+              <Field
+                label="Company email"
+                type="email"
+                icon={<Mail className="h-4 w-4" />}
+                placeholder="grace@acme.com"
+                hint="Must be a company address. Gmail, Yahoo, Yopmail and similar are not accepted."
+                value={formData.companyEmail}
+                onChange={onChange('companyEmail')}
+                error={errors.companyEmail}
+                required={!!formData.companyName.trim()}
+                autoComplete="off"
+              />
+            </section>
           </div>
 
           <footer className="flex items-center justify-between gap-3 border-t border-slate-100 px-6 py-4">

@@ -5,6 +5,8 @@ export interface AgentFormData {
   phone: string;
   password: string;
   role: string;
+  companyName: string;
+  companyEmail: string;
 }
 
 export interface AgentFormErrors {
@@ -13,6 +15,8 @@ export interface AgentFormErrors {
   email?: string;
   phone?: string;
   password?: string;
+  companyName?: string;
+  companyEmail?: string;
 }
 
 export interface AgentRegistrationData {
@@ -42,24 +46,24 @@ export interface DidNumber {
   vezetiRef?: string | null;
   notes?: string | null;
   createdBy?: string;
-    assignmentHistory?: AssignmentHistoryEntry[];
+  assignmentHistory?: AssignmentHistoryEntry[];
   createdAt?: string;
 }
 
 export interface DidAgentRef {
-    _id: string;
-    name?: string;
-    firstName?: string;
-    lastName?: string;
-    email?: string;
+  _id: string;
+  name?: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
 }
 
 export interface AssignmentHistoryEntry {
-    _id: string;
-    agentId: DidAgentRef | string | null;
-    from: string;
-    to: string | null;
-    assignedBy?: string;
+  _id: string;
+  agentId: DidAgentRef | string | null;
+  from: string;
+  to: string | null;
+  assignedBy?: string;
 }
 
 export interface CreateDidInput {

@@ -66,14 +66,14 @@ const StatCard = ({ label, value }: { label: string; value: React.ReactNode }) =
     </div>
 );
 
-const MatchPill = ({ ok }: { ok: boolean }) => (
-    <span
-        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${ok ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"
-            }`}
-    >
-        {ok ? "Yes" : "No"}
-    </span>
-);
+// const MatchPill = ({ ok }: { ok: boolean }) => (
+//     <span
+//         className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${ok ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"
+//             }`}
+//     >
+//         {ok ? "Yes" : "No"}
+//     </span>
+// );
 
 const StoreReportPage = () => {
     const [dates, setDates] = useState<{ preset: PresetKey; range: DateRange }>({
@@ -103,7 +103,7 @@ const StoreReportPage = () => {
     const assigneeId = (d: DidNumber) =>
         d.assignedTo && typeof d.assignedTo === "object" ? d.assignedTo._id : d.assignedTo;
 
-    const didOptions = agentId ? dids.filter((d) => assigneeId(d) === agentId) : dids;
+    // const didOptions = agentId ? dids.filter((d) => assigneeId(d) === agentId) : dids;
 
     const load = useCallback(async () => {
         try {

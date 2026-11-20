@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+// import { useNavigate } from 'react-router-dom';
 import { login as apiLogin } from '../services';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
@@ -21,7 +21,7 @@ interface LoginFormErrors {
 const MOBILE_ONLY_ROLES = ['security', 'agent', 'parent', 'student'];
 
 export const useLogin = () => {
-  const navigate = useNavigate();
+  // const navigate = useNavigate();
   const authContext = useAuth();
 
   if (!authContext) {

@@ -33,7 +33,7 @@ import type {
   WalletResponse,
   TransferResponse,
 } from '../../types/user';
-import type { DidNumber, CreateDidInput, CreateDidResponse, CreateDidBatchResult, DidClientReport, InvoicesResponse, InvoiceDetailResponse, DidMeNumber, DidMeReport, DidMeInvoice, DidMeInvoiceDetail, DidMeCallsResult, DidMeCall, DidMeCallsParams, DidMeRecentCall, DidMeDashboard, StoreReportTableResponse, StoreReportTableParams, StartPaymentResponse, VerifyPaymentResponse } from '../../types/agent';
+import type { DidNumber, CreateDidInput, CreateDidResponse, CreateDidBatchResult, DidClientReport, InvoicesResponse, InvoiceDetailResponse, DidMeNumber, DidMeReport, DidMeInvoice, DidMeInvoiceDetail, DidMeCallsResult, DidMeCall, DidMeCallsParams, DidMeDashboard, StoreReportTableResponse, StoreReportTableParams, StartPaymentResponse, VerifyPaymentResponse } from '../../types/agent';
 import type { CdrImportResponse, CdrImportResult, CdrImportsResponse } from '../../types/store';
 import axios from 'axios';
 
