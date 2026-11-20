@@ -1,4 +1,3 @@
-// src/components/dashboard/RecentActivityCard.tsx
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowDownIcon, ArrowUpIcon } from '@heroicons/react/24/outline';

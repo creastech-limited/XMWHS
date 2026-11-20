@@ -1,4 +1,3 @@
-// src/types/registration.ts
 export interface ClassInfo {
   className: string;
   section: string;

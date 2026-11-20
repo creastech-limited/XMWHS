@@ -1,4 +1,3 @@
-// src/utils/greeting.ts
 export const getGreeting = (date: Date = new Date()): string => {
   const hour = date.getHours();
   if (hour < 12) return 'Good morning';

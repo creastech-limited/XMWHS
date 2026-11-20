@@ -1,4 +1,3 @@
-// src/hooks/useStudentManagement.ts
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {

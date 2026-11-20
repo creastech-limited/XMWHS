@@ -50,8 +50,12 @@ export interface User {
   storeName?: string;
   storeType?: string;
   store_id?: string;
+    isDIDStore?: boolean;
   Link?: string;
   [key: string]: unknown;
+
+  // DID Agent specific
+  isDIDAgent?: boolean;
 }
 
 export interface SchoolUser {
@@ -399,6 +403,7 @@ export interface StoreAgent {
   isStandAlone?: boolean;
   agentName?: string;
   agentEmail?: string;
+  isDIDAgent?: boolean;
 }
 
 export interface Agent {

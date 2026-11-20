@@ -1,4 +1,3 @@
-// src/pages/Public Pages/SecurityRegistrationForm.tsx
 import React from 'react';
 import {
   User,

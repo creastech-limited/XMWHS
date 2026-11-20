@@ -1,4 +1,3 @@
-// src/pages/Public Pages/StoreRegistrationForm.tsx
 import React from 'react';
 import {
   Store,

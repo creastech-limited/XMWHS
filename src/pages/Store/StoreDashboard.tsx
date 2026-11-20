@@ -1,4 +1,3 @@
-// src/pages/Store/StoreDashboard.tsx
 import React, { useMemo } from 'react';
 import { useStoreDashboard } from '../../hooks/useStoreDashboard';
 import {
@@ -22,14 +21,12 @@ const StoreDashboard: React.FC = () => {
     fetchDashboardData,
   } = useStoreDashboard();
 
-  // Owner's first name for the greeting ("Mercy")
   const ownerName =
     user?.firstName ||
     user?.name?.split(' ')[0] ||
     user?.email?.split('@')[0] ||
     'there';
 
-  // Adjust to wherever your store name actually lives
   const storeName =
     user?.storeName ||
     user?.store?.name ||

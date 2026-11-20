@@ -1,4 +1,3 @@
-// src/hooks/useRevenueChart.ts
 import { useCallback, useEffect, useState } from 'react';
 import { getRevenueChart, type RevenueChartPeriod } from '../services/api/storeDashboard';
 import { mapRevenueChart, type RevenuePoint } from '../utils/Revenuechartmapper';

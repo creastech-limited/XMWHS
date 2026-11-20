@@ -1,4 +1,3 @@
-// src/pages/School/StudentPage.tsx
 import React from 'react';
 import { PlusIcon, UsersIcon } from 'lucide-react';
 import { useStudentManagement } from '../../hooks/useStudentManagement';
@@ -13,6 +12,7 @@ import {
   PinModal,
   BulkUploadModal,
 } from '../../components/student';
+import AddStudentDrawer from '../../components/student/AddStudentDrawer';
 import { LoadingScreen } from '../../components/shared/LoadingScreen';
 
 const StudentPage: React.FC = () => {
@@ -79,6 +79,16 @@ const StudentPage: React.FC = () => {
     setSnackbar,
   } = useStudentManagement();
 
+  // Add-student drawer
+  const [isAddOpen, setIsAddOpen] = React.useState(false);
+
+  const handleStudentAdded = () => {
+    setIsAddOpen(false);
+    setSnackbar({ open: true, message: 'Student added successfully', severity: 'success' });
+    // TODO: call your "reload students" function here so the new student
+    // shows up in the table (use whatever useStudentManagement exposes).
+  };
+
   if (loading) {
     // Sits inside the layout now, so keep it in the content column
     return (
@@ -93,16 +103,17 @@ const StudentPage: React.FC = () => {
       <main className="flex-grow p-4 md:p-8 md:ml-64 overflow-x-auto">
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-          <h1 className="text-3xl md:text-4xl font-bold flex items-center gap-2">
-            <UsersIcon className="h-7 w-7 text-indigo-600" />
-            <span className="text-indigo-900">Student Management</span>
-          </h1>
+          <div>
+            <h1 className="text-3xl md:text-4xl font-bold flex items-center gap-2">
+              <UsersIcon className="h-7 w-7 text-indigo-600" />
+              <span className="text-indigo-900">Student Management</span>
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              {stats.total} enrolled across {availableClasses.length} classes
+            </p>
+          </div>
           <button
-            onClick={() => {
-              if (registrationLink) {
-                window.location.href = registrationLink;
-              }
-            }}
+            onClick={() => setIsAddOpen(true)}
             className="flex items-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition-colors shadow-sm"
           >
             <PlusIcon className="h-5 w-5" />
@@ -131,14 +142,8 @@ const StudentPage: React.FC = () => {
           onDownloadSample={handleDownloadSample}
           onBulkUpload={() => setIsBulkUploadOpen(true)}
           onExport={handleExport}
+          onReset={() => setFilters({ searchQuery: '', statusFilter: 'all', gradeFilter: 'all' })}
         />
-
-        {/* <PageSizeSelector
-            pageSize={pageSize}
-            total={totalFiltered}
-            page={page}
-            onChange={handlePageSizeChange}
-          /> */}
 
         {/* Student Table */}
         <StudentTable
@@ -202,6 +207,14 @@ const StudentPage: React.FC = () => {
         onUpload={handleBulkUpload}
         onDownloadSample={handleDownloadSample}
         onClose={() => setIsBulkUploadOpen(false)}
+      />
+
+      {/* Add student drawer */}
+      <AddStudentDrawer
+        open={isAddOpen}
+        onClose={() => setIsAddOpen(false)}
+        registrationLink={registrationLink}
+        onSuccess={handleStudentAdded}
       />
 
       {/* Snackbar */}

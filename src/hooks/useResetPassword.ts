@@ -1,4 +1,3 @@
-// src/hooks/useResetPassword.ts
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { resetPassword } from '../services';

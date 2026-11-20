@@ -12,7 +12,10 @@ import {
   X,
   House,
   AlertTriangle,
-  ChevronDown
+  ChevronDown,
+  Download,
+  CircleDollarSign,
+  ChartColumn
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { ConfirmLogoutModal } from '../components/shared/ConfirmLogoutModal';
@@ -36,6 +39,10 @@ const menuSections: MenuSection[] = [
     items: [
       { text: 'Dashboard', icon: <LayoutDashboard size={18} />, route: '/store' },
       { text: 'Agents', icon: <Users size={18} />, route: '/agents', badgeTone: 'neutral' },
+      { text: 'DID Number', icon: <Users size={18} />, route: '/add-did-number', badgeTone: 'neutral' },
+      { text: 'CDR Import', icon: <Download size={18} />, route: '/store/cdr-import', badgeTone: 'neutral' },
+      { text: 'Reports', icon: <ChartColumn size={18} />, route: '/store/reports', badgeTone: 'neutral' },
+      { text: 'Invoices', icon: <CircleDollarSign size={18} />, route: '/store/invoices', badgeTone: 'neutral' },
       { text: 'Transactions', icon: <History size={18} />, route: '/stransactions' },
       { text: 'Withdrawals', icon: <CreditCard size={18} />, route: '/Swithdrawal' }
     ]
@@ -75,7 +82,6 @@ const StoreUserMenu: React.FC = () => {
     setShowLogoutConfirm(true);
   };
 
-  // Step 2: the modal's "Yes, log out" performs the real logout
   const handleConfirmLogout = (): void => {
     setShowLogoutConfirm(false);
     if (logout) logout();
@@ -117,8 +123,6 @@ const StoreUserMenu: React.FC = () => {
         />
       </button>
 
-      {/* Rendered in a portal so the modal isn't trapped inside the
-          sidebar's transformed/fixed container on mobile */}
       {createPortal(
         <ConfirmLogoutModal
           open={showLogoutConfirm}

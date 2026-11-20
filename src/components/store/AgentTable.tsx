@@ -1,7 +1,5 @@
-// src/components/store/AgentTable.tsx
-// Replaces AgentCard. Always shows what the API returns today (agent, phone, status, enabled).
-// Transactions / revenue / last-active columns appear automatically once the API sends those fields.
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { Coins, FileText, MoreVertical, Shield } from 'lucide-react';
 import { AgentAvatar, StatusBadge, Switch, naira } from './ui';
 import type { StoreAgent } from '../../types';
 
@@ -10,6 +8,7 @@ export const isAgentActive = (a: StoreAgent) =>
   String(a.status ?? '').toLowerCase() !== 'inactive';
 
 export type AgentRow = StoreAgent & {
+  isDIDAgent?: boolean;
   transactionCount?: number;
   revenueThisMonth?: number;
   lastActiveAt?: string; // ISO date
@@ -18,8 +17,13 @@ export type AgentRow = StoreAgent & {
 interface AgentTableProps {
   agents: AgentRow[];
   onToggleStatus: (agent: StoreAgent) => void;
-  /** Agent ids with a status request in flight: their switch is disabled. */
   pendingIds?: Set<string>;
+  onToggleDID: (agent: AgentRow) => void;
+  didPendingIds?: Set<string>;
+  // agentId -> current rate per minute; agents missing from this map have no rate yet
+  ratesByAgent?: Record<string, number>;
+  onSetRate: (agent: AgentRow) => void;
+  onViewReport: (agent: AgentRow) => void;
 }
 
 const th = 'whitespace-nowrap px-5 py-2.5 text-xs font-medium text-slate-500';
@@ -34,10 +38,50 @@ const timeAgo = (iso?: string) => {
   return `${Math.floor(mins / 1440)} days ago`;
 };
 
-const AgentTable: React.FC<AgentTableProps> = ({ agents, onToggleStatus, pendingIds }) => {
+const MENU_WIDTH = 176;
+
+const AgentTable: React.FC<AgentTableProps> = ({
+  agents,
+  onToggleStatus,
+  pendingIds,
+  onToggleDID,
+  didPendingIds,
+  ratesByAgent,
+  onSetRate,
+  onViewReport,
+}) => {
   const showTx = agents.some((a) => a.transactionCount !== undefined);
   const showRevenue = agents.some((a) => a.revenueThisMonth !== undefined);
   const showLastActive = agents.some((a) => a.lastActiveAt);
+
+  // Action menu (fixed-positioned so the table's horizontal scroll container doesn't clip it)
+  const [menuAgent, setMenuAgent] = useState<AgentRow | null>(null);
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
+
+  const closeMenu = () => setMenuAgent(null);
+
+  const openMenu = (e: React.MouseEvent<HTMLButtonElement>, agent: AgentRow) => {
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    setMenuPos({
+      top: Math.min(rect.bottom + 4, window.innerHeight - 160),
+      left: Math.max(8, Math.min(rect.right - MENU_WIDTH, window.innerWidth - MENU_WIDTH - 8)),
+    });
+    setMenuAgent(agent);
+  };
+
+  // Close the menu if the page or table scrolls, since its fixed position would go stale
+  useEffect(() => {
+    if (!menuAgent) return;
+    window.addEventListener('scroll', closeMenu, true);
+    window.addEventListener('resize', closeMenu);
+    return () => {
+      window.removeEventListener('scroll', closeMenu, true);
+      window.removeEventListener('resize', closeMenu);
+    };
+  }, [menuAgent]);
+
+  const menuHasRate = menuAgent ? ratesByAgent?.[menuAgent.id] !== undefined : false;
 
   return (
     <div className="overflow-x-auto">
@@ -51,6 +95,7 @@ const AgentTable: React.FC<AgentTableProps> = ({ agents, onToggleStatus, pending
             {showLastActive && <th className={`${th} text-left`}>Last active</th>}
             <th className={`${th} text-left`}>Status</th>
             <th className={`${th} text-right`}>Enabled</th>
+            <th className={`${th} text-right`}>Actions</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
@@ -63,8 +108,15 @@ const AgentTable: React.FC<AgentTableProps> = ({ agents, onToggleStatus, pending
                   <span className="flex items-center gap-3">
                     <AgentAvatar name={name} />
                     <span className="min-w-0">
-                      <span className="block max-w-[220px] truncate font-medium text-slate-900" title={name}>
-                        {name}
+                      <span className="flex items-center gap-2">
+                        <span className="block max-w-[220px] truncate font-medium text-slate-900" title={name}>
+                          {name}
+                        </span>
+                        {agent.isDIDAgent && (
+                          <span className="inline-flex shrink-0 items-center rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-800">
+                            DID
+                          </span>
+                        )}
                       </span>
                       <span className="block max-w-[220px] truncate font-mono text-xs text-slate-500" title={agent.email}>
                         {agent.email || 'No email'}
@@ -95,11 +147,78 @@ const AgentTable: React.FC<AgentTableProps> = ({ agents, onToggleStatus, pending
                     label={`${active ? 'Deactivate' : 'Activate'} ${name}`}
                   />
                 </td>
+                <td className={`${td} text-right`}>
+                  <button
+                    onClick={(e) => openMenu(e, agent)}
+                    aria-label={`Open actions for ${name}`}
+                    aria-haspopup="menu"
+                    className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                  >
+                    <MoreVertical className="h-[18px] w-[18px]" />
+                  </button>
+                </td>
               </tr>
             );
           })}
         </tbody>
       </table>
+
+      {/* Action menu */}
+      {menuAgent && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={closeMenu} />
+          <div
+            role="menu"
+            className="fixed z-40 rounded-xl border border-slate-200 bg-white py-1.5 shadow-xl"
+            style={{ top: menuPos.top, left: menuPos.left, width: MENU_WIDTH }}
+          >
+            <button
+              role="menuitem"
+              onClick={() => {
+                const a = menuAgent;
+                closeMenu();
+                onSetRate(a);
+              }}
+              className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500"
+            >
+              <Coins className="h-4 w-4 text-slate-500" />
+              {menuHasRate ? 'Get rate' : 'Set rate'}
+            </button>
+
+            <button
+              role="menuitem"
+              onClick={() => {
+                const a = menuAgent;
+                closeMenu();
+                onViewReport(a);
+              }}
+              className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500"
+            >
+              <FileText className="h-4 w-4 text-slate-500" />
+              View report
+            </button>
+
+            <button
+              role="menuitem"
+              disabled={didPendingIds?.has(menuAgent.id)}
+              onClick={() => {
+                const a = menuAgent;
+                closeMenu();
+                onToggleDID(a);
+              }}
+              className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500 disabled:opacity-50 ${menuAgent.isDIDAgent ? 'text-red-600' : 'text-blue-600'
+                }`}
+            >
+              <Shield className="h-4 w-4" />
+              {didPendingIds?.has(menuAgent.id)
+                ? 'Updating...'
+                : menuAgent.isDIDAgent
+                  ? 'Disable DID'
+                  : 'Enable DID'}
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 };

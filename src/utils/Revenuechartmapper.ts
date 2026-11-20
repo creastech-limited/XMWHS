@@ -1,5 +1,3 @@
-// src/utils/revenueChartMapper.ts
-// Maps GET /api/store/dashboard/revenue-chart → points for the chart.
 import type { RevenueChartPeriod } from '../services/api/storeDashboard';
 import type { RevenueChartResponse } from '../types/dashboard';
 

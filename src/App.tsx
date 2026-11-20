@@ -64,6 +64,18 @@ import AdminSettingsPage from './pages/Admin/Settings';
 import AdminTransactions from './pages/Admin/Transactions';
 import SchoolLayout from './layouts/SchoolLayout.js';
 import StoreLayout from './layouts/StoreLayout.js';
+import StoreDidNumberPage from './pages/Store/StoreDidNumberPage.js';
+import StoreInvoicesPage from './pages/Store/StoreInvoicesPage.js';
+import DidAgentLayout from './layouts/DidAgentLayout.js';
+import DidAgentDashboard from './pages/DidAgent/DidAgentDashboard.js';
+import DidAgentCalls from './pages/DidAgent/DidAgentCalls.js';
+import DidAgentReport from './pages/DidAgent/DidAgentReport.js';
+import DidAgentNumbers from './pages/DidAgent/DidAgentNumbers.js';
+import DidAgentInvoices from './pages/DidAgent/DidAgentInvoices.js';
+import StoreCdrImportPage from './pages/Store/CdrImportPage.js';
+import StoreReportPage from './pages/Store/StoreReportPage.js';
+import InvoicePaymentCallback from './pages/Public Pages/InvoicePaymentCallback.js';
+import DidAgentTransactionPage from './pages/DidAgent/DidAgentTransactionPage.js';
 
 
 function App() {
@@ -133,10 +145,25 @@ function App() {
             <Route element={<StoreLayout />}>
               <Route path="/store" element={<StoreDashboard />} />
               <Route path="/agents" element={<ManageAgentsPage />} />
+              <Route path="/add-did-number" element={<StoreDidNumberPage />} />
               <Route path="/stransactions" element={<STransactionHistoryPage />} />
+              <Route path="/store/reports" element={<StoreReportPage />} />
               <Route path="/Swithdrawal" element={<SWithdrawalPage />} />
               <Route path="/Storedispute" element={<Storedispute />} />
               <Route path="/store/settings" element={<StoreSettingsPage />} />
+              <Route path="/store/invoices" element={<StoreInvoicesPage />} />
+              <Route path="/store/cdr-import" element={<StoreCdrImportPage />} />
+            </Route>
+
+            {/* DID Agent Routes */}
+            <Route element={<DidAgentLayout />}>
+              <Route path="/did-agent" element={<Navigate to="/did-agent/dashboard" replace />} />
+              <Route path="/did-agent/dashboard" element={<DidAgentDashboard />} />
+              <Route path="/did-agent/calls" element={<DidAgentCalls />} />
+              <Route path="/did-agent/report" element={<DidAgentReport />} />
+              <Route path="/did-agent/numbers" element={<DidAgentNumbers />} />
+              <Route path="/did-agent/invoices" element={<DidAgentInvoices />} />
+              <Route path="/did-agent/transactions" element={<DidAgentTransactionPage />} />
             </Route>
 
             {/* Security Routes */}
@@ -174,6 +201,7 @@ function App() {
 
             {/* Paystack */}
             <Route path="/payment/callback" element={<PaystackCallback />} />
+            <Route path="/did/invoices/callback" element={<InvoicePaymentCallback />} />
 
             {/* Catch-all */}
             <Route path="*" element={<Navigate to="/login" replace />} />

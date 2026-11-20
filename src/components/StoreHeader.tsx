@@ -2,7 +2,6 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   Bell,
   LogOut,
-  Settings,
   ChevronDown,
   Menu,
   X,
@@ -429,17 +428,6 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
                         <p className="text-sm text-gray-500 truncate">{user.email}</p>
                       </div>
                     </div>
-                  </div>
-
-                  {/* Menu Items */}
-                  <div className="py-2">
-                    <button
-                      className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                      onClick={() => navigate('/store/settings')}
-                    >
-                      <Settings className="w-4 h-4 mr-3" />
-                      Settings
-                    </button>
                   </div>
 
                   {/* Logout */}

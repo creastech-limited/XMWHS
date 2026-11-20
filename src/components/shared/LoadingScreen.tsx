@@ -1,8 +1,4 @@
-// src/components/shared/LoadingScreen.tsx
 import React from 'react';
-// import { Header } from '../../components/Header';
-// import { Sidebar as Asidebar } from '../../components/Sidebar';
-// import Footer from '../../components/Footer';
 
 interface LoadingScreenProps {
   message?: string;

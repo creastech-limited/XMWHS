@@ -1,4 +1,3 @@
-// src/components/student/PinModal.tsx
 import React, { useState } from 'react';
 import { KeyIcon, EyeIcon, EyeOffIcon } from 'lucide-react';
 import type { Student } from '../../types/student';

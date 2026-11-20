@@ -1,29 +1,22 @@
-// src/types/dashboard.ts
-// Replaces DashboardData in types/store. Shapes mirror GET /api/store/dashboard.
-import type { Agent, Notification, Transaction } from './index';
+import type { Agent, Notification } from './index';
 
-/* ---------- raw API response ---------- */
+// ── Store dashboard: raw API shapes ──
 export interface RawDashboardTransaction {
   _id: string;
-  transactionType: string; // wallet_transfer_received | wallet_transfer_sent | transfer_charge | wallet_topup ...
-  category: 'credit' | 'debit';
-  amount: number;
-  status: string; // "success" | "pending" | ...
-  reference?: string;
-  description?: string;
   createdAt: string;
-  owner?: string;
-  metadata?: { senderEmail?: string; receiverEmail?: string;[key: string]: unknown };
+  amount: number | string;
+  category: 'credit' | 'debit' | string;
+  status?: string;
+  transactionType: string;
+  metadata?: {
+    senderEmail?: string;
+    receiverEmail?: string;
+  };
 }
 
-export interface DashboardAgentStat {
-  agentId: string;
-  name: string;
+export interface AgentRevenueStat {
   email: string;
-  phone: string;
-  status: string; // "Active" | "Inactive"
-  todayRevenue: number;
-  todayTransactionCount: number;
+  name: string;
   totalRevenue: number;
   totalTransactionCount: number;
 }
@@ -31,30 +24,42 @@ export interface DashboardAgentStat {
 export interface StoreDashboardResponse {
   success: boolean;
   data: {
-    wallet: { balance: number; currency: string };
-    agentRevenue: {
-      todayRevenue: number;
-      todayTransactionCount: number;
-      totalRevenue: number;
-      totalTransactionCount: number;
-      agents: DashboardAgentStat[];
+    wallet?: { balance?: number };
+    agentRevenue?: {
+      todayRevenue?: number;
+      todayTransactionCount?: number;
+      totalRevenue?: number;
+      totalTransactionCount?: number;
+      agents?: AgentRevenueStat[];
     };
-    agents: { total: number; active: number };
-    transactions: {
-      pagination: { page: number; limit: number; total: number; totalPages: number };
-      data: RawDashboardTransaction[];
+    agents?: { total?: number; active?: number };
+    transactions?: {
+      data?: RawDashboardTransaction[];
+      pagination?: { total?: number };
     };
   };
 }
 
-/* ---------- what the UI uses ---------- */
-export type DashboardTransaction = Transaction & {
+export interface RevenueChartResponse {
+  data?: {
+    points?: { date: string; label?: string; revenue: number | string }[];
+  };
+}
+
+// ── Store dashboard: mapped shapes ──
+export interface DashboardTransaction
+  extends Omit<RawDashboardTransaction, 'amount' | 'status'> {
+  id: string;
+  date: string;
+  amount: number;
+  customer: string;
+  status: 'Completed' | 'Pending' | 'Failed';
   direction: 'credit' | 'debit';
   typeLabel: string;
   agentEmail: string;
   agentName: string;
   counterpartyEmail: string;
-};
+}
 
 export interface DashboardData {
   balance: number;
@@ -67,19 +72,6 @@ export interface DashboardData {
   recentTransactions: DashboardTransaction[];
   transactionsTotal: number;
   topAgents: Agent[];
-  agentStats: DashboardAgentStat[];
+  agentStats: AgentRevenueStat[];
   notifications: Notification[];
-}
-
-/* ---------- GET /api/store/dashboard/revenue-chart ---------- */
-export interface RevenueChartResponse {
-  success: boolean;
-  data: {
-    period: string;
-    from: string; // YYYY-MM-DD
-    to: string;
-    totalRevenue: number;
-    totalTransactionCount: number;
-    points: { date: string; label?: string; revenue: number; transactionCount?: number }[];
-  };
 }

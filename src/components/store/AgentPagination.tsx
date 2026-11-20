@@ -1,4 +1,3 @@
-// src/components/store/AgentPagination.tsx
 import React from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 

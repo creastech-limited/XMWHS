@@ -1,4 +1,3 @@
-// src/components/store/AgentCard.tsx
 import React from 'react';
 import type { StoreAgent } from '../../types';
 

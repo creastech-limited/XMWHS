@@ -1,4 +1,3 @@
-// src/pages/School/EditStudentDetails.tsx
 import React from 'react';
 import { ArrowLeft, UsersIcon } from 'lucide-react';
 import { LoadingScreen } from '../../components/shared/LoadingScreen';

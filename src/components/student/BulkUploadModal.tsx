@@ -1,4 +1,3 @@
-// src/components/student/BulkUploadModal.tsx
 import React from 'react';
 import { UsersIcon, DownloadIcon } from 'lucide-react';
 

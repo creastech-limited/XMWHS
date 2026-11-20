@@ -1,4 +1,3 @@
-// src/components/dashboard/NeedsAttentionCard.tsx
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ExclamationCircleIcon, CheckCircleIcon } from '@heroicons/react/24/outline';

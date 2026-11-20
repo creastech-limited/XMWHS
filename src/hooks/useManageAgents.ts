@@ -1,4 +1,3 @@
-// src/hooks/useManageAgents.ts
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from "../context/AuthContext";
 import { toast } from 'react-toastify';

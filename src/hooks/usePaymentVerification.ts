@@ -1,4 +1,3 @@
-// src/hooks/usePaymentVerification.ts
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';

@@ -1,4 +1,3 @@
-// src/components/store/AgentEmptyState.tsx
 import React from 'react';
 import { CircleHelp, Plus } from 'lucide-react';
 

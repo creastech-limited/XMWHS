@@ -1,4 +1,3 @@
-// src/hooks/useEditStudent.ts
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';

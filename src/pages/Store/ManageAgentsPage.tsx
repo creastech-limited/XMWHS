@@ -1,5 +1,4 @@
-// src/pages/Store/ManageAgentsPage.tsx
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { Plus, Copy, Check, Download } from 'lucide-react';
@@ -15,7 +14,10 @@ import {
   type AgentRow,
   Card,
 } from '../../components/store';
+import AgentRateModal from '../../components/store/AgentRateModal';
+import AgentReportModal from '../../components/store/AgentReportModal';
 import { downloadCsv, slugify } from '../../utils/Exportcsv';
+import { getDidRates, toggleAgentDID } from '../../services';
 import type { StoreAgent } from '../../types';
 
 type Filter = 'all' | 'active' | 'inactive';
@@ -81,16 +83,78 @@ const ManageAgentsPage: React.FC = () => {
   // Ids with a status request in flight: their switch is disabled to prevent double-clicks.
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
 
+  // DID state: overrides hold the latest known isDIDAgent per agent id after a toggle in this session.
+  const [didOverrides, setDidOverrides] = useState<Record<string, boolean>>({});
+  const [didPendingIds, setDidPendingIds] = useState<Set<string>>(new Set());
+
+  // Agent whose rate is being set / viewed (opens the rate modal)
+  const [rateAgent, setRateAgent] = useState<AgentRow | null>(null);
+
+  // agentId -> current rate per minute (only agents that have a rate appear here)
+  const [ratesByAgent, setRatesByAgent] = useState<Record<string, number>>({});
+
+  // Agent whose call report is open
+  const [reportAgent, setReportAgent] = useState<AgentRow | null>(null);
+
+  // Load every client's rate once, then keep the map up to date locally when a rate is saved.
+  useEffect(() => {
+    let cancelled = false;
+    getDidRates()
+      .then((list) => {
+        if (cancelled) return;
+        const map: Record<string, number> = {};
+        // Oldest first, so if an agent has several active rates the newest one wins.
+        [...list]
+          .filter((r) => r.status === 'active' && !r.deactivatedAt)
+          .sort((a, b) => new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime())
+          .forEach((r) => {
+            const id = typeof r.agentId === 'string' ? r.agentId : r.agentId?._id;
+            if (id) map[id] = r.ratePerMinute ?? r.rate;
+          });
+        setRatesByAgent(map);
+      })
+      .catch(() => toast.error('Could not load agent rates.'));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const toggleAgent = async (agent: StoreAgent) => {
     if (pendingIds.has(agent.id)) return;
     setPendingIds((prev) => new Set(prev).add(agent.id));
     try {
-      console.log(agent.status);
       await handleToggleStatus(agent); // calls the real endpoint via the hook
     } catch {
       toast.error('Could not update the agent status. Please try again.');
     } finally {
       setPendingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(agent.id);
+        return next;
+      });
+    }
+  };
+
+  // Enable / disable DID for an agent
+  const toggleAgentDIDStatus = async (agent: AgentRow) => {
+    if (didPendingIds.has(agent.id)) return;
+
+    const enable = !agent.isDIDAgent;
+    const name = agent.fullName || agent.email || 'this agent';
+
+    if (!window.confirm(`Are you sure you want to ${enable ? 'enable' : 'disable'} DID for ${name}?`)) {
+      return;
+    }
+
+    setDidPendingIds((prev) => new Set(prev).add(agent.id));
+    try {
+      const res = await toggleAgentDID(agent.id, enable);
+      setDidOverrides((prev) => ({ ...prev, [agent.id]: res?.data?.isDIDAgent ?? enable }));
+      toast.success(res?.message || `DID ${enable ? 'enabled' : 'disabled'} for ${name}`);
+    } catch {
+      toast.error(`Could not ${enable ? 'enable' : 'disable'} DID. Please try again.`);
+    } finally {
+      setDidPendingIds((prev) => {
         const next = new Set(prev);
         next.delete(agent.id);
         return next;
@@ -108,6 +172,16 @@ const ManageAgentsPage: React.FC = () => {
   const totalPages = Math.max(1, Math.ceil(visible.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const paged = visible.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  // Merge session DID state into the rows the table receives
+  const pagedWithDID: AgentRow[] = useMemo(
+    () =>
+      paged.map((a: StoreAgent) => ({
+        ...a,
+        isDIDAgent: didOverrides[a.id] ?? (a as AgentRow).isDIDAgent,
+      })),
+    [paged, didOverrides]
+  );
 
   // Exports everything matching the current search and filter (all pages, not just the visible one).
   const handleExport = () => {
@@ -133,7 +207,6 @@ const ManageAgentsPage: React.FC = () => {
     toast.success(`Exported ${rows.length} ${rows.length === 1 ? 'agent' : 'agents'}`);
   };
 
-
   const chips: { id: Filter; label: string; count: number }[] = [
     { id: 'all', label: 'All', count: agentCount },
     { id: 'active', label: 'Active', count: activeCount },
@@ -141,10 +214,10 @@ const ManageAgentsPage: React.FC = () => {
   ];
 
   return (
-    <div className="flex min-h-screen flex-col text-slate-700">
+    <div className="text-slate-700">
       <ToastContainer position="top-right" autoClose={3000} closeOnClick pauseOnFocusLoss pauseOnHover theme="light" />
 
-      <div className="mx-auto mb-20 w-full max-w-6xl space-y-5 px-4 py-5 sm:px-6 lg:px-8">
+      <div className=" mb-20 w-full space-y-5 px-2 py-5">
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
           <div className="min-w-0">
             <h1 className="text-xl font-semibold text-slate-900">Agents</h1>
@@ -190,26 +263,25 @@ const ManageAgentsPage: React.FC = () => {
                 setPage(1);
               }}
             />
-            {(
-              <div className="flex shrink-0 gap-1.5" role="group" aria-label="Filter agents by status">
-                {chips.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => {
-                      setFilter(c.id);
-                      setPage(1);
-                    }}
-                    aria-pressed={filter === c.id}
-                    className={`rounded-md border px-2.5 py-1 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${filter === c.id
+            <div className="flex shrink-0 gap-1.5" role="group" aria-label="Filter agents by status">
+              {chips.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => {
+                    setFilter(c.id);
+                    setPage(1);
+                  }}
+                  aria-pressed={filter === c.id}
+                  className={`rounded-md border px-2.5 py-1 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+                    filter === c.id
                       ? 'border-slate-900 bg-slate-900 text-white'
                       : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                      }`}
-                  >
-                    {c.label} <span className="ml-1 opacity-70">{c.count}</span>
-                  </button>
-                ))}
-              </div>
-            )}
+                  }`}
+                >
+                  {c.label} <span className="ml-1 opacity-70">{c.count}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           {isPageLoading ? (
@@ -218,7 +290,16 @@ const ManageAgentsPage: React.FC = () => {
             </div>
           ) : visible.length > 0 ? (
             <>
-              <AgentTable agents={paged} onToggleStatus={toggleAgent} pendingIds={pendingIds} />
+              <AgentTable
+                agents={pagedWithDID}
+                onToggleStatus={toggleAgent}
+                pendingIds={pendingIds}
+                onToggleDID={toggleAgentDIDStatus}
+                didPendingIds={didPendingIds}
+                ratesByAgent={ratesByAgent}
+                onSetRate={setRateAgent}
+                onViewReport={setReportAgent}
+              />
               <AgentPagination
                 total={visible.length}
                 page={safePage}
@@ -253,6 +334,18 @@ const ManageAgentsPage: React.FC = () => {
         onTogglePassword={() => setShowPassword(!showPassword)}
       />
 
+      <AgentRateModal
+        agent={rateAgent}
+        currentRate={rateAgent ? ratesByAgent[rateAgent.id] : undefined}
+        onClose={() => setRateAgent(null)}
+        onSaved={(agent, rate) => {
+          setRateAgent(null);
+          setRatesByAgent((prev) => ({ ...prev, [agent.id]: rate }));
+          toast.success(`Rate for ${agent.fullName || agent.email || 'the agent'} set to ${rate} per minute`);
+        }}
+      />
+
+      <AgentReportModal agent={reportAgent} onClose={() => setReportAgent(null)} />
     </div>
   );
 };

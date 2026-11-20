@@ -1,5 +1,3 @@
-// src/types/student-management.ts
-
 export interface StudentStats {
   total: number;
   active: number;

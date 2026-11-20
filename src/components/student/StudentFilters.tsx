@@ -1,6 +1,13 @@
-// src/components/student/StudentFilters.tsx
 import React from 'react';
-import { SearchIcon, DownloadIcon, PlusIcon } from 'lucide-react';
+import {
+  SearchIcon,
+  DownloadIcon,
+  UploadIcon,
+  FileSpreadsheetIcon,
+  LayersIcon,
+  CircleDotIcon,
+  ChevronDownIcon,
+} from 'lucide-react';
 
 interface StudentFiltersProps {
   searchQuery: string;
@@ -13,7 +20,39 @@ interface StudentFiltersProps {
   onDownloadSample: () => void;
   onBulkUpload: () => void;
   onExport: () => void;
+  onReset: () => void;
 }
+
+/** A pill that shows "Label  Value" but is a real <select> underneath. */
+const FilterSelect: React.FC<{
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  active: boolean;
+  onChange: (value: string) => void;
+  children: React.ReactNode;
+}> = ({ icon, label, value, active, onChange, children }) => (
+  <label
+    className={`relative inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-lg border px-3 text-xs transition-colors focus-within:ring-2 focus-within:ring-indigo-500 ${active
+        ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+      }`}
+  >
+    <span className="text-slate-400">{icon}</span>
+    <span>{label}</span>
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="cursor-pointer appearance-none bg-transparent pr-4 font-semibold text-slate-900 focus:outline-none"
+    >
+      {children}
+    </select>
+    <ChevronDownIcon className="pointer-events-none absolute right-2.5 h-3 w-3 text-slate-400" />
+  </label>
+);
+
+const ghostBtn =
+  'inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50';
 
 const StudentFilters: React.FC<StudentFiltersProps> = ({
   searchQuery,
@@ -26,77 +65,78 @@ const StudentFilters: React.FC<StudentFiltersProps> = ({
   onDownloadSample,
   onBulkUpload,
   onExport,
+  onReset,
 }) => {
-  return (
-    <div className="bg-white rounded-xl shadow-sm p-5 mb-6 border border-gray-100">
-      <div className="flex flex-col md:flex-row gap-4">
-        <div className="relative flex-1">
-          <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search by student name or email..."
-            value={searchQuery}
-            onChange={(e) => {
-              onSearchChange(e.target.value);
-            }}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm text-gray-800"
-          />
-        </div>
+  const hasFilters = !!searchQuery || statusFilter !== 'all' || gradeFilter !== 'all';
 
-        <div>
-          <select
-            value={statusFilter}
-            onChange={(e) => onStatusFilterChange(e.target.value)}
-            className="w-full px-3 py-2 md:px-4 md:py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm md:text-base text-gray-700 font-medium bg-white"
-          >
-            <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="pending">Pending</option>
-            <option value="inactive">Inactive</option>
-          </select>
-        </div>
-        
-        <div>
-          <select
-            value={gradeFilter}
-            onChange={(e) => onGradeFilterChange(e.target.value)}
-            className="w-full px-3 py-2 md:px-4 md:py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm md:text-base text-gray-700 font-medium bg-white"
-          >
-            <option value="all">All Classes</option>
-            {availableClasses.map((className) => (
-              <option key={className} value={className}>
-                {className}
-              </option>
-            ))}
-            <option value="Not Assigned">Not Assigned</option>
-          </select>
-        </div>
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200/70 bg-white p-3">
+      {/* Search */}
+      <div className="relative min-w-[220px] flex-1">
+        <SearchIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <input
+          type="text"
+          placeholder="Search by name or email"
+          value={searchQuery}
+          onChange={(e) => onSearchChange(e.target.value)}
+          className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50/60 pl-9 pr-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-transparent focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        />
       </div>
-      
-      <div className="mt-3 md:mt-4 flex flex-wrap justify-end gap-2">
+
+      {/* Class */}
+      <FilterSelect
+        icon={<LayersIcon className="h-3.5 w-3.5" />}
+        label="Class"
+        value={gradeFilter}
+        active={gradeFilter !== 'all'}
+        onChange={onGradeFilterChange}
+      >
+        <option value="all">All</option>
+        {availableClasses.map((className) => (
+          <option key={className} value={className}>
+            {className}
+          </option>
+        ))}
+        <option value="Not Assigned">Not Assigned</option>
+      </FilterSelect>
+
+      {/* Status */}
+      <FilterSelect
+        icon={<CircleDotIcon className="h-3.5 w-3.5" />}
+        label="Status"
+        value={statusFilter}
+        active={statusFilter !== 'all'}
+        onChange={onStatusFilterChange}
+      >
+        <option value="all">All</option>
+        <option value="active">Active</option>
+        <option value="pending">Pending</option>
+        <option value="inactive">Inactive</option>
+      </FilterSelect>
+
+      {hasFilters && (
         <button
-          onClick={onDownloadSample}
-          className="bg-green-100 hover:bg-green-200 text-green-700 font-medium px-4 py-2 md:px-6 md:py-3 rounded-lg flex items-center gap-2 transition-colors text-sm md:text-base"
-          title="Download sample CSV"
+          type="button"
+          onClick={onReset}
+          className="h-9 px-2 text-xs font-medium text-slate-500 hover:text-slate-800"
         >
-          <DownloadIcon className="h-4 w-4 md:h-5 md:w-5" />
+          Reset
+        </button>
+      )}
+
+      {/* Actions */}
+      <div className="ml-auto flex items-center gap-2">
+        <button onClick={onDownloadSample} className={ghostBtn} title="Download sample CSV">
+          <FileSpreadsheetIcon className="h-3.5 w-3.5 text-slate-400" />
           <span className="hidden sm:inline">Sample CSV</span>
         </button>
-        
-        <button
-          onClick={onBulkUpload}
-          className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-medium px-4 py-2 md:px-6 md:py-3 rounded-lg flex items-center gap-2 transition-colors text-sm md:text-base"
-        >
-          <PlusIcon className="h-4 w-4 md:h-5 md:w-5" />
-          <span className="hidden sm:inline">Bulk Upload</span>
+        <button onClick={onBulkUpload} className={ghostBtn}>
+          <UploadIcon className="h-3.5 w-3.5 text-slate-400" />
+          <span className="hidden sm:inline">Upload</span>
         </button>
-        
-        <button
-          onClick={onExport}
-          className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-4 py-2 md:px-6 md:py-3 rounded-lg flex items-center gap-2 transition-colors text-sm md:text-base"
-        >
-          <DownloadIcon className="h-4 w-4 md:h-5 md:w-5" />
-          <span className="hidden sm:inline">Export Data</span>
+        <button onClick={onExport} className={ghostBtn}>
+          <DownloadIcon className="h-3.5 w-3.5 text-slate-400" />
+          <span className="hidden sm:inline">Export</span>
         </button>
       </div>
     </div>

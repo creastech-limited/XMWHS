@@ -1,5 +1,3 @@
-// src/components/store/AgentDrawer.tsx
-// Replaces AgentForm. Same props, so useManageAgents needs no changes.
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { X, Mail, Phone, Lock, Eye, EyeOff } from 'lucide-react';
 import type { AgentFormData, AgentFormErrors } from '../../types/agent';

@@ -1,4 +1,3 @@
-// src/hooks/useStoreRegistration.ts
 import { useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { registerStore } from '../services';

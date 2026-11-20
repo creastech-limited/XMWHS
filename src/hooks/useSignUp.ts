@@ -1,4 +1,3 @@
-// src/hooks/useSignUp.ts
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { registerParent } from '../services';

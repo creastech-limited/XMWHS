@@ -186,7 +186,8 @@ const AdminSidebar = ({ sidebarOpen, setSidebarOpen, activeMenu, setActiveMenu }
       subItems: [
         { id: 'all-users', label: 'All Users', icon: Users, path: '/admin/users' },
         { id: 'schools', label: 'Schools', icon: Users, path: '/admin/schools' },
-        { id: 'parents', label: 'Parents', icon: User, path: '/admin/parents' }
+        { id: 'parents', label: 'Parents', icon: User, path: '/admin/parents' },
+        { id: 'stores', label: 'Stores', icon: User, path: '/admin/stores' }
       ]
     },
     {

@@ -19,10 +19,13 @@ import {
 } from 'lucide-react';
 import AdminSidebar from '../../components/Adminsidebar';
 import AdminHeader from '../../components/AdminHeader';
-import { getAllUsers,
+import {
+  getAllUsers,
   activateUser,
   deactivateUser,
-  resetStorePassword } from '../../services';
+  resetStorePassword,
+  toggleStoreDID,
+} from '../../services';
 import type { UserData } from '../../types'; // Use the imported type
 
 const AllUsers = () => {
@@ -131,6 +134,40 @@ const AllUsers = () => {
     }
   };
 
+  // Enable / disable DID services for a store
+  const handleDIDToggle = async (storeId: string, currentlyEnabled?: boolean) => {
+    if (!storeId || storeId === 'undefined' || storeId === 'null') {
+      alert('Cannot update DID status: Store ID is missing.');
+      return;
+    }
+
+    const enable = !currentlyEnabled;
+
+    if (!window.confirm(`Are you sure you want to ${enable ? 'enable' : 'disable'} DID for this store?`)) {
+      return;
+    }
+
+    try {
+      setActionLoading(storeId);
+      const res = await toggleStoreDID(storeId, enable);
+      const newValue: boolean = res?.data?.isDIDStore ?? enable;
+
+      // Update local state; the filter effect depends on `users`, so the UI refreshes automatically
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.user?._id === storeId
+            ? { ...u, user: { ...u.user, isDIDStore: newValue } }
+            : u
+        )
+      );
+    } catch (error) {
+      console.error('Error updating DID status:', error);
+      alert(`Failed to ${enable ? 'enable' : 'disable'} DID. Please try again.`);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const sectionConfig = (() => {
     if (location.pathname.endsWith('/schools')) {
       return {
@@ -149,6 +186,16 @@ const AllUsers = () => {
         description: 'Manage all parent accounts',
         defaultRole: 'parent',
         totalLabel: 'Total Parents'
+      };
+    }
+
+    if (location.pathname.endsWith('/stores')) {
+      return {
+        menuId: 'stores',
+        title: 'Stores',
+        description: 'Manage all store accounts',
+        defaultRole: 'store',
+        totalLabel: 'Total Stores'
       };
     }
 
@@ -263,7 +310,7 @@ const AllUsers = () => {
     const isPend = norm === 'pending';
     const isSusp = norm === 'suspended';
 
-    const color = isAct 
+    const color = isAct
       ? 'bg-green-100 text-green-800'
       : isPend
         ? 'bg-yellow-100 text-yellow-800'
@@ -578,7 +625,14 @@ const AllUsers = () => {
                               )}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              {getRoleBadge(user.role)}
+                              <div className="flex items-center">
+                                {getRoleBadge(user.role)}
+                                {user.role?.toLowerCase() === 'store' && user.isDIDStore && (
+                                  <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                                    DID
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               {getStatusBadge(user.status)}
@@ -670,11 +724,10 @@ const AllUsers = () => {
                           <button
                             key={pageNum}
                             onClick={() => setCurrentPage(pageNum)}
-                            className={`px-3 py-1 border rounded-md text-sm transition ${
-                              currentPage === pageNum
-                                ? 'bg-blue-600 text-white border-blue-600 font-semibold'
-                                : 'border-gray-300 text-gray-700 hover:bg-gray-100'
-                            }`}
+                            className={`px-3 py-1 border rounded-md text-sm transition ${currentPage === pageNum
+                              ? 'bg-blue-600 text-white border-blue-600 font-semibold'
+                              : 'border-gray-300 text-gray-700 hover:bg-gray-100'
+                              }`}
                           >
                             {pageNum}
                           </button>
@@ -702,7 +755,7 @@ const AllUsers = () => {
               <div
                 className="fixed z-30 bg-white rounded-xl shadow-2xl py-2 w-56 border border-gray-200 text-left animate-in fade-in zoom-in-95 duration-150"
                 style={{
-                  top: Math.min(menuPosition.top, window.innerHeight - 240),
+                  top: Math.min(menuPosition.top, window.innerHeight - 280),
                   left: Math.min(menuPosition.left - 180, window.innerWidth - 240),
                 }}
               >
@@ -736,13 +789,29 @@ const AllUsers = () => {
                   </button>
                 )}
 
+                {/* Enable / Disable DID (stores only) */}
+                {menuUser.role?.toLowerCase() === 'store' && (
+                  <button
+                    disabled={actionLoading === menuUser._id}
+                    className={`flex items-center gap-3 px-4 py-2.5 text-sm w-full text-left font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 ${menuUser.isDIDStore ? 'text-red-600' : 'text-blue-600'
+                      }`}
+                    onClick={() => {
+                      const u = menuUser;
+                      handleMenuClose();
+                      handleDIDToggle(u._id, u.isDIDStore);
+                    }}
+                  >
+                    <Shield size={16} />
+                    {menuUser.isDIDStore ? 'Disable DID' : 'Enable DID'}
+                  </button>
+                )}
+
                 <div className="border-t border-gray-100 my-1" />
 
                 <button
                   disabled={actionLoading === menuUser._id}
-                  className={`flex items-center gap-3 px-4 py-2.5 text-sm w-full text-left font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 ${
-                    (menuUser.status || '').toLowerCase() === 'active' ? 'text-red-600' : 'text-green-600'
-                  }`}
+                  className={`flex items-center gap-3 px-4 py-2.5 text-sm w-full text-left font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 ${(menuUser.status || '').toLowerCase() === 'active' ? 'text-red-600' : 'text-green-600'
+                    }`}
                   onClick={() => {
                     const u = menuUser;
                     const uRecord = u as unknown as Record<string, unknown>;
@@ -888,6 +957,17 @@ const AllUsers = () => {
                         {formatDate(selectedUser.createdAt)}
                       </p>
                     </div>
+
+                    {selectedUser.role?.toLowerCase() === 'store' && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-500">
+                          DID Services
+                        </label>
+                        <p className="text-gray-900">
+                          {selectedUser.isDIDStore ? 'Enabled' : 'Disabled'}
+                        </p>
+                      </div>
+                    )}
 
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-gray-500">

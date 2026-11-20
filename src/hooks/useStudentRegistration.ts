@@ -1,30 +1,46 @@
-// src/hooks/useStudentRegistration.ts
 import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { registerStudent, getSchoolById } from '../services';
-import { 
-  validateEmail, 
+import {
+  validateEmail,
   validateName,
   validatePasswordField,
   validateConfirmPassword,
-  isAxiosError 
+  isAxiosError
 } from '../utils/validators';
-import type { 
-  StudentRegistrationRequest, 
+import type {
+  StudentRegistrationRequest,
   SchoolInfoResponse,
-  RegistrationResponse 
+  RegistrationResponse
 } from '../types/auth';
-import type { 
+import type {
   StudentRegistrationFormData,
   RegistrationFormErrors,
   SchoolInfo
 } from '../types/registration';
 
-export const useStudentRegistration = () => {
-  const [searchParams] = useSearchParams();
+interface Options {
+  registrationLink?: string; // read school params from this link instead of the page URL
+  onSuccess?: () => void;    // runs after success, instead of redirecting to /login
+  skipTerms?: boolean;       // admin is adding the student, so no terms checkbox
+}
+
+// `options = {}` means the public registration page can still call this with no arguments
+export const useStudentRegistration = (options: Options = {}) => {
+  const [urlParams] = useSearchParams();
   const navigate = useNavigate();
 
-  // Get URL parameters
+  // Use the registration link's params when given, otherwise the page URL
+  let searchParams = urlParams;
+  if (options.registrationLink) {
+    try {
+      searchParams = new URL(options.registrationLink, window.location.origin).searchParams;
+    } catch {
+      /* invalid link: fall back to the page URL */
+    }
+  }
+
+  // Get school details from the params
   const schoolId = searchParams.get('schoolId')?.trim() || '';
   const schoolName = decodeURIComponent(searchParams.get('schoolName')?.trim() || '');
   const schoolType = decodeURIComponent(searchParams.get('schoolType')?.trim() || '');
@@ -43,7 +59,7 @@ export const useStudentRegistration = () => {
     schoolName,
     schoolType,
     schoolAddress,
-    agreeToTerms: false,
+    agreeToTerms: options.skipTerms ?? false,
   });
 
   const [errors, setErrors] = useState<RegistrationFormErrors>({
@@ -78,12 +94,12 @@ export const useStudentRegistration = () => {
     const fetchSchoolInfo = async () => {
       try {
         setSchoolLoading(true);
-        
+
         const result: SchoolInfoResponse = await getSchoolById(schoolId);
 
         if (result.success && result.data) {
           const data = result.data;
-          
+
           setSchoolInfo({
             _id: data._id,
             schoolName: data.schoolName || schoolName,
@@ -104,14 +120,14 @@ export const useStudentRegistration = () => {
         }
       } catch (error) {
         console.error('Error fetching school info:', error);
-        
+
         let message = 'Error loading school information.';
         if (isAxiosError(error)) {
           message = error.response?.data?.message || message;
         } else if (error instanceof Error) {
           message = error.message;
         }
-        
+
         setErrorMessage(message);
         setSchoolNotFound(true);
       } finally {
@@ -168,7 +184,7 @@ export const useStudentRegistration = () => {
       isValid = false;
     }
 
-    // Password validation - using validatePasswordField instead of validatePassword
+    // Password validation
     const passwordError = validatePasswordField(formData.password);
     if (passwordError) {
       newErrors.password = passwordError;
@@ -214,7 +230,7 @@ export const useStudentRegistration = () => {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    
+
     if (!validateForm()) return;
 
     setIsSubmitting(true);
@@ -234,7 +250,7 @@ export const useStudentRegistration = () => {
         },
         schoolId: formData.schoolId,
         schoolName: formData.schoolName,
-         schoolType: formData.schoolType as 'primary' | 'secondary' | 'polytechnic' | 'university',
+        schoolType: formData.schoolType as 'primary' | 'secondary' | 'polytechnic' | 'university',
         schoolAddress: formData.schoolAddress,
       };
 
@@ -242,20 +258,27 @@ export const useStudentRegistration = () => {
 
       if (result.user || result.message === 'Registration successful') {
         setSuccessMessage(result.message || 'Registration successful! Redirecting...');
-        setTimeout(() => navigate('/login'), 2000);
+
+        if (options.onSuccess) {
+          // Admin drawer: let the page close the drawer and show a message
+          options.onSuccess();
+        } else {
+          // Public registration page: go to login
+          setTimeout(() => navigate('/login'), 2000);
+        }
       } else {
         setErrorMessage(result.message || 'Registration failed');
       }
     } catch (error) {
       console.error('Registration error:', error);
-      
+
       let message = 'Registration failed. Please try again.';
       if (isAxiosError(error)) {
         message = error.response?.data?.message || message;
       } else if (error instanceof Error) {
         message = error.message;
       }
-      
+
       setErrorMessage(message);
     } finally {
       setIsSubmitting(false);

@@ -1,4 +1,3 @@
-// src/components/store/TopAgentsCard.tsx
 import React from 'react';
 import type { Agent } from '../../types';
 

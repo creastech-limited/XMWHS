@@ -1,27 +1,10 @@
-// src/utils/revenueStats.ts
-import type { Transaction } from '../types';
+import type { DashboardTransaction } from '../types/dashboard';
 
-// Handles ISO strings, timestamps, Date objects, and "M/D/YYYY" strings
-// (your screenshot shows 2/17/2026, which can only be month/day).
-const parseTxDate = (raw: unknown): Date | null => {
-  if (raw instanceof Date) return raw;
-  if (typeof raw === 'number') return new Date(raw);
-  if (typeof raw !== 'string') return null;
-
-  const us = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-  if (us) return new Date(+us[3], +us[1] - 1, +us[2]);
-
-  const d = new Date(raw);
-  return Number.isNaN(d.getTime()) ? null : d;
-};
-
-// Returns undefined when there is no previous period to compare against,
-// so the badge is hidden instead of showing a misleading number.
 const pctChange = (current: number, previous: number): number | undefined =>
   previous > 0 ? Math.round(((current - previous) / previous) * 100) : undefined;
 
 export const computeRevenueStats = (
-  transactions: Transaction[] = [],
+  transactions: DashboardTransaction[] = [],
   now: Date = new Date()
 ) => {
   const y = now.getFullYear();
@@ -41,24 +24,21 @@ export const computeRevenueStats = (
   let lastMonth = 0;
 
   for (const tx of transactions) {
-    if (tx.status !== 'Completed') continue; // only collected money
+    if (tx.status !== 'Completed') continue;
+    if (tx.direction !== 'credit') continue;
 
-    // Prefer a raw timestamp if your API provides one
-    const date = parseTxDate((tx as any).createdAt ?? tx.date);
-    if (!date) continue;
+    const t = new Date(tx.createdAt).getTime();
+    if (Number.isNaN(t)) continue;
 
-    const t = date.getTime();
-    const amount = Number(tx.amount) || 0;
+    if (t >= startToday && t < startTomorrow) today += tx.amount;
+    else if (t >= startYesterday && t < startToday) yesterday += tx.amount;
 
-    if (t >= startToday && t < startTomorrow) today += amount;
-    else if (t >= startYesterday && t < startToday) yesterday += amount;
-
-    if (t >= startMonth && t < startNextMonth) month += amount;
-    else if (t >= startLastMonth && t < startMonth) lastMonth += amount;
+    if (t >= startMonth && t < startNextMonth) month += tx.amount;
+    else if (t >= startLastMonth && t < startMonth) lastMonth += tx.amount;
   }
 
   return {
-    dailyRevenue: today,
+    todayRevenue: today,
     monthRevenue: month,
     todayChange: pctChange(today, yesterday),
     monthChange: pctChange(month, lastMonth),

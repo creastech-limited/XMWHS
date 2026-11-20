@@ -1,4 +1,3 @@
-// src/components/shared/PasswordInput.tsx
 import React from 'react';
 import { Eye, EyeOff, Lock } from 'lucide-react';
 

@@ -1,4 +1,3 @@
-// src/components/student/StudentEditForm.tsx
 import React, { useState } from 'react';
 import { Pencil, Check, X, Loader2, Lock } from 'lucide-react';
 import type { StudentProfileFormData } from '../../types/student';
