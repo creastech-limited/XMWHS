@@ -8,13 +8,14 @@ import {
   getUserDetails,
   registerAgent
 } from '../services';
-import type { 
-  GetAgentsResponse, 
-  StoreAgent, 
-  StoreDetails, 
+import type {
+  GetAgentsResponse,
+  StoreAgent,
+  StoreDetails,
   UserResponse,
 } from '../types';
 import type { AgentFormData, AgentFormErrors, AgentRegistrationData } from '../types/agent';
+import { validateProfessional } from '../utils/agentValidation';
 
 export const useManageAgents = () => {
   const authContext = useAuth();
@@ -30,16 +31,18 @@ export const useManageAgents = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingAgents, setIsLoadingAgents] = useState(true);
   const [isLoadingStoreInfo, setIsLoadingStoreInfo] = useState(true);
-  
+
   const [agentData, setAgentData] = useState<AgentFormData>({
     firstName: '',
     lastName: '',
     email: '',
     phone: '',
     password: '',
-    role: 'agent'
+    role: 'agent',
+    companyName: '',
+    companyEmail: '',
   });
-  
+
   const [errors, setErrors] = useState<AgentFormErrors>({});
 
   // ===== FETCH FUNCTIONS =====
@@ -145,6 +148,8 @@ export const useManageAgents = () => {
       newErrors.password = "Password must be at least 6 characters";
     }
 
+    Object.assign(newErrors, validateProfessional(agentData.companyName, agentData.companyEmail));
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -156,6 +161,8 @@ export const useManageAgents = () => {
       email: '',
       phone: '',
       password: '',
+      companyName: '',
+      companyEmail: '',
       role: 'agent'
     });
     setErrors({});
@@ -189,7 +196,7 @@ export const useManageAgents = () => {
       };
 
       await registerAgent(registrationData);
-      
+
       toast.success('🎉 Agent created successfully!', {
         position: "top-right",
         autoClose: 3000,
@@ -298,12 +305,12 @@ export const useManageAgents = () => {
     agentData,
     errors,
     filteredAgents,
-    
+
     // Setters
     setSearchTerm,
     setShowForm,
     setShowPassword,
-    
+
     // Functions
     handleChange,
     handleSubmit,

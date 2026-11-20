@@ -249,44 +249,42 @@ const calculateCharge = (transactionAmount: number | string, charge: Charge): nu
 };
 
   // Fetch transaction
-  const fetchTransactions = async () => {
-    if (!authToken || !userId) return;
+  // const fetchTransactions = async () => {
+  //   if (!authToken || !userId) return;
       
-    try {
-      const response = await axios.get(`${API_BASE_URL}/api/transaction/getusertransaction`, {
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-          'Content-Type': 'application/json'
-        }
-      });
+  //   try {
+  //     const response = await axios.get(`${API_BASE_URL}/api/transaction/getusertransaction`, {
+  //       headers: {
+  //         Authorization: `Bearer ${authToken}`,
+  //         'Content-Type': 'application/json'
+  //       }
+  //     });
       
-      if (response.data?.transactions) {
-        interface TransactionData {
-          _id: string;
-          amount: number;
-          createdAt: string;
-          status: string;
-        }
+  //     if (response.data?.transactions) {
+  //       interface TransactionData {
+  //         _id: string;
+  //         amount: number;
+  //         createdAt: string;
+  //         status: string;
+  //       }
 
-        const formattedTransactions: Transaction[] = response.data.transactions.map((tx: TransactionData, index: number) => ({
-          id: tx._id || index.toString(),
-          amount: tx.amount,
-          date: new Date(tx.createdAt).toLocaleDateString('en-US', 
-            {month: 'short', day: 'numeric', year: 'numeric'}),
-          status: tx.status
-        }));
+  //       const formattedTransactions: Transaction[] = response.data.transactions.map((tx: TransactionData, index: number) => ({
+  //         id: tx._id || index.toString(),
+  //         amount: tx.amount,
+  //         date: new Date(tx.createdAt).toLocaleDateString('en-US', 
+  //           {month: 'short', day: 'numeric', year: 'numeric'}),
+  //         status: tx.status
+  //       }));
         
-        setUserData(prev => ({
-          ...prev,
-          lastTransactions: formattedTransactions
-        }));
-      }
-    } catch (error) {
-      console.error('Error fetching transactions:', error);
-    }
-  };
-
- 
+  //       setUserData(prev => ({
+  //         ...prev,
+  //         lastTransactions: formattedTransactions
+  //       }));
+  //     }
+  //   } catch (error) {
+  //     console.error('Error fetching transactions:', error);
+  //   }
+  // };
 
   const validateForm = (): boolean => {
     return !!amount && Number(amount) > 0 && !!email && email.includes('@');
@@ -353,41 +351,41 @@ const calculateCharge = (transactionAmount: number | string, charge: Charge): nu
   };
 
   // Verify transaction
-  const verifyTransaction = async (reference: string) => {
-    if (!authToken) return;
+  // const verifyTransaction = async (reference: string) => {
+  //   if (!authToken) return;
     
-    try {
-      //const response = await axios.get(`${API_BASE_URL}/api/transaction/verifyTransaction/${reference}`, {
-      const response = await axios.post(`${API_BASE_URL}/api/transaction/verifynomba/${reference}`, {
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-          'Content-Type': 'application/json'
-        }
-      });
+  //   try {
+  //     //const response = await axios.get(`${API_BASE_URL}/api/transaction/verifyTransaction/${reference}`, {
+  //     const response = await axios.post(`${API_BASE_URL}/api/transaction/verifynomba/${reference}`, {
+  //       headers: {
+  //         Authorization: `Bearer ${authToken}`,
+  //         'Content-Type': 'application/json'
+  //       }
+  //     });
       
-      if (response.data?.status === 'success') {
-        setSnackbar({
-          open: true,
-          message: 'Payment successful! Your wallet has been funded.',
-          severity: 'success'
-        });
+  //     if (response.data?.status === 'success') {
+  //       setSnackbar({
+  //         open: true,
+  //         message: 'Payment successful! Your wallet has been funded.',
+  //         severity: 'success'
+  //       });
         
-        await fetchWalletBalance();
-        // await fetchTransactions();
-        setAmount('');
-        setActiveStep(0);
-      }
-    } catch (error: unknown) {
-      console.error('Error verifying transaction:', error);
-      setSnackbar({
-        open: true,
-        message: axios.isAxiosError(error) && error.response?.data?.message 
-          ? error.response.data.message 
-          : 'Failed to verify payment',
-        severity: 'error'
-      });
-    }
-  };
+  //       await fetchWalletBalance();
+  //       // await fetchTransactions();
+  //       setAmount('');
+  //       setActiveStep(0);
+  //     }
+  //   } catch (error: unknown) {
+  //     console.error('Error verifying transaction:', error);
+  //     setSnackbar({
+  //       open: true,
+  //       message: axios.isAxiosError(error) && error.response?.data?.message 
+  //         ? error.response.data.message 
+  //         : 'Failed to verify payment',
+  //       severity: 'error'
+  //     });
+  //   }
+  // };
   
   // Check for payment callback
   // useEffect(() => {

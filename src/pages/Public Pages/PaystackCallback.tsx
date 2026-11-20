@@ -1,16 +1,16 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { usePaymentVerification } from '../../hooks/usePaymentVerification';
 import { CallbackLayout } from '../../components/shared/CallbackLayout';
 import { VerificationStatus } from '../../components/shared/VerificationStatus';
-import { useEffect, useCallback } from 'react';
-import { useAuth } from '../../context/AuthContext';
-import axios from 'axios';
-import { getUserDetails, getUserWallet } from '../../services';
-import { useNavigate } from 'react-router-dom';
-import type { UserData } from '../../types';
+// import { useEffect, useCallback } from 'react';
+// import { useAuth } from '../../context/AuthContext';
+// import axios from 'axios';
+// import { getUserDetails, getUserWallet } from '../../services';
+// import { useNavigate } from 'react-router-dom';
+// import type { UserData } from '../../types';
 // import type { usePaymentVerification } from '../../hooks/usePaymentVerification';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+// const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const PaystackCallback: React.FC = () => {
   const {

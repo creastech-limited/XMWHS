@@ -281,7 +281,7 @@ const StoreInvoicesPage = () => {
         setMenu({ id, top: rect.bottom + 4, right: window.innerWidth - rect.right });
     };
 
-    const { pay, payingId, payError } = usePayInvoice(
+    const { pay, payError } = usePayInvoice(
         startDidInvoicePayment,
         "/invoices/callback",
     );
