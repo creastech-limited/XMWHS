@@ -100,8 +100,8 @@ const StoreReportPage = () => {
     }, []);
 
     // the agent a DID is assigned to (assignedTo is a string id or an object)
-    const assigneeId = (d: DidNumber) =>
-        d.assignedTo && typeof d.assignedTo === "object" ? d.assignedTo._id : d.assignedTo;
+    // const assigneeId = (d: DidNumber) =>
+    //     d.assignedTo && typeof d.assignedTo === "object" ? d.assignedTo._id : d.assignedTo;
 
     // const didOptions = agentId ? dids.filter((d) => assigneeId(d) === agentId) : dids;
 

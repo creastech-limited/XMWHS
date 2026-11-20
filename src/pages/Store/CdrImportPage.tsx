@@ -79,7 +79,7 @@ export default function CdrImportPage() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-6 text-gray-800">
+    <div className="py-6 text-gray-800">
       <h1 className="text-2xl font-semibold">Import call records</h1>
       <p className="mb-5 mt-1 text-gray-500">
         Upload your CDR export. Only answered calls on your numbers are saved and billed.
