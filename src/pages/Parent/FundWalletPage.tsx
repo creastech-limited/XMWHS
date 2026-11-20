@@ -64,7 +64,6 @@ const FundWalletPage: React.FC = () => {
   const [activeStep, setActiveStep] = useState<number>(0);
   const [quickAmounts] = useState<number[]>([5000, 10000, 20000, 50000]);
   const [loading, setLoading] = useState<boolean>(false);
-  const [userId, setUserId] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [transactionFee, setTransactionFee] = useState<number>(0);
 
@@ -111,8 +110,6 @@ useEffect(() => {
       const userData = data.user?.data || data.data || data.user || data;
       
       if (userData && typeof userData === 'object') {
-        const id = (userData as Record<string, unknown>)._id as string | undefined;
-        if (id) setUserId(id);
         
         const email = (userData as Record<string, unknown>).email as string || "";
         setEmail(email);
@@ -231,7 +228,7 @@ const calculateCharge = (transactionAmount: number | string, charge: Charge): nu
   else if (charge.chargeType === 'Percentage') {
     let computedPercent = 0;
     
-    if (amt > 0 && amt <= 50000) {
+    if (amt > 0 && amt <= 50000) { 
       computedPercent = (amt * (charge.amount || 0)) / 100;
     } 
     else if (amt > 50000 && amt <= 150000) {
