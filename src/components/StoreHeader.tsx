@@ -12,7 +12,7 @@ import { useAuth } from '../context/AuthContext';
 import type { NotificationsResponse } from '../types';
 import { getmarkNotification, getNotifications } from '../services';
 import { ConfirmLogoutModal } from '../components/shared/ConfirmLogoutModal';
-import { Cog6ToothIcon } from '@heroicons/react/24/outline';
+// import { Cog6ToothIcon } from '@heroicons/react/24/outline';
 
 // TypeScript interfaces
 interface User {

@@ -1241,7 +1241,7 @@ export default function StoreDidNumberPage() {
                         <input
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
-                            placeholder="Search by number, Vezeti ref or client"
+                            placeholder="Search by number, provider ref or client"
                             aria-label="Search DID numbers"
                             className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-3 text-sm text-[#0f1535] placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-100"
                         />
