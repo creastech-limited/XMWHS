@@ -23,20 +23,60 @@ interface MenuItem {
   route: string;
 }
 
+interface SidebarUser {
+  firstName?: string;
+  lastName?: string;
+  name?: string;
+  email?: string;
+}
+
 const menuItems: MenuItem[] = [
   { text: 'Dashboard', icon: <LayoutDashboard size={18} />, route: '/did-agent/dashboard' },
   { text: 'Calls', icon: <Phone size={18} />, route: '/did-agent/calls' },
-  { text: 'Invoices', icon: <Receipt size={18} />, route: '/did-agent/invoices' },  
-  { text: 'Numbers', icon: <Hash size={18} />, route: '/did-agent/numbers' },   
+  { text: 'Invoices', icon: <Receipt size={18} />, route: '/did-agent/invoices' },
+  { text: 'Numbers', icon: <Hash size={18} />, route: '/did-agent/numbers' },
   { text: 'Report', icon: <FileText size={18} />, route: '/did-agent/report' },
   { text: 'Transactions', icon: <Banknote size={18} />, route: '/did-agent/transactions' },
 ];
+
+// Same helpers as the header, so the sidebar always matches it.
+// Capitalise every word: "tee agent1" -> "Tee Agent1"
+const capitalizeWords = (value: string): string =>
+  value
+    .trim()
+    .split(/\s+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
+
+// "Tee Agent1" -> "TA"
+const getInitials = (name: string): string =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0))
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+
+// Same fallback order as the header's getFullName()
+const getFullName = (user?: SidebarUser | null): string => {
+  if (user?.firstName && user?.lastName) {
+    return capitalizeWords(`${user.firstName} ${user.lastName}`);
+  }
+  if (user?.name) return capitalizeWords(user.name);
+  if (user?.firstName) return capitalizeWords(user.firstName);
+  return user?.email || 'DID Agent';
+};
 
 /* Bottom card with logout dropdown */
 const DidAgentUserMenu: React.FC = () => {
   const navigate = useNavigate();
   const auth = useAuth();
   const logout = auth?.logout;
+  const user = auth?.user as SidebarUser | null | undefined;
+
+  const displayName: string = getFullName(user);
+  const initials: string = getInitials(displayName);
 
   const [open, setOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -84,10 +124,10 @@ const DidAgentUserMenu: React.FC = () => {
         className="flex w-full items-center gap-3 rounded-xl bg-slate-100/80 p-3 text-left transition-colors hover:bg-slate-100"
       >
         <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[#0f1535] text-sm font-bold text-white">
-          DA
+          {initials}
         </div>
         <span className="flex-1 truncate text-sm font-semibold text-[#0f1535]">
-          DID Agent
+          {displayName}
         </span>
         <ChevronDown
           size={16}

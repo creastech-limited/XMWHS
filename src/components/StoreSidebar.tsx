@@ -56,11 +56,39 @@ const menuSections: MenuSection[] = [
   }
 ];
 
-/* Bottom card with logout dropdown */
+const capitalizeWords = (value: string): string =>
+  value
+    .trim()
+    .split(/\s+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
+
 const StoreUserMenu: React.FC = () => {
   const navigate = useNavigate();
   const auth = useAuth();
   const logout = auth?.logout;
+
+  const user = auth?.user as
+    | { firstName?: string; lastName?: string; name?: string; email?: string }
+    | null
+    | undefined;
+
+  const storeName: string = user?.firstName && user?.lastName
+    ? capitalizeWords(`${user.firstName} ${user.lastName}`)
+    : user?.name
+      ? capitalizeWords(user.name)
+      : user?.firstName
+        ? capitalizeWords(user.firstName)
+        : user?.email || 'Store Portal';
+
+  // Initials from the store name, e.g. "Tee Store" -> "TS"
+  const initials: string = storeName
+    .split(' ')
+    .filter(Boolean)
+    .map((word: string) => word[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
 
   const [open, setOpen] = useState<boolean>(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState<boolean>(false);
@@ -112,10 +140,10 @@ const StoreUserMenu: React.FC = () => {
         className="flex w-full items-center gap-3 rounded-xl bg-slate-100/80 p-3 text-left transition-colors hover:bg-slate-100"
       >
         <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[#0f1535] text-sm font-bold text-white">
-          SP
+          {initials}
         </div>
         <span className="flex-1 truncate text-sm font-semibold text-[#0f1535]">
-          Store Portal
+          {storeName}
         </span>
         <ChevronDown
           size={16}

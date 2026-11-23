@@ -669,7 +669,7 @@ function DidDetailsModal({ row, onClose, nameOf }: DidDetailsModalProps) {
 /* Edit number modal                                                   */
 /* ------------------------------------------------------------------ */
 
-const STATUS_OPTIONS = ["active", "available", "assigned", "expired"]; // trim to what your API accepts
+const STATUS_OPTIONS = ["active", "inactive", "expired", "suspended"];
 
 interface EditDidModalProps {
     row: DidNumber | null;

@@ -12,6 +12,7 @@ import { useAuth } from '../context/AuthContext';
 import type { NotificationsResponse } from '../types';
 import { getmarkNotification, getNotifications } from '../services';
 import { ConfirmLogoutModal } from '../components/shared/ConfirmLogoutModal';
+import { Cog6ToothIcon } from '@heroicons/react/24/outline';
 
 // TypeScript interfaces
 interface User {
@@ -429,6 +430,17 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
                       </div>
                     </div>
                   </div>
+
+                  {/* <button
+                    onClick={() => {
+                      navigate('/store/settings');
+                      setIsProfileOpen(false);
+                    }}
+                    className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    <Cog6ToothIcon className="h-4 w-4 mr-3 text-gray-500" />
+                    Settings
+                  </button> */}
 
                   {/* Logout */}
                   <div className="border-t border-gray-100 pt-2">
