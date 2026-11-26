@@ -16,6 +16,7 @@ export type AgentRow = StoreAgent & {
 
 interface AgentTableProps {
   agents: AgentRow[];
+  isDIDStore?: boolean;
   onToggleStatus: (agent: StoreAgent) => void;
   pendingIds?: Set<string>;
   onToggleDID: (agent: AgentRow) => void;
@@ -42,6 +43,7 @@ const MENU_WIDTH = 176;
 
 const AgentTable: React.FC<AgentTableProps> = ({
   agents,
+  isDIDStore = false,
   onToggleStatus,
   pendingIds,
   onToggleDID,
@@ -95,7 +97,7 @@ const AgentTable: React.FC<AgentTableProps> = ({
             {showLastActive && <th className={`${th} text-left`}>Last active</th>}
             <th className={`${th} text-left`}>Status</th>
             <th className={`${th} text-right`}>Enabled</th>
-            <th className={`${th} text-right`}>Actions</th>
+            {isDIDStore && <th className={`${th} text-right`}>Actions</th>}
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
@@ -112,7 +114,7 @@ const AgentTable: React.FC<AgentTableProps> = ({
                         <span className="block max-w-[220px] truncate font-medium text-slate-900" title={name}>
                           {name}
                         </span>
-                        {agent.isDIDAgent && (
+                        {isDIDStore && agent.isDIDAgent && (
                           <span className="inline-flex shrink-0 items-center rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-800">
                             DID
                           </span>
@@ -147,16 +149,18 @@ const AgentTable: React.FC<AgentTableProps> = ({
                     label={`${active ? 'Deactivate' : 'Activate'} ${name}`}
                   />
                 </td>
-                <td className={`${td} text-right`}>
-                  <button
-                    onClick={(e) => openMenu(e, agent)}
-                    aria-label={`Open actions for ${name}`}
-                    aria-haspopup="menu"
-                    className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-                  >
-                    <MoreVertical className="h-[18px] w-[18px]" />
-                  </button>
-                </td>
+                {isDIDStore && (
+                  <td className={`${td} text-right`}>
+                    <button
+                      onClick={(e) => openMenu(e, agent)}
+                      aria-label={`Open actions for ${name}`}
+                      aria-haspopup="menu"
+                      className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                    >
+                      <MoreVertical className="h-[18px] w-[18px]" />
+                    </button>
+                  </td>
+                )}
               </tr>
             );
           })}
@@ -164,7 +168,7 @@ const AgentTable: React.FC<AgentTableProps> = ({
       </table>
 
       {/* Action menu */}
-      {menuAgent && (
+      {isDIDStore  && menuAgent && (
         <>
           <div className="fixed inset-0 z-30" onClick={closeMenu} />
           <div

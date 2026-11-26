@@ -31,7 +31,7 @@ const RevenueChart: React.FC = () => {
   const lastIndex = data.length - 1;
   const manyPoints = data.length > 10;
   const hasLast = data.some((d) => d.lastWeek !== undefined);
-  const hasData = data.some((d) => d.thisWeek > 0 || (d.lastWeek ?? 0) > 0);
+  const hasData = data.some((d) => (d.thisWeek ?? 0) > 0 || (d.lastWeek ?? 0) > 0);
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm h-full">

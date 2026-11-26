@@ -3,6 +3,7 @@ import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { Plus, Copy, Check, Download } from 'lucide-react';
 import { useManageAgents } from '../../hooks/useManageAgents';
+import { useIsDIDStore } from '../../hooks/useIsDIDStore';
 import {
   AgentDrawer,
   AgentTable,
@@ -76,6 +77,9 @@ const ManageAgentsPage: React.FC = () => {
     getStoreName,
   } = useManageAgents();
 
+  // true for DID stores, false for normal stores
+  const isDIDStore = useIsDIDStore();
+
   const [filter, setFilter] = useState<Filter>('all');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
@@ -96,14 +100,15 @@ const ManageAgentsPage: React.FC = () => {
   // Agent whose call report is open
   const [reportAgent, setReportAgent] = useState<AgentRow | null>(null);
 
-  // Load every client's rate once, then keep the map up to date locally when a rate is saved.
+  // Load every client's rate once (DID stores only), then keep the map up to date locally when a rate is saved.
   useEffect(() => {
+    if (!isDIDStore) return; 
+
     let cancelled = false;
     getDidRates()
       .then((list) => {
         if (cancelled) return;
         const map: Record<string, number> = {};
-        // Oldest first, so if an agent has several active rates the newest one wins.
         [...list]
           .filter((r) => r.status === 'active' && !r.deactivatedAt)
           .sort((a, b) => new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime())
@@ -113,11 +118,14 @@ const ManageAgentsPage: React.FC = () => {
           });
         setRatesByAgent(map);
       })
-      .catch(() => toast.error('Could not load agent rates.'));
+      .catch(() => {
+        if (!cancelled) toast.error('Could not load agent rates.', { toastId: 'rates-error' });
+      });
+
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isDIDStore]);
 
   const toggleAgent = async (agent: StoreAgent) => {
     if (pendingIds.has(agent.id)) return;
@@ -137,6 +145,7 @@ const ManageAgentsPage: React.FC = () => {
 
   // Enable / disable DID for an agent
   const toggleAgentDIDStatus = async (agent: AgentRow) => {
+    if (!isDIDStore) return; // safety net: normal stores can't toggle DID
     if (didPendingIds.has(agent.id)) return;
 
     const enable = !agent.isDIDAgent;
@@ -163,6 +172,11 @@ const ManageAgentsPage: React.FC = () => {
   };
 
   const activeCount = useMemo(() => agents.filter(isActive).length, [agents]);
+
+  const didCount = useMemo(
+    () => agents.filter((a: StoreAgent) => didOverrides[a.id] ?? (a as AgentRow).isDIDAgent).length,
+    [agents, didOverrides]
+  );
 
   const visible = useMemo(
     () => filteredAgents.filter((a: StoreAgent) => filter === 'all' || (filter === 'active') === isActive(a)),
@@ -252,7 +266,12 @@ const ManageAgentsPage: React.FC = () => {
           </div>
         </div>
 
-        <AgentStatCards totalAgents={agentCount} activeAgents={activeCount} />
+        <AgentStatCards
+          totalAgents={agentCount}
+          activeAgents={activeCount}
+          didAgents={didCount}
+          showDID={isDIDStore}
+        />
 
         <Card className="overflow-hidden">
           <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -272,11 +291,10 @@ const ManageAgentsPage: React.FC = () => {
                     setPage(1);
                   }}
                   aria-pressed={filter === c.id}
-                  className={`rounded-md border px-2.5 py-1 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
-                    filter === c.id
+                  className={`rounded-md border px-2.5 py-1 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${filter === c.id
                       ? 'border-slate-900 bg-slate-900 text-white'
                       : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                  }`}
+                    }`}
                 >
                   {c.label} <span className="ml-1 opacity-70">{c.count}</span>
                 </button>
@@ -292,6 +310,7 @@ const ManageAgentsPage: React.FC = () => {
             <>
               <AgentTable
                 agents={pagedWithDID}
+                isDIDStore={isDIDStore}
                 onToggleStatus={toggleAgent}
                 pendingIds={pendingIds}
                 onToggleDID={toggleAgentDIDStatus}
@@ -334,18 +353,23 @@ const ManageAgentsPage: React.FC = () => {
         onTogglePassword={() => setShowPassword(!showPassword)}
       />
 
-      <AgentRateModal
-        agent={rateAgent}
-        currentRate={rateAgent ? ratesByAgent[rateAgent.id] : undefined}
-        onClose={() => setRateAgent(null)}
-        onSaved={(agent, rate) => {
-          setRateAgent(null);
-          setRatesByAgent((prev) => ({ ...prev, [agent.id]: rate }));
-          toast.success(`Rate for ${agent.fullName || agent.email || 'the agent'} set to ${rate} per minute`);
-        }}
-      />
+      {/* DID-only modals: never mounted for normal stores */}
+      {isDIDStore && (
+        <>
+          <AgentRateModal
+            agent={rateAgent}
+            currentRate={rateAgent ? ratesByAgent[rateAgent.id] : undefined}
+            onClose={() => setRateAgent(null)}
+            onSaved={(agent, rate) => {
+              setRateAgent(null);
+              setRatesByAgent((prev) => ({ ...prev, [agent.id]: rate }));
+              toast.success(`Rate for ${agent.fullName || agent.email || 'the agent'} set to ${rate} per minute`);
+            }}
+          />
 
-      <AgentReportModal agent={reportAgent} onClose={() => setReportAgent(null)} />
+          <AgentReportModal agent={reportAgent} onClose={() => setReportAgent(null)} />
+        </>
+      )}
     </div>
   );
 };

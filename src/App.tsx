@@ -76,6 +76,7 @@ import StoreCdrImportPage from './pages/Store/CdrImportPage.js';
 import StoreReportPage from './pages/Store/StoreReportPage.js';
 import InvoicePaymentCallback from './pages/Public Pages/InvoicePaymentCallback.js';
 import DidAgentTransactionPage from './pages/DidAgent/DidAgentTransactionPage.js';
+import { DIDStoreRoute } from './components/shared/DIDStoreRoute.js';
 
 
 function App() {
@@ -145,14 +146,14 @@ function App() {
             <Route element={<StoreLayout />}>
               <Route path="/store" element={<StoreDashboard />} />
               <Route path="/agents" element={<ManageAgentsPage />} />
-              <Route path="/add-did-number" element={<StoreDidNumberPage />} />
+             <Route path="/add-did-number" element={<DIDStoreRoute><StoreDidNumberPage /></DIDStoreRoute>} />
               <Route path="/stransactions" element={<STransactionHistoryPage />} />
-              <Route path="/store/reports" element={<StoreReportPage />} />
+              <Route path="/store/reports" element={<DIDStoreRoute><StoreReportPage /></DIDStoreRoute>} />
               <Route path="/Swithdrawal" element={<SWithdrawalPage />} />
               <Route path="/Storedispute" element={<Storedispute />} />
               <Route path="/store/settings" element={<StoreSettingsPage />} />
-              <Route path="/store/invoices" element={<StoreInvoicesPage />} />
-              <Route path="/store/cdr-import" element={<StoreCdrImportPage />} />
+              <Route path="/store/invoices" element={<DIDStoreRoute><StoreInvoicesPage /></DIDStoreRoute>} />
+              <Route path="/store/cdr-import" element={<DIDStoreRoute><StoreCdrImportPage /></DIDStoreRoute>} />
             </Route>
 
             {/* DID Agent Routes */}

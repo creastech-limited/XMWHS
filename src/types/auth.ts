@@ -80,7 +80,7 @@ export interface StoreRegistrationRequest {
   lastName: string;
   email: string;
   password: string;
-  role: string; // Should be 'store'
+  role?: 'store';
   storeName: string;
   storeType: string;
   phone: string;
@@ -90,11 +90,17 @@ export interface StoreRegistrationRequest {
   gpsAccuracy?: number;
   geoAddress?: string;
   geoTagged?: boolean;
-  description: string;
+  description?: string;
   schoolId?: string;
   schoolName?: string;
   school?: string;
   isStandAlone?: boolean;
+  // businessName: string;
+  // businessType: string;
+  // businessDescription?: string;
+  // companyAddress: string;
+  // phoneNumber: string;
+  termsAccepted: boolean;
 }
 
 export interface StudentRegistrationRequest {
