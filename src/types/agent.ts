@@ -7,6 +7,7 @@ export interface AgentFormData {
   role: string;
   companyName: string;
   companyEmail: string;
+  companyPhone: string;
 }
 
 export interface AgentFormErrors {
@@ -17,6 +18,7 @@ export interface AgentFormErrors {
   password?: string;
   companyName?: string;
   companyEmail?: string;
+  companyPhone?: string;
 }
 
 export interface AgentRegistrationData {
@@ -29,6 +31,9 @@ export interface AgentRegistrationData {
   store_id: string;
   schoolId: string;
   isStandAlone: boolean;
+  companyName?: string;
+  companyEmail?: string;
+  companyPhone?: string;
 }
 
 export type DidRef = string | { _id: string; name?: string; fullName?: string; email?: string };

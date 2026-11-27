@@ -1,6 +1,6 @@
 import type { RevenueChartResponse, StoreDashboardResponse } from '../../types/dashboard';
 
-const API_ORIGIN = 'https://nodes-mxxd.onrender.com';
+const API_ORIGIN = 'https://stagingapi.yungmindsinnovative.com.ng';
 
 type Params = Record<string, string | number | undefined>;
 

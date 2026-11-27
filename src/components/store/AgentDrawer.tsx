@@ -56,39 +56,38 @@ const Field: React.FC<{
   required = true,
   onChange,
 }) => {
-  const id = useId();
-  return (
-    <div>
-      <label htmlFor={id} className="mb-1 block text-xs font-medium text-slate-700">
-        {label}
-      </label>
-      <div className="relative">
-        {icon && <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">{icon}</span>}
-        <input
-          id={id}
-          ref={inputRef}
-          type={type}
-          value={value}
-          onChange={onChange}
-          placeholder={placeholder}
-          autoComplete={autoComplete}
-          required={required}
-          aria-invalid={!!error}
-          aria-describedby={error || hint ? `${id}-msg` : undefined}
-          className={`${inputBase} ${icon ? 'pl-9' : 'pl-3'} ${trailing ? 'pr-10' : 'pr-3'} ${
-            error ? 'border-red-400' : 'border-slate-300'
-          }`}
-        />
-        {trailing && <span className="absolute inset-y-0 right-0 flex items-center pr-3">{trailing}</span>}
+    const id = useId();
+    return (
+      <div>
+        <label htmlFor={id} className="mb-1 block text-xs font-medium text-slate-700">
+          {label}
+        </label>
+        <div className="relative">
+          {icon && <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">{icon}</span>}
+          <input
+            id={id}
+            ref={inputRef}
+            type={type}
+            value={value}
+            onChange={onChange}
+            placeholder={placeholder}
+            autoComplete={autoComplete}
+            required={required}
+            aria-invalid={!!error}
+            aria-describedby={error || hint ? `${id}-msg` : undefined}
+            className={`${inputBase} ${icon ? 'pl-9' : 'pl-3'} ${trailing ? 'pr-10' : 'pr-3'} ${error ? 'border-red-400' : 'border-slate-300'
+              }`}
+          />
+          {trailing && <span className="absolute inset-y-0 right-0 flex items-center pr-3">{trailing}</span>}
+        </div>
+        {(error || hint) && (
+          <p id={`${id}-msg`} className={`mt-1 text-xs ${error ? 'text-red-600' : 'text-slate-500'}`}>
+            {error || hint}
+          </p>
+        )}
       </div>
-      {(error || hint) && (
-        <p id={`${id}-msg`} className={`mt-1 text-xs ${error ? 'text-red-600' : 'text-slate-500'}`}>
-          {error || hint}
-        </p>
-      )}
-    </div>
-  );
-};
+    );
+  };
 
 const SectionTitle: React.FC<{ title: string; note?: string }> = ({ title, note }) => (
   <div>
@@ -158,9 +157,8 @@ const AgentDrawer: React.FC<AgentDrawerProps> = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby="agent-drawer-title"
-        className={`absolute inset-y-0 right-0 flex w-full max-w-md flex-col bg-white shadow-xl transition-transform duration-200 motion-reduce:transition-none ${
-          shown ? 'translate-x-0' : 'translate-x-full'
-        }`}
+        className={`absolute inset-y-0 right-0 flex w-full max-w-md flex-col bg-white shadow-xl transition-transform duration-200 motion-reduce:transition-none ${shown ? 'translate-x-0' : 'translate-x-full'
+          }`}
       >
         <form onSubmit={onSubmit} className="flex h-full flex-col">
           <header className="flex items-start justify-between border-b border-slate-100 px-6 py-4">
@@ -291,6 +289,16 @@ const AgentDrawer: React.FC<AgentDrawerProps> = ({
                 onChange={onChange('companyEmail')}
                 error={errors.companyEmail}
                 required={!!formData.companyName.trim()}
+                autoComplete="off"
+              />
+              <Field
+                label="Company Phone"
+                type="tel"
+                icon={<Phone className="h-4 w-4" />}
+                placeholder="0803 000 0000"
+                value={formData.companyPhone}
+                onChange={onChange('companyPhone')}
+                error={errors.phone}
                 autoComplete="off"
               />
             </section>

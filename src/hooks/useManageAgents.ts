@@ -41,6 +41,7 @@ export const useManageAgents = () => {
     role: 'agent',
     companyName: '',
     companyEmail: '',
+    companyPhone: '',
   });
 
   const [errors, setErrors] = useState<AgentFormErrors>({});
@@ -148,7 +149,7 @@ export const useManageAgents = () => {
       newErrors.password = "Password must be at least 6 characters";
     }
 
-    Object.assign(newErrors, validateProfessional(agentData.companyName, agentData.companyEmail));
+    Object.assign(newErrors, validateProfessional(agentData.companyName, agentData.companyEmail, agentData.companyPhone));
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -163,7 +164,8 @@ export const useManageAgents = () => {
       password: '',
       companyName: '',
       companyEmail: '',
-      role: 'agent'
+      role: 'agent',
+      companyPhone: ''
     });
     setErrors({});
     setShowForm(false);
@@ -183,6 +185,10 @@ export const useManageAgents = () => {
 
     try {
       const isStandAlone = storeInfo.schoolId === 'FFZ960384' || storeInfo.store_id.split('/')[0] === 'FFZ960384';
+      const companyName = agentData.companyName.trim();
+      const companyEmail = agentData.companyEmail.trim();
+      const companyPhone = agentData.companyPhone.trim();
+      const hasCompany = !!(companyName || companyEmail || companyPhone);
       const registrationData: AgentRegistrationData = {
         firstName: agentData.firstName,
         lastName: agentData.lastName,
@@ -193,6 +199,7 @@ export const useManageAgents = () => {
         store_id: storeInfo.store_id,
         schoolId: storeInfo.schoolId || storeInfo.store_id.split('/')[0] || '',
         isStandAlone: isStandAlone,
+        ...(hasCompany && { companyName, companyEmail, companyPhone }),
       };
 
       await registerAgent(registrationData);

@@ -1,4 +1,3 @@
-// Free or disposable providers. A company email must NOT be on one of these.
 const PERSONAL_PROVIDERS = new Set([
   'gmail', 'googlemail', 'yahoo', 'ymail', 'rocketmail', 'yopmail', 'outlook',
   'hotmail', 'live', 'msn', 'icloud', 'aol', 'proton', 'protonmail', 'gmx',
@@ -25,14 +24,16 @@ export const isCompanyEmail = (email: string) => {
   return !!label && !PERSONAL_PROVIDERS.has(label);
 };
 
-export const validateProfessional = (companyName: string, companyEmail: string) => {
-  const errors: { companyName?: string; companyEmail?: string } = {};
+export const validateProfessional = (companyName: string, companyEmail: string, companyPhone: string) => {
+  const errors: { companyName?: string; companyEmail?: string; companyPhone?: string } = {};
   const name = companyName.trim();
   const email = companyEmail.trim();
+  const phone = companyPhone.trim();
 
-  if (!name && !email) return errors; // both empty is fine: agent has no company
+  if (!name && !email && !phone) return errors; 
 
   if (!name) errors.companyName = 'Enter the company name, since a company email was provided.';
+  if(!phone) errors.companyPhone = 'Enter the company phone number'
   if (!email) errors.companyEmail = 'Enter the company email, since a company name was provided.';
   else if (!EMAIL_RE.test(email.toLowerCase())) errors.companyEmail = 'Enter a valid email address.';
   else if (!isCompanyEmail(email)) {
