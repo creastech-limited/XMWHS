@@ -4,10 +4,10 @@ import { Card } from './ui';
 interface AgentStatCardsProps {
   totalAgents: number;
   activeAgents: number;
-  /** TODO: wire up once the API exposes it. Defaults to 0. */
   transactionsToday?: number;
-  /** TODO: wire up once the API exposes invitations. Defaults to 0. */
   pendingInvitations?: number;
+  didAgents?: number;
+  showDID?: boolean;
 }
 
 type Note = { text: string; tone?: 'ok' | 'warn' };
@@ -30,12 +30,14 @@ const Stat: React.FC<{ label: string; value: React.ReactNode; note?: Note }> = (
 const AgentStatCards: React.FC<AgentStatCardsProps> = ({
   totalAgents,
   activeAgents,
+  didAgents = 0,
   transactionsToday = 0,
   pendingInvitations = 0,
+  showDID = false,
 }) => {
   const inactive = totalAgents - activeAgents;
   return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
       <Stat
         label="Total agents"
         value={totalAgents}
@@ -59,6 +61,18 @@ const AgentStatCards: React.FC<AgentStatCardsProps> = ({
             : { text: 'No inactive agents', tone: 'ok' }
         }
       />
+      {showDID && (
+        <Stat
+          label="DID agents"
+          value={
+            <>
+              {didAgents}
+              <span className="ml-1 text-sm font-normal text-slate-500">of {totalAgents}</span>
+            </>
+          }
+          note={{ text: `${totalAgents - didAgents} without DID` }}
+        />
+      )}
       <Stat label="Transactions today" value={transactionsToday} note={{ text: 'Across all agents' }} />
       <Stat label="Pending invitations" value={pendingInvitations} />
     </div>

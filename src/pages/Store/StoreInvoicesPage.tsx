@@ -20,14 +20,14 @@ const COLUMNS = [
     "Status",
     "Invoice date",
     "View Invoice",
-    "Actions",
+    // "Actions",
 ];
 
 const ghostBtn =
     "rounded-lg px-4 py-2 text-sm font-semibold text-[#0f1535] transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-4 focus-visible:ring-indigo-100 disabled:opacity-50";
 
-const payBtn =
-    "whitespace-nowrap rounded-lg bg-indigo-600 px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus-visible:ring-4 focus-visible:ring-indigo-100";
+// const payBtn =
+//     "whitespace-nowrap rounded-lg bg-indigo-600 px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus-visible:ring-4 focus-visible:ring-indigo-100";
 
 const formatMoney = (amount: number) =>
     new Intl.NumberFormat(undefined, {
@@ -76,7 +76,7 @@ const Field = ({ label, value }: { label: string; value: React.ReactNode }) => (
 const InvoiceModal = ({
     invoiceId,
     onClose,
-    onPay,
+    // onPay,
 }: {
     invoiceId: string;
     onClose: () => void;
@@ -215,13 +215,13 @@ const InvoiceModal = ({
                             </table>
                         </div>
 
-                        {invoice.status === "pending" && (
+                        {/* {invoice.status === "pending" && (
                             <div className="mt-6 text-right">
                                 <button type="button" className={payBtn} onClick={() => onPay(invoice)}>
                                     Make Payment
                                 </button>
                             </div>
-                        )}
+                        )} */}
                     </>
                 )}
             </div>
@@ -393,7 +393,7 @@ const StoreInvoicesPage = () => {
                                             </button>
                                         </td>
 
-                                        <td className="px-6 py-4 text-right">
+                                        {/* <td className="px-6 py-4 text-right">
                                             {inv.status === "pending" && (
                                                 <button
                                                     type="button"
@@ -403,7 +403,7 @@ const StoreInvoicesPage = () => {
                                                     Make Payment
                                                 </button>
                                             )}
-                                        </td>
+                                        </td> */}
                                     </tr>
                                 ))}
                         </tbody>

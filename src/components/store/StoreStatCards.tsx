@@ -8,7 +8,7 @@ interface StoreStatCardsProps {
   data: DashboardData;
 }
 
-const WITHDRAW_ROUTE = '/swithdrawal';
+const WITHDRAW_ROUTE = '/Swithdrawal';
 const AGENTS_ROUTE = '/agents';
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;

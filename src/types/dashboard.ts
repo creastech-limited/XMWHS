@@ -75,3 +75,37 @@ export interface DashboardData {
   agentStats: AgentRevenueStat[];
   notifications: Notification[];
 }
+
+// ── School dashboard ──
+export interface Stats {
+  balance: number;
+  totalStudents: number;
+  totalStores: number;
+}
+
+export interface PieDataEntry {
+  name: string;
+  value: number;
+  color: string;
+}
+
+export interface BarDataEntry {
+  month: string;
+  fees: number;
+}
+
+export interface Transaction {
+  id: string;
+  date?: string;
+  description: string;
+  category: string;
+  amount?: number;
+  type: 'credit' | 'debit' | 'pending';
+  status?: string;
+}
+
+export interface SnackbarState {
+  open: boolean;
+  message: string;
+  severity: 'success' | 'error';
+}

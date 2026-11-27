@@ -26,6 +26,7 @@ interface MenuItem {
   route: string;
   badge?: number;
   badgeTone?: 'neutral' | 'danger';
+  didOnly?: boolean;
 }
 
 interface MenuSection {
@@ -39,10 +40,10 @@ const menuSections: MenuSection[] = [
     items: [
       { text: 'Dashboard', icon: <LayoutDashboard size={18} />, route: '/store' },
       { text: 'Agents', icon: <Users size={18} />, route: '/agents', badgeTone: 'neutral' },
-      { text: 'DID Number', icon: <Users size={18} />, route: '/add-did-number', badgeTone: 'neutral' },
-      { text: 'CDR Import', icon: <Download size={18} />, route: '/store/cdr-import', badgeTone: 'neutral' },
-      { text: 'Reports', icon: <ChartColumn size={18} />, route: '/store/reports', badgeTone: 'neutral' },
-      { text: 'Invoices', icon: <CircleDollarSign size={18} />, route: '/store/invoices', badgeTone: 'neutral' },
+      { text: 'DID Number', icon: <Users size={18} />, route: '/add-did-number', badgeTone: 'neutral', didOnly: true },
+      { text: 'CDR Import', icon: <Download size={18} />, route: '/store/cdr-import', badgeTone: 'neutral', didOnly: true },
+      { text: 'Reports', icon: <ChartColumn size={18} />, route: '/store/reports', badgeTone: 'neutral', didOnly: true },
+      { text: 'Invoices', icon: <CircleDollarSign size={18} />, route: '/store/invoices', badgeTone: 'neutral', didOnly: true },
       { text: 'Transactions', icon: <History size={18} />, route: '/stransactions' },
       { text: 'Withdrawals', icon: <CreditCard size={18} />, route: '/Swithdrawal' }
     ]
@@ -166,6 +167,17 @@ const StoreUserMenu: React.FC = () => {
 const StoreSidebar: React.FC = () => {
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState<boolean>(false);
+  const auth = useAuth();
+
+  const rawUser = auth?.user as any;
+  const isDIDStore: boolean = Boolean(rawUser?.isDIDStore ?? rawUser?.data?.isDIDStore);
+
+  const visibleSections = menuSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => !item.didOnly || isDIDStore),
+    }))
+    .filter((section) => section.items.length > 0);
 
   const handleDrawerToggle = (): void => {
     setMobileOpen(!mobileOpen);
@@ -222,7 +234,7 @@ const StoreSidebar: React.FC = () => {
 
         {/* Menu sections */}
         <nav>
-          {menuSections.map((section) => (
+          {visibleSections.map((section) => (
             <div key={section.label} className="mb-5">
               <p className="px-6 pb-2 text-[12px] font-semibold uppercase tracking-wider text-slate-400">
                 {section.label}

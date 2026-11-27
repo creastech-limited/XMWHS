@@ -66,6 +66,48 @@ const StatCard = ({ label, value }: { label: string; value: React.ReactNode }) =
     </div>
 );
 
+type PageItem = number | "ellipsis-start" | "ellipsis-end";
+
+function getPageItems(current: number, total: number, siblings = 1): PageItem[] {
+    const maxVisible = siblings * 2 + 5;
+
+    if (total <= maxVisible) {
+        return Array.from({ length: total }, (_, i) => i + 1);
+    }
+
+    const left = Math.max(current - siblings, 1);
+    const right = Math.min(current + siblings, total);
+
+    const showStartEllipsis = left > 2;
+    const showEndEllipsis = right < total - 1;
+
+    if (!showStartEllipsis && showEndEllipsis) {
+        const leftCount = siblings * 2 + 3;
+        return [
+            ...Array.from({ length: leftCount }, (_, i) => i + 1),
+            "ellipsis-end",
+            total,
+        ];
+    }
+
+    if (showStartEllipsis && !showEndEllipsis) {
+        const rightCount = siblings * 2 + 3;
+        return [
+            1,
+            "ellipsis-start",
+            ...Array.from({ length: rightCount }, (_, i) => total - rightCount + 1 + i),
+        ];
+    }
+
+    return [
+        1,
+        "ellipsis-start",
+        ...Array.from({ length: right - left + 1 }, (_, i) => left + i),
+        "ellipsis-end",
+        total,
+    ];
+}
+
 // const MatchPill = ({ ok }: { ok: boolean }) => (
 //     <span
 //         className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${ok ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"
@@ -198,7 +240,7 @@ const StoreReportPage = () => {
             lines.push(csvRow(["Total calls", exportTotals.calls]));
             lines.push(csvRow(["Total duration", formatDuration(exportTotals.totalDuration)]));
             lines.push(csvRow(["Billed duration", formatDuration(exportTotals.totalBilledDuration)]));
-            lines.push(csvRow(["Charged by Vezeti", exportTotals.totalCallChargedVezeti]));
+            lines.push(csvRow(["Charged by Provider", exportTotals.totalCallChargedVezeti]));
             lines.push(csvRow(["Charge from rate", exportTotals.totalCallChargeFromRate]));
             lines.push("");
 
@@ -318,7 +360,7 @@ const StoreReportPage = () => {
                 <StatCard label="Total calls" value={totals ? totals.calls.toLocaleString() : "—"} />
                 <StatCard label="Total duration" value={totals ? formatDuration(totals.totalDuration) : "—"} />
                 <StatCard label="Billed duration" value={totals ? formatDuration(totals.totalBilledDuration) : "—"} />
-                <StatCard label="Charged by Vezeti" value={totals ? formatMoney(totals.totalCallChargedVezeti) : "—"} />
+                <StatCard label="Charged by Provider" value={totals ? formatMoney(totals.totalCallChargedVezeti) : "—"} />
                 <StatCard label="Charge from rate" value={totals ? formatMoney(totals.totalCallChargeFromRate) : "—"} />
             </div>
 
@@ -386,11 +428,12 @@ const StoreReportPage = () => {
                 </div>
 
                 {pagination && pagination.totalPages > 1 && (
-                    <div className="flex items-center justify-between border-t border-slate-100 px-6 py-4">
+                    <div className="flex flex-col gap-3 border-t border-slate-100 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
                         <span className="text-sm text-slate-500">
                             Page {pagination.page} of {pagination.totalPages} · {pagination.total.toLocaleString()} calls
                         </span>
-                        <div className="flex gap-2">
+
+                        <nav className="flex flex-wrap items-center gap-1" aria-label="Pagination">
                             <button
                                 type="button"
                                 className={`${ghostBtn} border border-slate-200`}
@@ -399,6 +442,29 @@ const StoreReportPage = () => {
                             >
                                 Previous
                             </button>
+
+                            {getPageItems(page, pagination.totalPages).map((item) =>
+                                typeof item === "string" ? (
+                                    <span key={item} className="px-2 text-sm text-slate-400 select-none">
+                                        …
+                                    </span>
+                                ) : (
+                                    <button
+                                        key={item}
+                                        type="button"
+                                        aria-current={item === page ? "page" : undefined}
+                                        disabled={loading}
+                                        onClick={() => setPage(item)}
+                                        className={`min-w-[2.25rem] rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${item === page
+                                                ? "border-slate-900 bg-slate-900 text-white"
+                                                : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                                            } disabled:cursor-not-allowed disabled:opacity-50`}
+                                    >
+                                        {item}
+                                    </button>
+                                )
+                            )}
+
                             <button
                                 type="button"
                                 className={`${ghostBtn} border border-slate-200`}
@@ -407,7 +473,7 @@ const StoreReportPage = () => {
                             >
                                 Next
                             </button>
-                        </div>
+                        </nav>
                     </div>
                 )}
             </div>
