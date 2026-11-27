@@ -1,23 +1,23 @@
 import { useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { registerStore } from '../services';
-import { 
-  validateEmail, 
+import {
+  validateEmail,
   validateName,
   validatePasswordField,
   validateConfirmPassword,
-  isAxiosError 
+  isAxiosError
 } from '../utils/validators';
 import type { StoreRegistrationRequest } from '../types/auth';
-import type { 
+import type {
   StoreRegistrationFormData,
-  StoreRegistrationFormErrors 
+  StoreRegistrationFormErrors
 } from '../types/registration';
 
 export const useStoreRegistration = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  
+
   const schoolId = searchParams.get("schoolId") || "";
   const displaySchool = searchParams.get("schoolName") || "";
 
@@ -36,7 +36,8 @@ export const useStoreRegistration = () => {
     location: '',
     password: '',
     confirmPassword: '',
-    description: ''
+    description: '',
+    termsAccepted: false,
   });
 
   const [errors, setErrors] = useState<StoreRegistrationFormErrors>({
@@ -49,18 +50,19 @@ export const useStoreRegistration = () => {
     location: '',
     password: '',
     confirmPassword: '',
-    description: ''
+    description: '',
+    termsAccepted: '',
   });
 
   const [activeStep, setActiveStep] = useState<number>(0);
-  const [snackbar, setSnackbar] = useState<{ 
-    open: boolean; 
-    message: string; 
-    severity: 'success' | 'error' | 'warning' | 'info' 
-  }>({ 
-    open: false, 
-    message: '', 
-    severity: 'success' 
+  const [snackbar, setSnackbar] = useState<{
+    open: boolean;
+    message: string;
+    severity: 'success' | 'error' | 'warning' | 'info'
+  }>({
+    open: false,
+    message: '',
+    severity: 'success'
   });
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [showPassword, setShowPassword] = useState<boolean>(false);
@@ -141,6 +143,11 @@ export const useStoreRegistration = () => {
         newErrors.confirmPassword = confirmError;
         isValid = false;
       }
+
+      if (!formData.termsAccepted) {
+        newErrors.termsAccepted = 'You must accept the privacy and policy to proceed';
+        isValid = false;
+      }
     }
 
     setErrors(newErrors);
@@ -151,7 +158,7 @@ export const useStoreRegistration = () => {
     event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
     setFormData({ ...formData, [field]: event.target.value });
-    
+
     // Clear error for this field
     if (errors[field]) {
       setErrors({ ...errors, [field]: '' });
@@ -160,7 +167,7 @@ export const useStoreRegistration = () => {
 
   const handleNext = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateStep(activeStep)) {
       // Show error snackbar with validation message
       const errorMessages = Object.values(errors).filter(err => err);
@@ -187,7 +194,7 @@ export const useStoreRegistration = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     setIsSubmitting(true);
 
     try {
@@ -205,6 +212,7 @@ export const useStoreRegistration = () => {
         schoolId: schoolId,
         schoolName: displaySchool,
         school: schoolId,
+        termsAccepted: formData.termsAccepted,
       };
 
       const result = await registerStore(registrationData);
@@ -215,7 +223,7 @@ export const useStoreRegistration = () => {
           message: result.message || `Store "${formData.storeName}" registered successfully!`,
           severity: "success"
         });
-        
+
         setTimeout(() => {
           navigate('/login', { replace: true });
         }, 800);
@@ -228,14 +236,14 @@ export const useStoreRegistration = () => {
       }
     } catch (error) {
       console.error("Error during registration:", error);
-      
+
       let message = "Network error. Please check your connection and try again.";
       if (isAxiosError(error)) {
         message = error.response?.data?.message || message;
       } else if (error instanceof Error) {
         message = error.message;
       }
-      
+
       setSnackbar({
         open: true,
         message,

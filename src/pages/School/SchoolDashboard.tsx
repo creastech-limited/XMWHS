@@ -1,7 +1,9 @@
-import React, { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { BanknotesIcon } from '@heroicons/react/24/outline';
+import React, { useEffect, useMemo, useState } from 'react';
+// import { useNavigate } from 'react-router-dom';
+// import { BanknotesIcon } from '@heroicons/react/24/outline';
 import { useSchoolDashboard } from '../../hooks/useSchoolDashboard';
+import { getFeeReport } from '../../services';
+import type { FeeReport } from '../../types/school';
 import { LoadingScreen } from '../../components/shared/LoadingScreen';
 import { Snackbar } from '../../components/shared/Snackbar';
 import { DashboardStatCards } from '../../components/dashboard/Dashboardstatcards';
@@ -12,22 +14,13 @@ import { RecentActivityCard, toActivityRow } from '../../components/dashboard/Re
 import { NeedsAttentionCard } from '../../components/dashboard/NeedsAttentionCard';
 // import { UpcomingCard } from '../../components/dashboard/UpcomingCard';
 
-// ---- DUMMY DATA
-const DUMMY = {
-  termLabel: '1st Term, 2026/27',
-  feesCollected: '₦0',
-  feesCollectedChange: 0,
-  feesOutstanding: '₦0',
-  outstandingStudents: 0,
+// ---- Fields the fee report can't supply yet (see notes below)
+const PENDING = {
+  feesCollectedChange: 0, 
   daysToDeadline: 0,
-  deadlineLabel: '',
-  collectedTotal: '₦0',
-  collectedPercent: 0,
-  targetLabel: '₦0',
-  parents: 0,
-  pendingRegistrations: 0,
 };
 
+// Monthly chart: the report has no time breakdown yet
 const FEE_MONTHS: FeeMonth[] = [
   { month: 'Sep', target: 0, collected: 0 },
   { month: 'Oct', target: 0, collected: 0 },
@@ -36,7 +29,15 @@ const FEE_MONTHS: FeeMonth[] = [
   { month: 'Jan', target: 0, collected: null, projected: 0 },
 ];
 
-const RANGES = ['Today', 'This Week', 'This Term', 'This Year'];
+// TODO: derive from the school's current session/term
+const FEE_FILTERS = { session: '2026', term: 'First' };
+
+const naira = (n: number) =>
+  new Intl.NumberFormat('en-NG', {
+    style: 'currency',
+    currency: 'NGN',
+    maximumFractionDigits: 0,
+  }).format(n || 0);
 
 const greeting = () => {
   const h = new Date().getHours();
@@ -44,9 +45,43 @@ const greeting = () => {
 };
 
 const SchoolDashboard: React.FC = () => {
-  const navigate = useNavigate();
+  // const navigate = useNavigate();
   const { user, loading, stats, pieData, transactions, parentCount, snackbar, closeSnackbar } = useSchoolDashboard();
-  const [range, setRange] = useState('This Term');
+
+  // ---- Fee report (inline, no separate hook)
+  const [report, setReport] = useState<FeeReport | null>(null);
+  const [feeError, setFeeError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getFeeReport(FEE_FILTERS)
+      .then((r) => {
+        if (!cancelled) {
+          setReport(r);
+          setFeeError(null);
+        }
+      })
+      .catch((e: any) => {
+        if (!cancelled) {
+          setFeeError(e?.response?.data?.message || 'Failed to load fee report');
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const feeStats = useMemo(() => {
+    const t = report?.totals;
+    return {
+      feesCollected: naira(t?.collected ?? 0),
+      feesOutstanding: naira(t?.outstanding ?? 0),
+      outstandingStudents: (t?.notPaid ?? 0) + (t?.partlyPaid ?? 0),
+      collectedTotal: naira(t?.collected ?? 0),
+      collectedPercent: t?.collectionRate ?? 0,
+      targetLabel: naira(t?.expected ?? 0),
+    };
+  }, [report]);
 
   const firstName: string = (user as any)?.firstName || (user as any)?.name?.split(' ')[0] || 'Administrator';
   const schoolName: string = (user as any)?.schoolName || 'your school';
@@ -64,8 +99,6 @@ const SchoolDashboard: React.FC = () => {
   const rows = useMemo(() => (transactions ?? []).map(toActivityRow), [transactions]);
 
   const totalStudents = stats.totalStudents || 0;
-  const unpaid = DUMMY.outstandingStudents;
-  const paid = Math.max(totalStudents - unpaid, 0);
 
   if (loading) {
     return (
@@ -87,40 +120,17 @@ const SchoolDashboard: React.FC = () => {
             <p className="mt-1 text-sm text-slate-500">
               A quick look at {schoolName}'s money and ecosystem.
             </p>
+            {feeError && <p className="mt-1 text-xs text-red-600">{feeError}</p>}
           </div>
-
-          {/* <div className="flex flex-wrap items-center gap-3">
-            <div className="flex rounded-lg border border-slate-200 bg-white p-0.5">
-              {RANGES.map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => setRange(r)}
-                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${range === r ? 'bg-slate-900 !text-white' : 'text-slate-500 hover:text-slate-900'
-                    }`}
-                >
-                  {r}
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={() => navigate('/schoolfees')}
-              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-xs font-semibold text-white hover:bg-slate-800"
-            >
-              <BanknotesIcon className="h-4 w-4" />
-              Invoice Fees
-            </button>
-          </div> */}
         </div>
 
         {/* Stat cards */}
         <DashboardStatCards
-          feesCollected={DUMMY.feesCollected}
-          feesCollectedChange={DUMMY.feesCollectedChange}
-          feesOutstanding={DUMMY.feesOutstanding}
-          outstandingStudents={DUMMY.outstandingStudents}
-          daysToDeadline={DUMMY.daysToDeadline}
+          feesCollected={feeStats.feesCollected}
+          feesCollectedChange={PENDING.feesCollectedChange}
+          feesOutstanding={feeStats.feesOutstanding}
+          outstandingStudents={feeStats.outstandingStudents}
+          daysToDeadline={PENDING.daysToDeadline}
           walletBalance={stats.balance}
           students={totalStudents}
           stores={stats.totalStores}
@@ -131,10 +141,10 @@ const SchoolDashboard: React.FC = () => {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <FeeCollectionCard
-              total={DUMMY.collectedTotal}
-              percent={DUMMY.collectedPercent}
-              targetLabel={DUMMY.targetLabel}
-              daysToDeadline={DUMMY.daysToDeadline}
+              total={feeStats.collectedTotal}
+              percent={feeStats.collectedPercent}
+              targetLabel={feeStats.targetLabel}
+              daysToDeadline={PENDING.daysToDeadline}
               months={FEE_MONTHS}
             />
           </div>

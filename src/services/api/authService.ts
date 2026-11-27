@@ -42,6 +42,11 @@ export const login = async (credentials: LoginRequest): Promise<LoginResponse> =
   return response.data;
 };
 
+export const logout = async (): Promise<LoginResponse> => {
+  const response = await apiClient.post<LoginResponse>('api/users/logout');
+  return response.data;
+}
+
 // Forgot password
 export const forgotPassword = async (email: string): Promise<ForgotPasswordResponse> => {
   const response = await apiClient.post<ForgotPasswordResponse>('/api/users/forgotpassword', { email });

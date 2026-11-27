@@ -47,6 +47,7 @@ export interface StoreRegistrationFormData {
   password: string;
   confirmPassword: string;
   description: string;
+   termsAccepted: boolean;
 }
 
 export interface StoreRegistrationFormErrors {
@@ -60,6 +61,7 @@ export interface StoreRegistrationFormErrors {
   password: string;
   confirmPassword: string;
   description: string;
+  termsAccepted: string;
 }
 
 // Add to existing registration.ts

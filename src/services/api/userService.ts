@@ -34,6 +34,7 @@ import type {
   TransferResponse,
 } from '../../types/user';
 import type { DidNumber, CreateDidInput, CreateDidResponse, CreateDidBatchResult, DidClientReport, InvoicesResponse, InvoiceDetailResponse, DidMeNumber, DidMeReport, DidMeInvoice, DidMeInvoiceDetail, DidMeCallsResult, DidMeCall, DidMeCallsParams, DidMeDashboard, StoreReportTableResponse, StoreReportTableParams, StartPaymentResponse, VerifyPaymentResponse } from '../../types/agent';
+import type { FeeReport, FeeReportParams, } from '../../types/school';
 import type { CdrImportResponse, CdrImportResult, CdrImportsResponse } from '../../types/store';
 import axios from 'axios';
 
@@ -1169,6 +1170,19 @@ export const getAllParents = async (): Promise<UserData[]> => {
 };
 
 
+// Service for school dashboard 
+
+
+export const getFeeReport = async (params: FeeReportParams = {}): Promise<FeeReport> => {
+  // drop empty params so we don't send ?term=&feeType=
+  const clean = Object.fromEntries(
+    Object.entries(params).filter(([, v]) => v !== undefined && v !== '')
+  );
+  const { data } = await apiClient.get('/api/fee/report', { params: clean });
+  return data.data;
+};
+
+
 // Service to fetch dashboard data for admin overview
 
 export const getAdminDashboardData = async () => {
@@ -1471,7 +1485,7 @@ export interface DidRate {
   ratePerMinute: number;
   status: string;
   deactivatedAt: string | null;
-  createdAt?: string; // add this line
+  createdAt?: string;
   agentId: { _id: string } | string;
 }
 

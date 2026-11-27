@@ -139,6 +139,11 @@ const CorporateSignUpForm: React.FC = () => {
     return next;
   };
 
+  const handleTermsChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({ ...formData, termsAccepted: event.target.checked });
+    if (errors.termsAccepted) setErrors({ ...errors, termsAccepted: '' });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
@@ -345,15 +350,12 @@ const CorporateSignUpForm: React.FC = () => {
         <Checkbox
           name="termsAccepted"
           checked={formData.termsAccepted}
-          onChange={handleChange}
+          onChange={handleTermsChange}
           error={errors.termsAccepted}
           label={
             <>
               I confirm that I have read and agree to the{' '}
-              <Link
-                to="/privacyAndPolicy"
-                className="text-indigo-700 underline hover:text-indigo-900"
-              >
+              <Link to="/privacyAndPolicy" className="text-indigo-700 underline hover:text-indigo-900">
                 Privacy and Policy
               </Link>
             </>

@@ -11,6 +11,7 @@ import type { AuthContextType, AuthProviderProps } from '../types/auth.js';
 import { validateToken } from '../services/api/authService';
 import axios from 'axios';
 import { isDidAgent } from '../utils/didAgent';
+import { logout as logoutApi } from '../services/api/authService.js';
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -130,12 +131,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const logout = useCallback(() => {
-    localStorage.removeItem('user');
-    localStorage.removeItem('token');
-    setUser(null);
-    setToken(null);
-    navigate('/login');
+  const logout = useCallback(async () => {
+    try {
+      await logoutApi();
+    } catch (err) {
+      console.error('Logout request failed:', err);
+    } finally {
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+      setUser(null);
+      setToken(null);
+      navigate('/login');
+    }
   }, [navigate]);
 
   const login = useCallback(
