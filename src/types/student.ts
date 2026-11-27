@@ -59,7 +59,7 @@ export interface Parent {
   lastName: string;
   name: string;
   email: string;
-  phone: string;
+  phone?: string;
 }
 
 export interface StudentsResponse {
@@ -72,6 +72,7 @@ export interface ParentsResponse {
   parent?: Parent[];
   data?: Parent[];
   message?: string;
+  parentCount?: number;
 }
 
 export interface PinRequest {

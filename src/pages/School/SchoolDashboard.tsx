@@ -15,25 +15,25 @@ import { NeedsAttentionCard } from '../../components/dashboard/NeedsAttentionCar
 // ---- DUMMY DATA
 const DUMMY = {
   termLabel: '1st Term, 2026/27',
-  feesCollected: '₦24.6M',
-  feesCollectedChange: 12,
-  feesOutstanding: '₦3.2M',
-  outstandingStudents: 120,
-  daysToDeadline: 15,
-  deadlineLabel: '12 November',
-  collectedTotal: '₦24,620,000',
-  collectedPercent: 88,
-  targetLabel: '₦27.8M',
-  parents: 527,
-  pendingRegistrations: 8,
+  feesCollected: '₦0',
+  feesCollectedChange: 0,
+  feesOutstanding: '₦0',
+  outstandingStudents: 0,
+  daysToDeadline: 0,
+  deadlineLabel: '',
+  collectedTotal: '₦0',
+  collectedPercent: 0,
+  targetLabel: '₦0',
+  parents: 0,
+  pendingRegistrations: 0,
 };
 
 const FEE_MONTHS: FeeMonth[] = [
-  { month: 'Sep', target: 5.5, collected: 5.1 },
-  { month: 'Oct', target: 5.6, collected: 6.4 },
-  { month: 'Nov', target: 5.6, collected: 3.9, current: true },
-  { month: 'Dec', target: 5.5, collected: null, projected: 5.6 },
-  { month: 'Jan', target: 5.1, collected: null, projected: 4.7 },
+  { month: 'Sep', target: 0, collected: 0 },
+  { month: 'Oct', target: 0, collected: 0 },
+  { month: 'Nov', target: 0, collected: 0, current: true },
+  { month: 'Dec', target: 0, collected: null, projected: 0 },
+  { month: 'Jan', target: 0, collected: null, projected: 0 },
 ];
 
 const RANGES = ['Today', 'This Week', 'This Term', 'This Year'];
@@ -45,7 +45,7 @@ const greeting = () => {
 
 const SchoolDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { user, loading, stats, pieData, transactions, snackbar, closeSnackbar } = useSchoolDashboard();
+  const { user, loading, stats, pieData, transactions, parentCount, snackbar, closeSnackbar } = useSchoolDashboard();
   const [range, setRange] = useState('This Term');
 
   const firstName: string = (user as any)?.firstName || (user as any)?.name?.split(' ')[0] || 'Administrator';
@@ -85,11 +85,11 @@ const SchoolDashboard: React.FC = () => {
               {greeting()}, {firstName}
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              A quick look at {schoolName}'s money and ecosystem for {DUMMY.termLabel}.
+              A quick look at {schoolName}'s money and ecosystem.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          {/* <div className="flex flex-wrap items-center gap-3">
             <div className="flex rounded-lg border border-slate-200 bg-white p-0.5">
               {RANGES.map((r) => (
                 <button
@@ -111,7 +111,7 @@ const SchoolDashboard: React.FC = () => {
               <BanknotesIcon className="h-4 w-4" />
               Invoice Fees
             </button>
-          </div>
+          </div> */}
         </div>
 
         {/* Stat cards */}
@@ -124,7 +124,7 @@ const SchoolDashboard: React.FC = () => {
           walletBalance={stats.balance}
           students={totalStudents}
           stores={stats.totalStores}
-          parents={DUMMY.parents}
+          parents={parentCount}
         />
 
         {/* Row 1: fee collection + students by class */}

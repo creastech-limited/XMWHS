@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Building2, MapPin, Phone, Briefcase, Mail, User } from 'lucide-react';
-import { registerStore } from '../../services';
+import { Building2, MapPin, Phone, Briefcase, Mail, User, GraduationCap } from 'lucide-react';
+import { registerStore, registerSchool } from '../../services';
 import { validateEmail, validatePassword, isAxiosError } from '../../utils/validators';
-import type { StoreRegistrationRequest } from '../../types/auth';
+import type {
+  StoreRegistrationRequest,
+  SchoolRegistrationRequest,
+  SchoolType,
+} from '../../types/auth';
 import { FormInput } from '../../components/shared/FormInput';
 import { PasswordInput } from '../../components/shared/PasswordInput';
 import { SelectInput } from '../../components/shared/SelectInput';
@@ -17,6 +21,7 @@ interface CorporateFormData {
   lastName: string;
   businessName: string;
   businessType: string;
+  schoolType: string;
   companyAddress: string;
   phoneNumber: string;
   email: string;
@@ -32,6 +37,7 @@ const initialData: CorporateFormData = {
   lastName: '',
   businessName: '',
   businessType: '',
+  schoolType: '',
   companyAddress: '',
   phoneNumber: '',
   email: '',
@@ -40,16 +46,26 @@ const initialData: CorporateFormData = {
   termsAccepted: false,
 };
 
+const SCHOOL_BUSINESS_TYPE = 'school';
+
 const businessTypeOptions = [
   { value: '', label: 'Select business type' },
-  { value: 'school', label: 'School / Education' },
+  { value: SCHOOL_BUSINESS_TYPE, label: 'School / Education' },
   { value: 'retail', label: 'Retail' },
   { value: 'technology', label: 'Technology' },
   { value: 'finance', label: 'Finance' },
   { value: 'healthcare', label: 'Healthcare' },
   { value: 'hospitality', label: 'Hospitality' },
-  { value: 'manufacturing', label: 'Manufacturing' },
   { value: 'other', label: 'Other' },
+];
+
+const schoolTypeOptions = [
+  { value: '', label: 'Select school type' },
+  { value: 'primary', label: 'Primary' },
+  { value: 'secondary', label: 'Secondary' },
+  { value: 'primary and secondary', label: 'Primary and Secondary' },
+  { value: 'university', label: 'University' },
+  { value: 'polytechnic', label: 'Polytechnic' },
 ];
 
 const CorporateSignUpForm: React.FC = () => {
@@ -62,16 +78,22 @@ const CorporateSignUpForm: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
+  const isSchool = formData.businessType === SCHOOL_BUSINESS_TYPE;
+
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
     const { name, value, type } = e.target;
     const checked = type === 'checkbox' ? (e.target as HTMLInputElement).checked : undefined;
 
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value,
-    }));
+    setFormData((prev) => {
+      const next = { ...prev, [name]: type === 'checkbox' ? checked : value };
+      // Leaving "school" clears the school type so a stale value is never sent
+      if (name === 'businessType' && value !== SCHOOL_BUSINESS_TYPE) {
+        next.schoolType = '';
+      }
+      return next;
+    });
 
     // Clear the field's error as the user fixes it
     if (errors[name as keyof CorporateFormData]) {
@@ -84,9 +106,12 @@ const CorporateSignUpForm: React.FC = () => {
 
     if (!formData.firstName.trim()) next.firstName = 'First name is required';
     if (!formData.lastName.trim()) next.lastName = 'Last name is required';
-    if (!formData.businessName.trim()) next.businessName = 'Business name is required';
+    if (!formData.businessName.trim()) {
+      next.businessName = isSchool ? 'School name is required' : 'Business name is required';
+    }
     if (!formData.businessType) next.businessType = 'Select a business type';
-    if (!formData.companyAddress.trim()) next.companyAddress = 'Company address is required';
+    if (isSchool && !formData.schoolType) next.schoolType = 'Select a school type';
+    if (!formData.companyAddress.trim()) next.companyAddress = 'Address is required';
 
     if (!formData.phoneNumber.trim()) {
       next.phoneNumber = 'Phone number is required';
@@ -133,20 +158,38 @@ const CorporateSignUpForm: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const payload: StoreRegistrationRequest = {
-        firstName: formData.firstName.trim(),
-        lastName: formData.lastName.trim(),
-        email: formData.email.trim(),
-        password: formData.password,
-        storeName: formData.businessName.trim(),
-        storeType: formData.businessType,
-        phone: formData.phoneNumber.trim(),
-        location: formData.companyAddress.trim(),
-        isStandAlone: true,
-        termsAccepted: formData.termsAccepted,
-      };
+      let result;
 
-      const result = await registerStore(payload);
+      if (isSchool) {
+        // School -> role "school"
+        const schoolPayload: SchoolRegistrationRequest = {
+          firstName: formData.firstName.trim(),
+          lastName: formData.lastName.trim(),
+          email: formData.email.trim(),
+          password: formData.password,
+          role: 'school',
+          schoolName: formData.businessName.trim(),
+          schoolAddress: formData.companyAddress.trim(),
+          phone: formData.phoneNumber.trim(),
+          schoolType: formData.schoolType as SchoolType,
+        };
+        result = await registerSchool(schoolPayload);
+      } else {
+        // Everything else -> role "store" (added inside registerStore)
+        const storePayload: StoreRegistrationRequest = {
+          firstName: formData.firstName.trim(),
+          lastName: formData.lastName.trim(),
+          email: formData.email.trim(),
+          password: formData.password,
+          storeName: formData.businessName.trim(),
+          storeType: formData.businessType,
+          phone: formData.phoneNumber.trim(),
+          location: formData.companyAddress.trim(),
+          isStandAlone: true,
+          termsAccepted: formData.termsAccepted,
+        };
+        result = await registerStore(storePayload);
+      }
 
       if (result.user || result.message === 'Registration successful') {
         setSuccessMessage(result.message || 'Account created successfully!');
@@ -202,18 +245,7 @@ const CorporateSignUpForm: React.FC = () => {
           </div>
         </div>
 
-        {/* Business Name */}
-        <FormInput
-          type="text"
-          name="businessName"
-          value={formData.businessName}
-          onChange={handleChange}
-          placeholder="Business Name"
-          error={errors.businessName}
-          icon={<Building2 size={18} />}
-        />
-
-        {/* Business Type */}
+        {/* Business Type (decides the role: school -> school, anything else -> store) */}
         <SelectInput
           name="businessType"
           value={formData.businessType}
@@ -223,26 +255,36 @@ const CorporateSignUpForm: React.FC = () => {
           icon={<Briefcase size={18} />}
         />
 
-        {/* Business Description removed for now
-                <div>
-          <textarea
-            name="businessDescription"
-            value={formData.businessDescription}
+        {/* School Type (only when School / Education is chosen) */}
+        {isSchool && (
+          <SelectInput
+            name="schoolType"
+            value={formData.schoolType}
             onChange={handleChange}
-            placeholder="Business Description (optional)"
-            rows={3}
-            className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-gray-800 placeholder-gray-400 focus:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+            options={schoolTypeOptions}
+            error={errors.schoolType}
+            icon={<GraduationCap size={18} />}
           />
-        </div>
-        */}
+        )}
 
-        {/* Company Address */}
+        {/* Business / School Name */}
+        <FormInput
+          type="text"
+          name="businessName"
+          value={formData.businessName}
+          onChange={handleChange}
+          placeholder={isSchool ? 'School Name' : 'Business Name'}
+          error={errors.businessName}
+          icon={<Building2 size={18} />}
+        />
+
+        {/* Address */}
         <FormInput
           type="text"
           name="companyAddress"
           value={formData.companyAddress}
           onChange={handleChange}
-          placeholder="Business Address"
+          placeholder={isSchool ? 'School Address' : 'Business Address'}
           error={errors.companyAddress}
           icon={<MapPin size={18} />}
         />
@@ -264,7 +306,7 @@ const CorporateSignUpForm: React.FC = () => {
           name="email"
           value={formData.email}
           onChange={handleChange}
-          placeholder="Business Email Address"
+          placeholder={isSchool ? 'School Email Address' : 'Business Email Address'}
           error={errors.email}
           icon={<Mail size={18} />}
         />

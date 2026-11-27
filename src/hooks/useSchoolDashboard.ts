@@ -6,6 +6,7 @@ import {
   getClasses,
   getUserTransactions,
   getStudentsBySchoolId,
+  getParents,
 } from '../services';
 import type {
   User,
@@ -14,8 +15,11 @@ import type {
   ClassesResponse,
   TransactionsResponse,
   Transaction as TransactionType,
-  ClassItem
+  ClassItem,
 } from '../types/user';
+import type {
+  ParentsResponse,
+} from "../types/student"
 import type {
   Stats,
   PieDataEntry,
@@ -35,6 +39,7 @@ export const useSchoolDashboard = () => {
     totalStudents: 0,
     totalStores: 0,
   });
+  const [parentCount, setParentCount] = useState<number>(0);
   const [pieData, setPieData] = useState<PieDataEntry[]>([]);
   const [barData, setBarData] = useState<BarDataEntry[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -120,6 +125,16 @@ export const useSchoolDashboard = () => {
     }
   }, [showSnackbar]);
 
+  const fetchParentCount = useCallback(async () => {
+    try {
+      const data: ParentsResponse = await getParents();
+      setParentCount(data.parentCount ?? data.parent?.length ?? 0);
+    } catch (error) {
+      console.error('Error fetching parents:', error);
+      showSnackbar('Failed to load parent data', 'error');
+    }
+  }, [showSnackbar]);
+
   const fetchStudentsData = useCallback(async (id: string) => {
     if (!id) return;
 
@@ -128,7 +143,7 @@ export const useSchoolDashboard = () => {
 
       if (studentsData?.data && Array.isArray(studentsData.data)) {
         setStats(prev => ({ ...prev, totalStudents: (studentsData.data?.length ?? 0) }));
-        
+
         const classesData: ClassesResponse = await getClasses();
 
         if (classesData?.data && Array.isArray(classesData.data)) {
@@ -237,6 +252,7 @@ export const useSchoolDashboard = () => {
             fetchStudentsData(id),
             fetchTransactionsData(),
             fetchStoreCount(),
+            fetchParentCount(),
           ]);
         }
       } catch (error) {
@@ -248,7 +264,15 @@ export const useSchoolDashboard = () => {
     };
 
     initializeAuth();
-  }, [auth?.token, fetchUserDetails, fetchStudentsData, fetchTransactionsData, fetchStoreCount, handleAuthError]);
+  }, [
+    auth?.token,
+    fetchUserDetails,
+    fetchStudentsData,
+    fetchTransactionsData,
+    fetchStoreCount,
+    fetchParentCount,
+    handleAuthError,
+  ]);
 
   // Auto-hide snackbar
   useEffect(() => {
@@ -263,6 +287,7 @@ export const useSchoolDashboard = () => {
     authError,
     schoolId,
     stats,
+    parentCount,
     pieData,
     barData,
     transactions,

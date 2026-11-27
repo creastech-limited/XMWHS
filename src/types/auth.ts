@@ -53,7 +53,12 @@ export interface SchoolRegistrationRequest {
   schoolType: SchoolType;
 }
 
-export type SchoolType = 'primary' | 'secondary' | 'polytechnic' | 'university';
+export type SchoolType =
+  | 'primary'
+  | 'secondary'
+  | 'primary and secondary'
+  | 'university'
+  | 'polytechnic';
 
 export interface RegistrationResponse {
   message: string;
